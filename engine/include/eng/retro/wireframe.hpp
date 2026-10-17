@@ -12,16 +12,21 @@
 /// traza), así que con un solo color de pantalla se pasa `1u << plano`.
 ///
 /// Para juegos es el primitivo «dibuja estas aristas en alambre» sobre un lienzo planar:
-/// el llamador proyecta/recorta sus vértices y entrega aristas ya en coordenadas de
-/// pantalla; el engine no impone ni cámara ni formato de malla.
+/// el llamador proyecta sus vértices y entrega aristas ya en coordenadas de pantalla; el
+/// engine no impone ni cámara ni formato de malla. Acepta un **clip opcional**
+/// (`eng::retro::Rect`, píxeles inclusivos por lado mínimo y exclusivos por máximo, como
+/// `lib2d`) para lienzos compartidos: un juego lo activa para no salirse del plano; una
+/// demo con geometría garantizada dentro de la ventana lo deja a `nullptr` (coste cero,
+/// como el original, que tampoco recortaba).
 ///
 /// ```text
-///   ┌─ trazado de alambre (malla arbitraria) ────────────────────────────┐
-///   │ 1. blitter_lines_begin          fija los comunes del modo línea     │
-///   │ 2. por arista y plano del color: blitter_line_prepare + draw        │
-///   │    (modo LINE sin ONEDOT; las horizontales SÍ se dibujan)           │
-///   │ 3. wait_blitter                 sincroniza antes del swap           │
-///   └─────────────────────────────────────────────────────────────────────┘
+///   ┌─ trazado de alambre (malla arbitraria) ─────────────────────────────┐
+///   │ 1. blitter_lines_begin          fija los comunes del modo línea      │
+///   │ 2. por arista y plano del color: [clip_line si hay clip] +           │
+///   │    blitter_line_prepare + draw  (modo LINE sin ONEDOT; horizontales  │
+///   │                                  válidas)                            │
+///   │ 3. wait_blitter                 sincroniza antes del swap            │
+///   └──────────────────────────────────────────────────────────────────────┘
 /// ```
 ///
 /// `Backend` es la capa de plataforma (`AmigaBackend` en Amiga) que aporta las primitivas
@@ -31,6 +36,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/retro/flat_shade_xor.hpp> // `OutlineEdge` (arista proyectada del layer retro)
+#include <eng/retro/lib2d.hpp>          // `Rect` + `clip_line` (clip opcional)
 
 namespace eng::retro {
 
@@ -43,10 +49,16 @@ namespace eng::retro {
 /// El color de cada arista es la máscara de planos (`OutlineEdge::color`); los bits fuera de
 /// `plane_count` se ignoran. Las aristas **horizontales se dibujan** (a diferencia de la
 /// variante EOR de contorno): en un alambre son aristas legítimas.
+///
+/// `clip` (opcional): ventana de recorte en píxeles; cada arista se recorta con
+/// `clip_line` (Liang-Barsky) antes de programar el Blitter y las que caen fuera no se
+/// trazan. Con `nullptr` (por defecto) no hay recorte: coste cero (la geometría debe caber
+/// en el lienzo, como en el original de `wireframe`).
 template <class Backend>
 inline eng::u32 wire_lines(Backend& backend, eng::PlaneBytes planes, eng::u16 row_bytes,
 			   eng::u32 plane_bytes, eng::u8 plane_count,
-			   eng::Span<const OutlineEdge> edges, bool wait = true) {
+			   eng::Span<const OutlineEdge> edges, bool wait = true,
+			   const eng::retro::Rect* clip = nullptr) {
 	backend.blitter_lines_begin(row_bytes);
 	eng::u8* base = planes.data();
 	const eng::u8 color_mask =
@@ -58,8 +70,23 @@ inline eng::u32 wire_lines(Backend& backend, eng::PlaneBytes planes, eng::u16 ro
 		if (color == 0u) {
 			continue;
 		}
+		eng::s16 x0 = e.x0, y0 = e.y0, x1 = e.x1, y1 = e.y1;
+		if (clip != nullptr) {
+			// Recorte de LIBRERÍA (opt-in): las aristas que quedan fuera del lienzo
+			// compartido se descartan y las parciales entran recortadas (si no, el
+			// Blitter en modo línea escribiría fuera del plano).
+			eng::retro::Vec2 a = eng::retro::v2(x0, y0);
+			eng::retro::Vec2 b = eng::retro::v2(x1, y1);
+			if (!eng::retro::clip_line(*clip, a, b)) {
+				continue;
+			}
+			x0 = a.x().v;
+			y0 = a.y().v;
+			x1 = b.x().v;
+			y1 = b.y().v;
+		}
 		typename Backend::LineEorParams p {};
-		if (!backend.blitter_line_prepare(p, row_bytes, e.x0, e.y0, e.x1, e.y1)) {
+		if (!backend.blitter_line_prepare(p, row_bytes, x0, y0, x1, y1)) {
 			continue;
 		}
 		for (eng::u8 pl = 0u; pl < plane_count; ++pl) {

@@ -29,6 +29,7 @@ inline constexpr s16 kBlitterAshift = 12;             ///< desplazamiento de `AS
 inline constexpr s16 kBlitterBshift = 12;             ///< desplazamiento de `BSH` en `BLTCON1`
 inline constexpr u16 kBlitterSizeMaxHeight = 1023u;   ///< Campo height de 10 bits; cero codifica 1024 filas (AHRM §6).
 inline constexpr u16 kBlitterDesc = 0x0002u;          ///< `BLTCON1` BLITREVERSE (blit descendente)
+inline constexpr u16 kBlitterFillXor = 0x0010u;       ///< `BLTCON1` FILL_XOR (area fill por paridad)
 inline constexpr u16 kBlitterMintermZero = 0x0000u;   ///< `D = 0` (borrado)
 inline constexpr u16 kBlitterMintermCopyA = 0x00f0u;  ///< `D = A` (copia desde A)
 inline constexpr u16 kBlitterMintermCopyC = 0x00aau;  ///< `D = C` (copia compacta desde C)

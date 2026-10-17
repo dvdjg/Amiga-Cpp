@@ -352,6 +352,7 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		job.kind == graphics::BlitJobKind::TileBlockCopy;
 	const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
 	const bool fill = job.kind == graphics::BlitJobKind::FillRect;
+	const bool area_fill = job.kind == graphics::BlitJobKind::AreaFill;
 	const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob ||
 			     job.kind == graphics::BlitJobKind::PatternFill;
 	const bool logic = job.kind == graphics::BlitJobKind::LogicBlit;
@@ -359,7 +360,8 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	const bool line_eor = job.kind == graphics::BlitJobKind::LineEor;
 	const bool c2p = job.kind == graphics::BlitJobKind::C2P;
 
-	if (!masked && !copy && !clear && !fill && !or_blob && !logic && !line && !line_eor && !c2p) {
+	if (!masked && !copy && !clear && !fill && !area_fill && !or_blob && !logic && !line &&
+	    !line_eor && !c2p) {
 		return false;
 	}
 
@@ -404,6 +406,26 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		custom_base[custom_bltsize_offset] =
 			static_cast<u16>((job.height << 6u) | job.words_per_row);
 		m_blt_common_valid = false;
+		++m_blitter_starts;
+		return true;
+	}
+
+	if (area_fill) {
+		// **Area fill XOR de un rect** (A = D = semilla, FILL_XOR | DESC): el barrido
+		// descendente conmuta el relleno por paridad de scanline (port de `BlitterFillArea`
+		// acotado al rect; demo 116). Se programa por el ENCODER unico para no duplicar la
+		// codificacion con `blitter_area_fill_rect` (que es el mismo blit con recorte).
+		m_blt_common_valid = false;
+		const graphics::BlitterJob b = graphics::blitter_job_from(job);
+		custom_base[custom_bltcon0_offset] = b.bltcon0;
+		custom_base[custom_bltcon1_offset] = b.bltcon1;
+		custom_base[custom_bltafwm_offset] = b.bltafwm;
+		custom_base[custom_bltalwm_offset] = b.bltalwm;
+		custom_base[custom_bltamod_offset] = static_cast<u16>(b.bltamod);
+		custom_base[custom_bltdmod_offset] = static_cast<u16>(b.bltdmod);
+		write_custom_pointer(custom_bltapt_offset, b.bltapt);
+		write_custom_pointer(custom_bltdpt_offset, b.bltdpt);
+		custom_base[custom_bltsize_offset] = b.bltsize;
 		++m_blitter_starts;
 		return true;
 	}

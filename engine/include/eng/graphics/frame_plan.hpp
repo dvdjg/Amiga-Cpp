@@ -399,6 +399,13 @@ public:
 		return add_blit_job(job, BlitJobKind::FillRect);
 	}
 
+	/// **Area fill XOR de un rectángulo** (`BlitJobKind::AreaFill`, construir con
+	/// `make_area_fill_rect`): barrido descendente por paridad del interior de un contorno
+	/// ya dibujado (líneas EOR). Encadenable por el referee async.
+	bool add_area_fill(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::AreaFill);
+	}
+
 	/// Clear con stride arbitrario dentro de cada scanline física (p. ej. interleaved).
 	bool add_interleaved_clear_rect(const BlitJob& job) {
 		if (!job.interleaved || job.height == 0u || job.bitplane_count <= 1u ||
@@ -641,13 +648,16 @@ private:
 		const bool masked = kind == BlitJobKind::MaskedBobCookieCut ||
 				    kind == BlitJobKind::MaskedBlobNoSave;
 		const bool clear = kind == BlitJobKind::ClearRect;
-		const bool no_source = clear || kind == BlitJobKind::FillRect;
+		// Sin fuentes ni strides de plano: solo D (clear/fill) o A=D (area fill).
+		const bool no_source = clear || kind == BlitJobKind::FillRect ||
+				       kind == BlitJobKind::AreaFill;
 		if ((!no_source && job.source.words() == nullptr) || job.destination.words() == nullptr ||
 		    job.words_per_row == 0 || job.height == 0 || job.bitplane_count == 0 ||
 		    job.source_shift >= 16u ||
 		    job.words_per_row >= kBlitterMaxWordsPerRow || job.height > kBlitterMaxRows ||
 		    (!no_source && job.source_plane_stride_bytes == 0 && !job.interleaved) ||
-		    (job.destination_plane_stride_bytes == 0 && !job.interleaved) ||
+		    (kind != BlitJobKind::AreaFill && job.destination_plane_stride_bytes == 0 &&
+		     !job.interleaved) ||
 		    (masked && job.mask.words() == nullptr)) {
 			m_ok = false;
 			return false;
@@ -674,6 +684,9 @@ private:
 									 job.bitplane_count);
 			} else if (job.kind == BlitJobKind::C2P) {
 				m_blit_budget.words += eng::math::mulu16(job.c2p.bytes, 13u); // 13 fases
+			} else if (job.kind == BlitJobKind::AreaFill) {
+				// Barrido del rect (palabras x filas); es un blit por plano (bitplane_count=1).
+				m_blit_budget.words += eng::math::mulu16(job.words_per_row, job.height);
 			} else {
 				m_blit_budget.words += eng::math::mulu32x16(
 					eng::math::mulu16(job.words_per_row, job.height),

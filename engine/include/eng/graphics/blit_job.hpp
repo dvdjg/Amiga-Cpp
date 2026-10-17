@@ -58,6 +58,12 @@ enum class BlitJobKind : u8 {
 	/// **Línea EOR (ONEDOT)** (`blitter_line_eor`): como `Line` pero XOR con
 	/// `line.base` (el canal D), base del contorno XOR de `flatshade-convex` (demo 116).
 	LineEor,
+	/// **Area fill XOR de un rectángulo** (barrido descendente por paridad, técnica
+	/// contorno+fill de `flatshade-convex`): `A = D` = semilla (última palabra del rect),
+	/// `BLTCON1` = `FILL_XOR|DESC`, módulos al ancho de fila. Rellena el interior del
+	/// contorno dibujado antes (líneas EOR) en UN job por plano. Construir con
+	/// `make_area_fill_rect`. Es encadenable por el referee async como cualquier job.
+	AreaFill,
 	/// **Blit con operación lógica** (`B = D`): `A` = fuente, `B` = destino (mismo puntero),
 	/// minterm del job (`Or`/`And`/`Xor`). Base de sombras/glow/máscaras. Ver `RasterOp`.
 	LogicBlit,
@@ -244,6 +250,23 @@ struct BlitJob {
 	};
 	Fill fill {};
 };
+
+/// Configura `job` como **area fill XOR de un rectángulo** (`BlitJobKind::AreaFill`): el
+/// barrido descendente del Blitter (`A = D`, `FILL_XOR`) desde la ultima palabra del rect
+/// conmuta el relleno del interior por **paridad de scanline** (port de `BlitterFillArea`;
+/// demo 116). `plane` = base del plano (fila 0); `wx0` alineado a 16 px; `words*2` debe
+/// caber en `row_bytes`. Un job por plano; encadenable por el referee async.
+inline void make_area_fill_rect(BlitJob& job, BlitPtr plane, u16 row_bytes, u16 wx0, s16 y0,
+				u16 words, u16 rows) {
+	job.kind = BlitJobKind::AreaFill;
+	const u32 roff = static_cast<u32>(y0 + static_cast<s16>(rows) - 1) * row_bytes +
+			 (static_cast<u32>(wx0) >> 3u) + (static_cast<u32>(words) - 1u) * 2u;
+	job.destination = plane + roff; // semilla del barrido (A = D)
+	job.words_per_row = words;
+	job.height = rows;
+	job.destination_modulo_bytes = static_cast<s16>(row_bytes - words * 2u);
+	job.bitplane_count = 1;
+}
 
 /// Configura `job` como **BOB interleaved enmascarado en UNA pasada** (cookie-cut `$CA` con
 /// **máscara expandida**: una copia de la máscara por plano). `src` apunta al par

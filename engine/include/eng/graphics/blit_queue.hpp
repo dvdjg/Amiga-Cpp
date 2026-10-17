@@ -204,6 +204,20 @@ struct BlitOp {
 		b.bltsize = static_cast<eng::u16>((j.height << 6u) | j.words_per_row);
 		return b;
 	}
+	if (j.kind == BlitJobKind::AreaFill) {
+		// Area fill XOR: A = D = semilla (ultima palabra del rect), FILL_XOR | DESC,
+		// modulos al ancho de fila para barrer justo el rect. Un job por plano.
+		b.bltcon0 = static_cast<eng::u16>(kBlitterUseA | kBlitterUseD | kBlitterMintermCopyA);
+		b.bltcon1 = static_cast<eng::u16>(kBlitterDesc | kBlitterFillXor);
+		b.bltafwm = 0xffffu;
+		b.bltalwm = 0xffffu;
+		b.bltamod = j.destination_modulo_bytes;
+		b.bltdmod = j.destination_modulo_bytes;
+		b.bltapt = j.destination.words();
+		b.bltdpt = j.destination.words();
+		b.bltsize = static_cast<eng::u16>((j.height << 6u) | j.words_per_row);
+		return b;
+	}
 	if (j.kind == BlitJobKind::Line || j.kind == BlitJobKind::LineEor) {
 		// Modo LÍNEA: A/B aportan pendiente/error (`BLTADAT=0x8000`), C=D=plano. El algoritmo
 		// (octante/`dmax`/`dmin`/error) es el de `blitter_line` (AHRM 6, modo LINE).
