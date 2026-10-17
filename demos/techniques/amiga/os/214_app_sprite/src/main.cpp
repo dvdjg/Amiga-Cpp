@@ -23,24 +23,7 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga/backend.hpp>
-
-#include <proto/exec.h>
-#include <exec/execbase.h>
-
-#include "support/gcc8_c_support.h"
-
-struct ExecBase* SysBase = nullptr;
-
-extern "C" {
-__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
-	eng::debug::run_status_magic,
-	eng::debug::run_status_version,
-	static_cast<eng::u16>(eng::debug::RunState::Cold),
-	0,
-	0,
-};
-}
+#include <eng/platform/amiga/entry.hpp> // run_demo: plataforma/memoria/display/bucle
 
 namespace {
 
@@ -92,15 +75,13 @@ void build_backdrop() {
 
 struct AppSpriteDemo {
 	void init(auto& app) {
-		eng::debug::mark_init_started(g_eng_run_status);
-
 		// World conserva un bitmap indexado; App posee la copia Chip y lo presenta tras la cámara.
 		build_backdrop();
 		auto fondo = app.add_bitmap_background(
 			"fondo", 0u, eng::Span<const eng::u8> {g_backdrop, sizeof(g_backdrop)},
 			kBackdropWidth, kBackdropHeight);
 		if (!fondo) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021404u);
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
 		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, kBackdropWidth, kBackdropHeight},
@@ -108,7 +89,7 @@ struct AppSpriteDemo {
 
 		m_sheet = app.device().memory_manager().chip().template reserve<eng::BobTag>(kSheetBytes, 16u);
 		if (!m_sheet.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021402u);
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
 		build_sheet();
@@ -130,7 +111,7 @@ struct AppSpriteDemo {
 		app.world().reset_actors(0, 60000u, 0u);
 		m_actor = app.world().add_actor(eng::scene::actor_desc_from_sprite(m_sprite, 0, 0, 10u));
 		if (!m_actor.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021405u);
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
 
@@ -148,7 +129,7 @@ struct AppSpriteDemo {
 	void render(auto& app) {
 		auto s = app.screen();
 		if (!app.world_materialization_ok()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021406u);
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
 		const auto fondo = app.world().layer(0u);
@@ -165,9 +146,8 @@ struct AppSpriteDemo {
 		app.present();
 		// READY tras varios frames completos para que el runner capture un buffer ya visible.
 		if (app.frame() == 4u) {
-			eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
+			eng::amiga::mark_ready();
 		}
-		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
 
 private:
@@ -206,33 +186,14 @@ private:
 } // namespace
 
 int main() {
-	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	eng::debug::reset(g_eng_run_status);
-
-	eng::amiga::AmigaBackend backend {};
-	if (!backend.configure_game_memory()) {
-		const auto& selected_memory = backend.game_memory_profile();
-		const auto& report = backend.memory_report();
-		const eng::u32 detail = ((selected_memory.pools.chip_bytes / 1024u) << 14u) |
-			((selected_memory.pools.slow_bytes / 1024u) << 4u) |
-			(report.chip_ok ? 1u : 0u) | (report.slow_ok ? 2u : 0u) |
-			(report.frame_ok ? 4u : 0u) | (report.fast_ok ? 8u : 0u);
-		eng::debug::mark_failed(g_eng_run_status, detail);
-		return 0;
-	}
-	AppSpriteDemo game {};
-	eng::App app {backend, game, backend.memory_manager()};
+	// Display imperativo (qué se quiere ver); `run_demo` pone memoria, `start`, bucle y
+	// telemetría del runner. La demo no ve `SysBase`, soporte ni `g_eng_run_status`.
 	eng::GameDisplay display {};
 	display.width = kWidth;
 	display.height = kHeight;
 	display.color_depth = kPlanes;
 	display.buffers = kRes.buffers;
 	display.palette = kPalette;
-	if (!app.set_display(display) || !app.start()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00021401u);
-		return 0;
-	}
-	app.run(0xffffu);
-
-	return 0;
+	AppSpriteDemo game {};
+	return eng::amiga::run_demo(game, display);
 }

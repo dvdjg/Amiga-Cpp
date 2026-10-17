@@ -9,21 +9,7 @@
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/os/215_app_bobs
 
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga/backend.hpp>
-
-#include <proto/exec.h>
-#include <exec/execbase.h>
-
-#include "support/gcc8_c_support.h"
-
-struct ExecBase* SysBase = nullptr;
-
-extern "C" {
-__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
-	eng::debug::run_status_magic, eng::debug::run_status_version,
-	static_cast<eng::u16>(eng::debug::RunState::Cold), 0, 0,
-};
-}
+#include <eng/platform/amiga/entry.hpp> // run_demo: plataforma/memoria/display/bucle
 
 namespace {
 
@@ -66,12 +52,12 @@ struct BobsDemo {
 	static constexpr eng::u8 kDurAnim[] = {15u, 15u};
 
 	void init(auto& app) {
-		eng::debug::mark_init_started(g_eng_run_status);
+
 		auto& chip = app.device().memory_manager().chip();
 		m_sheet_a = chip.template reserve<eng::BobTag>(kSheetBytes, 16u);
 		m_sheet_b = chip.template reserve<eng::BobTag>(kSheetBytes, 16u);
 		if (!m_sheet_a.valid() || !m_sheet_b.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021501u);
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
 		// Hoja A: color 3 (planos 0 y 1). Hoja B: color 1 (solo plano 0).
@@ -116,8 +102,7 @@ struct BobsDemo {
 		app.present();
 		// READY tras varios frames completos: el primer render puede caer antes de que la captura
 		// vea un buffer ya publicado (mismo criterio que la 214).
-		if (app.frame() >= 4u) eng::debug::mark_ready(g_eng_run_status, 0u);
-		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		if (app.frame() >= 4u) eng::amiga::mark_ready();
 	}
 
 private:
@@ -164,14 +149,6 @@ private:
 } // namespace
 
 int main() {
-	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	eng::debug::reset(g_eng_run_status);
-
-	eng::amiga::AmigaBackend backend {};
-	if (!backend.configure_game_memory()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00021502u);
-		return 0;
-	}
 	eng::GameDisplay display {};
 	display.width = kWidth;
 	display.height = kHeight;
@@ -183,11 +160,5 @@ int main() {
 	display.palette.color[3] = 0xff0u; // amarillo (planos 0+1)
 
 	BobsDemo game {};
-	eng::App app {backend, game, backend.memory_manager()};
-	if (!app.set_display(display) || !app.start()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00021503u);
-		return 0;
-	}
-	app.run(0xffffu);
-	return 0;
+	return eng::amiga::run_demo(game, display);
 }

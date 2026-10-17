@@ -31,6 +31,7 @@
 
 #include <eng/api/game.hpp>
 #include <eng/debug/run_status.hpp>
+#include <eng/memory/arena.hpp> // `MemoryConfig` para el overload con presupuesto explícito
 #include <eng/platform/amiga/backend.hpp>
 
 extern "C" {
@@ -98,23 +99,24 @@ inline void mark_failed(::eng::debug::BootFail stage) {
 	::eng::debug::mark_failed(g_eng_run_status, stage);
 }
 
-/// **Bootstrap completo** de una app con fachada: memoria del juego, display declarado por el
-/// llamador, `start` y bucle indefinido. Los fallos de arranque quedan en el `RunStatus` con
-/// `BootFail`; devuelve 0 (el runner mira el estado, no el código de salida).
-/// \param demo     instancia del juego/demo (`init/update/render` con `auto&` u `App&`).
-/// \param display  descripción imperativa del display (`GameDisplay`, con sus campos).
+namespace detail {
+
+/// Cuerpo compartido de `run_demo`: memoria del juego (`nullptr` = perfil de juego), display
+/// declarado, `start` y bucle. Los fallos quedan en el `RunStatus` con `BootFail`.
 template <class Demo>
-int run_demo(Demo& demo, const GameDisplay& display) {
+int run_demo_impl(Demo& demo, const GameDisplay& display, const MemoryConfig* memory) {
 	ensure_boot();
 	::eng::debug::reset(g_eng_run_status);
 	::eng::debug::mark_init_started(g_eng_run_status);
 
 	AmigaBackend backend {};
-	if (!backend.configure_game_memory()) {
+	const bool memory_ok = (memory != nullptr) ? backend.configure_memory(*memory)
+						   : backend.configure_game_memory();
+	if (!memory_ok) {
 		::eng::debug::mark_failed(g_eng_run_status, ::eng::debug::BootFail::Memory);
 		return 0;
 	}
-	detail::DemoHost<Demo> host {demo};
+	DemoHost<Demo> host {demo};
 	::eng::App app {backend, host, backend.memory_manager()};
 	if (!app.set_display(display) || !app.start()) {
 		::eng::debug::mark_failed(g_eng_run_status, ::eng::debug::BootFail::Display);
@@ -122,6 +124,25 @@ int run_demo(Demo& demo, const GameDisplay& display) {
 	}
 	app.run();
 	return 0;
+}
+
+} // namespace detail
+
+/// **Bootstrap completo** de una app con fachada: memoria del juego, display declarado por el
+/// llamador, `start` y bucle indefinido. Los fallos de arranque quedan en el `RunStatus` con
+/// `BootFail`; devuelve 0 (el runner mira el estado, no el código de salida).
+/// \param demo     instancia del juego/demo (`init/update/render` con `auto&` u `App&`).
+/// \param display  descripción imperativa del display (`GameDisplay`, con sus campos).
+template <class Demo>
+int run_demo(Demo& demo, const GameDisplay& display) {
+	return detail::run_demo_impl(demo, display, nullptr);
+}
+
+/// Igual, con un **presupuesto de memoria explícito** (`MemoryConfig` por banco) para apps
+/// que no usan el perfil de juego por defecto.
+template <class Demo>
+int run_demo(Demo& demo, const GameDisplay& display, const MemoryConfig& memory) {
+	return detail::run_demo_impl(demo, display, &memory);
 }
 
 } // namespace eng::amiga
