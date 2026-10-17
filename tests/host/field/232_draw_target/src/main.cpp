@@ -172,6 +172,26 @@ int main() {
 		check(!scr2.bitmap(asset, eng::Box {0, 0, 16u, kH}, 48u, 4u), "bitmap: guarda fuera de fila");
 	}
 
+	// Texto en un lienzo de **6 planos contiguos** (caso de la 060): no debe colgarse y pinta.
+	{
+		constexpr eng::u32 kRow6 = ((kW / 8u) + 3u) & ~3u;
+		constexpr eng::u32 kPlane6 = kRow6 * kH;
+		alignas(2) eng::u8 p6[kPlane6 * 6u] {};
+		eng::playfield::ContiguousPlayfield pf6 {};
+		check(pf6.bind_raw(p6, sizeof(p6), kW, kH, 6u), "bind 6 planos");
+		eng::playfield::Surface s6 {pf6, eng::playfield::SurfaceRect {0, 0, kW, kH}};
+		check(s6.draw_text(0, 0, "A", 31u), "draw_text en 6 planos");
+		eng::u32 bits6 = 0u;
+		for (eng::u32 i = 0; i < kPlane6; ++i) {
+			eng::u8 b = p6[i];
+			while (b != 0u) {
+				bits6 += static_cast<eng::u32>(b & 1u);
+				b = static_cast<eng::u8>(b >> 1u);
+			}
+		}
+		check(bits6 > 0u, "draw_text 6 planos: pinta el glifo en el plano 0");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: DrawTarget (fill/fill_run/line/frame/c2p/circle/bitmap + box) validado.\n");
 		return 0;
