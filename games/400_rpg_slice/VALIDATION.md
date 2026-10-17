@@ -11,10 +11,12 @@ Comando: `node tools/debug/measure-fps.mjs 400_rpg_slice A500_debug --json --dur
 | Antes de la campaña (copia de sala por frame + cocción por pixel + parches) | 13,78 | 514 862 | 3,63 |
 | Tabla ROM de tiles + publicación por cambio + borrado de estelas | 42,87–45,21 | ~155 000–165 500 | 1,09–1,17 |
 | Pre-cocina de las 3 salas + banda de HUD + bucle de sondeo (estado final) | **44,7–45,7** | **155 332–158 625** | **1,095–1,118** |
+| Instrumentación `ENG_PROF` + cache de rutas del guion (estado actual) | **45,97** | **154 324** | **1,088** |
 
 - **Determinismo**: con el bucle de sondeo (`run_polling`) tres arranques consecutivos dan la **misma** medida (44,72 fps / 158 6xx ciclos) — sin la varianza (y los cuelgues) del bucle por IRQ.
 - **Cocción de sala**: ~12,5 M → ~1,0 M ciclos por cocción (tabla ROM); con la pre-cocina de las tres salas en `init`, las puertas ya no cocinan (solo conmutan imagen).
 - **Frames sin transición de sala**: 1,00 campo/frame; el ~1,10 medios incluye publicaciones completas al entrar en sala y la espera activa. Objetivo de 50 fps exactos: **no alcanzado** (margen pendiente).
+- **Cadencia medida por checkpoints del periférico** (slot 0 por frame; deltas exactos dentro del emulador) y reparto por secciones (`ENG_PROF` + `profile.mjs`): el bucle sondea la línea 311 una vez por campo; el periodo medio es 149,5–157,4 k ciclos con **5–9 % de frames que doblan** (el trabajo rebasa el campo y la espera cae al siguiente). Con el fix de replans (cache de rutas del guion + tapón cada 4 frames) los skips de patrulla bajan **5,1 %→3,5 %**; el margen restante (patrulla + frames de evento con publicación síncrona) queda **SIN VERIFICAR/abierto** con el instrumento montado (detalle y plan en la ficha 400 §7).
 
 ## Verificación visual y dinámica (regla de oro)
 

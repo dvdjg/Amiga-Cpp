@@ -74,7 +74,35 @@ Fix:
 
 Resultado: `flicker-baseline.json` (`max_candidates: 7` = 5 saltos de casilla + 2 del pintado inicial del HUD; `blocks_low` sin acotar: es la metrica estructural de la banda) y `tools/test-regression.sh --flicker --require-flicker-ok --demo games/400_rpg_slice` en **verde** (build/run/analyze/flicker ok).
 
-## Evidencia y herramientas
+## 7. Cierre del margen 1,10 a 1,00 campos/frame (preinscripcion)
+
+Objetivo: que cada frame de juego vuelva a caber en un campo PAL (141 876 ciclos) en el estado estacionario; hoy la media del periodo es 155 369 ciclos (1,095 campos; 45,66 fps) aunque los frames "sin transicion" se midieron a 1,00.
+
+Modelo de partida: el bucle de sondeo se sincroniza a la linea 311 (una vez por campo de 50 Hz); un frame doblea cuando `update + render + esperas de Blitter` rebasa el campo y la espera cae al siguiente. Prediccion cuantitativa: con periodos de 1 campo (141 876) y de 2 campos (283 752), una media de 155 369 exige ~9,5 % de frames dobles (~170 de los ~1 800 de la cronica); se esperan en los frames con evento (paso del guion cada 8 frames, paso de lobo cada 10, entrada de sala, eventos de HUD/quest).
+
+Experimento (variable unica = instrumentacion):
+
+```text
+Variable unica:      secciones ENG_PROF en el juego (0 update, 1 render, 2 periodo completo,
+                     3 nav/A*, 4 lobos, 5 publicacion+HUD, 6 present)
+Metrica:             ciclos por seccion (media, min, max, llamadas) via profile.mjs + total via measure-fps
+Baseline:            total 155 369 ciclos/frame (7d94a06f)
+Delta esperado:      n/a (medicion); section 2 max ~= 283 752 si los frames dobles existen
+Criterio de falsacion: si max(seccion 2) < 141 876 en la ventana, la hipotesis de frames
+                     dobles por trabajo del juego es falsa y el exceso viene del motor/espera
+Reversion:           la instrumentacion es de bajo coste (~14 lecturas del periferico por
+                     frame, ~0,3 %) y queda activa (como la 116); no se revierte
+```
+
+**Resultados (2026-10-17, A500_debug):**
+
+- **Mecanismo confirmado por los checkpoints del periferico** (slot 0 estampado por frame; `winuae_debugperiph checkpoints` da deltas exactos dentro del emulador, sin latencia de transporte): el bucle de sondeo se sincroniza a la linea 311 (una vez por campo de 50 Hz); el periodo medio va de 149,5 a 157,4 k ciclos segun la ventana, con **~5-9 % de iteraciones que doblan** (saltan un campo). El campo `scan` (linea del sello) baila 16..310: el trabajo por frame varia y, cuando rebasa el campo, la espera cae al siguiente.
+- **Reparto por secciones** (`ENG_PROF` en el juego; `node tools/debug/profile.mjs 400_rpg_slice A500_debug 40 --names update,render,frame,nav,wolves,pubs,present`): update medio 7,4 k; render medio 57,6 k (max 1,27 M en frames de evento); publicacion+HUD medio 14,9 k (max 745 k: la publicacion completa de sala son 4 blits sincronos de 224 filas); present medio 4,6 k; el resto (~89 k de media) es la espera de VBlank. Los que doblan frames: publicaciones de evento (entrada de sala, lobo muerto, cofre, puerta) y los replan A* de los pasos (~40 k cada uno).
+- **Fix 1 aplicado y medido** (cache de las dos ultimas rutas por paso+sala con realineado a la casilla actual, y replan por tramo tapado como maximo cada 4 frames): skips de patrulla **5,1 % -> 3,5 %** (checkpoint diferencial 1434/1486 hits por campo; baseline 0,946-0,952 en tres instancias previas); cronica **45,66 -> 45,97 fps** (154 324 ciclos/frame). La cache acierta en la patrulla (dos destinos alternos); en la cronica solo en pasos repetidos.
+- **Cierre a 1,00 (medido, pendiente)**: quedan el 3,5 % de skips de patrulla (fuente residual sin aislar: eventos de HUD cada 128 frames y picos de paso) y los frames de evento de la cronica (publicacion sincrona de ~745 k). Cerrarlo exige solapar publicacion y CPU (referee/presente asincrono del `FramePlan`) o abaratar la publicacion; el instrumento queda montado.
+- **A/B por hot-patch, bloqueado por estabilidad del fork**: tres instancias murieron a los 10-25 s de un `memory_write` + `continue` por MCP (sin escritura duran minutos); el A/B se hizo por rebuild con el runner, que es estable. Nota para el fork/DT-023: las direcciones runtime de los hunks son estables entre arranques (qOffsets identico), asi que el problema es del ciclo poke/pausa, no de la resolucion.
+
+## 8. Evidencia y herramientas
 
 - Sondas (en `out/tmp`, ignorado): `rpg400_probe{1..10}.mjs` (copperlist/buffers/poke/screenshots), `rpg400_launch_long.mjs`, `rpg400_resume.mjs`, `rpg400_pcsample.mjs` (muestreo de PC + resolución por `nm`/addr2line), `rpg400_irqrate.mjs` (tasa de VBlank vs frame del juego), `rpg400_hang.mjs` (detección de cuelgue + pila), `rpg400_scriptsim.mjs` y `rpg400_combatsim.mjs` (simuladores host del guion y del combate).
 - Medidas: `node tools/debug/measure-fps.mjs 400_rpg_slice A500_debug --json`; perfil `node tools/debug/winuae-profile.mjs 400_rpg_slice A500_debug 25`.

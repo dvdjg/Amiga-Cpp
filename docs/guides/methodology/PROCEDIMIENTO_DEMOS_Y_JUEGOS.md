@@ -55,7 +55,7 @@ F0 Diseño -> F1 Esqueleto -> F2 Implementación por etapas -> F3 Gates técnico
 2. **Nunca una captura única**; siempre secuencia. Un frame "bueno" no prueba nada.
 3. **Un aviso de visión sobre contenido es bloqueante:** se confirma o refuta mirando los frames y con conteo objetivo. Prohibido pedir coordenadas en píxeles al modelo.
 4. **Nada de pintar con borrado/repintado sobre un lienzo visible single-buffer**: o se pinta dentro del VBlank con margen, o se dobla el buffer. Un hueco de borrado mayor que el barrido de la zona = flicker visible.
-5. **Actualizar por señal de VBlank** (`eng::os` + `run_frames`), no por sondeo, salvo fallback justificado.
+5. **Actualizar por señal de VBlank** (`eng::os` + `run_frames`), no por sondeo, salvo **fallback justificado**: un **juego que corre como proceso AmigaDOS sin takeover** (lanzado desde el Shell, con el SO vivo) usa `App::run_polling` (`run_frames_polling`): la ROM reescribe INTENA a los ~1,5-2 s y apaga VERTB, y el camino de `Wait()` puede morir con el frame congelado (ficha [`212-vblank-irq-apagada-por-el-so.md`](../../debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md); resuelto así en `games/400_rpg_slice`). Las demos con takeover (`Forbid()` + `set_vblank_sleep(false)` + restauración, receta en el punto 20) mantienen el latido por IRQ.
 6. **Cada rojo de un gate se registra** en `ROADMAP_DEUDA_TECNICA.md` con síntoma + evidencia (aunque no sea tu tarea y aunque sea previo). No se "sigue adelante" con un rojo sin registrar.
 7. **No maquillar la medida**: no relajar umbrales, no alterar telemetría ni cadencia para simular cumplimiento.
 8. **Excepciones de presupuesto solo documentadas** (nunca por debajo de 25 fps) con motivo y medida en el `VALIDATION.md`.

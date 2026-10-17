@@ -31,6 +31,8 @@
 #include <eng/core/util/pathfinding.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
+#include <eng/debug/peripheral.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/font8.hpp>
@@ -84,6 +86,19 @@ constexpr eng::u16 kHudY = 224u;
 constexpr eng::u8 kMovePeriod = 8u;  // frames por paso de casilla
 constexpr eng::u8 kWolfPeriod = 10u; // frames por paso de lobo en persecucion
 constexpr eng::debug::Version kVersion {1u, 0u};
+
+// Secciones de perfilado (`eng::debug::g_eng_prof`; indices 0..6, bajo los del engine):
+// el total por frame lo da `measure-fps.mjs` y el reparto sale de las secciones (`frame`
+// cronometra el periodo completo, asi que la espera de VBlank sale por resta; ver
+// `docs/tools/PROFILING_FROM_AGENT.md`).
+constexpr eng::u8 kProfUpdate = 0u;  ///< tick de logica del juego (guion, IA, RPG)
+constexpr eng::u8 kProfRender = 1u;  ///< render completo (drawing + present)
+constexpr eng::u8 kProfFrame = 2u;   ///< periodo del frame: update + espera de VBlank + render
+constexpr eng::u8 kProfNav = 3u;     ///< guion/navegacion (`script_input`, con A*)
+constexpr eng::u8 kProfWolves = 4u;  ///< IA de lobos (`wolves_tick`)
+constexpr eng::u8 kProfPubs = 5u;    ///< publicacion de sala/banda y composicion del HUD
+constexpr eng::u8 kProfPresent = 6u; ///< `present` (ejecucion de blits del plan)
+constexpr eng::u8 kProfCount = 7u;
 
 constexpr eng::u8 kColBack = 0u;
 constexpr eng::u8 kColText = 13u;
@@ -585,6 +600,18 @@ struct RpgSlice {
 	eng::u8 m_nav_step = 0xffu; ///< paso del guion con el que se planifico (invalida si cambia)
 	eng::u8 m_nav_room = 0xffu; ///< sala con la que se planifico (invalida si cambia)
 
+	/// Cache de las **dos ultimas rutas** planificadas (clave paso+sala): la patrulla
+	/// alterna dos destinos fijos y re-planificaba con A* en cada paso (~40 k ciclos cada
+	/// 8 frames: el pico que doblaba frames). Ver `plan_route`.
+	struct RouteCache {
+		eng::u8 step = 0xffu;
+		eng::u8 room = 0xffu;
+		eng::u8 len = 0u;
+		eng::util::Array<eng::u16, 64> cells {};
+	};
+	RouteCache m_route_cache[2] {};
+	eng::u8 m_route_cache_next = 0u;
+
 	/// Entradas de sala acumuladas: se publica en el `detail` del run-status (un ping-pong
 	/// de puertas lo dispara; un valor estable = transiciones puntuales).
 	eng::u16 m_entry_count = 0u;
@@ -759,6 +786,7 @@ struct RpgSlice {
 
 	/// `init` de la fachada.
 	void init(auto& app) {
+		ENG_PROF_INIT(kProfCount);
 		eng::debug::mark_init_started(g_eng_run_status);
 		setup_world();
 		// Fases de init en `detail` (state queda en init): un cuelgue deja la ultima fase vista.
@@ -1200,9 +1228,13 @@ struct RpgSlice {
 				return pad;
 			}
 		}
-		// Si el siguiente tramo se tapo (un lobo se movio a esa casilla), replanifica.
+		// Si el siguiente tramo se tapo (un lobo se movio a esa casilla), replanifica:
+		// con A* **nuevo** (la cache esta obsoleta) y como maximo cada 4 frames (un lobo
+		// parado disparaba un A* por frame, ~40 k ciclos cada uno).
 		if (!nav_open(m_nav_path[m_nav_idx])) {
-			plan_route(t.x, t.y);
+			if ((m_frame_no & 3u) == 0u) {
+				plan_route(t.x, t.y, /*force=*/true);
+			}
 			if (m_nav_idx >= m_nav_len) {
 				return pad;
 			}
@@ -1238,11 +1270,39 @@ struct RpgSlice {
 	/// `m_nav_path`/`m_nav_idx` listos para seguir el camino. El coste fue del engine: no
 	/// se reimplementa busqueda aqui. Si falla (destino ocupado transitoriamente, p. ej. un
 	/// lobo encima), NO marca el plan: el llamador reintenta al frame siguiente.
-	void plan_route(eng::u8 tx, eng::u8 ty) {
-		m_nav_len = 0u;
-		m_nav_idx = 0u;
+	void plan_route(eng::u8 tx, eng::u8 ty, bool force = false) {
 		const eng::u16 start = nav_cell(m_tx, m_ty);
 		const eng::u16 goal = nav_cell(tx, ty);
+		// **Cache de las dos ultimas rutas** (clave sala+paso): la patrulla alterna dos
+		// destinos fijos y el A* costaba ~40 k ciclos en cada paso (uno cada 8 frames: el
+		// pico que doblaba el frame y saltaba la sincronia de VBlank). La ruta cacheada se
+		// realinea a la casilla actual; un tramo tapado fuerza `force` (A* nuevo).
+		if (!force) {
+			for (eng::u8 i = 0u; i < 2u; ++i) {
+				RouteCache& c = m_route_cache[i];
+				if (c.len == 0u || c.step != m_step || c.room != m_room) {
+					continue;
+				}
+				eng::u8 at = 0xffu;
+				for (eng::u8 k = 0u; k < c.len; ++k) {
+					if (c.cells[k] == start) {
+						at = k;
+						break;
+					}
+				}
+				if (at == 0xffu || at + 1u >= c.len) {
+					continue; // la posicion no esta en la ruta cacheada: replanifica
+				}
+				m_nav_len = c.len;
+				m_nav_idx = static_cast<eng::u8>(at + 1u);
+				m_nav_path = c.cells;
+				m_nav_step = m_step;
+				m_nav_room = m_room;
+				return;
+			}
+		}
+		m_nav_len = 0u;
+		m_nav_idx = 0u;
 		if (start == goal) {
 			m_nav_step = m_step;
 			m_nav_room = m_room;
@@ -1260,11 +1320,22 @@ struct RpgSlice {
 		m_nav_idx = (m_nav_len > 1u) ? 1u : 0u;
 		m_nav_step = m_step;
 		m_nav_room = m_room;
+		// Guarda la ruta recien planificada en la cache (ring de 2).
+		RouteCache& slot = m_route_cache[m_route_cache_next];
+		slot.cells = m_nav_path;
+		slot.len = m_nav_len;
+		slot.step = m_step;
+		slot.room = m_room;
+		m_route_cache_next = static_cast<eng::u8>(m_route_cache_next ^ 1u);
 	}
 
 	// --- Frame -------------------------------------------------------------------
 
 	void update(auto& app) {
+		// El bucle del engine llama update -> espera de VBlank -> render: este cronometro
+		// mide el PERIODO completo del frame (min/max revelan los frames dobles).
+		ENG_PROF_BEGIN(kProfFrame);
+		ENG_PROF_BEGIN(kProfUpdate);
 		if (m_atk_cd > 0u) {
 			--m_atk_cd;
 		}
@@ -1272,7 +1343,10 @@ struct RpgSlice {
 		if (real.any_direction() || real.any_button()) {
 			m_scripted = false;
 		}
-		const eng::input::PadState pad = m_scripted ? script_input() : real;
+		eng::input::PadState pad {};
+		ENG_PROF_BEGIN(kProfNav);
+		pad = m_scripted ? script_input() : real;
+		ENG_PROF_END(kProfNav);
 
 		if ((m_frame_no % kMovePeriod) == 0u) {
 			const eng::s16 dx = (pad.right ? 1 : 0) - (pad.left ? 1 : 0);
@@ -1287,7 +1361,9 @@ struct RpgSlice {
 		m_prev_fire = pad.fire;
 
 		pickups();
+		ENG_PROF_BEGIN(kProfWolves);
 		wolves_tick();
+		ENG_PROF_END(kProfWolves);
 		(void)quest_tick(m_facts, m_quest_book, m_quests, *this);
 
 		// Necesidades y reloj (el hambre sube; la sim propone, el RPG interpreta).
@@ -1306,6 +1382,7 @@ struct RpgSlice {
 			m_hud_dirty = true; // contador del HUD (~2 veces por segundo)
 		}
 		++m_frame_no;
+		ENG_PROF_END(kProfUpdate);
 	}
 
 	/// Politica `Items` para `quest_tick`: cuenta/consume del inventario real.
@@ -1510,10 +1587,12 @@ struct RpgSlice {
 
 	/// `render` de la fachada: imagen de sala (solo al cambiar) + actores + HUD.
 	void render(auto& app) {
+		ENG_PROF_BEGIN(kProfRender);
 		auto s = app.screen();
 		// **Publicacion de la imagen por cambio, no por frame**: la sala cocinada solo se
 		// copia al buffer trasero cuando cambia (entrada de sala, HUD o eventos), en los
 		// DOS buffers (2 renders). Copiarla cada frame costaba ~1 campo de CPU/Blitter.
+		ENG_PROF_BEGIN(kProfPubs);
 		const eng::u8 bi = app.screen_buffer_index(); // buffer trasero de este render
 		if (m_room_publish != 0u) {
 			blit_plane_major(s, active_image(), kImageWordsPerRow,
@@ -1529,6 +1608,11 @@ struct RpgSlice {
 			publish_hud_band(s);
 			m_hud_shown[bi] = m_hud_ver;
 		}
+		// El HUD se compone en la IMAGEN (no toca `s`); va aqui para medir la composicion
+		// junto a la publicacion (seccion `pubs`) y porque el parcheo de actores de abajo
+		// es independiente (escribe en el buffer de pantalla).
+		draw_hud(s);
+		ENG_PROF_END(kProfPubs);
 		// Banda inferior (224..255) negra: dos filas de parches negros en los dos primeros
 		// renders (uno por buffer); despues nadie la toca.
 		if (m_static_paints < 2u) {
@@ -1604,10 +1688,19 @@ struct RpgSlice {
 			stamp_cell(s, m_patches[0], m_tx, m_ty);
 		}
 #endif
-		draw_hud(s);
+		ENG_PROF_BEGIN(kProfPresent);
 		app.present();
+		ENG_PROF_END(kProfPresent);
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_entry_count));
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		ENG_PROF_END(kProfRender);
+		ENG_PROF_END(kProfFrame); // update+render del frame completos (abre en `update`)
+		ENG_PROF_FRAME();          // contador del bloque (lo normaliza `profile.mjs`)
+		// Checkpoint del periferico (slot 0) una vez por frame: el emulador acumula los
+		// segmentos (ciclos entre hits) y `winuae_debugperiph checkpoints` da la
+		// distribucion exacta del periodo (sin latencia de transporte). Coste: una
+		// escritura a 0xB70020; util para cerrar el margen de 1,10 campos/frame.
+		eng::debug::DebugPeripheral::checkpoint(0u);
 	} 	
 
 };
