@@ -592,7 +592,7 @@ async function captureFrameSequenceByRunStatusTarget(protocol, sequenceDir, targ
             catch (err) {
                 frozen = { ok: false, error: err.message };
             }
-            const frame = await captureScreenshot(protocol, framePath);
+            const frame = await captureFramePreferred(protocol, sideChannel.port, framePath);
             try {
                 await protocol.continue();
             }
@@ -673,7 +673,7 @@ async function captureFrameSequenceStep(protocol, sequenceDir, frameCount, sideC
             }
             const framePath = path.join(sequenceDir, `frame_${String(frames.length).padStart(3, '0')}_f${String(frameNumber).padStart(4, '0')}.png`);
             const capturedAt = Date.now();
-            const frame = await captureScreenshot(protocol, framePath);
+            const frame = await captureFramePreferred(protocol, sideChannel.port, framePath);
             frame.capturedAtMs = capturedAt;
             frame.runStatus = frozen;
             frame.frozenFrame = frameNumber;
@@ -1061,6 +1061,24 @@ async function captureScreenshotViaSideChannel(port, imagePath, timeoutMs = 2000
     finally {
         client.close();
     }
+}
+/// Captura preferente para frames de secuencia/paso: **canal lateral primero** (frame vivo),
+/// con borrado previo del destino para detectar capturas que no escriben. El monitor GDB
+/// queda solo como último recurso: en este fork congela el vídeo tras la primera captura y
+/// sirve un frame rancio (secuencias con PNG idénticos).
+async function captureFramePreferred(protocol, sideChannelPort, imagePath, timeoutMs = 20000) {
+    fs.rmSync(imagePath, { force: true });
+    let frame = { path: imagePath, ok: false, exists: false };
+    try {
+        frame = await captureScreenshotViaSideChannel(sideChannelPort, imagePath, timeoutMs);
+    }
+    catch (err) {
+        frame = { path: imagePath, ok: false, error: err instanceof Error ? err.message : String(err), exists: false };
+    }
+    if (!fs.existsSync(imagePath)) {
+        frame = await captureScreenshot(protocol, imagePath);
+    }
+    return frame;
 }
 const demoArg = process.argv[2];
 if (!demoArg || demoArg.startsWith('--')) {
