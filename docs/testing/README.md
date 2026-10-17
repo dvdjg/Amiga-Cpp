@@ -42,6 +42,12 @@ Estas reglas aplican a cualquier API o cambio del engine. `AGENTS.md` las enruta
 - Los tests host viven en `tests/host/<categoría>/NNN_<nombre>/` y su prefijo `NNN` es **único y no reutilizable** en todo `tests/host`: un test nuevo toma el **siguiente número libre** y, ante una colisión, se renumera el **más nuevo** (actualizando título, rutas internas, referencias y catálogo).
 - El catálogo canónico (ID → directorio → qué cubre) y el detalle de compilación están en [../../tests/host/README.md](../../tests/host/README.md).
 
+### Tests on-target (`tests/amiga/`)
+
+- Cubren lo que el host **no** reproduce (hardware real del emulador o ASM, p. ej. el mixer de audio): viven en `tests/amiga/<nivel>/NNN_<nombre>/` con su `verify.sh`, que compila, arranca con el runner y comprueba el `detail` del run-status.
+- Índice y convenciones: [../../tests/amiga/README.md](../../tests/amiga/README.md).
+
+
 ### Verificación por demo
 
 - Una API del engine (o un cambio en él) solo se considera **verificada** si lo ejercita una **demo exitosa** (`build -> run -> analyze` OK; y, cuando toque render, el gate visual/estructural de [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md)).
