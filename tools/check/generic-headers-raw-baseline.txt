@@ -27,5 +27,7 @@
   1  os/trackdisk.hpp
   1  res/asset_cache.hpp
   1  res/dynloader.hpp
+  3  rpg/types.hpp
+  1  rpg/world.hpp
   5  sim/types.hpp
   2  task/background.hpp

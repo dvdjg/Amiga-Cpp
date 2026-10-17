@@ -123,7 +123,7 @@
   2     0  engine/include/eng/core/util/direct_map.hpp
   1    11  engine/include/eng/core/util/dynamic_bitset.hpp
   9     7  engine/include/eng/core/util/dynamic_hash_map.hpp
-  2     8  engine/include/eng/core/util/dynamic_string.hpp
+  2     6  engine/include/eng/core/util/dynamic_string.hpp
   0     2  engine/include/eng/core/util/enum_set.hpp
   3     4  engine/include/eng/core/util/function_ref.hpp
   0     9  engine/include/eng/core/util/graph.hpp
@@ -155,7 +155,7 @@
  16     7  engine/include/eng/debug/peripheral.hpp
   1     4  engine/include/eng/debug/prof.hpp
   0     6  engine/include/eng/debug/run_status.hpp
-  0    10  engine/include/eng/debug/telemetry.hpp
+  0     8  engine/include/eng/debug/telemetry.hpp
   1    27  engine/include/eng/debug/version_strip.hpp
   0     2  engine/include/eng/debug/version.hpp
   0     2  engine/include/eng/field/actor_target.hpp
@@ -183,7 +183,6 @@
   0    11  engine/include/eng/field/xlimited_mapping.hpp
   0     5  engine/include/eng/field/xlimited_robocod.hpp
   0    40  engine/include/eng/field/xlimited_scene.hpp
-  3     0  engine/include/eng/graphics/planar_band.hpp
   0     1  engine/include/eng/graphics/anim.hpp
   0     3  engine/include/eng/graphics/animation.hpp
   0     5  engine/include/eng/graphics/bitmap_view.hpp
@@ -214,6 +213,7 @@
   3    28  engine/include/eng/graphics/glyph_cache.hpp
   0     8  engine/include/eng/graphics/mesh_renderer.hpp
   0     7  engine/include/eng/graphics/palette.hpp
+  3     0  engine/include/eng/graphics/planar_band.hpp
   0     2  engine/include/eng/graphics/playfield_scroll.hpp
   0    15  engine/include/eng/graphics/polygon_planes.hpp
   0     2  engine/include/eng/graphics/raster_intent.hpp
@@ -280,6 +280,7 @@
   0    40  engine/include/eng/retro/lib2d.hpp
   0    26  engine/include/eng/retro/minifloat_fixed.hpp
   0     2  engine/include/eng/retro/sintab.hpp
+  0     3  engine/include/eng/rpg/stats.hpp
   0    19  engine/include/eng/scene/actor_sprite.hpp
   0    20  engine/include/eng/scene/actor_store.hpp
   2    16  engine/include/eng/scene/actor_types.hpp

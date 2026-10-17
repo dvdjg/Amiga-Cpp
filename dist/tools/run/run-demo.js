@@ -1830,9 +1830,19 @@ try {
     // frame del arranque y la secuencia entera repetía esa imagen (frames idénticos byte a
     // byte aunque la demo avanzara). Con el canal lateral el PNG es el frame vivo y el
     // vídeo sigue refrescando (secuencias con movimiento real).
+    //
+    // El destino se borra ANTES de capturar y se reporta `missing_screenshot` si no se
+    // reescribe: un fallo de captura no puede dejar un PNG viejo indistinguible de uno real
+    // (familia DT-023/DT-025); con el canal lateral va un reintento corto por timeouts
+    // puntuales.
+    fs.rmSync(screenshotPath, { force: true });
     let screenshot;
     if (report.sideChannel?.runtimeAddress) {
         screenshot = await captureScreenshotViaSideChannel(sideChannelPort, screenshotPath);
+        if (!fs.existsSync(screenshotPath)) {
+            await sleep(300);
+            screenshot = await captureScreenshotViaSideChannel(sideChannelPort, screenshotPath);
+        }
     }
     else {
         screenshot = await captureScreenshot(protocol, screenshotPath);

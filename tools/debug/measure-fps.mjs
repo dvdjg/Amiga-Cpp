@@ -195,9 +195,28 @@ if (!magicAddr) {
   process.exit(1);
 }
 const state = async () => {
-  const cy = (await p.readMemory(0xb7e928, 4)).readUInt32BE(0);
+  // **Ciclos por GDB (`$b7e928`) con reintentos**: es la fuente en unidades de `CPU_HZ`
+  // (el `cycles` del `state` del canal lateral NO lo está: da ~14x y no sirve para fps).
+  // El read se atasca de forma intermitente (DT-025); tras varios intentos se aborta con
+  // mensaje claro en vez de tumbar la medida con una excepción.
+  let cycles = null;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 5 && cycles === null; ++attempt) {
+    try {
+      cycles = (await p.readMemory(0xb7e928, 4)).readUInt32BE(0);
+    } catch (err) {
+      lastErr = err;
+      await sleep(500);
+    }
+  }
+  if (cycles === null) {
+    throw new Error(
+      `no se pudo leer el contador de ciclos en $b7e928 tras 5 intentos (${lastErr?.message ?? 'desconocido'}); ` +
+        'el canal GDB puede estar atascado (DT-025): reintenta la medida o reinicia la instancia.',
+    );
+  }
   const r = await sideChannelCommand('runstatus 0x' + magicAddr.toString(16), SIDE_PORT, 3000);
-  return { cycles: cy, frame: r.reply.frame, detail: r.reply.detail };
+  return { cycles, frame: r.reply.frame, detail: r.reply.detail };
 };
 
 await state();
@@ -207,6 +226,11 @@ const b = await state(); const t1 = Date.now();
 let dCycles = b.cycles - a.cycles;
 if (dCycles < 0) dCycles += 4294967296;
 const dFrame = b.frame - a.frame;
+if (dFrame <= 0) {
+  console.error('[fps] la ventana no tiene frames de juego (dFrame=0): demo colgada o sin run-status; medida abortada.');
+  await conn.disconnect(true);
+  process.exit(2);
+}
 const emuFps = dFrame / (dCycles / CPU_HZ);
 const hostFps = dFrame / ((t1 - t0) / 1000);
 const cyclesPerFrame = dCycles / Math.max(1, dFrame);

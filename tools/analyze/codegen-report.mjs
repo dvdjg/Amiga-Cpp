@@ -158,6 +158,17 @@ const probe = `#include <eng/core/math/fixed.hpp>
 #include <eng/sim/senses.hpp>
 #include <eng/sim/society.hpp>
 #include <eng/sim/terrain.hpp>
+#include <eng/rpg/affix.hpp>
+#include <eng/rpg/clock.hpp>
+#include <eng/rpg/craft.hpp>
+#include <eng/rpg/equipment.hpp>
+#include <eng/rpg/facts.hpp>
+#include <eng/rpg/interaction.hpp>
+#include <eng/rpg/items.hpp>
+#include <eng/rpg/save.hpp>
+#include <eng/rpg/sim_bridge.hpp>
+#include <eng/rpg/stats.hpp>
+#include <eng/rpg/world.hpp>
 #include <eng/sim/world.hpp>
 #include <eng/board/rules/chess/rules.hpp>
 #include <eng/board/rules/go/rules.hpp>
@@ -1204,6 +1215,147 @@ extern "C" u16 c_sim_planner_ops(u16 seed) {
 	PlannerDriver<32, 4> driver;
 	const bool ok = driver.replan(start, goal, acts.span());
 	return static_cast<u16>(ok ? 1u : 0u) + driver.current();
+}
+// --- Capa RPG (eng::rpg): nucleo de mundo, progreso y save (M0-M2). ----------
+// Los hechos con cambio efectivo, las bolsas y el crafteo son camino de interaccion
+// (no por pixel) pero deben quedar sin libcalls de mul/div de 32 bits en 68000.
+extern "C" u16 c_rpg_kernel_ops(u16 seed) {
+	using namespace eng::rpg;
+	FactStore<16> facts;
+	(void)facts.set(static_cast<FactId>(seed % 16u), 7u);
+	(void)facts.add(1u, static_cast<eng::u16>(seed));
+	(void)facts.set_flag(4u);
+	WorldClock clock;
+	advance_minutes(clock, static_cast<eng::u32>(seed) * 61u);
+	advance_hours(clock, seed & 7u);
+	FactSet<4> set;
+	(void)set.add(2u);
+	const eng::u16 present = facts.present_count();
+	return static_cast<eng::u16>(present + facts.value(1u) + clock.hour + clock.minute +
+				     (facts.changed(4u) ? 1u : 0u) + (set.has(2u) ? 1u : 0u));
+}
+extern "C" u16 c_rpg_items_stats_ops(u16 seed) {
+	using namespace eng::rpg;
+	ItemCatalog<4> catalog;
+	ItemDef sword_def {};
+	sword_def.tags = item_tags::weapon;
+	sword_def.durability_max = 100u;
+	sword_def.mod_count = 1u;
+	const ItemTypeId sword = catalog.add(sword_def);
+	ItemDef potion_def {};
+	potion_def.tags = item_tags::food;
+	potion_def.stack_max = 9u;
+	const ItemTypeId potion = catalog.add(potion_def);
+	ItemStore<8> store;
+	ItemInstance a {};
+	a.type = sword;
+	a.qty = 1u;
+	a.durability = 100u;
+	const ItemHandle h = store.spawn(a);
+	ItemInstance b {};
+	b.type = potion;
+	b.qty = static_cast<eng::u8>((seed % 5u) + 1u);
+	const ItemHandle p = store.spawn(b);
+	ItemBag<4> bag;
+	const eng::u8 leftover = bag_add(bag, store, catalog, p);
+	ItemInstance dst {};
+	dst.type = potion;
+	dst.qty = 3u;
+	ItemInstance src {};
+	src.type = potion;
+	src.qty = 4u;
+	const eng::u8 rest = merge_stack(dst, src, potion_def);
+	ItemHandle replaced {};
+	Equipment<1> eq {};
+	eq.required_tags[0] = item_tags::weapon;
+	const bool equipped = equip_item(eq, store, catalog, 0u, h, replaced);
+	eng::util::Array<StatMod, 2> mods {};
+	mods[0] = StatMod {0u, 3, 0};
+	ModSources tables {};
+	tables.def_mods = mods.span().first(1u);
+	eng::util::Array<StatMod, 2> gathered {};
+	(void)gather_equipment_mods(eq, store, catalog, tables, gathered.span());
+	StatSheet<2> sheet {};
+	sheet.base[0] = 5;
+	recompute_stats(sheet, gathered.span().first(1u));
+	return static_cast<eng::u16>(leftover + rest + (equipped ? 1u : 0u) +
+				     static_cast<eng::u16>(derived_stat(sheet, 0u)) +
+				     store.get(h)->durability);
+}
+extern "C" u16 c_rpg_progress_ops(u16 seed) {
+	using namespace eng::rpg;
+	ItemCatalog<3> catalog;
+	ItemDef ore_def {};
+	ore_def.tags = item_tags::material;
+	ore_def.stack_max = 20u;
+	const ItemTypeId ore = catalog.add(ore_def);
+	ItemDef sword_def {};
+	sword_def.tags = item_tags::weapon;
+	sword_def.durability_max = 100u;
+	const ItemTypeId sword = catalog.add(sword_def);
+	ItemStore<8> store;
+	ItemInstance pile {};
+	pile.type = ore;
+	pile.qty = 3u;
+	const ItemHandle h = store.spawn(pile);
+	ItemBag<4> bag;
+	(void)bag_add(bag, store, catalog, h);
+	eng::util::Array<Ingredient, 1> ings {};
+	ings[0] = Ingredient {no_item_type, item_tags::material, 2u};
+	eng::util::Array<Recipe, 1> recs {};
+	recs[0] = Recipe {0u, sword, 1u, 0u, 0u, 1u};
+	RecipeBook book {recs.span(), ings.span()};
+	ItemHandle made {};
+	const CraftStatus st = craft(bag, store, catalog, book, 0u, 0u, 0u, made);
+	eng::Ref<ItemInstance> inst = store.get(made);
+	if (inst.valid()) {
+		(void)reinforce(*inst, 2u, 5u);
+		const AffixDef fire {item_tags::weapon, 0u, 0u};
+		(void)apply_affix(*inst, sword_def, 0u, fire);
+	}
+	GroundItems<4> ground {};
+	(void)ground.drop(made, 96, 48);
+	WorldClock clock;
+	LockSet<2> locks;
+	const eng::u8 lock = locks.add(42u);
+	ItemInstance key {};
+	key.type = ore;
+	key.metadata = 42u;
+	const ItemHandle kh = store.spawn(key);
+	const bool opened = locks.try_open(lock, kh, store, catalog);
+	EntityStore<4> entities;
+	const EntityId e = entities.spawn(EntityKind::Container, 10, 20, 0u, interaction::open);
+	return static_cast<eng::u16>(st == CraftStatus::Done ? 1u : 0u) + made.generation +
+	     (opened ? 1u : 0u) + (entities.find(e).valid() ? 1u : 0u);
+}
+extern "C" u16 c_rpg_save_ops(u16 seed) {
+	using namespace eng::rpg;
+	FactStore<8> facts;
+	(void)facts.set(1u, static_cast<eng::u16>(seed));
+	ItemStore<4> store;
+	ItemInstance inst {};
+	inst.type = 0u;
+	inst.qty = static_cast<eng::u8>((seed % 5u) + 1u);
+	const ItemHandle h = store.spawn(inst);
+	ItemBag<2> bag;
+	(void)bag.put(h);
+	Equipment<2> eq {};
+	StatSheet<3> sheet {};
+	sheet.base[0] = static_cast<eng::s16>(seed);
+	WorldClock clock;
+	eng::u8 buffer[96] {};
+	eng::util::ByteWriter writer {eng::Span<eng::u8> {buffer, 96u}};
+	const bool saved = save_all(facts, store, bag, eq, sheet, clock, writer);
+	FactStore<8> facts2;
+	ItemStore<4> store2;
+	ItemBag<2> bag2;
+	Equipment<2> eq2 {};
+	StatSheet<3> sheet2 {};
+	WorldClock clock2;
+	eng::util::ByteReader reader {eng::Span<const eng::u8> {buffer, writer.position()}};
+	const bool loaded = load_all(facts2, store2, bag2, eq2, sheet2, clock2, reader);
+	return static_cast<eng::u16>(saved ? 1u : 0u) + (loaded ? 1u : 0u) +
+	     (facts2.has(1u) ? 1u : 0u) + store2.live_count();
 }
 extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {	eng::ai::WaypointGraph<eng::s16, 8, 8> graph;
 	const eng::u16 a = graph.add_node({0, 0});
