@@ -183,7 +183,7 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada del pool; la arena
     *bump* sigue necesitándolo hasta migrar).
 
-## Fase 8 — Recursos acotados en emisión (frente acotado y activo)
+## Fase 8 — Recursos acotados en emisión (frente cerrado, 2026-10)
 
 **Motivo.** Una reserva correcta no evita que un **consumidor** calcule una dirección fuera de ella: el «buffer contagiado» era una escritura de emisión (BOB, job de línea, racha de blits o copperlist) que rebasaba la reserva, no un fallo de `BlockPool`/`MemBank`. Esta fase cierra ese hueco en los caminos que usa la fachada; no reabre el ownership completo.
 
@@ -194,13 +194,13 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 - **Copperlist**: `ListBuilder::write_pair`/`move32` rechazan capacidad `< 2` (antes `capacity - 2` envolvía y escribía con puntero nulo/vacío). La capacidad ya viajaba en el `Block<CopperTag, Chip>`.
 - **Racha de blits**: `Screen::stamp::at` y `clear_now` acotan contra la geometría del destino; `clear_now` exige `x` alineado a 16 (el blit D-only no lleva máscara de borde).
 
-**Hecho** (detalle y gates en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §F8): barrido de escrituras directas `Block::view.data()` en demos técnicas, con el gate `demo-raw-writes` (32 demos técnicas declaradas como frontera, 0 en baseline). Quedan hechos el **contrato de tamaño de la hoja del BOB** (`frame_bytes`/`mask_bytes`), la **validación genérica de `BlitJob`** (`TargetBounds` + `blit_job_within`) y la **auditoría de capacidad de owners** (copper plan/builder, SpriteManager, cadenas DMA, tile scroll y audio, con canario de `ListBuilder` 0/1 en HOST-446).
+**Hecho** (detalle y gates en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §F8): barrido de escrituras directas `Block::view.data()` en demos técnicas, con el gate `demo-raw-writes` (32 demos técnicas declaradas como frontera, 0 en baseline). Están hechos también el **contrato de tamaño de la hoja del BOB** (`frame_bytes`/`mask_bytes`), la **validación genérica de `BlitJob`** (`TargetBounds` + `blit_job_within`) y la **auditoría de capacidad de owners** (copper plan/builder, SpriteManager, cadenas DMA, tile scroll y audio, con canario de `ListBuilder` 0/1 en HOST-446 y el canario de audio en target L1-002).
 
 ## Estado: frente pausado
 
-El frente de **ownership persistente** sigue **pausado y fuera del trabajo activo**; la **Fase 8** es una excepción acotada y activa porque protege contra escrituras fuera de reserva con consumidores reales (demo 122 y tests host). Se conservan los contratos ya existentes (`Block`, `AssetLease`, `AssetDmaLease`, rollback y teardown), sin añadir una segunda capa de leases dentro de los planes. Las dudas restantes se reabren solo con un consumidor concreto y un fallo reproducible; primero se comprobará si el handle movible existente, mantenido en el scope propietario, cubre su vida útil.
+El frente de **ownership persistente** sigue **pausado y fuera del trabajo activo**; la **Fase 8** queda **cerrada** (seguridad de emisión, contrato de la hoja del BOB, `TargetBounds`/`blit_job_within`, auditoría de capacidad de owners con canarios de `ListBuilder` y audio en target, y barrido de `Block::view.data()` con el gate `demo-raw-writes`). Se conservan los contratos ya existentes (`Block`, `AssetLease`, `AssetDmaLease`, rollback y teardown), sin añadir una segunda capa de leases dentro de los planes. Las dudas restantes se reabren solo con un consumidor concreto y un fallo reproducible; primero se comprobará si el handle movible existente, mantenido en el scope propietario, cubre su vida útil.
 
-Estado respaldado por evidencia anterior: rollback/reinit gráficos (HOST-016/069/070), caché y leases (HOST-254/330/353/386), configuración/rollback genérico de audio (HOST-269) y builds Amiga previas 057/061. No se añadieron retenciones automáticas al `FramePlan`/CopperPlan ni una demo SFX nueva. La ruta explícita `play_sfx_asset` ya existente no se certifica aquí en hardware.
+Estado respaldado por evidencia anterior: rollback/reinit gráficos (HOST-016/069/070), caché y leases (HOST-254/330/353/386), configuración/rollback genérico de audio (HOST-269) y builds Amiga previas 057/061. No se añadieron retenciones automáticas al `FramePlan`/CopperPlan ni una demo SFX nueva. La ruta explícita `play_sfx_asset` no se certifica aquí en hardware; el canario **L1-002** (`tests/amiga/l1_backend/002_audio_leases`) cubre en target los leases de canal con el mixer ASM real.
 
 Deuda conocida preservada para cuando vuelva a ser necesaria: MEM-001, MEM-004, MEM-006 y MEM-008..MEM-010 según [`memory-ownership-inconsistencies.md`](../../debugging/investigaciones/memory-ownership-inconsistencies.md). HOST-382/ACP1 sigue fuera de este frente, como se acordó. No se añadirá una API genérica nueva para cerrar esa lista por sí sola.
 

@@ -10,7 +10,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_DEUDA_TECNICA.md](ROADMAP_DEUDA_TECNICA.md) | **ACTIVO** | Registro transversal de deuda (DT-NNN) con síntoma, evidencia, impacto y plan; incluye demos NO VERIFICADAS. |
 | [DEMOS_A_ELIMINAR_O_MEJORAR.md](DEMOS_A_ELIMINAR_O_MEJORAR.md) | **ACTIVO** | Auditoría viva de demos que no pasan el umbral de calidad, con criterios y regeneración. |
 | [ROADMAP_GAME_API.md](ROADMAP_GAME_API.md) | **ACTIVO** | Fachada de juego limpio: pila de escenas, manifiesto de assets, estados; fases abiertas. |
-| [ROADMAP_API_COHERENCE.md](ROADMAP_API_COHERENCE.md) | **ACTIVO** | Diagnóstico contrastado del API real y plan por fases (F0–F8) hacia la fachada final; F8 = dibujo inmediato de dominio (círculo/píxel) + recursos acotados en emisión; consumidores externos (§7). |
+| [ROADMAP_API_COHERENCE.md](ROADMAP_API_COHERENCE.md) | **ACTIVO** | Diagnóstico contrastado del API real y plan por fases (F0–F8) hacia la fachada final; F8 = dibujo inmediato de dominio (círculo/píxel) + recursos acotados en emisión, **cerrada** (queda la migración rodante a `run_demo`); consumidores externos (§7). |
 | [ROADMAP_MINI_OS.md](ROADMAP_MINI_OS.md) | **ACTIVO** | Mini-SO de mensajes (`eng::os`) y UI reactiva: entregados M0–M6; pendientes M9–M11. |
 | [ROADMAP_GUI.md](ROADMAP_GUI.md) | **ACTIVO** | Librería GUI (`eng::ui`): widgets, compositor con backing store, keymaps; pendiente acelerar el copy con Blitter (G8). |
 | [ROADMAP_RESOURCES.md](ROADMAP_RESOURCES.md) | **ACTIVO** | Caché de assets (`eng::res`), E/S asíncrona y DynLoader `.englib`. |
@@ -41,7 +41,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [SCROLL_DEMOS_CLEANUP.md](SCROLL_DEMOS_CLEANUP.md) | **ACTIVO** | Fase 0 de la limpieza de demos de scroll: inventario, glosario y matriz por algoritmo. |
 | [BOARD_LEVEL_AND_STATS.md](BOARD_LEVEL_AND_STATS.md) | **ACTIVO** | Nivel de juego por footprint, medición fiable del cómputo y estadística para los motores de tablero. |
 | [REGLAS_PIPELINE_TILES.md](REGLAS_PIPELINE_TILES.md) | **REGLAS** | Reglas de oro del pipeline de tiles/EHB (cuantizar antes de extraer, no romper el 100 %). |
-| [ROADMAP_MEMORY_OWNERSHIP.md](ROADMAP_MEMORY_OWNERSHIP.md) | **PAUSADO** (F8 activa) | Ownership persistente pausado; la **Fase 8** (recursos acotados en emisión: BOB/FramePlan/copperlist/racha) queda activa con consumidor y tests (122/HOST-232/388/439). |
+| [ROADMAP_MEMORY_OWNERSHIP.md](ROADMAP_MEMORY_OWNERSHIP.md) | **PAUSADO** | Ownership persistente pausado; la **Fase 8** (recursos acotados en emisión: BOB/FramePlan/copperlist/racha, barrido `view.data()` y canarios de audio en target) queda **cerrada**. |
 | [ROADMAP_BLITTER_COPPER.md](ROADMAP_BLITTER_COPPER.md) | **PAUSADO** | Blitter ↔ Copper: batch `PaletteLine` hecho; falta perfil A/B en target al reactivar. |
 | [ROADMAP_GENERICIDAD_PLANTILLAS.md](ROADMAP_GENERICIDAD_PLANTILLAS.md) | **CERRADO** | Genericidad de plantillas (sin tipos de dato concretos): todo hecho o descartado con motivo. |
 | [CONSULTA-SPLIT-208.md](CONSULTA-SPLIT-208.md) | **CERRADO** | Resuelto: el split vertical del corkscrew sobre la línea 255 es un límite de hardware (8 bits de VPOS). |
