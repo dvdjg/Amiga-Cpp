@@ -260,3 +260,14 @@ El juego 400 (proceso AmigaDOS sin takeover, `set_vblank_sleep(false)`) congela 
 **Salida práctica (juego 400)**: la variante robusta para un juego bajo AmigaDOS es **no depender de la IRQ**: `App::run_polling` (`Engine::run_frames_polling`) corre `update -> wait_vblank -> render` en el bucle principal con el hook del mini-SO llamado desde ahí. Con ese driver, tres arranques consecutivos del juego 400 dieron la **misma** medida (44,72 fps, crónica completa) sin cuelgues, frente a los parones deterministas del bucle por IRQ en el momento en que la ROM apaga VERTB. La deuda queda para `run_frames` bajo SO vivo.
 
 
+
+## Nuevo hallazgo (2026-10): el SO tambien **re-toma el vector 0x6C**
+
+Repro determinista: demo 214 con `color_depth = 2` (escena de 2 planos). Llega a READY y el contador se congela en el **frame 41**; la CPU queda en el `STOP` del task idle del SO (bloqueada en `Wait()`, esperando una señal de VBlank que ya no llega). Evidencia con el MCP adjunto al runner (patron de depuracion en `debug-winuae-v2-guide.md`):
+
+- Vector 0x6C en el cuelgue: `$00FC0CE2` (**dispatcher de la ROM**); en el mismo binario con 4 planos (que avanza miles de frames): `$00C25CC2` (handler del engine en Chip). El engine cree que su vector sigue instalado (`g_level3_installed`) y solo re-arma INTENA, que **conserva VERTB** (`INTENAR=$8022`): por eso no se recupera.
+- No es un trap: un stub en los vectores de bus/address/illegal/div0 no se dispara.
+
+**Intento de arreglo (revertido)**: registrar el handler como **servidor Exec** (`AddIntServer`) en vez de sustituir el vector (un nodo por fuente, VERTB/BLIT, con un stub ASM `level3_server` que llama al mismo `level3_dispatch`). Con el servidor el vector se queda en la ROM, pero el cuelgue pasó al frame 23 con `INTREQ=$1040` (**BLIT pendiente sin despachar**) y la CPU en bucle de ROM: falta afinar el camino de servidor (orden de alta del servidor de BLIT, limpieza de INTREQ en contexto de servidor). Cambios revertidos; la receta de sondeo de este documento sigue siendo la salida operativa.
+
+**Siguiente paso**: reintentar los servidores Exec con la instrumentacion de la receta (publicar `INTREQR`/`INTENAR` y el vector 0x6C en globals leídos por canal lateral) para ver por qué el servidor de BLIT no despacha.

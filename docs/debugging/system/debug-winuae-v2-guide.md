@@ -238,6 +238,8 @@ con `headless=yes`), y la demo compilada.
 ## 6. Limitaciones y avisos
 
 - **x64**: no usar (boot congelado; ver spec).
+- **`winuae_load` sobre un emulador ya corriendo**: la escritura de memoria por GDB cierra el socket (`Memory write error ... GDB socket is closed`). Para depurar una demo, **arrancarla con el runner** y adjuntarse después: `WINUAE_GDB_PORT=2345 WINUAE_SIDE_CHANNEL_PORT=2346 WINUAE_GDB_PERSIST_LISTENER=1 bash tools/run/run-demo.sh <demo> --warp --keep-running` y luego `winuae_connect_existing` (el persist listener mantiene el GDB escuchando tras el READY). Verificado 2026-10; el fallo de `winuae_load` queda pendiente de reportar al fork.
+- **Sesiones MCP largas**: la conexión GDB puede caer a los minutos (`GDB socket is closed`); basta `winuae_disconnect` (sin parar el emulador) + `winuae_connect_existing` para reconectar.
 - **Rewind**: el restore congela la emulación; no "continuar" desde ahí. Sólo
   inspeccionar el snapshot por canal lateral. La captura es intermitente
   (depende de `hsync_counter % statecapturerate`); si `rewind` devuelve
