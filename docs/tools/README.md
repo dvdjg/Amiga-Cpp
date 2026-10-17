@@ -125,6 +125,7 @@ una construcción es aceptable antes de adoptarla, no solo para depurar.
 |---|---|
 | `tools/analyze/codegen-report.mjs` | Compila una sonda con una función por construcción (fixed, `Vec`/`Mat`, escalares, IA…) y reporta instrucciones, `muls.w`, desplazamientos, libcalls y si el bucle queda plegado. **Falla** si aparecen libcalls de libgcc de 32/64 bits o instrucciones 68020 en los caminos calientes. |
 | `tools/analyze/expr-asm-compare.mjs` | Compara la MISMA expresión escrita con operadores sueltos y con `eng::math::et` (escalar `MiniFloat16` y `Vec<3>`), y reporta instrucciones, escrituras a pila, llamadas y si el bucle se desenrolla. Es la evidencia de "qué ahorra la fusión" (ver `docs/engine/architecture/EXPRESSION_TEMPLATES.md` §5). |
+| `tools/analyze/hunk-image.mjs` | Extrae la **imagen de memoria** de un ejecutable Amiga HUNK (base 0, `HUNK_RELOC32` aplicadas) a un binario plano, listo para `m68k-amiga-elf-objdump -D -b binary -m m68k:68000 --adjust-vma=<dir>`. Sirve para usar el **binario del original como oráculo de codegen**: desensamblar sus funciones (direcciones del `.map`) y comparar instrucción a instrucción con nuestro build (caso de uso: campaña 116, DT-026). |
 
 ## Sondas de emisión de sprites (depuración de custom chips)
 
