@@ -335,6 +335,62 @@ public:
         return true;
     }
 
+    /// **Run uniforme de una fila, directo a planos**: mismo resultado que `draw_span` por el
+    /// camino barato del materializador de capas indexadas (`Screen::fill_run`). Calcula la
+    /// base de cada plano **una vez por run**, escribe las palabras completas con store plano
+    /// (sin RMW: el valor es `0xFFFF`/`0` según el bit del color) y usa máscara solo en los
+    /// extremos parciales. Si el layout tiene espejo o walk (no estándar), delega en
+    /// `draw_span` para no perder generalidad.
+    bool draw_run_words(eng::pix x0, eng::pix x1, eng::pix wy, u8 color) {
+        if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
+        if (mirror_planelines() != 0u || supports_walk()) return draw_span(x0, x1, wy, color);
+        const u32 pl = planeline_for(wy);
+        const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
+        const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
+        u8* base = (m_frontbuffer +
+                    eng::math::mulu16(static_cast<u16>(pl), static_cast<u16>(rstride))).ptr();
+        const u32 wb0 = byte_for(x0);
+        const u32 wb1 = byte_for(x1);
+        if (wb1 + 2u > m_bytes_per_row) return false; // run fuera de la fila lógica
+        const u32 bit0 = static_cast<u32>(x0) & 15u;
+        const u32 bit1 = static_cast<u32>(x1) & 15u;
+        const u16 m0 = static_cast<u16>(0xFFFFu >> bit0);
+        const u16 m1 = static_cast<u16>(0xFFFFu << (15u - bit1));
+        u32 off = 0;
+        for (u8 p = 0u; p < m_planes; ++p) {
+            if (off + wb1 + 2u > m_total_bytes) return false;
+            u8* prow = base + off;
+            const u16 full = ((color & static_cast<u8>(1u << p)) != 0u) ? 0xFFFFu : 0x0000u;
+            if (wb0 == wb1) {
+                // Un solo word: el tramo puede tocar ambos extremos -> RMW con máscara doble.
+                u16* w = reinterpret_cast<u16*>(prow + wb0);
+                const u16 mask = static_cast<u16>(m0 & m1);
+                *w = (full != 0u) ? static_cast<u16>(*w | mask)
+                                  : static_cast<u16>(*w & static_cast<u16>(~mask));
+            } else {
+                if (bit0 == 0u) {
+                    *reinterpret_cast<u16*>(prow + wb0) = full;
+                } else {
+                    u16* w = reinterpret_cast<u16*>(prow + wb0);
+                    *w = (full != 0u) ? static_cast<u16>(*w | m0)
+                                      : static_cast<u16>(*w & static_cast<u16>(~m0));
+                }
+                for (u32 wb = wb0 + 2u; wb < wb1; wb += 2u) {
+                    *reinterpret_cast<u16*>(prow + wb) = full;
+                }
+                if (bit1 == 15u) {
+                    *reinterpret_cast<u16*>(prow + wb1) = full;
+                } else {
+                    u16* w = reinterpret_cast<u16*>(prow + wb1);
+                    *w = (full != 0u) ? static_cast<u16>(*w | m1)
+                                      : static_cast<u16>(*w & static_cast<u16>(~m1));
+                }
+            }
+            off += pstride;
+        }
+        return true;
+    }
+
     /// **Contorno de círculo** (punto medio, 8 octantes) con clip explícito. Escribe por el
     /// mapeo del playfield (`planeline_for`/`byte_for`), así que vale para cualquier layout
     /// (contiguo, interleaved, espejo…) y para cualquier número de planos/color. Se resuelve

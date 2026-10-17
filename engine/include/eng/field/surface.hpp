@@ -124,7 +124,7 @@ public:
         const s32 rx0 = x0 < cx0 ? cx0 : x0;
         const s32 rx1 = x1 > cx1 ? cx1 : x1;
         if (rx1 < rx0 || y < cy0 || y > cy1) return false;
-        return m_target->draw_span(rx0, rx1, y, color);
+        return m_target->draw_run_words(rx0, rx1, y, color);
     }
 
     /// Polígono **convexo** relleno, recortado contra el clip de la superficie.

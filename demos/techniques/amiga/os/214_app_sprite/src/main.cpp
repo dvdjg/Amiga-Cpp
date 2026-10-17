@@ -16,13 +16,16 @@
 //
 // Qué mirar para aprender: (1) que NO aparece ningún `BlitJob`, puntero ni registro; (2) que la
 // transición sprite<->BOB es transparente porque el `Visual` conserva su identidad; (3) que el
-// orden por `z` lo resuelve el engine, no el juego.
+// orden por `z` lo resuelve el engine, no el juego; (4) que un fondo indexado se **pre-renderiza
+// a planar** una vez (`c2p_1x1_naive`) y el Blitter copia la ventana visible cada frame con
+// `screen.bitmap(asset, destino, palabra_origen, shift)` — sin re-materializar por CPU (DT-030).
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/os/214_app_sprite --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/os/214_app_sprite --warp
 // ============================================================================
 
 #include <eng/api/api.hpp>
+#include <eng/graphics/c2p.hpp>         // c2p_1x1_naive: fondo indexado -> planar (una vez)
 #include <eng/platform/amiga/entry.hpp> // run_demo: plataforma/memoria/display/bucle
 
 namespace {
@@ -60,6 +63,8 @@ constexpr eng::u32 kObjMask = kObjPlane;                // 192
 constexpr eng::u32 kSheetBytes = kObjData + kObjMask;   // 576
 constexpr eng::u16 kBackdropWidth = 640u;
 constexpr eng::u16 kBackdropHeight = kHeight;
+constexpr eng::u32 kBackdropPlaneBytes = static_cast<eng::u32>(kBackdropWidth / 8u) * kBackdropHeight;
+constexpr eng::u32 kBackdropBytes = kBackdropPlaneBytes * kPlanes;
 eng::u8 g_backdrop[kBackdropWidth * kBackdropHeight] {};
 
 void build_backdrop() {
@@ -75,17 +80,25 @@ void build_backdrop() {
 
 struct AppSpriteDemo {
 	void init(auto& app) {
-		// World conserva un bitmap indexado; App posee la copia Chip y lo presenta tras la cámara.
+		// El fondo se **pre-renderiza a planar una vez** (c2p CPU) y cada frame el Blitter copia
+		// solo la ventana visible (palabra de origen + shift fino): re-materializar 320x256 px
+		// por CPU no cabe en un frame (DT-030).
 		build_backdrop();
-		auto fondo = app.add_bitmap_background(
-			"fondo", 0u, eng::Span<const eng::u8> {g_backdrop, sizeof(g_backdrop)},
-			kBackdropWidth, kBackdropHeight);
-		if (!fondo) {
+		m_planar = app.device().memory_manager().chip().template reserve<eng::PlaneTag>(kBackdropBytes, 16u);
+		if (!m_planar.valid()) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
-		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, kBackdropWidth, kBackdropHeight},
-					      eng::Size2u {kWidth, kHeight});
+		eng::graphics::c2p_1x1_naive(kBackdropWidth, kBackdropHeight, kPlanes, kBackdropPlaneBytes,
+					     eng::ChunkyView {g_backdrop, sizeof(g_backdrop)},
+					     eng::PlaneBytes {m_planar.view.data(), kBackdropBytes});
+		m_backdrop.planes = m_planar.mem_view();
+		m_backdrop.width = kBackdropWidth;
+		m_backdrop.height = kBackdropHeight;
+		m_backdrop.row_bytes = static_cast<eng::u16>(kBackdropWidth / 8u);
+		m_backdrop.plane_count = kPlanes;
+		m_backdrop.layout = graphics::PlaneLayout::Contiguous;
+		m_backdrop.plane_step = kBackdropPlaneBytes;
 
 		m_sheet = app.device().memory_manager().chip().template reserve<eng::BobTag>(kSheetBytes, 16u);
 		if (!m_sheet.valid()) {
@@ -119,22 +132,28 @@ struct AppSpriteDemo {
 		// el primer render puede ocurrir antes de que la primera captura vea el buffer publicado.
 	}
 
-	void update(auto& app) {
-		// La cámara de la capa de fondo avanza; el sprite se dibuja según su scroll.
-		if (auto l = app.world().layer(0u)) {
-			l->camera().set_scroll_x(static_cast<eng::u16>(app.frame() * 2u));
-		}
+	void update(auto&) {
+		// Scroll del fondo a 2 px/frame; al agotar la ventana extra del asset, vuelve al inicio.
+		m_scroll = static_cast<eng::u16>((m_scroll + 2u) % (kBackdropWidth - kWidth));
 	}
 
 	void render(auto& app) {
 		auto s = app.screen();
-		if (!app.world_materialization_ok()) {
+		// Ventana visible del fondo planar: palabra de origen (16 px) + shift fino del Blitter.
+		const eng::u16 coarse = static_cast<eng::u16>(m_scroll & ~15u);
+		const eng::u8 fine = static_cast<eng::u8>(m_scroll & 15u);
+		const eng::u16* src_words =
+			reinterpret_cast<const eng::u16*>(m_planar.view.data() + static_cast<eng::u32>(coarse) / 8u +
+										(fine != 0u ? 2u : 0u)); // la palabra extra del barrel shift
+		const bool copy_ok = s.blit(eng::Span<const eng::u16> {src_words, kBackdropBytes / 2u},
+					    0, 0, kWidth, kHeight,
+					    static_cast<eng::u16>(kBackdropWidth / 8u), kBackdropPlaneBytes,
+					    kPlanes, fine);
+		if (!copy_ok) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
-		const auto fondo = app.world().layer(0u);
-		const eng::u16 scroll = fondo.valid() ? fondo->camera().scroll_x() : 0u;
-		const eng::s16 x = static_cast<eng::s16>(16u + scroll % (kWidth - kObjW));
+		const eng::s16 x = static_cast<eng::s16>(16u + m_scroll % (kWidth - kObjW));
 		const eng::s16 y = static_cast<eng::s16>(96u + ((app.frame() >> 1u) % 64u));
 		s.sprite(m_sprite, x, y); // una llamada: la geometría del destino la pone el contexto
 		// Actor del mundo retenido (segunda vía): se mueve y lo emite el planner del App.
@@ -179,6 +198,9 @@ private:
 
 	eng::scene::ActorId m_actor {};
 	eng::Block<eng::BobTag> m_sheet {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_planar {};
+	graphics::ChipBitmapView<eng::PlaneTag> m_backdrop {};
+	eng::u16 m_scroll = 0u;
 	graphics::Bob m_bob {};
 	graphics::Sprite m_sprite {};
 };
