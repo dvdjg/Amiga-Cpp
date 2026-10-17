@@ -7,21 +7,7 @@
 //   bash ./tools/run/run-demo.sh games/000_template
 
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga/backend.hpp>
-
-#include <exec/execbase.h>
-#include <proto/exec.h>
-
-#include "support/gcc8_c_support.h"
-
-struct ExecBase* SysBase = nullptr;
-
-extern "C" {
-__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
-	eng::debug::run_status_magic, eng::debug::run_status_version,
-	static_cast<eng::u16>(eng::debug::RunState::Cold), 0, 0,
-};
-}
+#include <eng/platform/amiga/entry.hpp>
 
 namespace {
 
@@ -30,6 +16,27 @@ constexpr eng::u16 kHeight = 256u;
 constexpr eng::u16 kBoxPx = 32u;
 /// La escena de título cede el control tras este nº de frames (3 s a 50 fps) o al pulsar fuego.
 constexpr eng::u32 kTitleFrames = 150u;
+
+/// Versión mostrada por el HUD; el build la inyecta `build-demo.sh`.
+constexpr eng::debug::Version kVersion {1u, 0u};
+
+/// Franja inferior reservada al HUD (norma del repo): los rellenos de juego no la pisan y el
+/// helper la limpia una sola vez antes de rotular.
+constexpr eng::u16 kHudH = 8u;
+
+/// HUD de la plantilla: `draw_hud` no borra fondo, así que la franja (memoria Chip sin
+/// inicializar) se limpia una vez con un `fill` inmediato; después se reescribe ~1 vez/segundo.
+void draw_template_hud(eng::Screen& s, eng::u32 frame, eng::u32& tick, bool& cleared) {
+	if (!cleared) {
+		(void)s.fill(eng::Box {0, static_cast<eng::s16>(kHeight - kHudH), kWidth, kHudH}, 1u);
+		cleared = true;
+	}
+	if (tick == frame / 50u) {
+		return;
+	}
+	tick = frame / 50u;
+	(void)eng::debug::draw_hud(s, "TEMPLATE", kVersion, frame, 2u);
+}
 
 /// **Escena de juego**: describe *qué* quiere (dibujar, mover, animar); el engine decide *cómo*.
 struct PlayScene {
@@ -40,6 +47,8 @@ struct PlayScene {
 	static constexpr eng::u8 kDurations[] = {6u, 6u, 6u, 6u};
 	eng::graphics::Anim m_anim {eng::Span<const eng::u8> {kFrames, 4u},
 				    eng::Span<const eng::u8> {kDurations, 4u}};
+	eng::u32 m_hud_tick = ~0u; ///< fuerza el primer HUD en el frame inicial
+	bool m_hud_cleared = false;
 
 	void update(auto& app) {
 		// Entrada: la escena lee el estado del pad; no sondea hardware. Paso 16 = alineado a palabra
@@ -50,18 +59,18 @@ struct PlayScene {
 		if (in.pad0.up) m_y -= 16;
 		if (in.pad0.down) m_y += 16;
 		m_anim.update();
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 	}
 
 	void render(auto& app) {
 		auto s = app.screen();
 		// Todo por el **plan del frame** (Blitter), en orden. `fill_box` es el relleno de color
-		// **diferido** (D = A con A constante; sin tocar el rasterizador inmediato).
-		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 1u);    // fondo azul
+		// **diferido** (D = A con A constante; sin tocar el rasterizador inmediato). La franja
+		// del HUD queda fuera del fondo: la pinta (una vez) el helper del HUD.
+		s.fill_box(eng::Box {0, 0, kWidth, static_cast<eng::u16>(kHeight - kHudH)}, 1u); // fondo azul
 		s.fill_box(eng::Box {m_x, m_y, kBoxPx, kBoxPx}, 3u); // objeto rojo que se mueve con el pad
+		draw_template_hud(s, app.frame(), m_hud_tick, m_hud_cleared);
 		app.present();
-		eng::debug::mark_ready(g_eng_run_status, 0u);
-		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		eng::amiga::mark_ready();
 	}
 };
 constexpr eng::u8 PlayScene::kFrames[];
@@ -71,21 +80,35 @@ constexpr eng::u8 PlayScene::kDurations[];
 struct TitleScene {
 	PlayScene* play = nullptr;
 	eng::u32 m_frames = 0u;
+	eng::u32 m_hud_tick = ~0u;
+	bool m_hud_cleared = false;
+	bool m_drawn = false;
 
 	void update(auto& app) {
 		if (++m_frames >= kTitleFrames || app.input().pad0.fire) {
-			app.set_scene(*play); // vacía la pila (exit) y empuja la escena de juego (enter)
+			// Vacía la pila (exit) y empuja la escena de juego (enter); si no cabe, fallo de init.
+			if (!app.set_scene(*play)) {
+				eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			}
 		}
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 	}
 
 	void render(auto& app) {
 		auto s = app.screen();
-		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 1u); // fondo azul
-		s.fill_box(eng::Box {48, 112, 224u, 32u}, 4u);    // "logo" verde (sin fuente en esta ruta)
+		// El título es **estático**: se dibuja una sola vez (el buffer persiste y no se
+		// reencola el plan cada frame), así la captura no pilla un relleno a medias.
+		if (!m_drawn) {
+			m_drawn = true;
+			// La franja del HUD queda fuera del fondo (la pinta `draw_template_hud`).
+			s.fill_box(eng::Box {0, 0, kWidth, static_cast<eng::u16>(kHeight - kHudH)}, 1u); // fondo azul
+			s.fill_box(eng::Box {48, 112, 224u, 32u}, 4u);    // "logo" verde (sin fuente en esta ruta)
+			draw_template_hud(s, app.frame(), m_hud_tick, m_hud_cleared);
+		} else if (m_hud_cleared && m_hud_tick != app.frame() / 50u) {
+			// Solo el contador del HUD se refresca (~1 vez/segundo).
+			draw_template_hud(s, app.frame(), m_hud_tick, m_hud_cleared);
+		}
 		app.present();
-		eng::debug::mark_ready(g_eng_run_status, 0u);
-		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		eng::amiga::mark_ready();
 	}
 };
 
@@ -95,9 +118,10 @@ struct TemplateGame {
 	TitleScene m_title {};
 
 	void init(auto& app) {
-		eng::debug::mark_init_started(g_eng_run_status);
 		m_title.play = &m_play;
-		app.push_scene(m_title);
+		if (!app.push_scene(m_title)) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+		}
 	}
 
 	void update(auto&) {} // no se llama mientras haya escena activa
@@ -107,16 +131,6 @@ struct TemplateGame {
 } // namespace
 
 int main() {
-	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	eng::debug::reset(g_eng_run_status);
-
-	eng::amiga::AmigaBackend backend {};
-	// Memoria automática del perfil de hardware: el juego no elige pools.
-	if (!backend.configure_game_memory()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00000101u);
-		return 0;
-	}
-
 	// Display declarativo: geometría + paleta. Sin registros ni copperlist en el juego.
 	eng::GameDisplay display {};
 	display.width = kWidth;
@@ -128,11 +142,6 @@ int main() {
 	display.palette.color[4] = 0x0f0u; // verde
 
 	TemplateGame game {};
-	eng::App app {backend, game, backend.memory_manager()};
-	if (!app.set_display(display) || !app.start()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00000102u);
-		return 0;
-	}
-	app.run(0xffffu);
-	return 0;
+	// `run_demo` configura la memoria del perfil de juego, arranca el display y conduce el bucle.
+	return eng::amiga::run_demo(game, display);
 }

@@ -2,41 +2,47 @@
 //   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/011_typed_memory --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/011_typed_memory --keep-running
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/011_typed_memory --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/011_typed_memory --keep-running
 
-// Demo piloto de la **API de memoria tipada** usando el arranque de alto nivel (`ENG_APP_MAIN`)
+// Demo piloto de la **API de memoria tipada** con el arranque de alto nivel (`run_demo`)
 // y `App`: reserva DMA con `MemoryManager::chip()` -> `Block<PlaneTag, Chip>` -> `MemView`
 // (dirección DMA en el tipo) y un buffer de CPU con `fast_or_slow` (Fast RAM si la hay).
-// No hay `main`, `SysBase` ni `g_eng_run_status` en el codigo: los pone `ENG_APP_MAIN`.
+// `main` declara el display y el presupuesto de memoria; `run_demo` pone `SysBase`,
+// `g_eng_run_status`, el arranque del display y el bucle; el HUD rota la franja inferior.
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/entry.hpp>
 
 namespace {
 
+/// Versión mostrada por el HUD; el build la inyecta `build-demo.sh`.
+constexpr eng::debug::Version kVersion {1u, 0u};
+
+/// Paleta mínima del display: el HUD escribe con tinta 1, así que COLOR01 debe ser visible
+/// (blanco) sobre el fondo (COLOR00, negro); el resto no se usa.
+constexpr eng::Palette32 kPalette {{
+	0x000, 0xfff, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+}};
+
 struct TypedMemoryDemo {
 	void init(auto& app) {
-		eng::debug::mark_init_started(g_eng_run_status);
-
-		m_ok = app.configure_memory({8192u, 4096u, 1024u, 16384u});
-
 		eng::MemoryManager& mm = app.memory_manager();
 		m_has_fast = mm.has_fast();
 
 		// DMA: planos desde el banco Chip -> `Block<PlaneTag, Chip>` -> vista `ChipPlaneView`.
 		m_planes = mm.chip().reserve<eng::PlaneTag>(4096u, 16u);
-		m_ok = m_ok && m_planes.valid() && m_planes.mem_view().address().valid();
+		m_ok = m_planes.valid() && m_planes.mem_view().address().valid();
 
 		// CPU: buffer de "simulacion" con `fast_or_slow` (Fast si hay, si no Slow).
 		m_sim = eng::fast_or_slow<eng::MapCellsTag>(mm, 2048u, 4u);
 		m_ok = m_ok && m_sim.valid();
 
-		if (m_ok) {
-			eng::debug::mark_ready(g_eng_run_status, 0x00000000u);
-		} else {
-			eng::debug::mark_failed(g_eng_run_status, 0x00000001u);
+		if (!m_ok) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Memory);
 		}
 	}
 
-	// Sin trabajo por frame: el bucle del engine marca el frame (`mark_frame`) y la demo es
-	// estática (telemetría y render no cambian).
+	// Sin trabajo por frame: la demo es estática (telemetría y render no cambian).
 	void update(auto&) {}
 
 	void render(auto& app) {
@@ -48,15 +54,35 @@ struct TypedMemoryDemo {
 		d.text(16, 88, m_sim.kind == eng::MemoryKind::Fast ? "Sim buffer: Fast"
 								      : "Sim buffer: Slow",
 		       0x0000ffff);
-		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		// HUD de depuración: nombre + versión + frames, por palabras, una vez por segundo.
+		const eng::u32 tick = app.frame() / 50u;
+		if (tick != m_hud_tick) {
+			m_hud_tick = tick;
+			auto screen = app.screen();
+			(void)eng::debug::draw_hud(screen, "TYPED MEM", kVersion, app.frame(), 1u);
+		}
+		app.present();
+		if (m_ok && !m_ready) {
+			m_ready = true;
+			eng::amiga::mark_ready(); // memoria validada y primer frame presentado
+		}
 	}
 
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_planes {};
 	eng::Block<eng::MapCellsTag> m_sim {};
 	bool m_ok = false;
 	bool m_has_fast = false;
+	bool m_ready = false;
+	eng::u32 m_hud_tick = ~0u; ///< fuerza el primer HUD en el frame inicial
 };
 
 } // namespace
 
-ENG_APP_MAIN(TypedMemoryDemo);
+int main() {
+	eng::GameDisplay display {}; // 320x256x4 por defecto: la demo solo rotula el HUD
+	display.palette = kPalette;
+	TypedMemoryDemo demo {};
+	// Presupuesto explícito de la demo: 64K chip (display 320x256x4 + planos de la demo),
+	// 4K slow, 1K frame, 16K fast (si la máquina no tiene Fast, `fast_or_slow` cae a Slow).
+	return eng::amiga::run_demo(demo, display, eng::MemoryConfig {65536u, 4096u, 1024u, 16384u});
+}
