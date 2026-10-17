@@ -34,7 +34,6 @@
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/graphics/planar_patch.hpp>
-#include <eng/input/input.hpp>
 #include <eng/memory/mem_bank.hpp>
 #include <eng/memory/memory_manager.hpp>
 #include <eng/rpg/combat.hpp>
@@ -523,6 +522,10 @@ struct RpgSlice {
 	/// Renders que ya pintaron la banda inferior negra (los dos primeros, uno por buffer).
 	eng::u8 m_static_paints = 0u;
 
+	/// Cocciones de sala acumuladas: se publica en el `detail` del run-status (un ping-pong
+	/// de puertas lo dispara; un valor estable = cocidos puntuales por transicion).
+	eng::u16 m_cook_count = 0u;
+
 	// Ablación de comprobación (misma familia que la demo 001).
 	bool m_hud_dirty = true;
 	eng::u8 m_hud_hunger_band = 0xffu;
@@ -605,6 +608,7 @@ struct RpgSlice {
 	/// Cocina la imagen de la sala actual en Chip (al entrar; coste de entrada, no por
 	/// frame): tiles del mapa + decorado estático (anciana, mercader, cama, cofre cerrado).
 	void cook_room() {
+		++m_cook_count;
 		if (!m_room_img.alive()) {
 			return;
 		}
@@ -1333,7 +1337,7 @@ struct RpgSlice {
 #endif
 		draw_hud(s);
 		app.present();
-		eng::debug::mark_ready(g_eng_run_status, 0u);
+		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_cook_count));
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
 };
