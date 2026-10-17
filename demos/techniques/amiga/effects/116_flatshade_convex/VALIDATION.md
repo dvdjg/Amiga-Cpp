@@ -28,6 +28,20 @@ El HUD de la primera pasada activaba el 5º plano con un WAIT `>255` al final de
 - **Referee async completo** (`FLATSHADE_ASYNC=1`): reconstruido y sin cuelgue (3 causas raíz corregidas: horizontales en el plan, feeder despachado desde tarea via `wait_blitter` —fix de engine `g_blit_service_referee_only`— y giro de espera sin BLTPRI), pero **8,9 fps / 5,6 campos vs 18,05 / 2,77**: ~51 jobs cortos de línea pagando ~3,5-4k cada uno (arranque de Blitter + IRQ de nivel 3 + re-programación en la ISR) que la vía síncrona no paga. Ablación «solo líneas»: 4,15 campos. La vía queda para cadenas cortas de blits largos (066/212); default sigue la síncrona.
 - **Original de referencia MEDIDO (ADF, perfil por campo)**: **2,0 campos/frame (25 fps)** — parejas de campos idénticos; CPU saturada (142.102/142.112 ciclos/campo); ~62k accesos DMA/campo. Cierra la duda de septiembre («¿el original también ronda 20 fps?»: no, da 25). El port release (2,60 campos) está a ~0,6 campos: CPU +45 % de accesos/frame y fetch +0,2 (HUD).
 
+## Campaña de paridad por el API de alto nivel (2026-10-17, release)
+
+| Paso | fps | campos/frame | Δ |
+|---|---|---|---|
+| baseline (tras fix contadores/HUD uniforme) | 19,21 | 2,60 | — |
+| + HUD banda superior legal (WAIT 44/58) | 20,90 | 2,392 | +1,69 |
+| + `wait_blitter` restaura BLTPRI (no lo apaga) | 21,23 | 2,355 | +0,33 |
+| orden «clear antes del transform» (probado) | 20,43 | 2,447 | −0,80 → descartado |
+| orden «clear al principio del siguiente update» (probado) | 21,01 | 2,380 | −0,22 → descartado |
+| + `-O3` en la TU de la demo (`build.args`) | 21,54 | 2,321 | +0,31 |
+| + long-writes en `blitter_line_draw` (con0/1, bmod/amod) | **21,62** | **2,313** | +0,08 |
+
+Visual tras los cambios: secuencia + visión (`qwen3-vl`) sin anomalías («caras planas azules con contornos, sin rayas/huecos/líneas cruzadas»); captura completa y lupa del HUD limpias. Suelo del pipeline actual (ablaciones): transform+overhead 142k (1 campo), fill ~66k, edges ~112k, clear ~100k expuestos; límite teórico ~262k = 1,85 campos ≈ 27 fps con solape perfecto. Holgura restante (~44k): esperas por línea del contrato de registros del Blitter + cuantización a VBlank.
+
 ## Ruta asm (estado 2026-10-17)
 
 Octante de `fs_draw_edges` corregido (usaba `x1 < x0` en vez de `x0 >= x1` para AUL/SUL; contraste `line_prepare_impl`). **La ruta sigue NO VALIDA**: `-DK_FLATSHADE_ASM=1` dibuja rayas y no avanza frames (wireframe de referencia: era ~1-2 px de desfase en septiembre). El default C++ no se toca: 18,12 fps debug / 19,26 release con contorno correcto (`final116.png`). Diagnóstico siguiente: `freeze-diff` de `fs_transform_vertices` vs `lib3d` sobre el wireframe (`FLATSHADE_SKIP_FILL=1`).

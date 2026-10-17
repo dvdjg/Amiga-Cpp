@@ -63,7 +63,9 @@ constexpr unsigned short dma_copper = 0x0080;
 constexpr unsigned short dma_blitter = 0x0040;
 constexpr unsigned short dma_clear_all = 0x7fff;
 constexpr unsigned short dmaconr_blitter_busy = 0x4000;
-// Blitter nasty (BLTPRI, DMACON bit 10): con SETCLR, $8400 activa y $0400 desactiva.
+/// BLTPRI en `DMACONR` (DMACON bit 10): se consulta para RESTAURAR la politica del
+/// llamador al final de una espera en vez de forzar OFF (ver `wait_blitter`).
+constexpr unsigned short dmaconr_bltpri = 0x0400;// Blitter nasty (BLTPRI, DMACON bit 10): con SETCLR, $8400 activa y $0400 desactiva.
 // Da al Blitter prioridad total sobre el 680x0 durante la espera (el display, disco y
 // audio conservan sus ciclos de bus; AHRM 3.ª ed. «blitter-nasty», líneas 5803/6600/8269
 // de la copia en docs/reference/ahrm/). Es el mismo truco de la macro `BlitWait` del
@@ -300,25 +302,37 @@ inline bool wait_blitter() {
 	// tampoco se despacha nunca desde aqui: su unica fuente valida es la IRQ de fin de
 	// blit (ver la nota de la bandera).
 	if (g_blitter_service == nullptr || g_in_blit_service || g_blit_service_referee_only) {
+		// BLTPRI se restaura al estado previo: hay demos (la 116, como el original con
+		// `DMAF_BLITHOG`) que lo dejan armado GLOBALMENTE; forzar OFF al salir anulaba
+		// esa politica y los blits lanzados sin espera (pre-clear del buffer trasero)
+		// corrian a mitad de velocidad robados por el CPU (medido: clear ~2x).
+		const bool had_bltpri = (custom_base[custom_dmaconr_offset] & dmaconr_bltpri) != 0u;
 		custom_base[custom_dmacon_offset] = dma_bltpri_set;
 		while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
 		}
-		custom_base[custom_dmacon_offset] = dma_bltpri_clear;
+		if (!had_bltpri) {
+			custom_base[custom_dmacon_offset] = dma_bltpri_clear;
+		}
 		return true;
 	}
 	// Camino con servicio: drena el fondo durante la espera, con limite anti-bloqueo.
 	// Mientras gira, si hay un servicio de fondo registrado, lo ejecuta.
+	const bool had_bltpri = (custom_base[custom_dmaconr_offset] & dmaconr_bltpri) != 0u;
 	eng::u32 guard = 0x00ffffffu;
 	custom_base[custom_dmacon_offset] = dma_bltpri_set;
 	while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
 		g_blitter_service(g_blitter_service_user,
 				  static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
 		if (--guard == 0u) {
-			custom_base[custom_dmacon_offset] = dma_bltpri_clear;
+			if (!had_bltpri) {
+				custom_base[custom_dmacon_offset] = dma_bltpri_clear;
+			}
 			return false;
 		}
 	}
-	custom_base[custom_dmacon_offset] = dma_bltpri_clear;
+	if (!had_bltpri) {
+		custom_base[custom_dmacon_offset] = dma_bltpri_clear;
+	}
 	return true;
 }
 

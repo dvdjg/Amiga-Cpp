@@ -245,14 +245,6 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Amiga
 #ifndef FLATSHADE_NOCLEAR
 #define FLATSHADE_NOCLEAR 0 ///< plan async sin jobs de clear
 #endif
-#ifndef FLATSHADE_CLEAR_BBOX
-// Clear del buffer siguiente acotado a la UNION de las bbox de este frame y el
-// anterior (+margen): solo esa region puede tener tinta de frames pasados (las
-// lineas y el area fill XOR solo escriben dentro de la bbox del objeto; el buffer
-// se muestra 2 swaps despues). Medido 2026-10 (release): el clear completo exponia
-// ~0,48 campos; ver VALIDATION/bitacora.
-#define FLATSHADE_CLEAR_BBOX 0
-#endif
 #if FLATSHADE_ASYNC && (FLATSHADE_SKIP_CLEAR || FLATSHADE_SKIP_EDGES || FLATSHADE_SKIP_FILL)
 #error "FLATSHADE_ASYNC no combina con los FLATSHADE_SKIP_* (usa la ruta sincrona para perfilar secciones)"
 #endif
@@ -520,16 +512,27 @@ struct FlatShadeDemo {
 						    eng::PaletteWords {g_hud_band_colors, 32u}, 16u, 16u);
 				    },
 				    [this](scene::Scene& sc) {
-					    // 5º plano (franja) activo TODO el frame: BPLCON0 de 5 planos + puntero
-					    // estatico (sin zonas/WAITs >255: no se pueden cerrar con el comparador
-					    // >= de WinUAE y quedaban encendidas — franjas de basura).
-					    sc.scheduler().move(
-						    copper::Register::BPLCON0,
-						    eng::graphics::composition::bplcon0_for(
-							    eng::graphics::composition::SceneMode::Standard,
-							    5u));
-					    sc.scheduler().move_bitplane_pointer(
+					    // 5º plano (franja) como BANDA superior LEGAL: se enciende
+					    // en el WAIT de la raster 44 (inicio de la ventana) y se
+					    // apaga en la 58 — ambas < 255, asi que el comparador `>=`
+					    // de WinUAE (`custom.cpp:4416` `coppercomp`) las cumple en
+					    // su linea (la zona `>255` de la primera pasada no era
+					    // cerrable y dejaba el plano encendido; ver DT-027). El
+					    // fetch del 5º plano cubre solo ~14 filas en vez de ~290:
+					    // con puntero fijado en raster 44 la fila de plano P se ve
+					    // en la P+10 de la ventana, igual que antes -> el texto
+					    // (filas de plano 6..13) sigue saliendo en las filas
+					    // ~16..23 de la ventana.
+					    auto& sched = sc.scheduler();
+					    sched.wait_line(44u);
+					    sched.move(copper::Register::BPLCON0,
+						       eng::graphics::composition::bplcon0_for(
+							       eng::graphics::composition::SceneMode::Standard,
+							       5u));
+					    sched.move_bitplane_pointer(
 						    4, m_hud_block.mem_view_chip().address(0));
+					    sched.wait_line(58u);
+					    sched.move(copper::Register::BPLCON0, kBplcon0);
 				    })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011603u);
 			return;
@@ -745,12 +748,19 @@ struct FlatShadeDemo {
 
 		const eng::u32 t0 = rcycles();
 
-		// 1) Esperar el fill del buffer dibujado el frame pasado (se muestra en el swap
-		//    de este frame); la espera de VBlank ya lo ha absorbido casi siempre.
+		// 1) Esperar el fill + pre-clear del frame anterior. El clear se lanza al
+		//    final del update (tras el transform): de las tres posiciones probadas
+		//    (al final / antes del transform / al principio del siguiente update) la
+		//    del final gano (21,23 vs 20,50 y 21,01 fps emulados): el transform queda
+		//    debajo del fill y el render+vblank cubren la cola de fill+clear.
 		backend.wait_blitter();
 
-		// 2) El swap de display lo hace `commit()` al final del update: publica el buffer
-		//    recien dibujado (se vera en el VBlank siguiente) y rota el trasero.
+		// 2) El swap de display y el pre-clear del buffer siguiente van AL FINAL del
+		//    update (tras el transform): ahi el `commit` publica lo dibujado y el clear
+		//    queda colgado detras del fill. El orden «clear al principio y transform
+		//    encima» (el del original) se midio en 2026-10: 20,43 vs 20,90 — con nuestro
+		//    reparto de trabajo dejaba el FILL sin solape y salia peor; la absorcion del
+		//    clear bajo el transform no compensa. Se conserva el orden propio.
 #endif
 
 		// 3) Contorno (+ fill) sobre el buffer pre-clearado (estado ya precalculado).
@@ -820,13 +830,18 @@ struct FlatShadeDemo {
 		const eng::u32 t1 = rcycles();
 
 		// 4) El fill lo lanza la via del engine dentro de `flat_shade_xor`; la ruta legacy
-		//    (y la asm) lo lanzan aqui SIN esperarlo, para el swap del proximo update.
+		//    (y la asm) lo lanzan aqui SIN esperarlo.
 #if FLATSHADE_LEGACY_DRAW || K_FLATSHADE_ASM
 		area_fill_planes(planes, backend, false);
 #endif
 
-		// 5) Durante el fill (Blitter ocupado), precalcular el estado del frame siguiente
-		//    (transform + luz + visibilidad de aristas) sobre el object model.
+		// 5) (El `commit` y el pre-clear van tras el transform: ver abajo.)
+		const eng::u32 t2a = rcycles();
+
+		// 5) Transform del frame SIGUIENTE (angle++, luz, visibilidad, proyeccion):
+		//    corre MIENTRAS el Blitter hace el fill recien lanzado (solape de la
+		//    pipeline de 3 buffers) y su estado lo consumira el draw del proximo
+		//    update.
 #if FLATSHADE_FREEZE_ANGLE
 		m_angle = static_cast<eng::s16>(FLATSHADE_FREEZE_ANGLE);
 #else
@@ -836,7 +851,7 @@ struct FlatShadeDemo {
 			eng::retro::turns(static_cast<eng::u16>(m_angle));
 		obj::update_object_transformation(m_object);
 		const eng::u32 ta = rcycles();
-		#if K_FLATSHADE_ASM
+#if K_FLATSHADE_ASM
 		prepare_fs_args(planes, m_object);
 		fs_update_face_visibility();
 		const eng::u32 tb = rcycles();
@@ -848,21 +863,19 @@ struct FlatShadeDemo {
 		const eng::u32 tb = rcycles();
 		eng::lib3d::update_edge_visibility_convex(m_object);
 		const eng::u32 tc = rcycles();
-		eng::lib3d::transform_vertices(m_object, static_cast<eng::s16>(kWidth / 2), static_cast<eng::s16>(kHeight / 2), g_bbox);
+		eng::lib3d::transform_vertices(m_object, static_cast<eng::s16>(kWidth / 2),
+					       static_cast<eng::s16>(kHeight / 2), g_bbox);
 #endif
 		const eng::u32 t2 = rcycles();
-		eng::debug::g_eng_prof.cycles[6] = ta - t1; // update_object_transformation
-		eng::debug::g_eng_prof.cycles[7] = tb - ta; // update_face_visibility
-		eng::debug::g_eng_prof.cycles[8] = tc - tb; // update_edge_visibility_convex
-		eng::debug::g_eng_prof.cycles[9] = t2 - tc; // transform_vertices
+		eng::debug::g_eng_prof.cycles[6] = ta - t2a; // update_object_transformation
+		eng::debug::g_eng_prof.cycles[7] = tb - ta;  // update_face_visibility
+		eng::debug::g_eng_prof.cycles[8] = tc - tb;  // update_edge_visibility_convex
+		eng::debug::g_eng_prof.cycles[9] = t2 - tc;  // transform_vertices
 
-		// 6) Publicar y rotar: `commit` instala la copperlist del buffer recien dibujado y
-		//    pasa al siguiente; despues se pre-cleara ESE (ni en pantalla ni en dibujo
-		//    ahora), sin esperar, para que quede colgado tras el fill. Clear en barrido
-		//    COMPLETO: un solo job (4 planos contiguos de una pasada, variable `wait=false`);
-		//    con el clear acotado por bbox serian 4 jobs que esperan entre si dentro del
-		//    update y bloquearian la CPU (medido: empeora el frame; la via buena es el
-		//    referee async). Ver la nota del fill.
+		// 6) Publicar y rotar: `commit` instala la copperlist del buffer recien dibujado
+		//    y pasa al siguiente; despues se pre-cleara ESE (ni en pantalla ni en dibujo
+		//    ahora), sin esperar, para que quede colgado tras el fill (un solo blit de
+		//    1024 filas: los 4 planos son contiguos, como `BitmapClearFast` del original).
 #if FLATSHADE_ASYNC
 		// En async el `commit` va al arranque del update siguiente (tras
 		// `frame_plan_async_wait`) y el clear es el ultimo job de la cadena: aqui no se
@@ -870,58 +883,10 @@ struct FlatShadeDemo {
 #else
 		m_scene.commit();
 #if !FLATSHADE_SKIP_CLEAR
-#if FLATSHADE_CLEAR_BBOX
-		// Clear ACOTADO a la union de la bbox pintada en el frame anterior y la del
-		// actual (+2 px de margen), filas [y0..y1] por plano: fuera de esa banda el
-		// buffer no puede tener tinta (lineas EOR y fill XOR escriben solo dentro de
-		// la bbox; el eje del fill completo no deja marca fuera del interior). Un job
-		// de clear por plano (4 blits), esperando solo el ultimo — la leccion de
-		// septiembre es NO trocear por jobs que esperan entre si dentro del update
-		// (fill bbox = 4 jobs → empeoro), pero el clear acotado nunca se midio solo.
-		eng::s16 cx0 = 0, cx1 = static_cast<eng::s16>(kWidth - 1u);
-		eng::s16 cy0 = 0, cy1 = static_cast<eng::s16>(kHeight - 1u);
-		if (g_bbox[1] >= g_bbox[0] && g_bbox[3] >= g_bbox[2]) {
-			cx0 = g_bbox[0];
-			cx1 = g_bbox[1];
-			cy0 = g_bbox[2];
-			cy1 = g_bbox[3];
-			if (m_painted_bbox[3] >= m_painted_bbox[2]) {
-				if (m_painted_bbox[0] < cx0) cx0 = m_painted_bbox[0];
-				if (m_painted_bbox[1] > cx1) cx1 = m_painted_bbox[1];
-				if (m_painted_bbox[2] < cy0) cy0 = m_painted_bbox[2];
-				if (m_painted_bbox[3] > cy1) cy1 = m_painted_bbox[3];
-			}
-			cx0 = static_cast<eng::s16>(cx0 - 2); if (cx0 < 0) cx0 = 0;
-			cy0 = static_cast<eng::s16>(cy0 - 2); if (cy0 < 0) cy0 = 0;
-			cx1 = static_cast<eng::s16>(cx1 + 2); if (cx1 > 255) cx1 = 255;
-			cy1 = static_cast<eng::s16>(cy1 + 2); if (cy1 > 255) cy1 = 255;
-			m_painted_bbox[0] = g_bbox[0];
-			m_painted_bbox[1] = g_bbox[1];
-			m_painted_bbox[2] = g_bbox[2];
-			m_painted_bbox[3] = g_bbox[3];
-		} else {
-			m_painted_bbox[2] = -1; // sin pintura valida: el proximo vuelve al barrido completo
-		}
-		// Columnas alineadas a 16 px y filas [cy0..cy1] (el blit de clear arranca en
-		// la fila cy0 de cada plano: DPT = plano + cy0*row_bytes).
-		const eng::u16 words = static_cast<eng::u16>(((static_cast<eng::u16>(cx1) | 0x000fu) + 1u) >> 4u);
-		const eng::u16 rows = static_cast<eng::u16>(cy1 - cy0 + 1);
-		eng::PlaneBytes clear_base = m_scene.back();
-		for (eng::u8 p = 0u; p < kPlanes; ++p) {
-			(void)backend.blitter_clear(
-				clear_base.subspan(static_cast<eng::u32>(p) * kPlaneBytes +
-							   static_cast<eng::u32>(cy0) * kBytesPerRow,
-						   static_cast<eng::u32>(rows) * kBytesPerRow),
-				1u, kBytesPerRow, kPlaneBytes, words * 16u, rows,
-				static_cast<eng::u8>(p + 1u) == kPlanes);
-		}
-#else
 		backend.blitter_clear(m_scene.back(), kPlanes, kBytesPerRow, kPlaneBytes,
 				      kWidth, kHeight, false);
 #endif
 #endif
-#endif
-
 		const eng::u32 t3 = rcycles();
 
 		eng::debug::g_eng_prof.cycles[0] = t1 - t0;
@@ -999,12 +964,6 @@ private:
 	bool m_memory_ok = false;
 	eng::s16 m_angle = 0;
 	eng::debug::HudFpsWindow m_hud_fps {}; ///< ventana de 1 s para el campo de fps del HUD
-#if FLATSHADE_CLEAR_BBOX
-	/// bbox (en px de pantalla) del ULTIMO frame pintado: el clear acotado barre la
-	/// union de esta y la actual (la region que puede tener tinta en el buffer a
-	/// limpiar). s16[4] = {x0, x1, y0, y1}.
-	eng::s16 m_painted_bbox[4] {0, 0, -1, -1};
-#endif
 #if FLATSHADE_ASYNC
 	/// Plan de blits del frame para el referee async (DT-026): contorno EOR + area fill
 	/// acotado + clear del buffer siguiente. Se recicla cada frame tras `async_wait`.

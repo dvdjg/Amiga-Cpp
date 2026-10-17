@@ -1,0 +1,4 @@
+# `-O3` solo para la TU de la demo (el engine conserva su perfil): medido 2026-10-17
+# en release sobre la 116 (21,21 -> 21,54 fps / 2,357 -> 2,321 campos). Precedente del
+# mecanismo: demo 212 (`DEMO_OPT=-O2` por el bug de codegen de gcc 15 m68k a -O1).
+DEMO_OPT=-O3

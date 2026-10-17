@@ -906,10 +906,16 @@ bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s
 void AmigaBackend::blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base) {
 	u8* data = plane_ptr + p.row_offset;
 	wait_blitter();
-	custom_base[custom_bltcon0_offset] = p.bltcon0;
-	custom_base[custom_bltcon1_offset] = p.bltcon1;
-	custom_base[custom_bltamod_offset] = p.bltamod;
-	custom_base[custom_bltbmod_offset] = p.bltbmod;
+	// Pares de registros CONTIGUOS en un solo acceso de 32 bits (mismo patron que
+	// `write_custom_pointer` y las emisiones del engine): `BLTCON0/1` (0x40/0x42) y
+	// `BLTBMOD/AMOD` (0x62/0x64). Con ~57 lineas-plano por frame ahorra 2 escrituras
+	// a custom por linea (~114 ciclos), que en un camino de ~1k por linea se nota.
+	// Orden del long: big-endian, la palabra de MENOR direccion va en los 16 bits
+	// altos (BLTCON0 y BLTBMOD respectivamente).
+	*reinterpret_cast<volatile eng::u32*>(&custom_base[custom_bltcon0_offset]) =
+		(static_cast<eng::u32>(p.bltcon0) << 16u) | p.bltcon1;
+	*reinterpret_cast<volatile eng::u32*>(&custom_base[custom_bltbmod_offset]) =
+		(static_cast<eng::u32>(p.bltbmod) << 16u) | p.bltamod;
 	write_custom_pointer(custom_bltapt_offset,
 			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(p.derr))));
 	write_custom_pointer(custom_bltcpt_offset, data);
