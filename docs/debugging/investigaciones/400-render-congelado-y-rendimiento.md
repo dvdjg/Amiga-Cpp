@@ -60,6 +60,20 @@ Evidencia:
 - **Navegacion del guion con `eng::util::astar`** (rejilla 32x16 con relleno no transitable, coste 1, scratch fijo sin heap): el guion indica destino y el camino rodea NPCs/arboles/lobos en movimiento; la ruta se replanifica al cambiar de paso/sala o si el siguiente tramo se tapa. Validado en host (simulador: cronica completa en 1.305 frames) y en vivo.
 - Medidas finales (`measure-fps`, A500_debug): **44,7-45,7 fps / 155 332-158 625 ciclos/frame (1,095-1,118 campos)** con la cronica completa y cadencia determinista entre arranques; los frames sin transicion ya son 1,00 campo.
 
+## 6. Flicker del contador del HUD (resuelto) y cierre del runner
+
+Sintoma: en la captura por pasos de frame (1 frame entre capturas), el contador `F` del HUD alternaba en pantalla **dos instantaneas** (41/49) en frames alternos; el detector determinista marcaba 14 candidatos sobre esa zona (score 64). La serie de hashes de la zona y el volcado de glifos lo confirmaron (sin oscilacion en el resto de la pantalla: 50/59 pares congelados).
+
+Mecanismo: la republica de la banda del HUD repartia la version nueva con un **conteo a ciegas de 2 renders** (`m_hud_band = 2u`); si un evento de sala (`m_room_publish`) u otro recompose corta el conteo, uno de los dos buffers se queda con una instantanea vieja y el doble buffer alterna las dos versiones en pantalla.
+
+Fix:
+
+- **Version por buffer** en el juego: `m_hud_ver` sube en cada recomposicion y `m_hud_shown[2]` guarda la ultima version publicada en cada buffer; cada buffer repone la banda la primera vez que vuelve a ser trasero. `App::screen_buffer_index()` expone el indice del buffer trasero en la fachada (`eng/api/game.hpp`). Verificado por serie de hashes: el toggle desaparece (valores estables por estado, sin A-B-A) sin coste medible (45,66 fps / 155 369 ciclos antes y despues).
+- **Herramienta de flicker**: una escena **estatica** (`no_global_translation`) es analizable sin compensar (antes se marcaba `analysis-unavailable` cuando existia baseline); corregido en `flicker-check.mjs` y en el chequeo gemelo de `test-regression.sh`.
+- **Cierre del runner** (familia DT-023): el step-capture quita el breakpoint con la CPU **parada** (`pause -> clear -> continue`; antes era una carrera de GDB y podia quedar armado) y el screenshot final cae al monitor GDB si el canal lateral no sirve su cola tras la sesion de breakpoints. `run.args` de la demo fija la captura por pasos (60 frames) para el gate.
+
+Resultado: `flicker-baseline.json` (`max_candidates: 7` = 5 saltos de casilla + 2 del pintado inicial del HUD; `blocks_low` sin acotar: es la metrica estructural de la banda) y `tools/test-regression.sh --flicker --require-flicker-ok --demo games/400_rpg_slice` en **verde** (build/run/analyze/flicker ok).
+
 ## Evidencia y herramientas
 
 - Sondas (en `out/tmp`, ignorado): `rpg400_probe{1..10}.mjs` (copperlist/buffers/poke/screenshots), `rpg400_launch_long.mjs`, `rpg400_resume.mjs`, `rpg400_pcsample.mjs` (muestreo de PC + resolución por `nm`/addr2line), `rpg400_irqrate.mjs` (tasa de VBlank vs frame del juego), `rpg400_hang.mjs` (detección de cuelgue + pila), `rpg400_scriptsim.mjs` y `rpg400_combatsim.mjs` (simuladores host del guion y del combate).

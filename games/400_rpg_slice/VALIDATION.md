@@ -22,10 +22,16 @@ Comando: `node tools/debug/measure-fps.mjs 400_rpg_slice A500_debug --json --dur
 - `node tools/analyze/vision-final.mjs 400_rpg_slice out/run/400_rpg_slice/A500_debug/sequence --demo-dir games/400_rpg_slice --frames 6` (prompt canónico, `qwen3-vl:8b`): describe la evolución del mapa y del HUD (contador, oro, inventario y objetivo cambiando) y **no reporta artefactos**. Respuesta cruda completa en [`src/VISION.md`](src/VISION.md).
 - **Navegación del guion**: con el buscador del engine (`eng::util::astar` sobre la rejilla de la sala; `plan_route`/`nav_open`) el jugador rodea NPCs, árboles y lobos en movimiento. Validado en host (simulador del paseo+combate: crónica completa en 1.305 frames, igual que el walker anterior) y en vivo (secuencia de 14 frames con la crónica completa).
 
+## Flicker
+
+- Captura por **pasos de frame** (1 frame entre capturas, breakpoint del ready probe; `run.args` la fija en 60 frames para el gate): 50/59 pares congelados, 9 pares con cambio **discreto** (salto de casilla del paseo cada 8 frames) y **sin oscilación A-B-A**.
+- Defecto encontrado y corregido en la campaña: el contador del HUD alternaba en pantalla **dos instantáneas** (41/49) porque la republicación de la banda repartía la versión nueva a un solo buffer (conteo a ciegas de 2 renders; un evento podía cortarlo). Se sustituyó por **versión por buffer** (`m_hud_ver`/`m_hud_shown[]` y `App::screen_buffer_index()`): cada buffer repone la banda la primera vez que vuelve a ser trasero.
+- `games/400_rpg_slice/flicker-baseline.json`: `max_candidates 7` (5 saltos de casilla + 2 del pintado inicial del HUD), declarado tras la corrección; el gate `tools/test-regression.sh --flicker --require-flicker-ok --demo games/400_rpg_slice` queda en verde. La herramienta acepta escenas estáticas (`no_global_translation`) como analizables cuando hay baseline.
+
 ## Conclusiones (alcance)
 
-- **Correcto en el alcance probado**: render de las tres salas con HUD y decorado; actores y borrado de estelas sin huecos visibles; crónica completa hasta la victoria; navegación por A* alrededor de obstáculos; 44,7–45,7 fps con ~1,10 campos/frame y cadencia determinista entre arranques.
+- **Correcto en el alcance probado**: render de las tres salas con HUD y decorado; actores y borrado de estelas sin huecos visibles; crónica completa hasta la victoria; navegación por A* alrededor de obstáculos; 44,7-45,7 fps con ~1,10 campos/frame y cadencia determinista entre arranques.
 - **Cuelgue intermitente de VBlank**: **resuelto en el juego** usando el bucle de **sondeo** (`App::run_polling`), que no depende de la IRQ VERTB (la ROM la apaga bajo AmigaDOS; ver [`212-vblank-irq-apagada-por-el-so.md`](../../docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md)). La deuda del engine (bucle por IRQ bajo SO vivo) sigue abierta para las demos que lo usen.
-- **SIN VERIFICAR**: baseline de flicker (`tools/test-regression.sh --flicker`) no declarado; los 50 fps exactos.
+- **SIN VERIFICAR**: los 50 fps exactos.
 - El "48,8 fps" de la primera sesión no era una medida válida del juego real: se tomó con la copia de sala **ablacionada** (`-DK_SLICE_NO_ROOM=1`) y el guion atascado (dibujaba solo parches).
 

@@ -729,6 +729,11 @@ async function captureFrameSequenceStep(protocol, sequenceDir, frameCount, sideC
       await protocol.continue();
     }
   } finally {
+    // Cierre determinista: **parar antes de quitar el breakpoint**. Quitarlo con la CPU ya
+    // reanudada (orden anterior) es una carrera de GDB: si el `Z0` se pierde, el probe
+    // vuelve a parar el juego (queda clavado en un frame) y el canal lateral deja de
+    // servirse (screenshot final `queued` sin escribir; familia DT-023).
+    try { await protocol.pause(); } catch (err) { /* ya estaba parada */ }
     try { await protocol.clearBreakpoint(probeSymbol); } catch (err) { /* best effort */ }
     try { await protocol.continue(); } catch (err) { /* best effort */ }
   }
@@ -1972,6 +1977,13 @@ if (index !== injectSample - 1) return;
     if (!fs.existsSync(screenshotPath)) {
       await sleep(300);
       screenshot = await captureScreenshotViaSideChannel(sideChannelPort, screenshotPath);
+    }
+    // Si el canal no sirvio la cola (tras una sesion reciente de breakpoints puede quedar
+    // `queued` sin escribir; familia DT-023), cae al screenshot del monitor GDB, que
+    // responde en cualquier estado; aqui la captura es unica y el run termina despues
+    // (el congelado de video que motiva preferir el canal solo afecta a secuencias).
+    if (!fs.existsSync(screenshotPath)) {
+      screenshot = await captureScreenshot(protocol, screenshotPath);
     }
   } else {
     screenshot = await captureScreenshot(protocol, screenshotPath);

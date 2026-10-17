@@ -724,7 +724,9 @@ private:
 		}
 		const s32 dy = job.line.y1 > job.line.y0 ? job.line.y1 - job.line.y0
 							  : job.line.y0 - job.line.y1;
-		const u32 need = static_cast<u32>(dy + 1) * job.line.row_bytes + 2u;
+		// `(dy+1)*row_bytes` con `mulu.w` por mitades (`mulu32x16`): exacto en 32 bits y sin
+		// `__mulsi3` (fila y ancho caben en u16).
+		const u32 need = eng::math::mulu32x16(static_cast<u32>(dy + 1), job.line.row_bytes) + 2u;
 		return m_bounds.contains(rel, need);
 	}
 

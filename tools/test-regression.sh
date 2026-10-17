@@ -442,7 +442,7 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 			over="no"
 			# Una demo con baseline exige el detector temporal y el análisis compensado. Si OpenCV
 			# no está disponible, no convertir la falta de datos en cero candidatos/bloques.
-			if { [ -n "$base_c" ] || [ -n "$base_b" ]; } && ! node -e "const j=require('$flicker_json');const p=j.frameDiff||[];if(!j.detector||!Array.isArray(j.detector.candidates)||j.detector.candidates.some(c=>c.type&&c.type.includes('analysis-unavailable'))||!j.motionAlignment?.applied||!p.length||p.some(x=>!Number.isFinite(x.blocks_low)))process.exit(1)" >/dev/null 2>&1; then
+			if { [ -n "$base_c" ] || [ -n "$base_b" ]; } && ! node -e "const j=require('$flicker_json');const p=j.frameDiff||[];const a=j.motionAlignment||{};if(!j.detector||!Array.isArray(j.detector.candidates)||j.detector.candidates.some(c=>c.type&&c.type.includes('analysis-unavailable'))||(!a.applied&&a.reason!=='no_global_translation')||!p.length||p.some(x=>!Number.isFinite(x.blocks_low)))process.exit(1)" >/dev/null 2>&1; then
 				over="yes"
 				flicker="fail"; notes="${notes:+$notes,}flicker-analysis-unavailable"
 			fi

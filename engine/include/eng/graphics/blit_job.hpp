@@ -14,6 +14,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/types/typed.hpp>
+#include <eng/core/math/arith.hpp>
 #include <eng/graphics/target_bounds.hpp>
 
 namespace eng::graphics {
@@ -276,10 +277,20 @@ struct BlitJob {
 			      static_cast<eng::s32>(job.destination_modulo_bytes);
 	const eng::u32 len = static_cast<eng::u32>(job.words_per_row) * 2u;
 	const eng::s32 rows = static_cast<eng::s32>(job.height) - 1;
-	const eng::s32 pstride = static_cast<eng::s32>(job.destination_plane_stride_bytes);
+	// `rows*step` y `p*pstride` con `mulu.w` por mitades (`mulu32x16`), no `__mulsi3` (libcall
+	// de ~50 ciclos en cada job validado). `step` puede ser negativo (módulo negativo): el
+	// producto se calcula sobre la magnitud —exacto para todo `s32` por la descomposición
+	// baja/alta— y el signo se restaura.
+	const eng::u32 step_abs = static_cast<eng::u32>(step < 0 ? -step : step);
+	const eng::s32 span = static_cast<eng::s32>(
+		eng::math::mulu32x16(static_cast<eng::u32>(rows), static_cast<eng::u16>(step_abs)) +
+		(eng::math::mulu32x16(static_cast<eng::u32>(rows), static_cast<eng::u16>(step_abs >> 16))
+		 << 16));
+	const eng::s32 row_delta = step < 0 ? -span : span;
 	for (eng::u8 p = 0u; p < job.bitplane_count; ++p) {
-		const eng::s32 row0 = first + static_cast<eng::s32>(p) * pstride;
-		const eng::s32 row1 = row0 + rows * step;
+		const eng::s32 row0 = first + static_cast<eng::s32>(
+			eng::math::mulu32x16(job.destination_plane_stride_bytes, static_cast<eng::u16>(p)));
+		const eng::s32 row1 = row0 + row_delta;
 		const eng::s32 lo = row0 < row1 ? row0 : row1;
 		const eng::s32 hi = row0 < row1 ? row1 : row0;
 		if (!bounds.contains(lo, len) || !bounds.contains(hi, len)) {

@@ -800,6 +800,13 @@ public:
 		return Screen {m_scene.get()->draw_target(&m_plan), stream};
 	}
 
+	/// Indice del **buffer trasero** que `screen()` esta dibujando (0/1 con doble buffer).
+	/// Permite publicaciones **por buffer** (p. ej. reponer una banda cuando la copia de ese
+	/// buffer quedo vieja) sin escribir en el buffer que el Copper muestra en ese momento.
+	[[nodiscard]] u8 screen_buffer_index() const noexcept {
+		return m_scene.valid() ? m_scene.get()->back_index() : 0u;
+	}
+
 	/// **Publica el frame**: ejecuta el plan de Blitter (si el backend lo soporta) y commitea la
 	/// escena (swap de `BPLxPT`). Para el modo copper-chunky el juego usa su `CopperChunkyLayer`.
 	///

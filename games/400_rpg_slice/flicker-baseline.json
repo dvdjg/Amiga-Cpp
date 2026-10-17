@@ -1,0 +1,4 @@
+{
+  "max_candidates": 7,
+  "note": "Paseo por casillas de 16 px (un paso cada 8 frames, kMovePeriod): entre pasos los frames son identicos y el salto discreto marca 1-2 candidatos 'corruption' de score bajo sobre la caja del jugador (mismo caso que la demo 001_rpg_dungeon). Ventana medida (60 frames consecutivos por paso de run, arranque incluido): 5 saltos de casilla + 2 del pintado inicial del HUD = 7 candidatos; 50/59 pares congelados y sin oscilacion A-B-A. Los 'bloques bajos' del frame-diff son la banda del HUD (metrica estructural) y no se acotan."
+}

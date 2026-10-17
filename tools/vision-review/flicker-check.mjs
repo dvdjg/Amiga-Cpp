@@ -115,7 +115,12 @@ if (!has('--no-detect')) {
     try { detector = JSON.parse(fs.readFileSync(jf, 'utf8')); } catch { detector = null; }
   }
 }
-if (fs.existsSync(baselinePath) && (!detector || frameDiffError || !frameDiff || !frameDiff.motion_alignment?.applied)) {
+// Una escena **estática** (sin traslación global que compensar) es analizable directamente:
+// `no_global_translation` no es una falta de análisis, es ausencia de paneo. Solo se marca
+// "analysis-unavailable" si faltan los datos o la alineación no es fiable (pares malos).
+const alignOk = frameDiff?.motion_alignment?.applied === true ||
+  frameDiff?.motion_alignment?.reason === 'no_global_translation';
+if (fs.existsSync(baselinePath) && (!detector || frameDiffError || !frameDiff || !alignOk)) {
   detector = { candidates: [{ type: ['analysis-unavailable'], relative: 'pantalla completa' }] };
 }
 

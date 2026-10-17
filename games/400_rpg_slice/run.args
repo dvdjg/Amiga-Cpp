@@ -1,0 +1,4 @@
+--wait-ms 15000
+--side-channel-timeout-ms 100000
+--load-timeout-ms 90000
+--sequence-step-frames 60

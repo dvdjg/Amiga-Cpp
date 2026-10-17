@@ -562,10 +562,13 @@ struct RpgSlice {
 	/// dos buffers). Se repone al entrar en sala y en cada cambio de la imagen (eventos).
 	eng::u8 m_room_publish = 0u;
 
-	/// Renders que faltan para republicar solo la **banda del HUD** (2 cubre los dos
-	/// buffers): el HUD cambia a menudo y arrastrarlo con la imagen entera costaba un
-	/// publicacion completa por cambio.
-	eng::u8 m_hud_band = 0u;
+	/// Version de la **banda del HUD** en la imagen (sube en cada recomposicion) y ultima
+	/// version publicada en **cada buffer** de display: cada buffer repone la banda la
+	/// primera vez que vuelve a ser el trasero. Sustituye al contador a ciegas de 2
+	/// renders, que podia dejar un buffer anclado a una instantanea vieja (el contador del
+	/// HUD alternaba 41/49 en pantalla).
+	eng::u16 m_hud_ver = 1u;
+	eng::u16 m_hud_shown[2] = {0u, 0u};
 
 	/// Historial del jugador (posicion hace 1 y 2 renders) para borrar la estela del buffer
 	/// de turno restaurando desde la imagen cocinada.
@@ -1422,7 +1425,7 @@ struct RpgSlice {
 		const auto img = active_image().view.as_words();
 		if (m_hud_dirty) {
 			m_hud_dirty = false;
-			m_hud_band = 2u; // la banda del HUD vive en la imagen: republicar solo la banda
+			++m_hud_ver; // la banda del HUD vive en la imagen: republicar solo la banda
 			// La banda del HUD (filas 208..223, dos lineas de 8 px) vive en la propia
 			// imagen de sala: cero por plano y componer; lo publica la copia de la sala
 			// (cero jobs de Blitter extra por frame).
@@ -1511,14 +1514,20 @@ struct RpgSlice {
 		// **Publicacion de la imagen por cambio, no por frame**: la sala cocinada solo se
 		// copia al buffer trasero cuando cambia (entrada de sala, HUD o eventos), en los
 		// DOS buffers (2 renders). Copiarla cada frame costaba ~1 campo de CPU/Blitter.
+		const eng::u8 bi = app.screen_buffer_index(); // buffer trasero de este render
 		if (m_room_publish != 0u) {
 			blit_plane_major(s, active_image(), kImageWordsPerRow,
 					 static_cast<eng::u16>(kImageRows), 0u);
 			--m_room_publish;
-			m_hud_band = 0u; // la publicacion completa ya incluye la banda del HUD
-		} else if (m_hud_band != 0u) {
+			if (bi < 2u) {
+				m_hud_shown[bi] = m_hud_ver; // la publicacion completa ya incluye la banda
+			}
+		} else if (bi < 2u && m_hud_shown[bi] != m_hud_ver) {
+			// Cada buffer repone la banda la primera vez que vuelve a ser trasero: ninguno
+			// se queda con una instantanea vieja aunque el relevo no cubra exactamente los
+			// dos buffers (antes el contador del HUD alternaba dos valores en pantalla).
 			publish_hud_band(s);
-			--m_hud_band;
+			m_hud_shown[bi] = m_hud_ver;
 		}
 		// Banda inferior (224..255) negra: dos filas de parches negros en los dos primeros
 		// renders (uno por buffer); despues nadie la toca.
