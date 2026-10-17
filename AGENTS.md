@@ -308,6 +308,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Crear o arreglar una demo/juego (procedimiento completo)** (fases F0–F5, gates, presupuesto 50 fps, visión y deuda) | `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` |
 | **Demos atractivas, validación visual (Ollama) y gate de optimizaciones de render** | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
 | **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
+| **Ergonomía del API y bootstrap de demos/juegos** (sin `SysBase`/soporte/números mágicos; `run_demo` + `GameDisplay` imperativo + `draw_hud`; gate `demo-ergonomics`) | `docs/engine/architecture/API_ERGONOMICS.md` |
 | **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
 | **Coherencia de configuración en setup** (constructor único de `BPLCON0`, validadores `eng::setup`, `[[nodiscard]]`+`-Werror=unused-result`, regiones y WAITs) | `docs/engine/architecture/COHERENCIA_DE_SETUP.md` |
 | **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
