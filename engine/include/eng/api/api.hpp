@@ -34,6 +34,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/util/expected.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/debug/hud.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>

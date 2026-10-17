@@ -29,7 +29,9 @@ void check(bool ok, const char* what) {
 
 eng::u16 g_sheet[256] {};
 eng::u16 g_mask[256] {};
-eng::u16 g_dest[256] {};
+/// Destino de los BOBs: 16 B/fila × 32 filas × 4 planos = 2048 B (el BOB es 32×16 y debe
+/// caber entero: el Blitter no recorta).
+eng::u16 g_dest[1024] {};
 
 // En host no hay Chip RAM: escape documentado del test (procedencia garantizada a mano).
 template <class Tag = eng::BobTag, class T, eng::usize N>
@@ -56,7 +58,7 @@ eng::graphics::Bob make_bob(eng::graphics::BobLayout layout, eng::graphics::BobD
 }
 
 const eng::graphics::BobTarget kTarget =
-	eng::graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 8u, 8u, 4u,
+	eng::graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 16u, 32u, 4u,
 				       eng::graphics::BobLayout::Planar);
 
 } // namespace

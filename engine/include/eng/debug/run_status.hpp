@@ -70,6 +70,19 @@ inline void mark_failed(volatile RunStatus& status, u32 detail) {
 	status.detail = detail;
 }
 
+/// **Etapa de arranque que falla**, para el `detail` del runner sin números mágicos.
+/// Los valores son estables y los reporta el bootstrap (`run_demo`); un juego con causas
+/// propias puede usar el `mark_failed(u32)` de abajo con una constante con nombre.
+enum class BootFail : u16 {
+	Memory = 1u,  ///< `configure_game_memory` no encontró perfil / banco
+	Display = 2u, ///< `set_display`/`start` no compuso el display declarado
+	Game = 3u,    ///< fallo del `init` del juego (lo marca el propio juego)
+};
+
+inline void mark_failed(volatile RunStatus& status, BootFail stage) {
+	mark_failed(status, static_cast<u32>(stage));
+}
+
 /// **Fallo de memoria**: marca `Failed` con un `detail` que empaqueta el código base de la etapa y
 /// el estado del banco de memoria, de modo que un solo `runstatus` del canal lateral baste para
 /// saber *qué banco* y *por qué* sin recompilar. El diagnóstico completo (tamaños pedidos, último

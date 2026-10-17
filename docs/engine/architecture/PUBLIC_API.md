@@ -23,7 +23,7 @@ El **API público final** —no necesariamente las interfaces intermedias del en
 
 Mientras falten módulos, se **escribe el API de lo que ya existe** (aunque sea parcial) y se
 **adapta** cuando lleguen los demás; es preferible un API claro y evolutivo que esperar al final.
-Guía concreta para lo ya disponible: [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md).
+Guía concreta para lo ya disponible: [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md). Los **criterios concretos del usuario** (bootstrap de plataforma, cero números mágicos, vocabulario de intención, reutilización) están en [API_ERGONOMICS.md](API_ERGONOMICS.md) y son criterio de aceptación al añadir o tocar una API.
 
 Corolario de proceso: al añadir o tocar un módulo, preguntar «¿cómo lo pediría un juego?» y exponer
 esa llamada; los tipos internos (planos, `FramePlan`, `Rasterizer`, `Scheduler`) se quedan dentro.

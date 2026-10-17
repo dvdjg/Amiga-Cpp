@@ -283,9 +283,14 @@ int main() {
 		bob.sheet_row_bytes = 6u; // 2 palabras + guarda
 		bob.layout = BobLayout::Interleaved;
 		bob.draw = BobDraw::Or;
+		// Destino propio del BOB (32×16 + shift): 8 B/fila × 32 filas con el margen del shift.
+		static eng::u8 bob_dst_buf[512] {};
 		const eng::graphics::BobTarget t =
-			make_bob_target(dst.planes, dst.row_bytes, dst.height, dst.plane_count,
-					PlaneLayout::Interleaved);
+			make_bob_target(eng::ChipView<eng::PlaneTag> {
+						eng::Address<eng::MemoryKind::Chip>::from_storage(
+							bob_dst_buf),
+						sizeof(bob_dst_buf)},
+					8u, 32u, 1u, PlaneLayout::Interleaved);
 		FramePlan plan;
 		plan.clear();
 		check(bob_draw(plan, bob, 0u, 5, 2, t), "bob_draw OR intercalado");

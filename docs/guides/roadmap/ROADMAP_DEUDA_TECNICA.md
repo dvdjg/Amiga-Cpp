@@ -351,7 +351,7 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Gates:** HOST-232 (círculo/clip), HOST-388 (plan lleno), HOST-439 (fuera de buffer/reserva corta/límite exacto/shift, canarios) y demo 122 (`build -> run -> analyze`, 49,92 fps, visión limpia). La 213 (streaming con 16 BOBs) se midió tras el cambio: **49,97 fps / 1,001 campos** (el chequeo de `StampRun::at` se compensó usando `mulu.w` en vez de `__mulsi3` para el offset de fila/frame).
 
-**Pendiente (no bloquea):** validación genérica de `BlitJob` en la alta (`BoundTarget`), contrato de tamaño de la hoja del BOB, canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio y barrido de `Block::view.data()` en demos técnicas. Plan en `ROADMAP_API_COHERENCE.md` §F8 y `ROADMAP_MEMORY_OWNERSHIP.md` Fase 8.
+**Pendiente (no bloquea):** validación genérica de `BlitJob` en la alta (`BoundTarget`), contrato de tamaño de la hoja del BOB (al probarlo fallan 9 tests host con hojas «débiles»; requiere pasada dedicada), canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio y barrido de `Block::view.data()` en demos técnicas. Plan en `ROADMAP_API_COHERENCE.md` §F8 y `ROADMAP_MEMORY_OWNERSHIP.md` Fase 8.
 
 ## DT-029 - Demo 011 (`typed_memory`): no alcanza READY (state=0, `PC=0x4`) - ABIERTA
 

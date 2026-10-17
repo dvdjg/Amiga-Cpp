@@ -8,6 +8,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | Documento | Contenido |
 |-----------|-----------|
 | [ROADMAP_ENGINE_CPP_AMIGA500.md](../../guides/roadmap/ROADMAP_ENGINE_CPP_AMIGA500.md) | Hoja de ruta inicial del engine C++ por fases (0-12) y libreta de diseño; **histórica** (vigente: `ROADMAP_UNIFICADO.md`). |
+| [API_ERGONOMICS.md](API_ERGONOMICS.md) | **Criterios del usuario para la ergonomía del API**: la app no arranca la máquina ni repite `SysBase`/run-status, cero números mágicos (enums y valores por defecto), vocabulario de intención, declarar qué no cómo, reutilización y checklist al diseñar API nueva. |
 | [CODING_STYLE.md](CODING_STYLE.md) | Restricciones y estilo: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay. |
 | [MATH_LIBRARY.md](MATH_LIBRARY.md) | Modelo de la librería de matemáticas genérica: `Fixed<Repr,Exp,Policy>`, `Vec`/`Mat`/`Affine`, escalar como parámetro de plantilla. |
 | [3D_PHYSICS.md](3D_PHYSICS.md) | **Física 3D realista en A500**: opciones (cinemática de estados, cuerpos rígidos arcade, SAT-3D de OBB, proxy de colisión), costes medidos por kernel y opción preferida por hitos. |
@@ -67,6 +68,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [GAME_AI_LIBRARY.md](GAME_AI_LIBRARY.md) | IA clásica de videojuego (`eng::ai`): planificación GOAP, decisión, navegación, steering y percepción. |
 | [GOAP_EXTENDED.md](GOAP_EXTENDED.md) | **GOAP ampliado** (`eng::ai`+`eng::sim`): estado híbrido hechos+niveles, acciones con `target` y coste dinámico, *anytime* con presupuesto, caché con invalidación selectiva, plan coordinado y HTN ligero. Diseño objetivo (adopción en G7). |
 | [SIM_ECOSYSTEM.md](SIM_ECOSYSTEM.md) | **Ecosistema vivo** (`eng::sim`): criaturas con necesidades, personalidad, mente afectiva, relaciones y sociedad; LOD abstracto/realizado, tick escalonado y decisión por utilidad. |
+| [RPG_LAYER.md](RPG_LAYER.md) | **Capa RPG/CRPG** (`eng::rpg`): núcleo de mundo sobre `eng::sim` (hechos persistentes, objetos tipo+instancia, inventario/equipo, atributos derivados, reloj, save por componente — M0 implementado, HOST-454…457) y motores objetivo (progreso, conflicto, sociedad/economía, narrativa) con políticas de plantilla. Plan: [ROADMAP_RPG.md](../../guides/roadmap/ROADMAP_RPG.md). |
 | [BOARD_GAME_AI.md](BOARD_GAME_AI.md) | **Motores de tablero** (`eng::board`): ajedrez y Go 9×9 con footprint de 20 kB–1 MB, búsqueda adversaria, conocimiento en disquete y explicación NLG ES/EN. |
 | [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) | **Concurrencia** (`eng::parallel`): hilos, mutex, atómicos, condición y cancelación abstractos (no-ops en m68k, `std::` en el host) para optimizar en plataformas multinúcleo sin romper el Amiga. |
 | [HARDWARE_INVENTORY.md](HARDWARE_INVENTORY.md) | **Inventario de hardware** (`eng::hw`): `probe()` sondea CPU/FPU, chipset (OCS/ECS/AGA), Akiko/C2P, Kickstart, RAM por tipo, display (lo declara la app) y puertos; consultas de capacidad y heurísticas puras. |

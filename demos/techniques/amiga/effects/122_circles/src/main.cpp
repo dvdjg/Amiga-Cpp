@@ -14,31 +14,14 @@
 //   SetupPlayfield(...); SetColor(0, 0x000); SetColor(1, 0xfff);
 //   for (r = 2; r < 128; r += 2) Circle(screen, 0, 160, 128, r);
 //
-// En el engine eso es `app.screen().circle(...)`: el contexto de dibujo resuelve el mapeo
-// del playfield (aquí 1 plano), el recorte y la escritura; el juego solo describe la figura
-// y su color de paleta. La figura se construye a razón de un radio por frame (el estado
-// estable es estático, coste cero) y el HUD lleva nombre, versión y contador de frames en
-// la franja inferior (norma del repo).
-#include <eng/api/api.hpp>          // fachada: App/Screen/paleta/run_status
-#include <eng/debug/version.hpp>    // versión de demo (major.minor.build)
-#include <eng/platform/amiga/backend.hpp>
-
-#include <proto/exec.h>
-#include <exec/execbase.h>
-
-#include "support/gcc8_c_support.h"
-
-struct ExecBase* SysBase = nullptr;
-
-extern "C" {
-__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
-	eng::debug::run_status_magic,
-	eng::debug::run_status_version,
-	static_cast<eng::u16>(eng::debug::RunState::Cold),
-	0,
-	0,
-};
-}
+// En el engine eso es `app.screen().circle(...)`: el contexto de dibujo resuelve el mapeo del
+// playfield (aquí 1 plano), el recorte y la escritura. `main` declara el display de forma
+// **imperativa** (qué se quiere ver) y `run_demo` pone el resto (memoria, `start`, bucle,
+// telemetría del runner); la demo no incluye soporte de plataforma ni escribe `SysBase`.
+// La figura se construye a razón de un radio por frame (el estado estable es estático, coste
+// cero) y `eng::debug::draw_hud` rotula la franja inferior (nombre + versión + frames).
+#include <eng/api/api.hpp>              // fachada: App/Screen/paleta + HUD de depuración
+#include <eng/platform/amiga/entry.hpp> // run_demo: arranque de plataforma
 
 namespace {
 
@@ -66,11 +49,7 @@ constexpr eng::Palette32 kPalette {{
 constexpr eng::debug::Version kVersion {1u, 0u}; // el build lo inyecta build-demo.sh
 
 struct CirclesDemo {
-	void init(auto& app) {
-		eng::debug::mark_init_started(g_eng_run_status);
-		(void)app;
-	}
-
+	void init(auto& app) { (void)app; }
 	void update(auto& app) { (void)app; }
 
 	void render(auto& app) {
@@ -81,78 +60,43 @@ struct CirclesDemo {
 		// La misma figura del original (círculos concéntricos de radio par). El original la
 		// pinta entera cada frame; aquí se **construye progresivamente** (un radio por frame)
 		// para no meter ~150 campos de coste en un solo frame de debug: el estado estable es
-		// la figura completa y el coste por frame vuelve a cero. La primitiva de dominio evita
-		// nombrar el plano (`Circle(screen, 0, x, y, r)` en el original).
+		// la figura completa y el coste por frame vuelve a cero.
 		if (m_radius <= kMaxRadius) {
 			(void)screen.circle(kCenterX, kCenterY, m_radius, kInk);
-			m_radius = static_cast<eng::s16>(m_radius + kRadiusStep);
+			m_radius += kRadiusStep;
 		}
-		draw_hud(screen, app.frame());
+		// HUD de depuración en una línea: nombre + versión + contador de frames, por palabras.
+		// Se reescribe ~1 vez/segundo (no cada frame): el contador se ve avanzar y el coste
+		// del formateo decimal queda fuera del bucle normal (norma de HUD barato del repo).
+		const eng::u32 tick = app.frame() / 50u;
+		if (tick != m_hud_tick) {
+			m_hud_tick = tick;
+			(void)eng::debug::draw_hud(screen, "CIRCLES", kVersion, app.frame(), kInk);
+		}
 		app.present();
 		if (m_radius > kMaxRadius && !m_ready) {
 			m_ready = true;
-			eng::debug::mark_ready(g_eng_run_status, 0x00012200u);
+			eng::amiga::mark_ready(); // la figura está completa: el runner puede medir/capturar
 		}
-		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
 
 private:
-	/// Franja inferior (1 bpp, texto por palabras): nombre + versión + contador de frames.
-	/// `draw_text_words` compone dos glifos por palabra de 16 px (una escritura por fila y
-	/// plano), sin bucle por píxel; el `x` va alineado a 16 y pisa el fondo con el patrón.
-	void draw_hud(eng::Screen& screen, eng::u32 frame) {
-		char label[24] {};
-		const eng::u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
-		char line[40] = "CIRCLES ";
-		eng::u8 n = 8u;
-		for (eng::u8 i = 0u; i < vlen && n + 1u < sizeof(line); ++i) line[n++] = label[i];
-		line[n++] = ' ';
-		line[n++] = 'F';
-		line[n++] = ' ';
-		// Contador decimal sin stdlib (mismo criterio que `version_label`).
-		char digits[12] {};
-		eng::u8 d = 0u;
-		eng::u32 v = frame;
-		do {
-			digits[d++] = static_cast<char>('0' + (v % 10u));
-			v /= 10u;
-		} while (v != 0u && d < sizeof(digits));
-		while (d > 0u && n + 1u < sizeof(line)) line[n++] = digits[--d];
-		line[n] = '\0';
-		(void)screen.text_words(0, static_cast<eng::s16>(kHeight - 8u), line, kInk);
-	}
-
 	eng::s16 m_radius = kFirstRadius;
+	eng::u32 m_hud_tick = 0xffffffffu; ///< sentinela: fuerza el primer pintado del HUD
 	bool m_ready = false;
 };
 
 } // namespace
 
 int main() {
-	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	eng::debug::reset(g_eng_run_status);
-
-	// Perfil de memoria del juego según el hardware detectado (Chip/Slow/Fast).
-	eng::amiga::AmigaBackend backend {};
-	if (!backend.configure_game_memory()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00012201u);
-		return 0;
-	}
-	CirclesDemo game {};
-	eng::App app {backend, game, backend.memory_manager()};
-	// El juego declara QUÉ display quiere (320x256x1, doble buffer); `start()` lo compone,
-	// valida (planos, DMA, Chip) y lo instala. No hay registros ni copper en el juego.
+	// **Qué quiere ver el juego** (imperativo, sin conocer el chipset): 320×256×1, un buffer
+	// y esta paleta. El engine decide el cómo (composición, copperlist, DMA).
 	eng::GameDisplay display {};
 	display.width = kWidth;
 	display.height = kHeight;
 	display.color_depth = kPlanes;
 	display.buffers = kBuffers;
 	display.palette = kPalette;
-	if (!app.set_display(display) || !app.start()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00012202u);
-		return 0;
-	}
-	app.run(0xffffu);
-
-	return 0;
+	CirclesDemo demo {};
+	return eng::amiga::run_demo(demo, display);
 }

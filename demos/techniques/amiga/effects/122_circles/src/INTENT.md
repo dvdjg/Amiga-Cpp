@@ -22,4 +22,4 @@ Port de `demoscene-repo-orig/effects/circles/circles.c` a la fachada de juego de
 
 - Frames 0..62 (init): cada frame añade **un** círculo de radio creciente; el dibujo se hace dentro del propio `Playfield` (una escritura de palabra por punto), así que los radios grandes cuestan unos pocos VBlanks y el resto del arranque queda por debajo. El runner espera a `mark_ready`, que se marca cuando el último radio se ha dibujado.
 - Estado estable: la figura es **estática** (no se redibuja) y el coste por frame vuelve a cero; el único cambio es el contador `F` del HUD.
-- Cadencia medida (`A500_debug`): **49,87 fps / 1,003 campos/frame**; `A500_release`: 49,52 fps / 1,010 campos (la construcción inicial queda fuera de la ventana de medida del arranque). Sin parpadeo ni artefactos según la evaluación de visión (`VISION.md`).
+- Cadencia medida (`A500_debug`): **49,87 fps / 1,003 campos/frame**; `A500_release`: 49,92 fps / 1,002 campos (la construcción inicial queda fuera de la ventana de medida del arranque). El HUD se reescribe ~1 vez/segundo (coste despreciable). Sin parpadeo ni artefactos según la evaluación de visión (`VISION.md`).

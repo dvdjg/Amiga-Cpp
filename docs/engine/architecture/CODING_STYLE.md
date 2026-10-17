@@ -84,7 +84,7 @@ Separaciones importantes:
 - El acceso a la vista de hardware (`hardware_view()` y similares) es **interno** (composicion) o
   de **debug**; nunca de la logica de juego.
 - Si una funcion nueva obliga a la app a conocer el hardware, falta una abstraccion.
-- Detalle y ejemplos: `PUBLIC_API.md`.
+- Detalle y ejemplos: `PUBLIC_API.md`. **Ergonomía del usuario** (arranque de plataforma fuera del juego, cero números mágicos, vocabulario de intención, reutilización y HUD por defecto): `API_ERGONOMICS.md`.
 
 ## Criterio de diseno
 

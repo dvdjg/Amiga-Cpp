@@ -97,7 +97,7 @@ s.sprite(...);            // cuando exista el sistema de objetos
 app.present();            // ejecuta el plan del frame y publica
 ```
 
-Las primitivas inmediatas (`fill`, `line`, `frame`, `circle`, `pixel`, `text`) comparten el mismo contrato: reciben **coordenadas y color de paleta**, recortan contra el clip del contexto y se resuelven por el mapeo del playfield (CPU o Blitter según el rasterizador). La figura no nombra planos ni punteros; `Playfield::draw_circle` es la implementación reutilizable y `Surface`/`DrawTarget`/`Screen` solo la exponen. Gate: demo `122_circles` (port de `demoscene-repo-orig/effects/circles`, 49,87 fps) + HOST-232.
+Las primitivas inmediatas (`fill`, `line`, `frame`, `circle`, `pixel`, `text`) comparten el mismo contrato: reciben **coordenadas y color de paleta**, recortan contra el clip del contexto y se resuelven por el mapeo del playfield (CPU o Blitter según el rasterizador). La figura no nombra planos ni punteros; `Playfield::draw_circle` es la implementación reutilizable y `Surface`/`DrawTarget`/`Screen` solo la exponen. Gate: demo `122_circles` (port de `demoscene-repo-orig/effects/circles`, 49,92 fps, `run_demo` imperativo + `debug::draw_hud`) + HOST-232. Criterios de ergonomía aplicados: `API_ERGONOMICS.md`.
 
 ### 2.0 Estados de escena — `App::push_scene`/`pop_scene`/`set_scene`
 

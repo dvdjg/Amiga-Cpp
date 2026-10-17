@@ -11,8 +11,8 @@ Informe de validación de la demo (procedimiento F0-F5 de `docs/guides/methodolo
 | Versión | fps emulado | campos/frame | ciclos/frame |
 |---|---|---|---|
 | `Surface::circle` por píxel (`draw_span_op`) y figura completa en 2 frames (`A500_debug`) | 28,41 | 1,760 | 249.686 |
-| `Playfield::draw_circle` (escritura de palabra por punto) y **un radio por frame** (`A500_debug`) | **49,87** | **1,003** | 142.245 |
-| Igual, build `A500_release` (runner de máquina reutilizado; solo cambia el `.exe`) | 49,52 | 1,010 | 143.250 |
+| `Playfield::draw_circle` (escritura de palabra por punto) y **un radio por frame** (`A500_debug`) | **49,87** | **1,003** | 142.246 |
+| Igual, build `A500_release` (runner de máquina reutilizado; solo cambia el `.exe`) | 49,92 | 1,002 | 142.102 |
 
 Qué explica el delta:
 
@@ -20,7 +20,7 @@ Qué explica el delta:
 - `Playfield::draw_circle` resuelve el contorno **dentro** del playfield (punto medio entero, 8 octantes, `write_planes`/`write_planes_op` por punto, sin callbacks): el coste por punto es una escritura de palabra.
 - La figura se construye con **un radio por frame**; cuando termina, el frame estático no se redibuja y el coste por frame vuelve a cero. Así el arranque no contamina la ventana de medida (con el dibujo entero en 2 frames, la media de `measure-fps` seguía siendo 28 fps).
 
-Estado estable: 996 frames medidos con `fieldsPerFrame=1.00159` (sin tirones ni frames de 2 campos tras el arranque). La construcción (62 radios) consume ~2 s de tiempo emulado y ocurre antes de `mark_ready`; el runner espera a READY, así que la captura y la secuencia son de la figura completa.
+Estado estable: ventana representativa de ~995 frames con `fieldsPerFrame=1.003` (sin tirones ni frames de 2 campos tras el arranque). La construcción (62 radios) consume ~2 s de tiempo emulado y ocurre antes de `mark_ready`; el runner espera a READY, así que la captura y la secuencia son de la figura completa.
 
 ## Validación visual (secuencia + visión)
 
@@ -40,8 +40,8 @@ El detector (`node tools/vision-review/flicker-check.mjs --demo demos/techniques
 
 ## Coherencia de setup
 
-- `g_eng_run_status` con `detail=0x12200` y `mark_ready` **después** de completar la figura (el runner y la captura ven la imagen final).
-- Display 320×256×1 por `GameDisplay` + `App::start()` (composición validada: planos, Chip y presupuesto de bus); sin registros ni copper en la demo.
+- `eng::amiga::run_demo(demo, display)` + `amiga_boot.cpp` (símbolos débiles) cubren `SysBase`, `g_eng_run_status`, memoria, display y bucle: la demo **no** incluye `support/gcc8_c_support.h`, no declara `SysBase` ni escribe hex (`app.run()`, `mark_ready()`). `mark_ready` se llama **después** de completar la figura; el `detail` es 0 (sin códigos mágicos).
+- Display 320×256×1 declarado **imperativamente** en `main` (`GameDisplay display {}; display.width = …`) y arrancado por `run_demo`; composición validada (planos, Chip, bus) sin registros ni copper en la demo.
 - Paleta `{0x000, 0xfff}` (negro/blanco del original).
 
 ## Alcance y límites

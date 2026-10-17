@@ -23,6 +23,7 @@ El bucle de dibujo del efecto son **4 líneas** de API (`clear` + `circle` por r
 
 | Pregunta | `circles.c` (libgfx) | 122 con el engine |
 |---|---|---|
+| ¿Quién arranca la máquina (`SysBase`, memoria, run-status)? | `main()` y el programador: `*reinterpret_cast<ExecBase**>(4)`, perfil de memoria a mano | `eng::amiga::run_demo(demo, display)` + `amiga_boot.cpp`; la demo solo declara su `main` de ~10 líneas y no ve `SysBase` ni `gcc8_c_support.h` |
 | ¿Quién posee el bitmap? | `NewBitmap` (heap de Exec) y `DeleteBitmap` a mano | `GameDisplay` + `Scene`; el `App` reserva el bloque Chip y lo libera en el teardown |
 | ¿Quién elige el modo/planos? | `SetupPlayfield(MODE_LORES, DEPTH, …)` + `CopSetupBitplanes` | el planner de `App::start()` (`composition::compose`) a partir de `GameDisplay.color_depth` |
 | ¿Quién arma la copperlist? | `NewCopList`/`CopSetupBitplanes`/`CopListActivate` | el `App` (copperlist tipada, doble buffer, `takeover`) |
@@ -32,7 +33,7 @@ El bucle de dibujo del efecto son **4 líneas** de API (`clear` + `circle` por r
 | ¿Dónde vive la figura? | en la demo (`circle.h`/`Circle.c` de libgfx) | primitiva de dominio reutilizable (`Playfield::draw_circle` + `Surface::circle` + `Screen::circle`) |
 | Versión/HUD en pantalla | no | franja inferior 1 bpp (`Screen::text_words`), norma del repo |
 
-Lo que el port **gana**: misma figura en un contexto de juego (recursos con dueño, composición de display, teardown, doble buffer disponible, HUD y telemetría) y una primitiva reutilizable por cualquier juego (cualquier número de planos/color, cualquier resolución, CPU o Blitter). Lo que **cuesta**: el bootstrap (backend + memoria + display + run-status) son ~40 líneas que el original no tiene; el efecto concreto sigue siendo la parte trivial. Reducir ese bootstrap a un `Demo` base es el siguiente paso del roadmap («Próximos pasos»).
+Lo que el port **gana**: misma figura en un contexto de juego (recursos con dueño, composición de display, teardown, doble buffer disponible, HUD y telemetría) y una primitiva reutilizable por cualquier juego (cualquier número de planos/color, cualquier resolución, CPU o Blitter). Lo que **costaba**: el bootstrap (backend + memoria + display + run-status), hoy resuelto por `eng::amiga::run_demo(demo, display)` + `amiga_boot.cpp`; la demo no tiene plomería y su lógica se lee entera. Criterios de diseño aplicados: [`API_ERGONOMICS.md`](../../../../docs/engine/architecture/API_ERGONOMICS.md).
 
 ## Contrato y seguridad de buffers
 
@@ -51,7 +52,7 @@ El inventario de huecos y el plan de cierre están en [`ROADMAP_API_COHERENCE.md
 
 - Misma estructura (círculos de radio par, centro de pantalla, blanco sobre negro) y mismo algoritmo de punto medio/Bresenham entero.
 - Centro en (160,124) y radio máximo 122 en vez de (160,128)/126: la franja inferior de 8 filas es del HUD (norma del repo). El resto de radios 2..122 coincide con el original.
-- El original redibuja la figura completa cada VBlank (visualmente estática); el port la construye progresivamente (un radio por frame) y luego no la toca: el estado estable es idéntico y el coste por frame vuelve a cero. La construcción progresiva evita meter ~150 campos de coste en un solo frame de debug (medido: con el dibujo completo en 2 frames, la ventana de `measure-fps` promediaba 28 fps por el arranque; con un radio por frame, 49,87 fps).
+- El original redibuja la figura completa cada VBlank (visualmente estática); el port la construye progresivamente (un radio por frame) y luego no la toca: el estado estable es idéntico y el coste por frame vuelve a cero. La construcción progresiva evita meter ~150 campos de coste en un solo frame de debug (medido: con el dibujo completo en 2 frames, la ventana de `measure-fps` promediaba 28 fps por el arranque; con un radio por frame, 49,92 fps).
 - El HUD no existe en el original (norma del repo desde 2026-10).
 
 ## Búsqueda previa

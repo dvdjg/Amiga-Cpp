@@ -148,11 +148,13 @@ int main() {
 		bob.layout = BobLayout::Interleaved;
 		bob.draw = BobDraw::Or;
 		const Sprite sprite {bob};
+		// Pantalla propia del BOB (32×16 + shift): 8 B/fila × 32 filas.
+		static eng::u16 screen[256] {};
 		const eng::graphics::BobTarget target = eng::graphics::make_bob_target(
 			eng::ChipView<eng::PlaneTag> {
-				eng::Address<eng::MemoryKind::Chip>::from_storage(sheet),
-				sizeof(sheet)},
-			2u, 8u, 1u, eng::graphics::PlaneLayout::Interleaved);
+				eng::Address<eng::MemoryKind::Chip>::from_storage(screen),
+				sizeof(screen)},
+			8u, 32u, 1u, eng::graphics::PlaneLayout::Interleaved);
 
 		DrawLayer<4u> layer;
 		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 0u,
