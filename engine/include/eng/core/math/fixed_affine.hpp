@@ -56,8 +56,10 @@ struct projector<Affine<N, SR, SL>> {
 	using length_t = SL;
 
 	/// Lo precalculable UNA vez por matriz: los términos de traslación plegados.
+	/// `a` es un **puntero** (no referencia) para que el cache sea almacenable en
+	/// estado persistente (interleaving cooperativo del transform, DT-026).
 	struct cache {
-		const affine_t& a;
+		const affine_t* a = nullptr;
 		s32 e0; // fila x: `(t.x − normfx(m00·m01)) << 8`
 		s32 e1; // fila y
 		s16 tz; // fila z: la traslación va sin plegar (la fila z normaliza)
@@ -68,7 +70,7 @@ struct projector<Affine<N, SR, SL>> {
 	/// por frame**, no por vértice; `project` consume el cache en el camino caliente.
 	[[nodiscard]] static cache make(const affine_t& a) {
 		return cache {
-			a,
+			&a,
 			static_cast<s32>((static_cast<s32>(a.t.x().v) - dot(a.m.m[0][0], a.m.m[0][1]).v) << 8),
 			static_cast<s32>((static_cast<s32>(a.t.y().v) - dot(a.m.m[1][0], a.m.m[1][1]).v) << 8),
 			static_cast<s16>(a.t.z().v - dot(a.m.m[2][0], a.m.m[2][1]).v)};
@@ -92,9 +94,9 @@ struct projector<Affine<N, SR, SL>> {
 		// reutiliza, así que cuesta UNA multiplicación por vértice en vez de una por fila
 		// (como el `MULVERTEX` del original, que recibe `xy`).
 		const s32 xy = arith<typename SL::repr>::mul(px.v, py.v);
-		const ratio_t* m0 = c.a.m.m[0];
-		const ratio_t* m1 = c.a.m.m[1];
-		const ratio_t* m2 = c.a.m.m[2];
+		const ratio_t* m0 = c.a->m.m[0];
+		const ratio_t* m1 = c.a->m.m[1];
+		const ratio_t* m2 = c.a->m.m[2];
 		return Projected3 {(row(m0[0], m0[1], m0[2], px, py, pz, xy) >> 4) + c.e0,
 				   (row(m1[0], m1[1], m1[2], px, py, pz, xy) >> 4) + c.e1,
 				   // La fila z normaliza el 8.24 a 4.12 (un `>> 12`), como el `normfx` del

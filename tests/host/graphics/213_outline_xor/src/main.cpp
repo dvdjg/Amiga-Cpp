@@ -26,17 +26,13 @@ struct MockBackend {
 	int draws = 0;
 	int fills = 0;
 	int waits = 0;
-	bool begin_dpt_fixed = false; ///< `blitter_lines_begin` recibio `d_base` (BLTDPT fijo del lote)
 	u16 fill_planes = 0;
 	u16 fill_w = 0;
 	u16 fill_h = 0;
 	bool fill_wait = true;
 	s16 last_x0 = 0, last_y0 = 0, last_x1 = 0, last_y1 = 0;
 
-	void blitter_lines_begin(u16, u8* d_base = nullptr) {
-		++begins;
-		begin_dpt_fixed = (d_base != nullptr);
-	}
+	void blitter_lines_begin(u16) { ++begins; }
 	bool blitter_line_eor_prepare(LineEorParams& out, u16, s16 x0, s16 y0, s16 x1, s16 y1) {
 		out.dummy = 1;
 		++prepares;
@@ -104,8 +100,6 @@ int main() {
 					 eng::Span<const OutlineEdge> {edges, 3u});
 
 	check(backend.begins == 1, "los comunes del modo linea se fijan UNA vez");
-	check(backend.begin_dpt_fixed,
-	      "flat_shade_xor fija BLTDPT (base del bitmap) en el preludio del lote");
 	check(backend.prepares == 2, "la arista horizontal se descarta (2 prepares)");
 	check(backend.draws == 3, "una linea por plano del color (2 + 1)");
 	check(lines == 3u, "flat_shade_xor devuelve las lineas-plano lanzadas");

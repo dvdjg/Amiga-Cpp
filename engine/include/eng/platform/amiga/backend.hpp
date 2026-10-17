@@ -527,12 +527,11 @@ public:
 	/// `DrawObject` (flatshade-convex y wireframe). NO espera al Blitter: el llamador
 	/// sincroniza antes de la primera `blitter_line_*_draw`.
 	///
-	/// `d_base` (opcional): fija **`BLTDPT` a la base del bitmap** una vez y los
-	/// `blitter_line_draw` del lote omiten su `BLTDPT` (truco del original de flatshade:
-	/// el píxel inicial de la línea va por D a un punto inofensivo y la paridad del
-	/// contorno en los vértices se mantiene). Con `nullptr`, cada draw deja D en la propia
-	/// línea (modo copia de wireframe). No mezclar lotes con distinto `d_base`.
-	void blitter_lines_begin(u16 row_bytes, eng::u8* d_base = nullptr);
+	/// **`BLTDPT` no va aquí**: el modo línea lo muta durante el blit (el primer píxel
+	/// de cada línea va por D) y cada `blitter_line_draw` debe reescribirlo al punto
+	/// inofensivo (base del bitmap / la propia línea). Hoistarlo rompió la paridad del
+	/// contorno — rayas horizontales (regresión 2026-10-17).
+	void blitter_lines_begin(u16 row_bytes);
 
 	/// Parámetros de línea (ONEDOT o copia) precalculados: son independientes del plano
 	/// (solo cambia el puntero C entre planos de la misma arista). Permiten calcular
@@ -891,11 +890,6 @@ private:
 	/// consecutivo los comparte, se omiten sus escrituras a custom. La invalidan los caminos que
 	/// programan los registros por su cuenta (línea/EOR/C2P) — ver `submit_blit_job`.
 	bool m_blt_common_valid = false;
-	/// `true` mientras `BLTDPT` está FIJO en la base del bitmap por
-	/// `blitter_lines_begin(..., d_base)`: los `blitter_line_draw` del lote se ahorran su
-	/// escritura (~57 ciclos por línea-plano; truco del original de flatshade). Lo
-	/// resetea cada `blitter_lines_begin`.
-	bool m_line_fixed_dpt = false;
 	u16 m_blt_con0 = 0;
 	u16 m_blt_con1 = 0;
 	u16 m_blt_afwm = 0;

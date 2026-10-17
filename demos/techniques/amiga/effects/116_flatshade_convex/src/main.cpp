@@ -163,6 +163,11 @@ eng::math3d::Vec3 g_poly_norm[64];
 eng::math3d::PolyMeshView g_poly {};
 eng::s16 g_face_off[64];
 eng::u32 g_face_off_n = 0;
+// Tabla de offsets de VERTICE (recorrido plano de `points()`), construida una vez en
+// init: la usan las variantes por rango de `lib3d` para el interleaving cooperativo
+// (el transform del frame siguiente se reparte en los huecos de espera del Blitter).
+eng::s16 g_vert_off[64];
+eng::u32 g_vert_off_n = 0;
 
 // ============================================================================
 //  Perfil de coste (demo 116, WinUAE-DBG, 68000, -O1; frame representativo)
@@ -265,6 +270,18 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Amiga
 // ahorra el barrido de las filas externas (~6k) con un solo blit. `=0` vuelve al
 // barrido completo para A/B.
 #define FLATSHADE_FILL_BBOX 1
+#endif
+#ifndef FLATSHADE_PUMP
+// Interleaving cooperativo (DT-026, propuesta final de Grok): el transform del frame
+// siguiente repartido en las esperas del Blitter via `set_blit_service`. **MEDIDO Y
+// REFUTADO** (2026-10-17): bomba global (todas las esperas) = 14,7 fps (3,40 campos);
+// bomba con ventana (solo la espera grande del inicio) = 14,8 fps — ambos muy peores
+// que 21,62. Causa: el bloque antiguo del transform YA corria SOLAPADO con el fill
+// (131k de ventana con el Blitter ocupado); un elemento por vuelta de espera se
+// ejecuta bajo nasty (~1,5-2x), desborda las esperas cortas de linea, y la parte que
+// no absorbe la espera grande se DRENA en bloque con el Blitter ya idle (serial puro).
+// Se conserva como experimento documentado detras del flag; el default es 0.
+#define FLATSHADE_PUMP 0
 #endif
 #ifndef FLATSHADE_FREEZE_ANGLE
 // Angulo FIJO para capturas deterministas (0 = anima). Con esto la captura no depende
@@ -567,6 +584,20 @@ struct FlatShadeDemo {
 				g_face_off[g_face_off_n++] = it.offset();
 			}
 		}
+		g_vert_off_n = 0;
+		{
+			const auto pgr = m_object.points();
+			for (auto it = pgr.begin(); it != pgr.end(); ++it) {
+				g_vert_off[g_vert_off_n++] = it.offset();
+			}
+		}
+		// Servicio de espera del Blitter = bomba del transform cooperativo: cada
+		// vuelta del sondeo BBUSY procesa UN elemento (cara/vertice) del armado
+		// (ver `blit_pump`). El engine no instala el suyo (`set_blit_service_enabled(false)`
+		// en `main`): este slot es nuestro.
+#if FLATSHADE_PUMP
+		(void)backend.set_blit_service(&FlatShadeDemo::blit_pump, *this);
+#endif
 
 		// Pipeline de doble/triple buffer: el estado del objeto para el primer dibujo se
 		// precalcula aqu?? (lo que en `update` ocurre durante el fill del frame previo).
@@ -706,6 +737,97 @@ struct FlatShadeDemo {
 	}
 #endif
 
+#if FLATSHADE_PUMP
+	/// Fases del transform cooperativo (DT-026): el estado del frame SIGUIENTE se
+	/// procesa por elementos en los huecos de espera del Blitter.
+	enum class PumpPhase : eng::u8 { Idle, Faces, Edges, Verts, Done };
+
+	/// Servicio de espera del Blitter (instalado en `init`): avanza UN elemento del
+	/// armado por cada vuelta del sondeo BBUSY, SOLO mientras `m_pump_active` — la
+	/// ventana es la espera GRANDE del inicio del update (la cola del fill/clear,
+	/// ~77k ciclos medidos). En las esperas cortas de linea NO se bombea: un elemento
+	/// (~800 cc) desborda el hueco y estiraria la fase de lineas (medido: 14,7 fps
+	/// con bomba global vs 21,6 sin ella). Fuera de ventana es un no-op de ~4 ciclos.
+	static void blit_pump(FlatShadeDemo& self, eng::u16) noexcept {
+		if (self.m_pump_active && self.m_phase != PumpPhase::Done &&
+		    self.m_phase != PumpPhase::Idle) {
+			(void)self.pump_step(1u);
+		}
+	}
+
+	/// ARMA el transform cooperativo del frame siguiente: matriz (sincrona, ~9k: es
+	/// dependencia inmediata del cache del proyector) + estado de fases a cero.
+	/// El trabajo pesado (caras ~24k, aristas ~13k, vertices ~44k) lo reparte la bomba.
+	void pump_arm() {
+		const eng::u32 t0 = rcycles();
+#if FLATSHADE_FREEZE_ANGLE
+		m_angle = static_cast<eng::s16>(FLATSHADE_FREEZE_ANGLE);
+#else
+		m_angle = static_cast<eng::s16>(m_angle + 8);
+#endif
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
+			eng::retro::turns(static_cast<eng::u16>(m_angle));
+		obj::update_object_transformation(m_object);
+		m_pc = Proj::make(m_object.objectToWorld);
+		m_pump_i = 0u;
+		m_phase = PumpPhase::Faces;
+		m_phase_t0 = rcycles();
+		g_bbox[0] = 32767; g_bbox[1] = -32768; g_bbox[2] = 32767; g_bbox[3] = -32768;
+		eng::debug::g_eng_prof.cycles[6] = rcycles() - t0; // [6] = matriz (armado)
+	}
+
+	/// Procesa hasta `budget` elementos del armado (uno por llamada desde la bomba).
+	/// Devuelve los consumidos. Registra por-fase al cerrar cada una ([7]/[8]/[9]).
+	eng::u16 pump_step(eng::u16 budget) noexcept {
+		eng::u16 done = 0u;
+		while (done < budget) {
+			if (m_phase == PumpPhase::Faces) {
+				if (m_pump_i >= g_face_off_n) {
+					eng::debug::g_eng_prof.cycles[7] = rcycles() - m_phase_t0;
+					m_phase = PumpPhase::Edges;
+					m_pump_i = 0u;
+					m_phase_t0 = rcycles();
+					continue;
+				}
+				eng::lib3d::face_visibility_one(m_object,
+								m_object.face(g_face_off[m_pump_i++]));
+			} else if (m_phase == PumpPhase::Edges) {
+				if (m_pump_i >= g_face_off_n) {
+					eng::debug::g_eng_prof.cycles[8] = rcycles() - m_phase_t0;
+					m_phase = PumpPhase::Verts;
+					m_pump_i = 0u;
+					m_phase_t0 = rcycles();
+					continue;
+				}
+				eng::lib3d::edge_visibility_convex_one(
+					m_object, m_object.face(g_face_off[m_pump_i++]));
+			} else if (m_phase == PumpPhase::Verts) {
+				if (m_pump_i >= g_vert_off_n) {
+					eng::debug::g_eng_prof.cycles[9] = rcycles() - m_phase_t0;
+					m_phase = PumpPhase::Done;
+					break;
+				}
+				eng::lib3d::transform_vertex_one(
+					m_pc, m_object.node(g_vert_off[m_pump_i++]),
+					static_cast<eng::s16>(kWidth / 2),
+					static_cast<eng::s16>(kHeight / 2), g_bbox);
+			} else {
+				break;
+			}
+			++done;
+		}
+		return done;
+	}
+
+	/// Cierra el armado en el punto de uso (antes del gather): normalmente ya lo
+	/// absorbieron las esperas del Blitter; si no, procesa lo que falte en bloque.
+	void pump_drain() noexcept {
+		while (m_phase != PumpPhase::Done && m_phase != PumpPhase::Idle) {
+			(void)pump_step(8u);
+		}
+	}
+#endif
+
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) {
 			return;
@@ -754,12 +876,17 @@ struct FlatShadeDemo {
 
 		const eng::u32 t0 = rcycles();
 
-		// 1) Esperar el fill + pre-clear del frame anterior. El clear se lanza al
-		//    final del update (tras el transform): de las tres posiciones probadas
-		//    (al final / antes del transform / al principio del siguiente update) la
-		//    del final gano (21,23 vs 20,50 y 21,01 fps emulados): el transform queda
-		//    debajo del fill y el render+vblank cubren la cola de fill+clear.
+		// 1) Esperar el fill + pre-clear del frame anterior. Con `FLATSHADE_PUMP` la
+		//    ventana de la bomba es esta espera GRANDE (la cola del fill/clear); el
+		//    default (0, ver el flag) NO bombea: transform en bloque bajo el fill.
+#if FLATSHADE_PUMP
+		m_pump_active = true;
+#endif
 		backend.wait_blitter();
+#if FLATSHADE_PUMP
+		pump_drain();
+		m_pump_active = false;
+#endif
 
 		// 2) El swap de display y el pre-clear del buffer siguiente van AL FINAL del
 		//    update (tras el transform): ahi el `commit` publica lo dibujado y el clear
@@ -810,10 +937,11 @@ struct FlatShadeDemo {
 #else
 		if (ne != 0u) {
 			// Contorno + area fill XOR. Con FLATSHADE_FILL_BBOX=1 el fill se acota a la
-			// caja del objeto (4 jobs de un plano, esperando solo el ultimo): en la
-			// pipeline sin CRONA sincrona esto serializa algo de CPU con el Blitter
-			// dentro del update; el experimento de 2026-10 lo mide en aislado (la
-			// leccion de septiembre mezclaba fill+clear). Sin bbox: barrido completo.
+			// caja del objeto (barrido contiguo acortado, UN blit). El CONTRATO DE
+			// PARIDAD completo (invariantes del relleno XOR — hoist de BLTDPT, orden
+			// contorno->fill, caja limpia — con la regresión de rayas 2026-10-17) vive
+			// en la cabecera de `eng/retro/flat_shade_xor.hpp`: LEER antes de tocar el
+			// camino de render.
 #if FLATSHADE_FILL_BBOX
 			const eng::s16* fill_bbox = g_bbox;
 #else
@@ -845,9 +973,15 @@ struct FlatShadeDemo {
 		const eng::u32 t2a = rcycles();
 
 		// 5) Transform del frame SIGUIENTE (angle++, luz, visibilidad, proyeccion):
-		//    corre MIENTRAS el Blitter hace el fill recien lanzado (solape de la
-		//    pipeline de 3 buffers) y su estado lo consumira el draw del proximo
-		//    update.
+		//    su estado lo consumira el draw del proximo update.
+#if FLATSHADE_PUMP
+		// Interleaving cooperativo (DT-026): solo la matriz aqui (dependencia inmediata
+		// del cache del proyector); caras/aristas/vertices los reparte la bomba en las
+		// esperas del Blitter (la cola del fill/clear al inicio del update siguiente +
+		// las esperas de linea del draw).
+		pump_arm();
+		const eng::u32 t2 = rcycles(); // [1]/[5] de la telemetria siguen midiendo el update
+#else
 #if FLATSHADE_FREEZE_ANGLE
 		m_angle = static_cast<eng::s16>(FLATSHADE_FREEZE_ANGLE);
 #else
@@ -877,6 +1011,7 @@ struct FlatShadeDemo {
 		eng::debug::g_eng_prof.cycles[7] = tb - ta;  // update_face_visibility
 		eng::debug::g_eng_prof.cycles[8] = tc - tb;  // update_edge_visibility_convex
 		eng::debug::g_eng_prof.cycles[9] = t2 - tc;  // transform_vertices
+#endif
 
 		// 6) Publicar y rotar: `commit` instala la copperlist del buffer recien dibujado
 		//    y pasa al siguiente; despues se pre-cleara ESE (ni en pantalla ni en dibujo
@@ -970,6 +1105,16 @@ private:
 	bool m_memory_ok = false;
 	eng::s16 m_angle = 0;
 	eng::debug::HudFpsWindow m_hud_fps {}; ///< ventana de 1 s para el campo de fps del HUD
+#if FLATSHADE_PUMP
+	/// Estado del transform cooperativo (DT-026): tipo del cache del proyector,
+	/// fase/cursor del armado y marca de tiempo de la fase en curso ([7..9]).
+	using Proj = eng::math::projector<eng::math3d::Affine3<>>;
+	PumpPhase m_phase = PumpPhase::Idle;
+	eng::u32 m_pump_i = 0u;
+	eng::u32 m_phase_t0 = 0u;
+	Proj::cache m_pc {};
+	bool m_pump_active = false; ///< ventana de bombeo (la espera grande del inicio)
+#endif
 #if FLATSHADE_ASYNC
 	/// Plan de blits del frame para el referee async (DT-026): contorno EOR + area fill
 	/// acotado + clear del buffer siguiente. Se recicla cada frame tras `async_wait`.

@@ -59,6 +59,10 @@ inline eng::u32 wire_lines(Backend& backend, eng::PlaneBytes planes, eng::u16 ro
 			   eng::u32 plane_bytes, eng::u8 plane_count,
 			   eng::Span<const OutlineEdge> edges, bool wait = true,
 			   const eng::retro::Rect* clip = nullptr) {
+	// Modo COPIA (sin ONEDOT/EOR): aquí NO hay truco de paridad — el canal D va a la
+	// propia línea (`d_base = nullptr`) y `blitter_line_draw` lo reescribe POR LÍNEA
+	// (en modo línea el Blitter muta el puntero D durante el blit; ver el CONTRATO DE
+	// PARIDAD de `flat_shade_xor.hpp` y la regresión de rayas 2026-10-17).
 	backend.blitter_lines_begin(row_bytes);
 	eng::u8* base = planes.data();
 	const eng::u8 color_mask =

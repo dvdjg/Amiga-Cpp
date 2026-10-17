@@ -27,6 +27,30 @@
 /// `Backend` es la capa de plataforma (`AmigaBackend` en Amiga) que aporta las
 /// primitivas de Blitter; esta cabecera no conoce registros.
 ///
+/// ## CONTRATO DE PARIDAD (robustez del polígono — LEER antes de tocar nada)
+///
+/// El relleno XOR es correcto **si y solo si** se mantienen TODOS estos invariantes;
+/// cada uno tiene un fallo real medido detrás y su rompimiento no lo detecta la
+/// cobertura (solo una secuencia visual):
+///
+/// 1. **Contorno `EOR | ONEDOT`** y **aristas horizontales descartadas** (`y0 == y1`):
+///    una horizontal no aporta cruce y metería un píxel extra en los vértices.
+/// 2. **`BLTDPT` = base del bitmap, REESCRITO EN CADA LÍNEA** (el «punto inofensivo»
+///    al que va el primer píxel por D): mantiene la paridad PAR/IMPAR del contorno en
+///    los vértices. **NO hoisteable al preludio**: en modo línea el Blitter MUTA el
+///    puntero D durante el blit (`WinUAE-DBG/blitter.cpp:731-745`), así que fijarlo
+///    una vez manda el primer píxel de las líneas siguientes a direcciones variables →
+///    **rayas horizontales de ancho completo** (regresión real 2026-10-17; ver
+///    `blitter_lines_begin` y la bitácora `OPTIMIZACION_GPP_68000.md`). Corolario: en
+///    modo línea NO se puede solapar la programación con el blit en curso (los
+///    registros se leen en vivo).
+/// 3. **El area fill se lanza DESPUÉS del último contorno** (es su frontera): el orden
+///    de llamadas es parte del contrato.
+/// 4. Con `bbox != nullptr`, la caja debe cubrir **todo** el contorno con ≥2 px de
+///    margen: la semilla y el corte del barrido acortado asumen filas limpias fuera.
+/// 5. **Un solo fill global** (nunca troceado por plano: los jobs se serializan y la
+///    semilla por plano cambia la propagación vertical — medido peor).
+///
 /// ```text
 ///   ┌─ relleno por contorno + area fill XOR (sólido convexo) ─────────────┐
 ///   │ 1. blitter_lines_begin      fija los comunes del modo línea      │
@@ -72,9 +96,10 @@ inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u1
 			       eng::u16 height, eng::Span<const OutlineEdge> edges,
 			       bool area_fill_wait = true, const eng::s16* bbox = nullptr) {
 	eng::u8* base = planes.data();
-	// `base` como `BLTDPT` fijo del lote: el truco del original (D siempre en la base
-	// del bitmap) y los draws se ahorran esa escritura por linea-plano.
-	backend.blitter_lines_begin(row_bytes, base);
+	// `BLTDPT` NO se hoista al preludio (el modo línea lo muta durante el blit; el
+	// primer píxel de cada línea debe reescribirse al punto inofensivo — ver
+	// `blitter_lines_begin` y la regresión de rayas de 2026-10-17).
+	backend.blitter_lines_begin(row_bytes);
 	eng::u32 lines = 0u;
 	for (eng::usize i = 0u; i < edges.size(); ++i) {
 		const OutlineEdge& e = edges[i];

@@ -831,7 +831,7 @@ bool AmigaBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0
 	return wait_blitter();
 }
 
-void AmigaBackend::blitter_lines_begin(u16 row_bytes, eng::u8* d_base) {
+void AmigaBackend::blitter_lines_begin(u16 row_bytes) {
 	// Setup común para una secuencia de líneas por Blitter (modo LINE, copia o EOR/ONEDOT),
 	// equivalente al preludio de `DrawObject` en flatshade-convex y wireframe del
 	// demoscene-repo-orig (`bltafwm/bltalwm=-1, bltadat=0x8000, bltbdat=0xffff,
@@ -842,12 +842,13 @@ void AmigaBackend::blitter_lines_begin(u16 row_bytes, eng::u8* d_base) {
 	// no lo hace). NO espera al Blitter: el primer `blitter_line_*_draw` (que sí espera)
 	// sincroniza con cualquier blit previo (el clear).
 	//
-	// `d_base` (opcional) fija **`BLTDPT` a la base del bitmap** UNA vez: es el truco del
-	// original de flatshade (el primer píxel de la línea va por D a un punto inofensivo —
-	// mantiene la paridad del contorno en los vértices). Sin él, cada `blitter_line_draw`
-	// deja D en la propia línea (modo copia de wireframe). Con D fijado aquí, los draws
-	// del lote se AHORRAN la escritura de `BLTDPT` (~57 ciclos × línea × plano;
-	// `m_line_fixed_dpt`). No mezclar draws con distinto `d_base` en el mismo lote.
+	// **`BLTDPT` NO se fija aquí** (a diferencia de los demás comunes): el modo línea lo
+	// va mutando durante el blit (el primer píxel de cada línea va por D), así que cada
+	// `blitter_line_draw` DEBE reescribirlo al punto inofensivo del truco de paridad.
+	// Fijarlo una sola vez en el preludio dejaba el primer píxel de las líneas
+	// siguientes en direcciones variables → cruces impares en los vértices → rayas
+	// horizontales de ancho completo (regresión 2026-10-17, vista en secuencia a
+	// ángulos que el freeze-diff de un solo ángulo no cubría; ver bitácora).
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;
@@ -855,10 +856,6 @@ void AmigaBackend::blitter_lines_begin(u16 row_bytes, eng::u8* d_base) {
 	custom_base[custom_bltbdat_offset] = 0xffff;
 	custom_base[custom_bltcmod_offset] = row_bytes;
 	custom_base[custom_bltdmod_offset] = row_bytes;
-	m_line_fixed_dpt = d_base != nullptr;
-	if (d_base != nullptr) {
-		write_custom_pointer(custom_bltdpt_offset, d_base);
-	}
 }
 
 /// Cuerpo común de `blitter_line_prepare` (modo copia) y `blitter_line_eor_prepare`
@@ -930,12 +927,10 @@ void AmigaBackend::blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr,
 	write_custom_pointer(custom_bltapt_offset,
 			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(p.derr))));
 	write_custom_pointer(custom_bltcpt_offset, data);
-	// `BLTDPT`: fijo a la base del bitmap si el lote lo hoisto en
-	// `blitter_lines_begin(..., d_base)` (ver `m_line_fixed_dpt`); en modo copia
-	// (sin d_base) va a la propia linea, como dicta el uso del canal D.
-	if (!m_line_fixed_dpt) {
-		write_custom_pointer(custom_bltdpt_offset, d_base != nullptr ? d_base : data);
-	}
+	// `BLTDPT` SE REESCRIBE por línea (no se hoista): el modo línea lo muta durante el
+	// blit y el primer píxel de cada línea debe caer SIEMPRE en el punto inofensivo del
+	// truco de paridad (base del bitmap con `d_base`, la propia línea en copia).
+	write_custom_pointer(custom_bltdpt_offset, d_base != nullptr ? d_base : data);
 	custom_base[custom_bltsize_offset] = p.bltsize;
 	// Sin esperar aqui: la siguiente operacion (o el swap de copperlist) sincroniza.
 }
