@@ -27,13 +27,13 @@ struct MockBackend {
 	u16 fill_h = 0;
 	bool fill_wait = true;
 
-	void blitter_lines_eor_begin(u16) { ++begins; }
+	void blitter_lines_begin(u16) { ++begins; }
 	bool blitter_line_eor_prepare(LineEorParams& out, u16, s16, s16, s16, s16) {
 		out.dummy = 1;
 		++prepares;
 		return true;
 	}
-	void blitter_line_eor_draw(const LineEorParams&, u8*, u8*) { ++draws; }
+	void blitter_line_draw(const LineEorParams&, u8*, u8*) { ++draws; }
 	bool blitter_area_fill(eng::PlaneBytes, u8 planes, u16, u32, u16 w, u16 h, bool wait) {
 		++fills;
 		fill_planes = planes;

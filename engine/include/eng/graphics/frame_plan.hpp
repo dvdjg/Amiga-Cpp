@@ -411,15 +411,13 @@ public:
 			m_ok = false;
 			return false;
 		}
-		BlitJob clear_job = job;
-		clear_job.kind = BlitJobKind::ClearRect;
-		m_blit_jobs[m_blit_job_count++] = clear_job;
-		m_blit_budget.jobs = m_blit_job_count;
-		m_blit_budget.words += eng::math::mulu32x16(
-			eng::math::mulu16(job.words_per_row, job.height), job.bitplane_count);
-		++m_blit_budget.clear_jobs;
-		++m_blit_budget.copy_jobs;
-		rebuild_blit_budget_report();
+		// Copia ÚNICA a la ranura y presupuesto DIFERIDO (`m_budget_dirty`): añadir N
+		// trabajos no reconstruye el informe (no es O(N²); ver `finish_blit_job`).
+		BlitJob& slot = m_blit_jobs[m_blit_job_count];
+		slot = job;
+		slot.kind = BlitJobKind::ClearRect;
+		++m_blit_job_count;
+		m_budget_dirty = true;
 		return true;
 	}
 
@@ -455,13 +453,13 @@ public:
 			m_ok = false;
 			return false;
 		}
-		BlitJob j = job;
-		j.kind = BlitJobKind::C2P;
-		m_blit_jobs[m_blit_job_count++] = j;
-		m_blit_budget.jobs = m_blit_job_count;
-		m_blit_budget.words += eng::math::mulu16(job.c2p.bytes, 13u); // 13 fases
-		++m_blit_budget.copy_jobs;
-		rebuild_blit_budget_report();
+		// Copia ÚNICA y presupuesto DIFERIDO (`rebuild_blit_budget_report` pondera el C2P por
+		// sus 13 fases): añadir no reconstruye el informe (no O(N²)).
+		BlitJob& slot = m_blit_jobs[m_blit_job_count];
+		slot = job;
+		slot.kind = BlitJobKind::C2P;
+		++m_blit_job_count;
+		m_budget_dirty = true;
 		return true;
 	}
 
@@ -478,18 +476,45 @@ public:
 			m_ok = false;
 			return false;
 		}
-		BlitJob j = job;
-		j.kind = kind;
-		m_blit_jobs[m_blit_job_count++] = j;
-		m_blit_budget.jobs = m_blit_job_count;
-		// Coste aproximado: una word por fila de la línea + 2 de arranque por plano
-		// (`mulu16` = `mulu.w`, sin `__mulsi3`).
-		const s32 dy = job.line.y1 > job.line.y0 ? job.line.y1 - job.line.y0
-							 : job.line.y0 - job.line.y1;
-		m_blit_budget.words += eng::math::mulu16(static_cast<u16>(dy + 3),
-							 job.bitplane_count);
-		++m_blit_budget.copy_jobs;
-		rebuild_blit_budget_report();
+		// Copia ÚNICA y presupuesto DIFERIDO (el informe pondera las líneas por
+		// `|Δy|+3` palabras × plano al reconstruirse): añadir N líneas no es O(N²).
+		BlitJob& slot = m_blit_jobs[m_blit_job_count];
+		slot = job;
+		slot.kind = kind;
+		++m_blit_job_count;
+		m_budget_dirty = true;
+		return true;
+	}
+
+	/// **Construcción IN SITU de un job de línea** (camino caliente, coste cero): devuelve la
+	/// ranura para que el llamador rellene los campos del modo línea (`destination`, `line.*`,
+	/// `bitplane_count`) sin construir un `BlitJob` local (que en `-O0`/`-O1` es un `memset` +
+	/// copia por línea) ni copiarlo dos veces. Cierra con `commit_line_job()`.
+	/// Referencia del patrón: `begin_blit_job`/`commit_blit_job` y `ZERO_COST_FRAME_PATH.md`.
+	[[nodiscard]] BlitJob& begin_line_job(BlitJobKind kind) noexcept {
+		BlitJob& slot = m_blit_jobs[m_blit_job_count];
+		slot.kind = kind;
+		return slot;
+	}
+
+	/// Valida y consume la ranura abierta por `begin_line_job` (mismos requisitos que
+	/// `add_line`). `false` (y `ok()==false`) si el job es inválido o no cabe; en ese caso la
+	/// ranura **no** se consume.
+	bool commit_line_job() noexcept {
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			return false;
+		}
+		const BlitJob& slot = m_blit_jobs[m_blit_job_count];
+		const bool line_kind =
+			slot.kind == BlitJobKind::Line || slot.kind == BlitJobKind::LineEor;
+		if (!line_kind || slot.destination.words() == nullptr || slot.line.row_bytes == 0u ||
+		    slot.bitplane_count == 0u) {
+			m_ok = false;
+			return false;
+		}
+		++m_blit_job_count;
+		m_budget_dirty = true;
 		return true;
 	}
 
@@ -636,12 +661,24 @@ private:
 
 	void rebuild_blit_budget_report() {
 		// Recomputa el presupuesto desde cero en un único recorrido (coste O(N) por frame).
+		// La estimación de palabras va POR TIPO de trabajo: un solo sitio para todos los
+		// caminos de alta (los `add_*` solo marcan `m_budget_dirty`).
 		m_blit_budget = {};
 		for (u8 i = 0u; i < m_blit_job_count; ++i) {
 			const BlitJob& job = m_blit_jobs[i];
-			m_blit_budget.words += eng::math::mulu32x16(
-				eng::math::mulu16(job.words_per_row, job.height),
-				static_cast<u16>(job.bitplane_count));
+			if (job.kind == BlitJobKind::Line || job.kind == BlitJobKind::LineEor) {
+				// Una palabra por fila de la línea + arranque (`mulu16` = `mulu.w`).
+				const s32 dy = job.line.y1 > job.line.y0 ? job.line.y1 - job.line.y0
+									 : job.line.y0 - job.line.y1;
+				m_blit_budget.words += eng::math::mulu16(static_cast<u16>(dy + 3),
+									 job.bitplane_count);
+			} else if (job.kind == BlitJobKind::C2P) {
+				m_blit_budget.words += eng::math::mulu16(job.c2p.bytes, 13u); // 13 fases
+			} else {
+				m_blit_budget.words += eng::math::mulu32x16(
+					eng::math::mulu16(job.words_per_row, job.height),
+					static_cast<u16>(job.bitplane_count));
+			}
 			switch (job.kind) {
 				case BlitJobKind::MaskedBobCookieCut:
 				case BlitJobKind::MaskedBlobNoSave:

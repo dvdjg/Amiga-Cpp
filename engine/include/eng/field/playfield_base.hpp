@@ -530,6 +530,10 @@ public:
     /// `plane_stride()`/`row_stride()`, así que sirve para contiguo e interleaved. La
     /// base del canal D (EOR) es el propio bitmap. Referencia: `blitter_line`/
     /// `blitter_line_eor` del backend.
+    ///
+    /// La ranura del plan se rellena **in situ** (`begin_line_job`/`commit_line_job`): sin
+    /// `BlitJob` temporal (que en `-O0`/`-O1` era un `memset` + copia por línea) y sin
+    /// reconstruir el informe por alta (que era O(N²) con N líneas).
     bool add_line(graphics::FramePlan& plan, s16 x0, s16 y0, s16 x1, s16 y1, u8 color,
                   bool eor = false) {
         if (!m_initialized || color == 0u) return false;
@@ -539,7 +543,7 @@ public:
             eor ? graphics::BlitJobKind::LineEor : graphics::BlitJobKind::Line;
         for (u8 p = 0; p < m_planes; ++p) {
             if ((color & (1u << p)) == 0u) continue;
-            graphics::BlitJob job {};
+            graphics::BlitJob& job = plan.begin_line_job(kind);
             job.destination = graphics::BlitPtr::from_storage(
                 reinterpret_cast<u16*>((m_frontbuffer + static_cast<u32>(p) * pstride).ptr()));
             job.line.base = graphics::BlitPtr::from_storage(reinterpret_cast<u16*>(m_frontbuffer.ptr()));
@@ -549,7 +553,7 @@ public:
             job.line.x1 = x1;
             job.line.y1 = y1;
             job.line.row_bytes = rstride;
-            if (!plan.add_line(job, kind)) return false;
+            if (!plan.commit_line_job()) return false;
         }
         return true;
     }

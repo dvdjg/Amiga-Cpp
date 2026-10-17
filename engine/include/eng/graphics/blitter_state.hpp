@@ -198,7 +198,7 @@ struct OrBob {
 /// Parámetros **precalculados** de una línea EOR (ONEDOT) para el Blitter: los registros
 /// y el error inicial de Bresenham, de forma que dibujar la línea sea solo programar.
 /// Los rellena `AmigaBackend::blitter_line_eor_prepare` y los consume
-/// `blitter_line_eor_draw`; el llamador puede reutilizarlos en varios planos sin
+/// `blitter_line_draw`; el llamador puede reutilizarlos en varios planos sin
 /// recalcular.
 struct LineEor {
 	u16 bltcon0 = 0;    ///< BLTCON0 (minterm/desplazamiento de la línea)

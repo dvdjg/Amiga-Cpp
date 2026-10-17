@@ -426,13 +426,13 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		} else {
 			// Racha EOR: fija los registros comunes UNA vez (no por arista×plano).
 			if (!eor_open) {
-				blitter_lines_eor_begin(job.line.row_bytes);
+				blitter_lines_begin(job.line.row_bytes);
 				eor_open = true;
 			}
 			LineEorParams p;
 			if (blitter_line_eor_prepare(p, job.line.row_bytes, job.line.x0,
 						     job.line.y0, job.line.x1, job.line.y1)) {
-				blitter_line_eor_draw(p, reinterpret_cast<eng::u8*>(job.destination.words()),
+				blitter_line_draw(p, reinterpret_cast<eng::u8*>(job.destination.words()),
 						      d_base);
 			}
 		}
@@ -769,8 +769,8 @@ bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u
 		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1; las
 		//    aristas compartidas por dos caras del mismo bit se dibujan dos veces y el
 		//    fill even-odd las cancela. Los registros comunes EOR se fijan UNA vez por
-		//    plano (`blitter_lines_eor_begin`), no por arista.
-		blitter_lines_eor_begin(row_bytes);
+		//    plano (`blitter_lines_begin`), no por arista.
+		blitter_lines_begin(row_bytes);
 		for (u32 f = 0; f < n_faces; ++f) {
 			const graphics::PlanePolygon& face = faces[f];
 			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
@@ -781,7 +781,7 @@ bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u
 				LineEorParams eor;
 				if (blitter_line_eor_prepare(eor, row_bytes, face.xs[i], face.ys[i],
 							     face.xs[j], face.ys[j])) {
-					blitter_line_eor_draw(eor, plane.data(), plane.data());
+					blitter_line_draw(eor, plane.data(), plane.data());
 				}
 			}
 		}
@@ -797,21 +797,23 @@ bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u
 bool AmigaBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 				      eng::u8* d_base) {
 	// Variante autónoma: begin + prepare/draw + wait final.
-	blitter_lines_eor_begin(row_bytes);
+	blitter_lines_begin(row_bytes);
 	LineEorParams p;
 	if (blitter_line_eor_prepare(p, row_bytes, x0, y0, x1, y1)) {
-		blitter_line_eor_draw(p, plane.data(), d_base);
+		blitter_line_draw(p, plane.data(), d_base);
 	}
 	return wait_blitter();
 }
 
-void AmigaBackend::blitter_lines_eor_begin(u16 row_bytes) {
-	// Setup común para una secuencia de líneas EOR (ONEDOT), equivalente al preludio
-	// de `DrawObject` en flatshade-convex (`bltafwm/bltalwm=-1, bltadat=0x8000,
-	// bltbdat=0xffff, bltcmod/bltdmod=WIDTH/8`). Se fija UNA vez por grupo de líneas:
-	// cada escritura a registro custom cuesta ~57 ciclos con `cpu_cycle_exact`, así
-	// que reescribirlos por arista×plano es desperdicio (el original no lo hace).
-	// NO espera al Blitter: el primer `blitter_line_eor_draw` (que sí espera)
+void AmigaBackend::blitter_lines_begin(u16 row_bytes) {
+	// Setup común para una secuencia de líneas por Blitter (modo LINE, copia o EOR/ONEDOT),
+	// equivalente al preludio de `DrawObject` en flatshade-convex y wireframe del
+	// demoscene-repo-orig (`bltafwm/bltalwm=-1, bltadat=0x8000, bltbdat=0xffff,
+	// bltcmod/bltdmod=WIDTH/8`). Los valores son idénticos para los dos minterms del modo
+	// línea (el encoder produce los mismos para `Line` y `LineEor`), así que el preludio se
+	// fija UNA vez por grupo de líneas: cada escritura a registro custom cuesta ~57 ciclos
+	// con `cpu_cycle_exact`, y reescribirlos por arista×plano es desperdicio (el original
+	// no lo hace). NO espera al Blitter: el primer `blitter_line_*_draw` (que sí espera)
 	// sincroniza con cualquier blit previo (el clear).
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	custom_base[custom_bltafwm_offset] = 0xffff;
@@ -822,12 +824,17 @@ void AmigaBackend::blitter_lines_eor_begin(u16 row_bytes) {
 	custom_base[custom_bltdmod_offset] = row_bytes;
 }
 
-bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s16 x0, s16 y0,
-					      s16 x1, s16 y1) {
-	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
-	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles
-	// extra en los vertices que descuadran el area fill (cruces impares).
-	if (y0 == y1) {
+/// Cuerpo común de `blitter_line_prepare` (modo copia) y `blitter_line_eor_prepare`
+/// (EOR/ONEDOT): la misma matemática de octante/Bresenham del encoder
+/// (`graphics::blitter_job_from`, modo LINE) — un solo sitio para los dos modos del backend.
+/// `eor` decide el minterm y `ONEDOT`; las horizontales solo se descartan en EOR (en copia
+/// son líneas legítimas del alambre, como en el `DrawObject` del original de wireframe).
+static bool line_prepare_impl(eng::graphics::LineEor& out, u16 row_bytes, s16 x0, s16 y0,
+			      s16 x1, s16 y1, bool eor) {
+	if (eor && y0 == y1) {
+		// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas horizontales:
+		// no aportan contorno útil y, dibujadas, meterían píxeles extra en los vértices que
+		// descuadran el area fill (cruces impares).
 		return false;
 	}
 	if (y0 > y1) {
@@ -836,7 +843,7 @@ bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s
 	}
 	s16 dmax = static_cast<s16>(x1 - x0);
 	s16 dmin = static_cast<s16>(y1 - y0);
-	u16 bltcon1 = static_cast<u16>(blt_linemode | blt_onedot);
+	u16 bltcon1 = static_cast<u16>(blt_linemode | (eor ? blt_onedot : 0u));
 	if (dmax < 0) {
 		dmax = static_cast<s16>(-dmax);
 	}
@@ -849,7 +856,8 @@ bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s
 		const s16 t = dmax; dmax = dmin; dmin = t;
 	}
 	out.row_offset = row_offset(y0, row_bytes) + ((static_cast<u32>(x0) >> 3) & ~1u);
-	out.bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_eor);
+	out.bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) |
+				       (eor ? blt_line_eor : blt_line_or));
 	out.bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
 	dmin = static_cast<s16>(dmin << 1);
 	out.derr = static_cast<s16>(dmin - dmax);
@@ -859,7 +867,17 @@ bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s
 	return true;
 }
 
-void AmigaBackend::blitter_line_eor_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base) {
+bool AmigaBackend::blitter_line_prepare(LineEorParams& out, u16 row_bytes, s16 x0, s16 y0,
+					s16 x1, s16 y1) {
+	return line_prepare_impl(out, row_bytes, x0, y0, x1, y1, /*eor=*/false);
+}
+
+bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s16 x0, s16 y0,
+					      s16 x1, s16 y1) {
+	return line_prepare_impl(out, row_bytes, x0, y0, x1, y1, /*eor=*/true);
+}
+
+void AmigaBackend::blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base) {
 	u8* data = plane_ptr + p.row_offset;
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = p.bltcon0;

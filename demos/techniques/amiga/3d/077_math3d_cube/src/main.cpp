@@ -177,7 +177,7 @@ struct DemoGame {
 				(void)dt.line(60, 20, 40, 50, 8u);
 				(void)dt.line(40, 50, 20, 20, 8u);
 				// Triangulo EOR (ONEDOT) en el MISMO plan: el backend fija los comunes
-				// de la racha EOR una vez (`blitter_lines_eor_begin`).
+				// de la racha EOR una vez (`blitter_lines_begin`).
 				(void)dt.line(260, 20, 300, 20, 8u, playfield::RasterOp::Xor);
 				(void)dt.line(300, 20, 280, 50, 8u, playfield::RasterOp::Xor);
 				(void)dt.line(280, 50, 260, 20, 8u, playfield::RasterOp::Xor);
