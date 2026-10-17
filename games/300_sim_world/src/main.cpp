@@ -14,16 +14,23 @@
 //
 // Controles: izquierda/derecha mueven la camara; fuego anade una criatura.
 //
+// Sincronizacion por **senal** de VBlank (`eng::os::init` + `Engine::run_frames`): la IRQ
+// levanta la senal y el bucle duerme en `Wait()` cuando no hay trabajo (norma del repo).
+// El overlay de depuracion muestra nombre + version (build inyectado) + frames.
+//
 // Build/run/analyze (mismos wrappers que una demo):
 //   bash tools/build/build-demo.sh games/300_sim_world --debug --clean
-//   bash tools/run/run-demo.sh games/300_sim_world --warp
+//   bash tools/run/run-demo.sh games/300_sim_world
+//   bash tools/analyze/analyze-demo.sh games/300_sim_world
 //
-// Verificacion: build -> run -> READY OK.
+// Verificacion: build -> run -> analyze OK.
 
 #include <eng/api/api.hpp>
 #include <eng/core/math/random.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
+#include <eng/debug/version.hpp>
+#include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/platform/amiga/input_poll.hpp>
 
@@ -56,6 +63,7 @@ using World = SimWorld<SimTraits, 16, 4, 4, 8>;
 constexpr eng::u8 kRooms = 4u;
 constexpr eng::u8 kRealize = 8u;     // criaturas realizadas por room (LOD)
 constexpr eng::u16 kPlanBudget = 32u;
+constexpr eng::debug::Version kVersion {1u, 0u}; // el build lo inyecta build-demo.sh
 
 // Memoria **estatica** (no pila): mundo (~24 KB), planificador y generador.
 World g_world {};
@@ -128,13 +136,28 @@ struct SimWorldGame {
 		m_planned = g_world.planning_count();
 	}
 
-	void render(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& debug = backend.debug();
 		debug.clear();
 		debug.filled_rect(20, 20, 620, 220, 0x00081018);
 		debug.rect(20, 20, 620, 220, 0x00ffffff);
-		debug.text(32, 32, "sim world - camara = LOD (izq/der), fuego = nueva criatura",
-			   0x00ffffff);
+
+		auto number = [](eng::u32 v) {
+			static eng::util::StaticString<16> s;
+			s.clear();
+			(void)eng::util::to_chars_u32(s, v);
+			return s.c_str();
+		};
+		char line[72];
+
+		// Titulo con nombre + version (norma del repo) y controles.
+		char label[16] = {};
+		(void)eng::debug::version_label(kVersion, label, sizeof(label));
+		line[0] = '\0';
+		append(line, "sim world ");
+		append(line, label);
+		append(line, " - camara = LOD (izq/der), fuego = nueva criatura");
+		debug.text(32, 32, line, 0x00ffffff);
 
 		// La room de la camara, en planta, con las criaturas como puntos.
 		debug.rect(32, 56, 608, 150, 0x00406080);
@@ -150,19 +173,13 @@ struct SimWorldGame {
 					  c.realized() ? 0x00ffd040 : 0x006080a0);
 		}
 
-		auto number = [](eng::u32 v) {
-			static eng::util::StaticString<16> s;
-			s.clear();
-			(void)eng::util::to_chars_u32(s, v);
-			return s.c_str();
-		};
-		char line[56];
-
 		line[0] = '\0';
 		append(line, "room: ");
 		append(line, number(m_room));
 		append(line, "   poblacion: ");
 		append(line, number(m_population));
+		append(line, "   frames: ");
+		append(line, number(context.frame.frame_index));
 		debug.text(32, 162, line, 0x0080ff80);
 
 		line[0] = '\0';
@@ -201,7 +218,9 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	static SimWorldGame game {};
 	eng::Engine engine {backend, game};
-	engine.run_frames_polling(0xffff);
+	// Sincronizacion por senal de VBlank (IRQ del mini-SO + Wait), no sondeo.
+	(void)eng::os::init(engine, 0u);
+	engine.run_frames(0xffff);
 
 	return 0;
 }
