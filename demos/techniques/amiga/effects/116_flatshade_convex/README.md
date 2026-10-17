@@ -133,25 +133,14 @@ las rutas Blitter del 078. Modelo y paleta en `src/data/` (copiados del original
 
 ## Modernización (2026-10)
 
-- **Bucle por IRQ** (`Engine::run_frames` + `Wait()`) en lugar de sondeo de VPOSR, y
-  `set_blit_service_enabled(false)` (la demo no usa la cola de fondo): las esperas del
-  Blitter son sondeo apretado sin llamada de servicio por vuelta.
-- **Franja de depuración de coste cero** (norma del repo): nombre + versión + contador en
-  un **5º plano de 1 bpp activo todo el frame** (etapa de `scene::compose`; sin zonas de
-  Copper: una zona `>255` no se puede cerrar con el comparador `>=` de WinUAE
-  (`custom.cpp:4416` `coppercomp`) y dejaba el plano encendido — franjas de basura); la
-  parte estática se pinta una vez y el contador ~1 vez/segundo (24 escrituras de palabra).
-  El render por frame no cambia; el plano del HUD es de tamaño completo (8 KB) y la paleta
-  16..31 es un **espejo** de la del sombreado (16 = tinta) para que el +16 del plano sea
-  transparente en la escena. La franja queda en la banda superior (filas de ventana ≈16..23).
-- **Soporte `bbox`** en `eng::retro::flat_shade_xor` (fill XOR acotado a la caja del objeto):
-  en esta pipeline síncrona **empeora** el frame (4 jobs por plano que esperan entre sí dentro
-  del update; medido 19,2 → 17,3 fps). Queda como primitivo para el camino async y como
-  lección registrada en DT-026.
-- Medida: **18,05 fps / 2,77 campos/frame** (`A500_debug`; HEAD: 19,20 fps; el fetch del 5º
-  plano del HUD cuesta ~0,23 campos). Sigue por debajo del suelo de 25 fps del efecto de
-  relleno de polígonos → demo **ABIERTA** por presupuesto (DT-026); el camino es el **referee
-  async** del `FramePlan` (encadenado por IRQ; la base `BlitJobKind::AreaFill` ya existe en
-  el engine; el prototipo quedó colgado y se retiró). Detalle de medidas y validación:
-  `VALIDATION.md`.
+- **Bucle por IRQ** (`Engine::run_frames` + `Wait()`) en lugar de sondeo de VPOSR, y `set_blit_service_enabled(false)` (la demo no usa la cola de fondo): las esperas del Blitter son sondeo apretado sin llamada de servicio por vuelta.
+- **Franja de depuración de coste cero** (norma del repo): nombre + versión + contador de frames + **fps del último segundo** en un **5º plano de 1 bpp activo todo el frame** (etapa de `scene::compose`; sin zonas de Copper: una zona `>255` no se puede cerrar con el comparador `>=` de WinUAE (`custom.cpp:4416` `coppercomp`) y dejaba el plano encendido — franjas de basura); la parte estática se pinta una vez y los campos dinámicos ~1 vez/segundo (~56 escrituras de palabra; `eng::debug::HudFpsWindow`). El render por frame no cambia; el plano del HUD es de tamaño completo (8 KB) y la paleta 16..31 es un **espejo** de la del sombreado (16 = tinta) para que el +16 del plano sea transparente en la escena. La franja queda en la banda superior (filas de ventana ≈16..23).
+- **Soporte `bbox`** en `eng::retro::flat_shade_xor` (fill XOR acotado a la caja del objeto): en esta pipeline síncrona **empeora** el frame (4 jobs por plano que esperan entre sí dentro del update; medido 19,2 → 17,3 fps). Queda como primitivo para el camino async y como lección registrada en DT-026.
+- Medida: **18,05 fps / 2,77 campos/frame** (`A500_debug`) y **19,22 fps / 2,60 campos** (`A500_release`; HEAD: 19,20 fps; el fetch del 5º plano del HUD cuesta ~0,23 campos); el fps que muestra el propio HUD coincide con la medida. Sigue por debajo del suelo de 25 fps del efecto de relleno de polígonos → demo **ABIERTA** por presupuesto (DT-026); el camino es el **referee async** del `FramePlan` (encadenado por IRQ; la base `BlitJobKind::AreaFill` ya existe en el engine; el prototipo quedó colgado y se retiró). Detalle de medidas y validación: `VALIDATION.md`.
+
+## Contra la referencia original (¿por qué no la igualamos aún?)
+
+La pregunta «la original va como el doble de rápida, ¿por qué no la igualamos?» tiene una medida detrás (2026-10-17): la original (`flatshade-convex.adf`, emulador ciclo-exacto, perfil WinUAE con capturas por campo) **no mete el frame en un campo** — sus frames salen en parejas de campos idénticos, es decir **2,0 campos/frame (25 fps)**, coherente con los números de su propio profiler (transform 156 + draw 130 + fill 289 = 575 líneas ≈ 1,84 campos). El listón realista es 25 fps, no 50.
+
+Brecha medida (por frame completado, perfiles con los mismos contadores DMA del recorder de WinUAE): original 2,0 campos × ~62k accesos/campo ≈ 124k; este port 2,6 × ~63k ≈ 163k. El exceso es sobre todo **CPU (+45 % de accesos: 51,5k vs 35,5k por frame** — codegen `-O2` de g++ frente al gcc de Bebbo con pistas `register asm` del original, más plan/servicio por job) y **fetch de bitplano** (+~0,2 campos/frame: 5º plano del HUD y ventana compartida); el trabajo de Blitter por frame es similar. La vía de cierre es la del plan de DT-026: **async** (solapar CPU y Blitter como el original, cuyo clear se absorbe bajo el transform) + la **ruta asm** del transform (1,8× medido, con el fix de contorno pendiente). Método de medida y tabla de canales: `docs/tools/PROFILING_FROM_AGENT.md` §«Cadencia de un binario de referencia»; herramientas: `tools/debug/profile-cadence.mjs` y `tools/debug/hud-zoom.mjs`.
 

@@ -137,6 +137,9 @@ constexpr eng::u32 kHudBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight; //
 constexpr eng::s32 kHudY = 6; // fila de PLANO del texto (-> fila 16 de la ventana)
 constexpr eng::u8 kHudColor = 1u;
 constexpr eng::s32 kHudCounterX = 176; // multiplo de 16, tras "FLATSHADE vX.Y.BBBBB"
+/// X del campo de fps del ultimo segundo (multiplo de 16; tras el contador de 6
+/// caracteres). Valor con UN decimal, p. ej. "18.7" (ver `eng::debug::HudFpsWindow`).
+constexpr eng::s32 kHudFpsX = 224;
 constexpr eng::debug::Version kVersion {2u, 0u};
 eng::u16 g_hud_band_colors[32] {};
 
@@ -465,7 +468,9 @@ struct FlatShadeDemo {
 		(void)backend.blitter_clear(m_hud_block.view.subspan(0u, kHudBytes), 1u, kBytesPerRow,
 					    kHudBytes, kWidth, kHeight);
 		draw_hud_static();
-		draw_hud_counter(0u);
+		// Arma la ventana de fps y pinta los campos dinamicos en su estado inicial.
+		m_hud_fps.reset(0u, eng::debug::prof_clock());
+		draw_hud_fields(0u, 0u);
 
 		// Triple buffer sobre `scene::compose`: 3 buffers (4 planos contiguos cada uno) con
 		// triple buffer por parcheo de `BPLxPT` en `commit()`. La semantica coincide con la
@@ -670,10 +675,12 @@ struct FlatShadeDemo {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		ENG_PROF_FRAME();
-		// Contador de frames del HUD: 1 vez/segundo sobre un campo de ancho FIJO (3
-		// palabras = 24 escrituras); coste ~0 por frame (ver `draw_hud_counter`).
-		if ((context.frame.frame_index & 63u) == 0u) {
-			draw_hud_counter(context.frame.frame_index);
+		// Campos dinamicos del HUD (contador de frames + fps del ultimo segundo): la
+		// ventana se cierra ~1 vez/segundo; el resto de frames solo cuesta la
+		// comparacion de `update` (~10-15 ciclos, ver `HudFpsWindow`).
+		eng::u32 fps10 = 0u;
+		if (m_hud_fps.update(context.frame.frame_index, eng::debug::prof_clock(), fps10)) {
+			draw_hud_fields(context.frame.frame_index, fps10);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -693,10 +700,15 @@ private:
 		(void)hud.draw_text_words(0, kHudY, line, kHudColor);
 	}
 
-	/// Contador de frames del HUD (campo fijo de 6 caracteres en `kHudCounterX`): 3
-	/// palabras x 8 filas = 24 escrituras por actualizacion (~1 vez/segundo).
-	void draw_hud_counter(eng::u32 frames) {
+	/// Campos dinamicos del HUD (se pintan juntos ~1 vez/segundo, 2 campos de ancho FIJO):
+	///  - contador de frames totales en `kHudCounterX` ("F 12345", 6 caracteres);
+	///  - fps del ultimo segundo en `kHudFpsX` ("18.7", 4 caracteres; `fps10` = fps x 10).
+	/// Coste por actualizacion: 5 palabras x 8 filas (contador) + 2 palabras x 8 filas
+	/// (fps) = ~56 escrituras por segundo; nada por frame (`HudFpsWindow::update`).
+	void draw_hud_fields(eng::u32 frames, eng::u32 fps10) {
 		auto hud = playfield::Surface {m_hud_pf, playfield::SurfaceRect {0, 0, kWidth, kHudRows}};
+		// Contador de frames: campo de 6 caracteres, digitos alineados a la derecha
+		// tras la 'F' (hasta 5 digitos; a partir de ahi se recorta el mas alto).
 		char field[7] = "F     ";
 		char tmp[8];
 		eng::u8 t = 0u;
@@ -704,17 +716,33 @@ private:
 			tmp[t++] = static_cast<char>('0' + (frames % 10u));
 			frames /= 10u;
 		} while (frames != 0u && t < 7u);
-		eng::u8 n = 2u;
+		eng::u8 n = 1u;
 		while (t > 0u && n < 6u) {
 			field[n++] = tmp[--t];
 		}
 		field[6] = '\0';
 		(void)hud.draw_text_words(kHudCounterX, kHudY, field, kHudColor);
+
+		// Fps con un decimal, alineado a la derecha en 4 caracteres ("25.0", " 5.4").
+		// El tope de formato evita que un valor absurdo (nunca en PAL) desborde el campo.
+		eng::u32 v = fps10 > 999u ? 999u : fps10;
+		char fps[5] = "    ";
+		fps[3] = static_cast<char>('0' + (v % 10u));
+		v /= 10u;
+		fps[2] = '.';
+		fps[1] = static_cast<char>('0' + (v % 10u));
+		v /= 10u;
+		if (v != 0u) {
+			fps[0] = static_cast<char>('0' + (v % 10u));
+		}
+		fps[4] = '\0';
+		(void)hud.draw_text_words(kHudFpsX, kHudY, fps, kHudColor);
 	}
 
 	bool m_init_ok = false;
 	bool m_memory_ok = false;
 	eng::s16 m_angle = 0;
+	eng::debug::HudFpsWindow m_hud_fps {}; ///< ventana de 1 s para el campo de fps del HUD
 	scene::Scene m_scene {};
 	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::Block<eng::PlaneTag> m_hud_block {};

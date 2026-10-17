@@ -18,11 +18,11 @@
 // buffer con swap de copperlist por frame (el original rota 5 planos y parchea
 // BPLxPT; aqui se usan 2 buffers de 4 planos, equivalente sin tearing).
 //
-// Franja de depuracion (norma del repo): las 16 filas inferiores de la ventana muestran
-// nombre + version + contador de frames, pintadas con `Surface::draw_text_words` (por
-// palabras de 16 px, nunca pixel a pixel) DIRECTAMENTE en los planos del anillo, en las
-// filas que el balon no alcanza. Con los 4 planos visibles a 1 en el texto, el color de la
-// franja es el 15 de la paleta del alambre (0xCEF). Sin plano extra ni zona de Copper.
+// Franja de depuracion (norma del repo): nombre + version + contador de frames + fps del
+// ultimo segundo, sobre un QUINTO plano de 1 bpp activo todo el frame (ver geometria en el
+// bloque de `kHudRows` mas abajo). El texto se pinta con `Surface::draw_text_words` (por
+// palabras de 16 px, nunca pixel a pixel); estatico una vez y campos dinamicos ~1 vez por
+// segundo. Coste por frame del HUD: una comparacion (ventana de fps; ver `HudFpsWindow`).
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/api/api.hpp>
 #include <eng/debug/prof.hpp>
@@ -105,6 +105,9 @@ constexpr eng::u8 kHudColor = 1u;      // 1 bpp: patron del plano de la franja
 /// X del campo del contador en el lienzo del HUD (multiplo de 16 para `draw_text_words`;
 /// queda tras "WIREFRAME vX.Y.BBBBB").
 constexpr eng::s32 kHudCounterX = 176;
+/// X del campo de fps del ultimo segundo en el lienzo del HUD (multiplo de 16; tras el
+/// contador de 6 caracteres). Valor con UN decimal, p. ej. "18.7" (ver `HudFpsWindow`).
+constexpr eng::s32 kHudFpsX = 224;
 
 /// Paleta de la BANDA del HUD (indices 16..31, la zona anade +16 al indice de color):
 /// 16 = tinta de la franja; 17..31 = copia de 1..15 para que los pixeles del balon que
@@ -232,7 +235,9 @@ struct WireframeDemo {
 		(void)backend.blitter_clear(m_hud_block.view.subspan(0u, kHudBytes), 1u, kBytesPerRow,
 					    kHudBytes, kWidth, kHeight);
 		draw_hud_static();
-		draw_hud_counter(0u);
+		// Arma la ventana de fps y pinta los campos dinamicos en su estado inicial.
+		m_hud_fps.reset(0u, eng::debug::prof_clock());
+		draw_hud_fields(0u, 0u);
 
 		for (eng::u8 a = 0; a < kRing; ++a) {
 			if (!build_copper(a)) {
@@ -321,10 +326,12 @@ struct WireframeDemo {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		ENG_PROF_FRAME();
-		// Contador de frames del HUD: 1 actualizacion por segundo sobre un campo de ancho
-		// FIJO (3 palabras = 24 escrituras), coste ~0 por frame. Ver `draw_hud_counter`.
-		if ((context.frame.frame_index & 63u) == 0u) {
-			draw_hud_counter(context.frame.frame_index);
+		// Campos dinamicos del HUD (contador de frames + fps del ultimo segundo): la
+		// ventana se cierra ~1 vez/segundo; el resto de frames solo cuesta la
+		// comparacion de `update` (~10-15 ciclos, ver `HudFpsWindow`).
+		eng::u32 fps10 = 0u;
+		if (m_hud_fps.update(context.frame.frame_index, eng::debug::prof_clock(), fps10)) {
+			draw_hud_fields(context.frame.frame_index, fps10);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -347,12 +354,16 @@ private:
 		(void)hud.draw_text_words(0, kHudY, line, kHudColor);
 	}
 
-	/// Contador de frames del HUD: campo FIJO de 6 caracteres ("F 1234", relleno con
-	/// espacios) en `kHudCounterX` (multiplo de 16 para `draw_text_words`). Se redibuja
-	/// solo cuando el numero cambia (~1 vez/segundo): 3 palabras x 8 filas = 24 escrituras.
-	void draw_hud_counter(eng::u32 frames) {
+	/// Campos dinamicos del HUD (se pintan juntos ~1 vez/segundo, 2 campos de ancho FIJO):
+	///  - contador de frames totales en `kHudCounterX` ("F 12345", 6 caracteres);
+	///  - fps del ultimo segundo en `kHudFpsX` ("18.7", 4 caracteres; `fps10` = fps x 10).
+	/// Coste por actualizacion: 5 palabras x 8 filas (contador; solo las que cambian de
+	/// digito si se quiere afinar) + 2 palabras x 8 filas (fps) = ~56 escrituras/segundo.
+	void draw_hud_fields(eng::u32 frames, eng::u32 fps10) {
 		auto hud = playfield::Surface {m_hud_pf,
 					       playfield::SurfaceRect {0, kHudY, kWidth, kHudRows}};
+		// Contador de frames: campo de 6 caracteres, digitos alineados a la derecha
+		// tras la 'F' (hasta 5 digitos; a partir de ahi se recorta el mas alto).
 		char field[7] = "F     ";
 		char tmp[8];
 		eng::u8 t = 0u;
@@ -360,12 +371,27 @@ private:
 			tmp[t++] = static_cast<char>('0' + (frames % 10u));
 			frames /= 10u;
 		} while (frames != 0u && t < 7u);
-		eng::u8 n = 2u;
+		eng::u8 n = 1u;
 		while (t > 0u && n < 6u) {
 			field[n++] = tmp[--t];
 		}
 		field[6] = '\0';
 		(void)hud.draw_text_words(kHudCounterX, kHudY, field, kHudColor);
+
+		// Fps con un decimal, alineado a la derecha en 4 caracteres ("25.0", " 5.4").
+		// El tope de formato evita que un valor absurdo (nunca en PAL) desborde el campo.
+		eng::u32 v = fps10 > 999u ? 999u : fps10;
+		char fps[5] = "    ";
+		fps[3] = static_cast<char>('0' + (v % 10u));
+		v /= 10u;
+		fps[2] = '.';
+		fps[1] = static_cast<char>('0' + (v % 10u));
+		v /= 10u;
+		if (v != 0u) {
+			fps[0] = static_cast<char>('0' + (v % 10u));
+		}
+		fps[4] = '\0';
+		(void)hud.draw_text_words(kHudFpsX, kHudY, fps, kHudColor);
 	}
 
 	/// Construye la copperlist para el plano `active`: bit3=planes[active],
@@ -404,6 +430,7 @@ private:
 
 	bool m_memory_ok = false;
 	eng::u8 m_active = 0;
+	eng::debug::HudFpsWindow m_hud_fps {}; ///< ventana de 1 s para el campo de fps del HUD
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::PlaneTag> m_hud_block {};
 	playfield::ContiguousPlayfield m_hud_pf {}; ///< lienzo de la franja (1 bpp, texto por palabras)

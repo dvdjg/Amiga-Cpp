@@ -71,7 +71,9 @@ struct BackgroundPump {
 	Game* game = nullptr;
 
 	static void run(BackgroundPump& pump, u16 vpos) {
-		pump.queue->run_slice(pump.context->frame.frame_index, vpos);
+		// `field_index` (latido VBlank), NO `frame_index`: el cupo del fondo se reparte
+		// por latido; `frame_index` cuenta frames completados y lo fija el bucle.
+		pump.queue->run_slice(pump.context->frame.field_index, vpos);
 		if constexpr (GameIdle<Game, Backend>) {
 			pump.game->idle(*pump.backend, *pump.context);
 		}
@@ -86,7 +88,8 @@ struct BackgroundBlitterService {
 	GameContext* context = nullptr;
 
 	static void run(BackgroundBlitterService& service, u16 vpos) {
-		service.queue->run_slice(service.context->frame.frame_index, vpos);
+		// Igual que `BackgroundPump`: el pacing usa el latido (`field_index`).
+		service.queue->run_slice(service.context->frame.field_index, vpos);
 	}
 };
 
@@ -103,7 +106,13 @@ struct VBlankHeartbeat {
 	void* vblank_user = nullptr;
 
 	static void run(VBlankHeartbeat& hb, u16) {
-		hb.context->frame.frame_index = hb.frames;
+		// La IRQ publica SOLO el contador de latidos (`field_index`): `frame_index`
+		// cuenta frames COMPLETADOS y lo fija el bucle principal. Pisarlo aqui desde la
+		// IRQ (como se hacia) metia semantica de latido en el contador de frames a
+		// mitad de frame: una demo con lectura de `frame_index` en `render` (tras
+		// 1.5 campos de trabajo) veia ~50/s (campos) en vez de su tasa real (~33/s) —
+		// campo vs frame, HUD de 079/116 (2026-10).
+		hb.context->frame.field_index = hb.frames;
 		if (hb.vblank_hook != nullptr) {
 			hb.vblank_hook(hb.vblank_user);
 		}
@@ -155,6 +164,10 @@ class Engine {
 
 		for (u32 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
+			// Polling: cada iteracion consume UN latido (espera en `wait_vblank`), asi
+			// que el contador de latidos avanza igual que el de frames; los servicios
+			// de fondo leen `field_index` en ambos modos.
+			context.frame.field_index = i;
 			context.frame.frames_elapsed = 1u; // polling: 1 latido por iteracion, sin salto
 			// Telemetría de frames del MOTOR (no de la demo): ninguna demo puede quedarse
 			// sin marcar frame (con la demo olvidándolo, `measure-fps` daba 0 fps).
@@ -229,13 +242,16 @@ class Engine {
 				// El bucle consume el latido: mientras no avance el contador, adelanta el
 				// fondo (equivale al hueco de VBlank); cuando avanza, corre el frame fuera
 				// de la IRQ. `frame_index` cuenta **frames completados** (como en
-				// `run_frames_polling`), no latidos: asi el run-status/gate miden la tasa
-				// real de update y las animaciones avanzan por frame dibujado.
+				// `run_frames_polling`), no latidos — la IRQ solo publica el latido en
+				// `field_index`: asi el run-status/gate miden la tasa real de update, el
+				// pacing del fondo va por latido y las animaciones avanzan por frame
+				// dibujado.
 				u32 seen = 0u;
 				u32 done = 0u;
 				while (done < frame_count) {
 					if (hb.frames == seen) {
-						m_background.run_slice(done, 0u);
+						// Pacing por LATIDO (`hb.frames`), como los servicios del fondo.
+						m_background.run_slice(hb.frames, 0u);
 						if (m_background.live_count() == 0u) {
 							// Nada más que procesar este frame: la tarea espera
 							// **BLOQUEADA** la señal de VBlank (la IRQ la levanta;

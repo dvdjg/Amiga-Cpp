@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-17T11:20:01.492Z
+- Fecha: 2026-10-17T12:18:28.445Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
+- Frames: frame_000.png, frame_001.png, frame_002.png (3)
 - Secuencia: `out/run/079_wireframe/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,19 +15,17 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes muestran una representación de wireframe de una esfera, con un texto en la parte superior que indica la versión del programa y un valor que cambia.
+**Imagen 1:**
+- **Elemento central:** Un poliedro esférico de wireframe (esqueleto de líneas) compuesto por múltiples caras poligonales, principalmente hexágonos y pentágonos, que forman una estructura similar a un balón de fútbol. Las líneas son de color azul brillante sobre un fondo oscuro.
+- **Texto en la parte superior:** En la esquina superior izquierda, se muestra "WIREFRAME v2.0.4290". En la esquina superior derecha, se muestran "F298" y "33.5".
+- **Estado visual:** La estructura está ligeramente inclinada, mostrando una perspectiva tridimensional.
 
-**Elementos comunes en todas las imágenes:**
-*   **Fondo:** Un fondo de color azul oscuro.
-*   **Texto superior:** En la parte superior, centrado horizontalmente, se muestra el texto "WIREFRAME v2.0.4259" en letras blancas, seguido por "F 0" en la primera imagen y "F 128" en las siguientes.
-*   **Objeto central:** Una esfera tridimensional representada como una red de líneas azules que forman polígonos (principalmente hexágonos y pentágonos). La esfera está centrada en la imagen.
+**Imagen 2:**
+- **Elemento central:** El mismo poliedro esférico de wireframe, pero ahora se muestra desde una perspectiva más frontal y centrada. La estructura parece más simétrica y compacta.
+- **Texto en la parte superior:** En la esquina superior izquierda, se muestra "WIREFRAME v2.0.429C". En la esquina superior derecha, se muestran "F296" y "31.9".
+- **Estado visual:** La estructura está más centrada en el plano de la imagen.
 
 **Cambios entre imágenes:**
-*   **Imagen 1:** El texto muestra "F 0". La esfera está orientada de forma que se ve una sección de su superficie, con múltiples polígonos visibles.
-*   **Imagen 2:** El texto muestra "F 128". La esfera ha girado ligeramente, mostrando una vista diferente, con un polígono central más prominente.
-*   **Imagen 3:** El texto sigue siendo "F 128". La esfera ha girado aún más, ahora mostrando una vista más frontal y plana, con un polígono hexagonal central muy visible y los bordes de la esfera más alineados con los bordes de la imagen.
-
-**Observaciones:**
-*   Las imágenes parecen ser capturas de pantalla de un programa de visualización 3D.
-*   El valor "F" cambia de 0 a 128, lo que sugiere que el programa está cambiando una configuración, posiblemente relacionada con el modo de visualización, el nivel de detalle o un parámetro de renderizado.
-*   No hay artefactos visibles como parpadeos, recortes o elementos superpuestos. La esfera se muestra de forma completa en cada imagen.
+- **Texto superior:** El número de versión cambia de "4290" a "429C". Los valores "F" y "33.5" cambian a "F296" y "31.9".
+- **Perspectiva del objeto:** La orientación del poliedro cambia, pasando de una vista ligeramente inclinada a una vista más frontal y centrada.
+- **Detalles visuales:** En la imagen 2, se observa un ligero artefacto visual: una línea vertical blanca muy fina que atraviesa el centro del poliedro, justo donde se unen los bordes de los hexágonos. Este artefacto no está presente en la imagen 1.

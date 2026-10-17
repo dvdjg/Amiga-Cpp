@@ -64,6 +64,62 @@ inline eng::u32 prof_clock() {
 	return *reinterpret_cast<volatile eng::u32*>(0xb7e928UL);
 }
 
+/// Reloj PAL del contador de ciclos anterior: 7093790 Hz. Fuente unica del valor.
+inline constexpr eng::u32 prof_clock_hz = 7093790u;
+
+/// Ventana de 1 segundo del reloj de ciclos para el campo de **fps del HUD**. Se
+/// expresa con **un decimal** (`fps10`) porque las demos actuales corren a 15-40 fps
+/// (el entero de `VersionStrip` no distingue 18,1 de 18,9). Es la MEDIA DE LA ULTIMA
+/// VENTANA, no acumulada: si la cadencia cambia (activar una seccion, un pico puntual),
+/// el HUD lo ensena al segundo siguiente.
+///
+///   HudFpsWindow fps;
+///   fps.reset(frame_index, prof_clock());           // init: arma, no emite
+///   if (fps.update(frame_index, prof_clock(), out_fps10)) {
+///       // ~1 vez/segundo: pintar `out_fps10` ("25.0" -> 250) por palabras
+///   }
+///
+/// Coste por frame: una resta y una comparacion (~10-15 ciclos); la division se paga
+/// UNICAMENTE en el frame que cierra la ventana (justificado por la disciplina del
+/// repo: fuera de todo bucle caliente). En host (sin periferico) pasar `cycle_now = 0`
+/// y queda inactivo.
+struct HudFpsWindow {
+	eng::u32 cycle_ref = 0u; ///< ciclos de la ultima actualizacion (referencia de ventana)
+	eng::u32 frame_ref = 0u; ///< `frame_index` de la ultima actualizacion
+	bool armed = false;      ///< falso hasta ver un reloj valido (host/arranque)
+
+	/// Arma la ventana en init: fija referencias sin emitir fps (la primera ventana
+	/// empieza a contar aqui, no en 0).
+	void reset(eng::u32 frame_index, eng::u32 cycle_now) noexcept {
+		armed = (cycle_now != 0u);
+		cycle_ref = cycle_now;
+		frame_ref = frame_index;
+	}
+
+	/// Cierra la ventana cuando han pasado >= 1 s de reloj desde la anterior y escribe
+	/// `out_fps10` = fps x 10. Devuelve `true` SOLO en ese frame.
+	bool update(eng::u32 frame_index, eng::u32 cycle_now, eng::u32& out_fps10) noexcept {
+		if (!armed) {
+			reset(frame_index, cycle_now);
+			return false;
+		}
+		const eng::u32 elapsed = cycle_now - cycle_ref;
+		if (elapsed < prof_clock_hz) {
+			return false; // aun no ha pasado 1 segundo
+		}
+		eng::u32 frames = frame_index - frame_ref;
+		// Tope de 50 Hz PAL: una ventana justo por encima de 1 s no puede traer mas
+		// (y evita overflow u32 en `frames * prof_clock_hz * 10`, que cabe hasta 60).
+		if (frames > 50u) {
+			frames = 50u;
+		}
+		out_fps10 = (frames * prof_clock_hz * 10u) / elapsed;
+		cycle_ref = cycle_now;
+		frame_ref = frame_index;
+		return true;
+	}
+};
+
 } // namespace eng::debug
 
 // Fuera del target Amiga (host u otro m68k) el perfilado es NO-OP: el contador es un periferico

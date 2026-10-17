@@ -30,3 +30,4 @@ Categoría `os` de la batería host (L1). El índice de categorías está en [..
 | HOST-404 | [request_table](404_request_table/README.md) | E/S (R6.2): `eng::os::RequestTable`/`RequestId` — peticiones con **generación**: rechazo de respuestas tardías de un slot reutilizado, cancelación y llenado. |
 | HOST-409 | [vfs](409_vfs/README.md) | VFS (R6.1): `eng::os::Vfs<Backend>` — paths normalizados + `exists`/`size`/`read`/`read_all` sobre backend simulado; errores normalizados. |
 | HOST-415 | [frame_sync_policy](415_frame_sync_policy/README.md) | Mini-SO: política de sincronización de frame (`Event`/`Latch`/`Disabled`) y catch-up (`VBlankTick::frames_elapsed`, wrap-safe) — `TIME-001/002/009/010`. |
+| HOST-466 | [heartbeat_frame_index](466_heartbeat_frame_index/README.md) | Bucle por IRQ: `frame_index` (frames completados, lo fija el bucle) vs `field_index` (latido VBlank, lo fija la IRQ); la IRQ no pisa `frame_index` (caso real: HUD a 50 fps donde la tasa era 32,7). |

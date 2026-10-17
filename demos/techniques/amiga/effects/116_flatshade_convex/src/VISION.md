@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-17T11:20:32.118Z
+- Fecha: 2026-10-17T12:18:40.256Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
+- Frames: frame_000.png, frame_001.png (2)
 - Secuencia: `out/run/116_flatshade_convex/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,22 +15,22 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Imagen 1:**
-- **Elemento central:** Un poliedro esférico compuesto por múltiples caras planas de forma irregular, coloreado en distintos tonos de azul. Las caras más cercanas a la fuente de luz (superior) son de un azul claro, mientras que las caras más alejadas (inferiores y laterales) son de un azul más oscuro. El poliedro tiene un aspecto pixelado.
-- **Texto en la parte superior:** "FLATSHADE v2.0.4255 F 0".
-- **Fondo:** Negro.
+**Imagen observada:**
 
-**Imagen 2:**
-- **Elemento central:** El mismo poliedro, ahora con un cambio en la iluminación. Las caras que antes eran azules claras ahora son de un azul más intenso, y las caras oscuras se han vuelto aún más oscuras, creando un contraste mayor. La iluminación parece haberse movido hacia arriba.
-- **Texto en la parte superior:** "FLATSHADE v2.0.4255 F 128".
-- **Fondo:** Negro.
+- **Elemento central:** Un poliedro esférico (parecido a un icosaedro o una esfera poligonal) compuesto por múltiples caras planas de color azul. Las caras varían en tonalidad: desde azul claro en el centro hasta azul oscuro en los bordes, sugiriendo un efecto de iluminación o sombreado plano (flat shading).
+- **Fondo:** Negro sólido.
+- **Texto en la parte superior (centrado horizontalmente):**
+  - A la izquierda: `FLATSHADE v2.0.4291`
+  - A la derecha: `F267 13.2`
+- **Estilo visual:** Pixelado, con bordes definidos y colores sólidos. La imagen tiene un aspecto de renderizado 3D antiguo o de prueba de software.
 
-**Imagen 3:**
-- **Elemento central:** El poliedro se ha girado ligeramente hacia arriba y hacia la izquierda. La cara central (hexagonal) ahora está más orientada hacia el espectador y es la más brillante. Las caras laterales y superiores están más iluminadas, mientras que las inferiores son más oscuras.
-- **Texto en la parte superior:** "FLATSHADE v2.0.4255 F 128".
-- **Fondo:** Negro.
+**Observaciones:**
 
-**Cambios observables:**
-- El valor "F" en la parte superior cambia de "0" a "128" entre la primera y la segunda imagen.
-- El poliedro gira entre la segunda y la tercera imagen.
-- La iluminación del poliedro cambia de forma perceptible entre las imágenes, lo que sugiere que el programa está simulando un cambio de ángulo de luz o una rotación del objeto.
+- No hay movimiento ni cambio entre imágenes (solo una imagen proporcionada).
+- No hay artefactos visibles como parpadeos, recortes o superposiciones.
+- La disposición es simétrica y centrada.
+- El texto en la parte superior parece ser información de versión o estado del programa “FLATSHADE”.
+
+**Elementos incoherentes o extraños:**
+
+- Ninguno observado. La imagen es coherente y parece una captura de pantalla de un programa de renderizado 3D o un demo de sombreado plano.

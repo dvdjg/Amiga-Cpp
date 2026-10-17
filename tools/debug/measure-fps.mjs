@@ -53,7 +53,10 @@ fs.mkdirSync(DH0 + '/s', { recursive: true });
 fs.writeFileSync(DH0 + '/s/startup-sequence', 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
 
 const CONFIG = {
-  winuaePath: `${EXT_BIN}/win32`,
+  // `AMIGA_WINUAE_PATH` fuerza el emulador (mismo contrato que winuae-profile.mjs):
+  // en este workspace apunta al fork `../WinUAE-DBG/bin` (side-channel + puerto GDB
+  // configurable); sin la variable se usa el WinUAE stock de la extension.
+  winuaePath: (process.env.AMIGA_WINUAE_PATH || `${EXT_BIN}/win32`).replace(/\\/g, '/'),
   configFile: `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}/runner.uae`,
   gdbPort: GDB_PORT,
 };

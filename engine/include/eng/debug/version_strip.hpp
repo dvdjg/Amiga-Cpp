@@ -17,6 +17,7 @@
 
 #include <eng/core/data/utf8.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/graphics/font5x7.hpp>
 
@@ -39,7 +40,7 @@ struct StripTarget {
 /// Franja con dibujo estático + campos dinámicos por **diff de caracteres**.
 class VersionStrip {
 public:
-	static constexpr eng::u32 kClockHz = 7093790u; ///< reloj PAL del contador de ciclos
+	static constexpr eng::u32 kClockHz = eng::debug::prof_clock_hz; ///< reloj PAL del contador de ciclos
 	static constexpr eng::u8 kFpsCols = 6u;        ///< "FPS nn" (nn hasta 99)
 	static constexpr eng::u8 kMsgCols = 32u;       ///< ancho del campo de mensajes
 	static constexpr eng::s16 kMsgX = 140;         ///< x del campo de mensajes

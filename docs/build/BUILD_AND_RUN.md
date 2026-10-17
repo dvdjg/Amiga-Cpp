@@ -150,6 +150,8 @@ El runner:
 - guarda una captura PNG con el monitor de WinUAE;
 - cierra el emulador y restaura el `startup-sequence` anterior.
 
+**Los `.uae` (runner incluido) van SIN BOM**: un BOM UTF-8 al principio de un `.uae` tumba a WinUAE en el arranque (BEX `0xC0000409`, sin ventana ni log; medido 2026-10 al crear a mano un runner con `Set-Content` de PowerShell). No editar runners con cmdlets de PowerShell (`Set-Content`/`Out-File` anaden BOM y CRLF): usar las herramientas del agente o `sed -i`, y si se usa PowerShell, `[System.IO.File]::WriteAllText` con `UTF8Encoding($false)`.
+
 La captura queda en:
 
 ```text

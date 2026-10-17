@@ -148,7 +148,7 @@ Siguiente paso: 101 y 104 — identificar el frame exacto (los nombres `frame_NN
 
 **Causa raíz (perfil por secciones, 2026-10):** `Plan::materialize` costaba **194k para ~85 intenciones** (`sort_lines` 37k + `sort_prio` 33k + `emit` 124k) y el dibujo del disco por CPU byte a byte en Chip (con contención de bus) otros **~101k**; el resto de `build_frame` ~119k. La demo re-emitía y re-ordenaba la lista ENTERA cada frame y pintaba el BOB a mano.
 
-**Arreglo:** lista **estática por bitmap** (setup; solo cambian los `BPLxPT`) + **parcheo por slots** (cielo con `RasterGradientEffect::bind_slots`/`patch_words`; BOB con intents de línea fija para todo el rango de Y y parcheo del rango actual ∪ anterior) + **disco por Blitter** (borrado desde fila de ceros con módulo −8 + copia de variante pre-shifteada de 16 offsets de palabra; bloque de variantes en Chip). Resultado: **49,92 fps / 1,00 field / 142.102 ciclos**, visión OK sobre secuencia fresca. Informe y lecciones: `demos/techniques/amiga/copper/085_copper_plan_scene/VALIDATION.md` y `docs/guides/optimization/ATRIBUCION_DE_CICLOS.md`.
+**Arreglo:** lista **estática por bitmap** (setup; solo cambian los `BPLxPT`) + **parcheo por slots** (cielo con `RasterGradientEffect::bind_slots`/`patch_words`; BOB con intents de línea fija para todo el rango de Y y parcheo del rango actual ∪ anterior) + **disco por Blitter** (borrado desde fila de ceros con módulo −8 + copia de variante pre-shifteada de 16 offsets de palabra; bloque de variantes en Chip). Resultado: **49,87 fps / 1,00 field / 142.102 ciclos**, visión OK sobre secuencia fresca. Informe y lecciones: `demos/techniques/amiga/copper/085_copper_plan_scene/VALIDATION.md` y `docs/guides/optimization/ATRIBUCION_DE_CICLOS.md`.
 
 ## DT-008 · `profile.mjs` no resuelve `g_eng_prof`
 
@@ -184,7 +184,7 @@ Al cablear el camino lento de la capa (hoja cookie-cut sin padding + `set_slow_s
 
 **Arreglo:** ese caso va **por plano** (misma máscara en cada uno; su walk usa `src_mod`, el stride real de la máscara) con el paso de fila FÍSICA del destino (`row_bytes*planos − words*2`); el blit único se conserva para imagen sola (sin regresión de los fast paths). **HOST-439 T4b** nuevo (hoja planar + máscara separada → target interleaved, con canario `0xFFFF` tras la máscara: con el bug el interior sale con máscara=1 y falla; con el arreglo pasa — sensibilidad verificada revirtiendo `flat`). El ejecutor SW del test generalizó su modelo OOB (paso de fila = `words*2 + DMOD`; en interleaved los planos comparten bloque).
 
-**Validación en la 126:** disparo reactivado (bob0 a 5 px/frame en [112,128) de cada 128 frames — el camino lento ya es parte del showcase); **49,92 fps / 1,00 field / 1000 frames**; franja izquierda idéntica dentro/fuera de la ventana (sin columna de basura); visión OK (3 frames, bobs completos, sin artefactos).
+**Validación en la 126:** disparo reactivado (bob0 a 5 px/frame en [112,128) de cada 128 frames — el camino lento ya es parte del showcase); **49,87 fps / 1,00 field / 1000 frames**; franja izquierda idéntica dentro/fuera de la ventana (sin columna de basura); visión OK (3 frames, bobs completos, sin artefactos).
 
 ## DT-010 · Deriva de API en demos: gate «compilar la flota» — RESUELTO (2026-10)
 
@@ -278,12 +278,18 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Origen:** modernización de 079/116 (2026-10-17): trazado por lote (`retro::wire_lines`), loop `run_frames`, servicio de Blitter off, HUD por zona de 1 bpp sin coste por frame y soporte `bbox` en `flat_shade_xor`.
 
-**Medidas (`A500_debug`, `measure-fps`):**
+**Medidas (`measure-fps`):**
 
-- 079: **6,86 → 35,7 fps** (7,29 → 1,40 campos/frame); tras el fix del HUD a plano uniforme, **33,1 fps** (1,51 campos; el 5º plano cuesta ~0,11 campos). Cierra el problema reportado («se pierden frames»).
-- 116: **19,20 → 19,70 fps** (2,54 campos/frame) y, tras el fix del HUD a plano uniforme, **18,05 fps** (2,77 campos; el 5º plano cuesta ~0,23 campos). **Sigue por debajo del suelo de 25 fps** del efecto de relleno de polígonos → demo **ABIERTA**.
+- 079: **6,86 → 35,7 fps** (7,29 → 1,40 campos/frame); tras el fix del HUD a plano uniforme, 33,1 fps (1,51 campos; el 5º plano cuesta ~0,11 campos); con el build **release** (`-O2`) y el fix de contadores de la IRQ (abajo), **37,04 fps** (1,35 campos). Cierra el problema reportado («se pierden frames»).
+- 116: **19,20 → 19,70 fps** (2,54 campos/frame); tras el fix del HUD a plano uniforme, 18,05 fps (2,77 campos; el 5º plano cuesta ~0,23 campos); **release = 19,22 fps (2,60 campos)**. **Sigue por debajo del suelo de 25 fps** del efecto de relleno de polígonos → demo **ABIERTA**.
+
+**La referencia original, medida (no supuesta):** la demo original (`demoscene-repo-orig`, ADF en emulador ciclo-exacto, perfil WinUAE + capturas por campo) **NO mete el frame en un campo**: sus frames salen en **parejas de campos idénticos** (la imagen avanza 1 vez cada 2 campos ⇒ **25 fps**, 2,0 campos/frame) — coherente con los números de su propio profiler (`PROFILE`: transform 156 + draw 130 + fill 289 = 575 líneas ≈ 1,84 campos). DMA por campo (contadores del recorder, `include/debug.h:361-372`): CPU 17,8k, Blitter 26,8k, Bitplano 16,4k, refresh 1,2k; CPU ocupada 142102/142112 (saturada). **El objetivo realista de paridad es 2,0 campos (25 fps), no 1.**
+
+**Brecha medida release vs original (por frame completado):** original 2,0 campos × 62,2k accesos DMA/campo ≈ 124k; port 2,6 × 62,6k ≈ 163k (+39k). Desglose del exceso: **CPU +45 %** (51,5k vs 35,5k accesos/frame: codegen `-O2` de g++ vs gcc de Bebbo con pistas `register asm`, más trabajo de plan/servicio por job) y **Bitplano +20k/frame** (5º plano del HUD —~5k— y ventana compartida/offsets). El Blitter total por frame es similar en ambos. El camino de cierre es el mismo del plan: async (solapa la CPU con el Blitter como el original, cuyo clear se absorbe bajo el transform) + ruta asm del transform (1,8× medido).
 
 **Hallazgo colateral (HUD, corregido):** el HUD de la primera pasada usaba una «zona» de 5º plano activada con un WAIT `>255`; con la semántica `>=` del comparador (`custom.cpp:4416` `coppercomp`) dispara en la raster 255 y **la lista termina ahí (STOP)**: el plano quedaba encendido (franjas de basura). Corregido con **plano activo todo el frame + paleta espejo** en ambas demos (detalle en `PROFILING_FROM_AGENT.md` y los `VALIDATION.md`).
+
+**Hallazgo colateral (contadores, corregido):** la IRQ de VBlank pisaba `context.frame.frame_index` con el contador de **latidos** (`engine.hpp`, `VBlankHeartbeat::run`): una demo que lee `frame_index` en `render` (tras >1 campo de trabajo) veía la tasa de campos (~50/s) en vez de la de frames completados — el HUD de fps recién añadido destapó el caso (mostraba 49,2 donde la tasa real era 32,7). Corregido separando `field_index` (latidos, lo fija la IRQ; pacing del fondo) de `frame_index` (frames completados, lo fija el bucle). Test: HOST-466.
 
 **Hallazgo clave (acotado y medido):** el fill XOR acotado a la caja del objeto («bbox», soporte nuevo de `eng::retro::flat_shade_xor(…, bbox)`) y el clear acotado por buffer **empeoran** el frame en la pipeline síncrona actual (19,2 → 17,3 fps): el fill acotado son **4 jobs** (uno por plano) cuyo `wait_blitter` interno serializa la CPU con el Blitter dentro del `update` (el barrido completo era **un solo job** lanzado sin esperar). La vía correcta para cobrar el recorte (~56k de fill + ~40k de clear) es el **referee async** del `FramePlan` (encadenado por IRQ de fin de blit, viable bajo el SO según la 066/`066-async-blit-irq-bajo-el-so.md`).
 
@@ -308,7 +314,30 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 - Al **medir rendimiento** (y en general), el HUD va en **zona aparte** de la pantalla con **1–2 bitplanes propios** activos **todo el frame** (`BPLCON0` + puntero en la cabecera de la lista), **nunca** repintado sobre los planos del efecto ni por frame.
 - **Prohibido cerrar el HUD con una «zona» de WAIT `>255`**: el comparador del Copper usa semántica `>=` sobre `V[7:0]` (`custom.cpp:4416` `coppercomp`), un WAIT por encima de la 255 dispara en la raster 255 y **no se puede volver a esperar nada después** dentro de la lista: el plano extra queda encendido más allá de su banda (franjas de basura; pasó en 079/116, 2026-10-17).
 - El **delta** del plano fijo se absorbe con la **paleta espejo** (`palette[16]=tinta`, `palette[16+k]=palette[k]`) para que sumar +16 al índice de color sea transparente fuera del texto; el coste queda en el fetch fijo (~0,1–0,25 campos según demo), medido y anotado.
-- Etiqueta estática UNA vez; contador en **campo de ancho fijo** reescrito ~1 vez/segundo (24 escrituras); texto **por palabras** (`Surface::draw_text_words`).
-- Antes de dar una medida de fps por buena, revisar el coste del HUD (ablación o profile) y dejarlo anotado en el `VALIDATION.md`.
+- Etiqueta estática UNA vez; campos dinámicos en **campos de ancho fijo** reescritos ~1 vez/segundo (~56 escrituras); texto **por palabras** (`Surface::draw_text_words`).
+- **El HUD muestra el fps del último segundo** con un decimal, junto al contador de frames totales (079/116, 2026-10; `eng::debug::HudFpsWindow`, `prof.hpp`): la ventana se cierra al acumular ≥1 s del reloj de ciclos (0xB7E928) y da la **media de la última ventana** — un cambio de cadencia se ve al segundo. El coste por frame es una comparación (~10-15 ciclos); la división se paga solo al cerrar la ventana. Usar un **contador de frames fiable** para la ventana: `frame_index` cuenta frames completados (el bucle), **no** latidos de VBlank — la IRQ publica esos en `field_index` (bug real corregido 2026-10, caso HUD a 49,2 fps donde la tasa era 32,7; HOST-466). Test del helper: HOST-465.
+- Antes de dar una medida de fps por buena, revisar el coste del HUD (ablación o profile) y dejarlo anotado en el `VALIDATION.md`; el campo de fps del propio HUD debe **coincidir con `measure-fps`** en régimen estable (validación cruzada barata: dos capturas separadas y su delta de contador).
 - Detalle operativo y casos medidos: `docs/tools/PROFILING_FROM_AGENT.md` §«El HUD no puede contaminar la medida».
 
+
+## DT-028 - Escrituras fuera de la reserva en la emisión de blits/copper (RESUELTO, con pendientes)
+
+**Origen:** auditoría del port de `circles` (demo 122) y síntoma reportado de «buffers que se contagian»: una escritura indebida no venía del asignador (`BlockPool`/`MemBank`), sino de caminos de emisión que calculaban una dirección fuera de la reserva del destino.
+
+**Causas localizadas (con evidencia):**
+
+- `graphics::bob_draw`/`bob_erase_box`/`bob_save_box`/`bob_restore_box` no comprobaban el borde derecho/inferior del `BobTarget` ni que `planes.size()` cubriera la geometría (`row_bytes · height · planos`, o `(planos-1)·plane_step + row_bytes·height` con paso explícito). Un BOB en el borde o un target con reserva corta escribían en el buffer contiguo.
+- `FramePlan::begin_blit_job`/`begin_line_job` devolvían `m_blit_jobs[m_blit_job_count]` sin comprobar la capacidad: con el plan lleno, el llamador escribía en `m_blit_jobs[max]` (pisando el siguiente miembro del plan). El `commit` fallaba después, pero el daño ya estaba hecho.
+- `copper::ListBuilder::write_pair`/`move32` calculaban `capacity - 2` con `u16`: con capacidad 0/1 envolvía y escribía a través de un buffer vacío.
+- `Screen::stamp::at`/`clear_now` (racha de blits en streaming) no acotaban contra la geometría del destino; `clear_now` ignoraba `box.x` y podía borrar palabras de más.
+
+**Arreglo:**
+
+- `BitmapView::storage_bytes_used()` + `bob_detail::target_valid`/`box_fits`; bounds en los cuatro caminos de BOB y en `scene::clear_box`.
+- Ranura de **descarte** (`FramePlan::m_scratch`) para `begin_*` con el plan lleno; `commit` falla y no se consume ranura.
+- Chequeo `capacity < 2` en `ListBuilder`.
+- `Screen::stamp::at`/`clear_now`: límites de destino, dirección de `clear_now` con `box.x` alineado a 16 y `dmod` correcto.
+
+**Gates:** HOST-232 (círculo/clip), HOST-388 (plan lleno), HOST-439 (fuera de buffer/reserva corta/límite exacto/shift, canarios) y demo 122 (`build -> run -> analyze`, 49,87 fps, visión limpia). La 213 (streaming con 16 BOBs) se midió tras el cambio: **49,97 fps / 1,001 campos** (el chequeo de `StampRun::at` se compensó usando `mulu.w` en vez de `__mulsi3` para el offset de fila/frame).
+
+**Pendiente (no bloquea):** validación genérica de `BlitJob` en la alta (`BoundTarget`), contrato de tamaño de la hoja del BOB, canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio y barrido de `Block::view.data()` en demos técnicas. Plan en `ROADMAP_API_COHERENCE.md` §F8 y `ROADMAP_MEMORY_OWNERSHIP.md` Fase 8.

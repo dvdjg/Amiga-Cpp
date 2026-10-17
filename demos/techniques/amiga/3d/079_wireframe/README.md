@@ -6,7 +6,7 @@ Demo del **trazado de alambre por Blitter** con el objeto `pilka` (malla `obj2c`
 
 El balón gira sobre el centro de una ventana 256×256×4 (registros del original: `SetupPlayfield(MODE_LORES, 4, X(32), Y(0), …)`), dibujado como líneas azules con rastro cromático: un anillo de 5 planos con la copperlist rotando los punteros por frame (el plano recién dibujado es el bit 3; los 3 anteriores pintan el rastro con los colores 8/4/2/1, como el parcheo de `BPLxPT` del original).
 
-En la parte baja de la ventana muestra la franja de depuración (nombre + versión + contador de frames) en una **zona aparte de 1 bpp** activada por Copper.
+En la parte superior de la ventana muestra la franja de depuración (nombre + versión + contador de frames + fps del último segundo) en una **zona aparte de 1 bpp** activa todo el frame.
 
 ## Técnica
 
@@ -22,11 +22,11 @@ En la parte baja de la ventana muestra la franja de depuración (nombre + versi�
 
 - **Sincronización**: `Engine::run_frames` (latido por IRQ de VBlank + espera bloqueada en `Wait()`); el demo no usa la cola de fondo, así que el servicio de Blitter va desactivado (`set_blit_service_enabled(false)`): las esperas entre líneas son sondeo apretado sin llamada de servicio por vuelta.
 - **Pre-clear solapado**: el plano que se dibujará en el próximo update está **oculto** en la copperlist vigente (los 4 mostrados son `active`, `active+2..active+4`), así que su borrado (blit lanzado sin esperar) corre en paralelo con la CPU del frame y el primer trazo del update siguiente lo sincroniza.
-- **Franja de depuración (1 bpp, coste por frame CERO)**: el texto se pinta por palabras (`Surface::draw_text_words`) en su propio **plano completo de 1 bpp**; la parte estática una vez en `init` y el contador ~1 vez/segundo (24 escrituras). El 5º plano va **activo todo el frame** en el header de la copperlist (sin WAITs: una zona `>255` no se puede cerrar con el comparador `>=` de WinUAE, `custom.cpp:4416` `coppercomp`) y la paleta 16..31 es un **espejo** de la del alambre (16 = tinta) para que el +16 del plano sea transparente. La franja queda en la banda superior (filas de ventana ≈16..23).
+- **Franja de depuración (1 bpp, coste por frame CERO)**: el texto se pinta por palabras (`Surface::draw_text_words`) en su propio **plano completo de 1 bpp**; la parte estática una vez en `init` y los campos dinámicos (**contador de frames + fps del último segundo** con un decimal, `eng::debug::HudFpsWindow`) ~1 vez/segundo (~56 escrituras). El 5º plano va **activo todo el frame** en el header de la copperlist (sin WAITs: una zona `>255` no se puede cerrar con el comparador `>=` de WinUAE, `custom.cpp:4416` `coppercomp`) y la paleta 16..31 es un **espejo** de la del alambre (16 = tinta) para que el +16 del plano sea transparente. La franja queda en la banda superior (filas de ventana ≈16..23).
 
 ## Rendimiento
 
-`A500_debug`, `measure-fps` (2026-10-17): **33,1 fps / 1,51 campos/frame** (~214k ciclos/update; incluye el +0,11 campos del 5º plano del HUD). Antes de la modernización: 6,86 fps / 7,29 campos (el camino antiguo pagaba el O(2) del informe de presupuesto del `FramePlan` por línea, `memset`/`memcpy` por job del plan, sondeo de VBlank y servicio de blit por vuelta). Detalle por secciones y evidencia: `VALIDATION.md`.
+`A500_debug`, `measure-fps` (2026-10-17): **32,7 fps / 1,53 campos/frame**; con el build **release** (`-O2`): **37,04 fps / 1,35 campos/frame** (incluye el +0,11 campos del 5º plano del HUD; el HUD de campos dinámicos no cuesta por frame). El campo de fps del propio HUD coincide con `measure-fps` (validado con capturas separadas y su delta de contador). Antes de la modernización: 6,86 fps / 7,29 campos (el camino antiguo pagaba el O(2) del informe de presupuesto del `FramePlan` por línea, `memset`/`memcpy` por job del plan, sondeo de VBlank y servicio de blit por vuelta). Detalle por secciones y evidencia: `VALIDATION.md`.
 
 ## Uso
 

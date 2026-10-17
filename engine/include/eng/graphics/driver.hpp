@@ -37,7 +37,8 @@ enum class GraphicsDriverId : u8 {
 /// iran alimentando desde blitter, copper y sprites para que las demos puedan fallar
 /// antes de saturar el hardware.
 struct FrameStats {
-	u32 frame_index = 0;       ///< nº de frame desde el arranque
+	u32 frame_index = 0;       ///< nº de frame COMPLETADO desde el arranque (lo fija el bucle)
+	u32 field_index = 0;       ///< nº de latido VBlank desde el arranque (lo fija la IRQ; pacing del fondo)
 	u32 frames_elapsed = 1u;   ///< latidos VBlank desde el frame anterior (catch-up; ≥1)
 	u16 blit_jobs = 0;         ///< trabajos de Blitter encolados este frame
 	u16 copper_patches = 0;    ///< parches de Copper aplicados este frame
