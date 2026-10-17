@@ -16,6 +16,7 @@ Informe de validación de la demo (procedimiento F0-F5 de `docs/guides/methodolo
 | `A500_debug` (HUD con fps del último segundo) | 32,73 | 1,53 | 216.733 |
 | **`A500_release` (`-O2`)** | **37,04** | **1,35** | 191.512 |
 | `A500_release` + HUD en **banda superior legal** (WAIT 44/58) | **39,72** | **1,26** | 178.617 |
+| `A500_debug` (final, con banda) | 35,26 | 1,42 | 201.210 |
 
 Reparto por secciones (`tools/debug/profile.mjs`, secciones de la demo):
 
