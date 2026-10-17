@@ -119,7 +119,8 @@ function parseElf(elf) {
 	try {
 		// `-r` incluye relocaciones: en un .o sin enlazar el `jsr` sale como
 		// `jsr 0 <...>` y el simbolo real solo aparece en `R_68K_32 __mulsi3`.
-		raw = execFileSync(objdump, ['-d', '-r', '-C', '--no-show-raw-ins', elf], { encoding: 'utf8' });
+		raw = execFileSync(objdump, ['-d', '-r', '-C', '--no-show-raw-ins', elf],
+			{ encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 	} catch { return null; }
 	const funcs = new Map();
 	const ignored = new Set();
