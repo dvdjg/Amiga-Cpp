@@ -2,25 +2,15 @@
 //   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory --keep-running
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory --keep-running
 
+// Demo 010 - modelo de memoria Chip/Slow con el arranque de alto nivel (`run_demo`).
+//
+// `main` declara el display y el **presupuesto por banco** (`MemoryConfig`); `run_demo` pone
+// memoria, arranque y bucle. Los recursos persistentes se reservan por **banco tipado**
+// (`MemoryManager::chip()/slow()` → `Block<Tag, Banco>`), la scratch de frame la gestiona el
+// engine (se muestra con `app.telemetry()`) y una reserva que no cabe devuelve un bloque
+// **inválido** (sin excepciones). La demo no ve `SysBase`, soporte ni `g_eng_run_status`.
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga/backend.hpp>
-
-#include <proto/exec.h>
-#include <exec/execbase.h>
-
-#include "support/gcc8_c_support.h"
-
-struct ExecBase* SysBase = nullptr;
-
-extern "C" {
-__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
-	eng::debug::run_status_magic,
-	eng::debug::run_status_version,
-	static_cast<eng::u16>(eng::debug::RunState::Cold),
-	0,
-	0,
-};
-}
+#include <eng/platform/amiga/entry.hpp>
 
 namespace {
 
@@ -49,58 +39,52 @@ eng::s16 bar_width(eng::u32 used, eng::u32 capacity, eng::s16 max_width) {
 	return static_cast<eng::s16>(scaled);
 }
 
-void draw_bar(eng::amiga::DebugOverlay& debug, eng::s16 x, eng::s16 y, eng::s16 width, eng::s16 height, eng::u32 used, eng::u32 capacity, eng::u32 color) {
+void draw_bar(eng::amiga::DebugOverlay& debug, eng::s16 x, eng::s16 y, eng::s16 width,
+	      eng::s16 height, eng::u32 used, eng::u32 capacity, eng::u32 color) {
 	debug.rect(x, y, static_cast<eng::s16>(x + width), static_cast<eng::s16>(y + height), 0x00ffffff);
 	const eng::s16 fill = bar_width(used, capacity, static_cast<eng::s16>(width - 2));
 	if (fill > 0) {
-		debug.filled_rect(static_cast<eng::s16>(x + 1), static_cast<eng::s16>(y + 1), static_cast<eng::s16>(x + 1 + fill), static_cast<eng::s16>(y + height - 1), color);
+		debug.filled_rect(static_cast<eng::s16>(x + 1), static_cast<eng::s16>(y + 1),
+				  static_cast<eng::s16>(x + 1 + fill),
+				  static_cast<eng::s16>(y + height - 1), color);
 	}
 }
 
+/// Versión del HUD; el build la inyecta `build-demo.sh`.
+constexpr eng::debug::Version kVersion {1u, 0u};
+
+/// Paleta mínima: COLOR00 azul oscuro (el HUD pinta con tinta 1 = blanco).
+constexpr eng::Palette32 kPalette {{
+	0x002, 0xfff, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+}};
+
 struct DemoGame {
-	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
-		eng::debug::mark_init_started(g_eng_run_status);
-		m_memory_ok = backend.configure_memory({
-			32u * 1024u,
-			32u * 1024u,
-			8u * 1024u,
-		});
+	void init(auto& app) {
+		eng::MemoryManager& mm = app.memory_manager();
 
 		// Persistente (setup): por **banco** (`MemBank`), con `free` real. El dominio va en el Tag.
-		m_copper_template = backend.memory_manager().chip().reserve<eng::CopperTag>(1024u, 16u);
-		m_bitplane_budget = backend.memory_manager().chip().reserve<eng::PlaneTag>(12u * 1024u, 64u);
-		m_entity_pool = backend.memory_manager().slow().reserve<eng::WorkTag>(4096u, 16u);
-		m_script_blob = backend.memory_manager().slow().reserve<eng::WorkTag>(8192u, 16u);
-		// Scratch de frame: por arena LIFO (`ScratchArena`), se reinicia con `reset_frame()`.
-		m_frame_jobs = backend.memory().frame.allocate(2048, 16);
-		// No cabe en el banco Chip (32 KB): reserva inválida (sin excepciones).
-		m_expected_fail = backend.memory_manager().chip().reserve<eng::PlaneTag>(64u * 1024u, 16u);
+		m_copper_template = mm.chip().reserve<eng::CopperTag>(1024u, 16u);
+		m_bitplane_budget = mm.chip().reserve<eng::PlaneTag>(12u * 1024u, 64u);
+		m_entity_pool = mm.slow().reserve<eng::WorkTag>(4096u, 16u);
+		m_script_blob = mm.slow().reserve<eng::WorkTag>(8192u, 16u);
+		// No cabe en el banco Chip: reserva inválida (sin excepciones).
+		m_expected_fail = mm.chip().reserve<eng::PlaneTag>(64u * 1024u, 16u);
 
-		m_memory_ok = m_memory_ok
-			&& m_copper_template.valid()
-			&& m_bitplane_budget.valid()
-			&& m_entity_pool.valid()
-			&& m_script_blob.valid()
-			&& m_frame_jobs.valid()
-			&& !m_expected_fail.valid();
-
-		log_memory(backend);
-		if (m_memory_ok) {
-			eng::debug::mark_ready(g_eng_run_status, 0x00000010u);
-		} else {
-			eng::debug::mark_failed(g_eng_run_status, 0x00000011u);
+		m_memory_ok = m_copper_template.valid() && m_bitplane_budget.valid() &&
+			      m_entity_pool.valid() && m_script_blob.valid() && !m_expected_fail.valid();
+		if (!m_memory_ok) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 		}
 	}
 
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		const eng::u16 pulse = static_cast<eng::u16>((context.frame.frame_index >> 2) & 0x0f);
-		backend.set_color(0, static_cast<eng::u16>((pulse << 8) | 0x002));
-	}
+	void update(auto&) {}
 
-	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		auto& debug = backend.debug();
-		const auto& memory = backend.memory();
-		const auto& banks = backend.memory_manager();
+	void render(auto& app) {
+		auto& debug = app.debug();
+		const eng::debug::Telemetry t = app.telemetry(); // bancos + scratch de frame del engine
 
 		debug.clear();
 		debug.filled_rect(48, 70, 700, 286, m_memory_ok ? 0x00082030 : 0x00502020);
@@ -109,57 +93,54 @@ struct DemoGame {
 		debug.text(76, 128, "Profile: A500_1MB_Slow (Slow is capacity, not true Fast)", 0x0000ff80);
 		debug.text(76, 160, m_memory_ok ? "Arena checks: OK" : "Arena checks: FAIL", 0x00ffff00);
 
-		draw_bar(debug, 76, 194, 460, 22, banks.chip().used_bytes(), banks.chip().capacity(), 0x000080ff);
+		draw_bar(debug, 76, 194, 460, 22, t.chip_used, t.chip_capacity, 0x000080ff);
 		debug.text(552, 198, "Chip DMA", 0x00ffffff);
 
-		draw_bar(debug, 76, 226, 460, 22, banks.slow().used_bytes(), banks.slow().capacity(), 0x0000ff80);
+		draw_bar(debug, 76, 226, 460, 22, t.slow_used, t.slow_capacity, 0x0000ff80);
 		debug.text(552, 230, "Slow metadata", 0x00ffffff);
 
-		draw_bar(debug, 76, 258, 460, 22, memory.frame.used(), memory.frame.capacity(), 0x00ffff00);
+		draw_bar(debug, 76, 258, 460, 22, t.frame_used, t.frame_capacity, 0x00ffff00);
 		debug.text(552, 262, "Frame scratch", 0x00ffffff);
 
-		const HexBuffer chip_base = hex32(static_cast<eng::u32>(banks.chip().capacity()));
-		const HexBuffer slow_base = hex32(static_cast<eng::u32>(banks.slow().capacity()));
+		const HexBuffer chip_cap = hex32(t.chip_capacity);
+		const HexBuffer slow_cap = hex32(t.slow_capacity);
 		debug.text(76, 314, "Chip cap:", 0x00ffffff);
-		debug.text(196, 314, chip_base.text, 0x000080ff);
+		debug.text(196, 314, chip_cap.text, 0x000080ff);
 		debug.text(76, 342, "Slow cap:", 0x00ffffff);
-		debug.text(196, 342, slow_base.text, 0x0000ff80);
-		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
-	}
+		debug.text(196, 342, slow_cap.text, 0x0000ff80);
 
-	void log_memory(eng::amiga::AmigaBackend& backend) {
-		const auto& memory = backend.memory();
-		KPrintF(
-			"AMG010 chip used=%ld cap=%ld slow used=%ld cap=%ld frame used=%ld cap=%ld ok=%ld\n",
-			backend.memory_manager().chip().used_bytes(),
-			backend.memory_manager().chip().capacity(),
-			backend.memory_manager().slow().used_bytes(),
-			backend.memory_manager().slow().capacity(),
-			memory.frame.used(),
-			memory.frame.capacity(),
-			m_memory_ok ? 1L : 0L
-		);
+		// HUD de la franja inferior (norma del repo): nombre + versión + frames, 1 vez/segundo.
+		const eng::u32 tick = app.frame() / 50u;
+		if (tick != m_hud_tick) {
+			m_hud_tick = tick;
+			auto s = app.screen();
+			(void)eng::debug::draw_hud(s, "CHIP/SLOW", kVersion, app.frame(), 1u);
+		}
+		app.present();
+		if (m_memory_ok && !m_ready) {
+			m_ready = true;
+			eng::amiga::mark_ready();
+		}
 	}
 
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_template {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_budget {};
 	eng::Block<eng::WorkTag> m_entity_pool {};
 	eng::Block<eng::WorkTag> m_script_blob {};
-	eng::MemoryBlock m_frame_jobs {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_expected_fail {};
 	bool m_memory_ok = false;
+	bool m_ready = false;
+	eng::u32 m_hud_tick = ~0u;
 };
 
 } // namespace
 
 int main() {
-	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	eng::debug::reset(g_eng_run_status);
-
-	eng::amiga::AmigaBackend backend {};
+	// Display imperativo (320x256x4 por defecto): la demo rotula el HUD en la franja inferior.
+	eng::GameDisplay display {};
+	display.palette = kPalette;
 	DemoGame game {};
-	eng::Engine engine { backend, game };
-	engine.run_frames_polling(0xffff);
-
-	return 0;
+	// Presupuesto explícito: 64K chip (display + bancos DMA), 32K slow (datos de CPU), 8K scratch.
+	return eng::amiga::run_demo(game, display, eng::MemoryConfig {64u * 1024u, 32u * 1024u,
+								      8u * 1024u, 0u});
 }

@@ -112,7 +112,6 @@ demos/techniques/amiga/playfield/203_world_tilemap_xlimited
 demos/techniques/amiga/playfield/204_app_strip_scroll
 demos/techniques/amiga/playfield/205_xy_limited_scroll
 demos/techniques/amiga/setup/000_toolchain_cpp23
-demos/techniques/amiga/setup/010_chip_slow_memory
 demos/techniques/amiga/sprites/053_sprite_multiplex
 demos/techniques/amiga/sprites/054_sprite_allocator
 demos/techniques/amiga/sprites/206_sprite_collision
