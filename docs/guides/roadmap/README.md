@@ -12,7 +12,8 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_GAME_API.md](ROADMAP_GAME_API.md) | **ACTIVO** | Fachada de juego limpio: pila de escenas, manifiesto de assets, estados; fases abiertas. |
 | [ROADMAP_API_COHERENCE.md](ROADMAP_API_COHERENCE.md) | **ACTIVO** | Diagnóstico contrastado del API real y plan por fases (F0–F8) hacia la fachada final; F8 = dibujo inmediato de dominio (círculo/píxel) + recursos acotados en emisión, **cerrada** (queda la migración rodante a `run_demo`); consumidores externos (§7). |
 | [ROADMAP_MINI_OS.md](ROADMAP_MINI_OS.md) | **ACTIVO** | Mini-SO de mensajes (`eng::os`) y UI reactiva: entregados M0–M6; pendientes M9–M11. |
-| [ROADMAP_GUI.md](ROADMAP_GUI.md) | **ACTIVO** | Librería GUI (`eng::ui`): widgets, compositor con backing store, keymaps; pendiente acelerar el copy con Blitter (G8). |
+| [ROADMAP_GUI.md](ROADMAP_GUI.md) | **ACTIVO** | Librería GUI (`eng::ui`): widgets, compositor con backing store, keymaps; G0–G8 entregados (compositor por Blitter incluido); pendientes G9 (contrato de eventos/captura) y G10 (materialización). |
+| [ROADMAP_HUD.md](ROADMAP_HUD.md) | **ACTIVO** | HUD de juego (`eng::hud`): modelo de medidores/contadores/rejillas/slots, regiones con presupuesto, hit-test, drag & drop y presentación por franja, overlay y sprites. Fases H0–H6 pendientes. |
 | [ROADMAP_RESOURCES.md](ROADMAP_RESOURCES.md) | **ACTIVO** | Caché de assets (`eng::res`), E/S asíncrona y DynLoader `.englib`. |
 | [ROADMAP_AUDIO.md](ROADMAP_AUDIO.md) | **ACTIVO** | Capa de audio (`eng::audio`): modos/canales, reproductores, integración con el mini-SO. |
 | [ROADMAP_AUDIO_COMPRESSOR.md](ROADMAP_AUDIO_COMPRESSOR.md) | **ACTIVO** | Pipeline AUZX/ACP1 de compresión de audio (fases C0–C18). |

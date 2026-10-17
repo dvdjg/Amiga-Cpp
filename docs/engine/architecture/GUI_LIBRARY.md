@@ -651,10 +651,7 @@ Paso 1 es el pintado de UI (destino = backing); paso 2 es solo *copies*.
 - **Ventanas movibles**: el compositor (`eng::ui::Compositor`) posee sus backings y compone sobre
   el playfield visible; el juego sigue dibujando debajo.
 
-Para los *fills* y marcos grandes el `BlitterRaster` ya decide por `RasterPolicy::Auto` y
-`min_blit_pixels`. Una mejora de rendimiento pendiente en el raster es un **`fill_rect` D-only**
-(minterm `$FF`, sin fuentes) para cajas axis-aligned, que es más barato que el camino de
-polígono de 4 vértices.
+Para los *fills* y marcos grandes el `BlitterRaster` decide por `RasterPolicy::Auto` y `min_blit_pixels`; el camino rápido de **`fill_rect` D-only** (minterm `$FF`, sin fuentes) para cajas axis-aligned entra por el *seam* `field::RectFillSink` (`Playfield::fill_rect_hw`, `Scene::set_rect_fill_sink`), con equivalencia CPU/Blitter verificada en **HOST-266** y ruta de hardware validada por la demo `215_gui_widgets`.
 
 ## 17. Presupuesto y rendimiento en A500
 

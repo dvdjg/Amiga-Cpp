@@ -133,9 +133,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   HOST-268. La ejecución del plan la hace el llamador (`backend.execute_frame_plan`). **Demo
   `300_gui_compositor`**: tres ventanas con backing que se mueven (pasos de 16 px, copias alineadas)
   y se recomponen por el Blitter; gate visual `verify-gui-compositor.mjs`.
-- **Estado**: **G8 completo**: demo en hardware verificada, *fills* de caja por Blitter D-only,
-  cursor por sprite de hardware y compositor por `Surface::blit`. Queda, fuera de G8, exponer un
-  **cursor de hardware reutilizable** (`eng::ui::HardwareCursor`) y validar los keymaps contra el ROM.
+- **Estado**: **G8 completo**: demo en hardware verificada, *fills* de caja por Blitter D-only, cursor por sprite de hardware y compositor por `Surface::blit`. Fuera de G8, el **cursor de hardware reutilizable** (`eng::ui::HardwareCursor`) ya está expuesto (HOST-301) y queda validar los keymaps contra el ROM.
 
 ## Tests y demos previstos
 
@@ -227,6 +225,7 @@ constituye todavía un sistema completo de interacción. El contrato detallado e
 - Evolucionar `EditBox` a un `TextModel` con selección, clipboard, undo/redo, validación y eventos
   `submit`/`cancel`.
 - Añadir `FocusScope`, menús, `ComboBox`, `TabView`, `ProgressBar` y resultado tipado de diálogos.
+- **Frontera con el HUD de juego** ([`ROADMAP_HUD.md`](ROADMAP_HUD.md)): el contrato de eventos, la captura de puntero y `UiAction` son la base del HUD interactivo de `eng::hud`; `ProgressBar` sigue siendo un widget de aplicación y no sustituye al `Meter` de juego.
 - **Gate**: HOST de propagación/captura y edición completa, además de una demo de formulario con
   teclado, ratón, modal, lista y validación.
 

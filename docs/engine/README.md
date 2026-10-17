@@ -67,6 +67,7 @@ Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el m
 
 - [GUI_LIBRARY.md](architecture/GUI_LIBRARY.md) — diseño de `eng::ui` (widgets, compositor, backing, cursor hardware).
 - [GUI_COMPLETENESS.md](architecture/GUI_COMPLETENESS.md) — carencias y arquitectura objetivo de eventos, edición de texto y rutas CPU/Blitter/Copper.
+- [HUD_SYSTEM.md](architecture/HUD_SYSTEM.md) — diseño de `eng::hud` (medidores, contadores, rejillas, slots, arrastre, regiones y presupuesto); plan en [ROADMAP_HUD.md](../guides/roadmap/ROADMAP_HUD.md).
 - [RASTER.md](architecture/RASTER.md) — primitivas CPU/Blitter que usa la GUI.
 
 ### Audio

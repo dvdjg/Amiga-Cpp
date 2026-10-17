@@ -112,7 +112,7 @@ Principio rector: un solo juego vertical (aldea + bosque + una mazmorra + 2–3 
 **Entregables**:
 
 1. Juego en `games/` (p. ej. `games/400_rpg_slice`) con: jugador con inventario/equipo, un tendero, una estación de craft, un enemigo, una mazmorra con llave, 2–3 quests que comparten hechos.
-2. HUD de juego (inventario/diálogo/journal) con `eng::ui` o superficie propia; franja de versión/depuración según `AGENTS.md` §0.
+2. HUD de juego (inventario/diálogo/journal) con `eng::hud` ([`ROADMAP_HUD.md`](ROADMAP_HUD.md)); el inventario se enlaza como vistas (`HudSlotView`), no se duplica. Franja de versión/depuración según `AGENTS.md` §0.
 3. `INTENT.md`/`VISION.md`/`VALIDATION.md` del juego; presupuesto de 50 fps medido y validado con visión (secuencias, no capturas suelas — `DEMO_VISUAL_DEBUG.md`).
 
 **Verificación**: pipeline completo `build → run → analyze` + visión Ollama + medidas de fps/cadencia. Al terminar, **quitar la marca NO VERIFICADA** de las cabeceras de `eng/rpg/` y de `RPG_LAYER.md`.
@@ -121,7 +121,7 @@ Principio rector: un solo juego vertical (aldea + bosque + una mazmorra + 2–3 
 
 **Objetivo**: pacing de historia y UI completa.
 
-**Entregables**: `DirectorSystem` (actos/capítulos que habilitan packs de quests sin sustituir hechos), UI de journal/party/tienda completa con `eng::ui`, monturas y refugio con sus hechos (`MountLink`/`Shelter`), guardado/carga desde el juego (menú + E/S del mini-SO con `FileHandle`).
+**Entregables**: `DirectorSystem` (actos/capítulos que habilitan packs de quests sin sustituir hechos), UI de journal/party/tienda completa con `eng::hud` (y `eng::ui` solo para ventanas de aplicación), monturas y refugio con sus hechos (`MountLink`/`Shelter`), guardado/carga desde el juego (menú + E/S del mini-SO con `FileHandle`).
 
 **Verificación**: tests host + el juego de M6 ampliado; medición de footprint por perfil (512 KB / 1 MB).
 

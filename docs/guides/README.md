@@ -13,6 +13,7 @@ docs/guides/
 │   ├── ROADMAP_CARD_GAMES.md         → motores de naipes (póker): reglas, equity, IA y simulación
 │   ├── ROADMAP_NPC_PSYCHOLOGY.md     → perfil psicológico de NPC: arquetipos, expresión, lectura de tells y evolución
 │   ├── ROADMAP_RPG.md                → capa RPG/CRPG: núcleo de mundo, motores de progreso/conflicto/sociedad/narrativa y vertical slice
+│   ├── ROADMAP_HUD.md                → HUD de juego (eng::hud): medidores, contadores, rejillas, slots, drag & drop y regiones con presupuesto
 │   ├── REFACTOR_PLAYFIELD_SCROLL.md  → plan por fases del refactor playfield/scroll
 │   ├── REGLAS_PIPELINE_TILES.md      → reglas de oro del pipeline de tiles
 │   ├── ROADMAP_TILED_WORLD_SUPPORT.md → Tiled: parser/cooker, tilesets, capas, orientación y streaming
