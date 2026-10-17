@@ -130,3 +130,25 @@ buffers, cobre, paleta) y el dibujo Amiga (líneas EOR + area fill XOR), que se
 pueden reutilizar tal cual en otros efectos de contorno+relleno. El arreglo de
 **`blit_fill_region`** a descendente (port de `BlitterFillArea`) beneficia también a
 las rutas Blitter del 078. Modelo y paleta en `src/data/` (copiados del original).
+
+## Modernización (2026-10)
+
+- **Bucle por IRQ** (`Engine::run_frames` + `Wait()`) en lugar de sondeo de VPOSR, y
+  `set_blit_service_enabled(false)` (la demo no usa la cola de fondo): las esperas del
+  Blitter son sondeo apretado sin llamada de servicio por vuelta.
+- **Franja de depuración de coste cero** (norma del repo): nombre + versión + contador en
+  una **zona aparte de 1 bpp** (5º plano, bloque de 512 B) activada por Copper desde una
+  etapa de `scene::compose`; la parte estática se pinta una vez y el contador ~1 vez/segundo
+  (24 escrituras de palabra). El render por frame no cambia. Geometría de la franja medida
+  en emulador (el WAIT del Copper `>255` dispara en la raster 255 por la semántica `>=` del
+  comparador: `custom.cpp:4416` `coppercomp`); la banda 16..31 de la paleta replica la del
+  sombreado para no recolorear el balón dentro de la banda.
+- **Soporte `bbox`** en `eng::retro::flat_shade_xor` (fill XOR acotado a la caja del objeto):
+  en esta pipeline síncrona **empeora** el frame (4 jobs por plano que esperan entre sí dentro
+  del update; medido 19,2 → 17,3 fps). Queda como primitivo para el camino async y como
+  lección registrada en DT-026.
+- Medida: **19,70 fps / 2,54 campos/frame** (`A500_debug`; HEAD: 19,20 fps). Sigue por debajo
+  del suelo de 25 fps del efecto de relleno de polígonos → demo **ABIERTA** por presupuesto
+  (DT-026); el camino es el **referee async** del `FramePlan` (encadenado por IRQ), que aún
+  necesita un `BlitJobKind::AreaFill`. Detalle de medidas y validación: `VALIDATION.md`.
+

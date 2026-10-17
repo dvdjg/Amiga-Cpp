@@ -274,3 +274,22 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Evidencia:** `demos/features/rpg/amiga/001_rpg_dungeon/VALIDATION.md` (tabla de medidas y ablaciones); código y comentarios de coste en `src/main.cpp` de esa demo.
 
+## DT-026 — Demo 116 (`flatshade_convex`): 19,7 fps (< suelo 25) y optimizaciones que exigen el referee async
+
+**Origen:** modernización de 079/116 (2026-10-17): trazado por lote (`retro::wire_lines`), loop `run_frames`, servicio de Blitter off, HUD por zona de 1 bpp sin coste por frame y soporte `bbox` en `flat_shade_xor`.
+
+**Medidas (`A500_debug`, `measure-fps`):**
+
+- 079: **6,86 → 35,7 fps** (7,29 → 1,40 campos/frame). Cierra el problema reportado («se pierden frames»).
+- 116: **19,20 → 19,70 fps** (2,60 → 2,54 campos/frame). **Sigue por debajo del suelo de 25 fps** del efecto de relleno de polígonos → demo **ABIERTA**.
+
+**Hallazgo clave (acotado y medido):** el fill XOR acotado a la caja del objeto («bbox», soporte nuevo de `eng::retro::flat_shade_xor(…, bbox)`) y el clear acotado por buffer **empeoran** el frame en la pipeline síncrona actual (19,2 → 17,3 fps): el fill acotado son **4 jobs** (uno por plano) cuyo `wait_blitter` interno serializa la CPU con el Blitter dentro del `update` (el barrido completo era **un solo job** lanzado sin esperar). La vía correcta para cobrar el recorte (~56k de fill + ~40k de clear) es el **referee async** del `FramePlan` (encadenado por IRQ de fin de blit, viable bajo el SO según la 066/`066-async-blit-irq-bajo-el-so.md`), que aún **no cubre el área fill XOR** (no existe `BlitJobKind::AreaFill`).
+
+**Plan:**
+
+- [ ] `BlitJobKind::AreaFill` en el encoder/ejecutor (A=D, `FILL_XOR|DESC`, rect + stride por planos) para que el fill entre en un `FramePlan` async junto a las líneas EOR y el clear.
+- [ ] Refactor de la 116 a `execute_frame_plan_async` (líneas EOR + AreaFill + ClearRect) con el servicio de blit **activado** y `wait` en el update siguiente; medir esperando ≥25 fps.
+- [ ] Si el async no bastara: valorar la ruta asm del transform (`flatshade_asm.s`, 1,8x medido) — con el fix del desfase del contorno pendiente.
+
+**Evidencia:** `demos/techniques/amiga/effects/116_flatshade_convex/VALIDATION.md`; notas de coste en `src/main.cpp` de 079/116; perfiles en `out/debug/*` de la campaña.
+

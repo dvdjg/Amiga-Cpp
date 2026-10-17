@@ -26,6 +26,8 @@
 #include <eng/retro/flat_shade_xor.hpp>
 #include <eng/api/api.hpp>
 #include <eng/debug/prof.hpp>
+#include <eng/debug/version.hpp>
+#include <eng/graphics/composition/limits.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
@@ -96,6 +98,7 @@ namespace {
 namespace obj = eng::object3d;
 namespace copper = eng::copper;
 namespace scene = eng::graphics::composition;
+namespace playfield = eng::playfield;
 
 // Geometria del original (256x256, 4 planos).
 constexpr eng::u16 kWidth = 256;
@@ -118,6 +121,21 @@ constexpr eng::u16 kBplcon1 = 0x0000;
 
 /// Maximo de vertices por cara del modelo `pilka` (poligonos de hasta 8 lados).
 constexpr eng::u16 kMaxFaceVerts = 8;
+
+// Franja de depuracion (norma del repo): nombre + version + contador de frames en una ZONA
+// APARTE con un 5º plano de 1 bpp (512 B) que la copperlist activa con el WAIT del builder
+// al final de la lista (el comparador de WAIT usa semantica `>=` y dispara en la raster 255;
+// ver la nota de geometria en la demo 079). El texto se pinta por palabras
+// (`Surface::draw_text_words`) y se ACTUALIZA SOLO AL CAMBIO: coste por frame CERO. La
+// paleta 16..31 replica la del sombreado (16 = tinta de la franja) para que los pixeles del
+// balon que caen dentro de la banda conserven su color (la zona suma +16 al indice).
+constexpr eng::u16 kHudRows = 16;
+constexpr eng::u32 kHudBytes = static_cast<eng::u32>(kBytesPerRow) * kHudRows;
+constexpr eng::u16 kHudZoneWait = 284;
+constexpr eng::u8 kHudColor = 1u;
+constexpr eng::s32 kHudCounterX = 176; // multiplo de 16, tras "FLATSHADE vX.Y.BBBBB"
+constexpr eng::debug::Version kVersion {2u, 0u};
+eng::u16 g_hud_band_colors[32] {};
 
 /// Bounding-box de pantalla del objeto (actualizada en `transform_vertices`); acota
 /// el `area fill` a la zona del objeto en vez de barrer las 1024 lineas del bitmap.
@@ -295,7 +313,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	// bltcmod/bltdmod=WIDTH/8`). `blitter_line_eor_continue` solo reprograma los 8
 	// registros de cada arista/plano (macro `DRAWLINE`). No espera aqu??: el primer
 	// `continue` sincroniza con el clear.
-	backend.blitter_lines_eor_begin(kBytesPerRow);
+	backend.blitter_lines_begin(kBytesPerRow);
 	for (const eng::Ref<obj::Edge>& er : object.edges()) {
 		obj::Edge* edge = er.get();
 		const eng::s8 edgeColor = edge->flags;
@@ -341,7 +359,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 				for (eng::u8 p = 0; p < kPlanes; ++p) {
 					if ((edgeColor & (1 << p)) != 0) {
 						++n_lines;
-						backend.blitter_line_eor_draw(line, planes.data() +
+						backend.blitter_line_draw(line, planes.data() +
 									       static_cast<eng::u32>(p) * kPlaneBytes,
 									       planes.data());
 					}
@@ -424,18 +442,55 @@ struct FlatShadeDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011602u);
 			return;
 		}
+		m_hud_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kHudBytes, 16);
+		if (!m_hud_block.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011604u);
+			return;
+		}
+
+		// Paleta de la banda del HUD (16..31): 16 = tinta de la franja (blanco); 17..31
+		// replican 1..15 para que los pixeles del balon dentro de la banda no cambien.
+		g_hud_band_colors[16] = 0xFFFu;
+		for (eng::u8 k = 1u; k < 16u; ++k) {
+			g_hud_band_colors[16u + k] = flatshade_colors[k];
+		}
+		// Lienzo de la franja: su propio bloque (1 bpp, 256x16). El `plane_stride` de
+		// `bind_raw` es el tamano de PLANO (kHudBytes), no el de fila.
+		(void)m_hud_pf.bind_raw(m_hud_block.view.data(),
+					static_cast<eng::u32>(m_hud_block.view.size()),
+					kWidth, kHudRows, 1, kHudBytes);
+		(void)backend.blitter_clear(m_hud_block.view.subspan(0u, kHudBytes), 1u, kBytesPerRow,
+					    kHudBytes, kWidth, kHudRows);
+		draw_hud_static();
+		draw_hud_counter(0u);
 
 		// Triple buffer sobre `scene::compose`: 3 buffers (4 planos contiguos cada uno) con
 		// triple buffer por parcheo de `BPLxPT` en `commit()`. La semantica coincide con la
 		// pipeline del original: se dibuja en `back()`, se lanza el fill y `commit()`
 		// publica el recien dibujado (se vera en el swap del frame siguiente) y rota.
-		// Geometria propia del original (256x256): DIW/DDF y BPLCON0 crudos.
+		// Geometria propia del original (256x256): DIW/DDF y BPLCON0 crudos. Las dos ultimas
+		// etapas añaden la zona del HUD (5º plano 1 bpp) y su paleta de banda: la lista sale
+		// con geometria 4 planos + tramo final de 5 (estatico, sin coste por frame).
 		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = static_cast<eng::u8>(kBuffers);
 		if (!scene::compose(m_scene, backend.memory_manager(), res,
 				    scene::ocs_a500,
 				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
-				    scene::palette(eng::PaletteWords {flatshade_colors, 16u}, 0u, 16u))) {
+				    scene::palette(eng::PaletteWords {flatshade_colors, 16u}, 0u, 16u),
+				    [](scene::Scene& sc) {
+					    sc.scheduler().emit_palette(
+						    eng::PaletteWords {g_hud_band_colors, 32u}, 16u, 16u);
+				    },
+				    [this](scene::Scene& sc) {
+					    sc.scheduler().move_bitplane_pointer(
+						    4, m_hud_block.mem_view_chip().address(0));
+					    sc.scheduler().wait_line_safe(kHudZoneWait);
+					    sc.scheduler().move(
+						    copper::Register::BPLCON0,
+						    eng::graphics::composition::bplcon0_for(
+							    eng::graphics::composition::SceneMode::Standard,
+							    5u));
+				    })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011603u);
 			return;
 		}
@@ -486,6 +541,7 @@ struct FlatShadeDemo {
 			backend.blitter_clear(m_scene.buffer(b), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
 		}
 
+		ENG_PROF_INIT(13); // bloque del engine (profile.mjs); la demo escribe cycles[] a mano
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(pilka.faces));
 	}
@@ -529,6 +585,12 @@ struct FlatShadeDemo {
 		const eng::u32 td0 = rcycles();
 		const eng::u32 ne = gather_visible_edges(m_object, edges, 64u);
 		if (ne != 0u) {
+			// Contorno + area fill XOR en barrido COMPLETO. El fill se podria acotar a la
+			// caja del objeto (`flat_shade_xor(..., g_bbox)`), pero en esta pipeline
+			// SINCRONA el fill acotado son 4 jobs (uno por plano) que esperan entre si
+			// dentro del update: la CPU se bloquea ~el fill entero y el frame EMPEORA
+			// (medido: 19.2 -> 17.3 fps). El recorte compensa con el referee async
+			// (encadenado por IRQ de fin de blit), que es la via pendiente.
 			eng::retro::flat_shade_xor(
 				backend, planes, kBytesPerRow, kPlaneBytes, kPlanes, kWidth, kHeight,
 				eng::Span<const eng::retro::OutlineEdge> {edges, ne},
@@ -583,7 +645,11 @@ struct FlatShadeDemo {
 
 		// 6) Publicar y rotar: `commit` instala la copperlist del buffer recien dibujado y
 		//    pasa al siguiente; despues se pre-cleara ESE (ni en pantalla ni en dibujo
-		//    ahora), sin esperar, para que quede colgado tras el fill.
+		//    ahora), sin esperar, para que quede colgado tras el fill. Clear en barrido
+		//    COMPLETO: un solo job (4 planos contiguos de una pasada, variable `wait=false`);
+		//    con el clear acotado por bbox serian 4 jobs que esperan entre si dentro del
+		//    update y bloquearian la CPU (medido: empeora el frame; la via buena es el
+		//    referee async). Ver la nota del fill.
 		m_scene.commit();
 #if !FLATSHADE_SKIP_CLEAR
 		backend.blitter_clear(m_scene.back(), kPlanes, kBytesPerRow, kPlaneBytes,
@@ -598,15 +664,56 @@ struct FlatShadeDemo {
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		ENG_PROF_FRAME();
+		// Contador de frames del HUD: 1 vez/segundo sobre un campo de ancho FIJO (3
+		// palabras = 24 escrituras); coste ~0 por frame (ver `draw_hud_counter`).
+		if ((context.frame.frame_index & 63u) == 0u) {
+			draw_hud_counter(context.frame.frame_index);
+		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
+	/// Texto estatico de la franja: nombre + version (norma del repo), pintado UNA vez.
+	void draw_hud_static() {
+		auto hud = playfield::Surface {m_hud_pf, playfield::SurfaceRect {0, 0, kWidth, kHudRows}};
+		char line[32] = "FLATSHADE ";
+		eng::u8 n = 10u;
+		char label[16];
+		const eng::u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
+		for (eng::u8 i = 0u; i < vlen && n + 1u < sizeof(line); ++i) {
+			line[n++] = label[i];
+		}
+		line[n] = '\0';
+		(void)hud.draw_text_words(0, 4, line, kHudColor);
+	}
+
+	/// Contador de frames del HUD (campo fijo de 6 caracteres en `kHudCounterX`): 3
+	/// palabras x 8 filas = 24 escrituras por actualizacion (~1 vez/segundo).
+	void draw_hud_counter(eng::u32 frames) {
+		auto hud = playfield::Surface {m_hud_pf, playfield::SurfaceRect {0, 0, kWidth, kHudRows}};
+		char field[7] = "F     ";
+		char tmp[8];
+		eng::u8 t = 0u;
+		do {
+			tmp[t++] = static_cast<char>('0' + (frames % 10u));
+			frames /= 10u;
+		} while (frames != 0u && t < 7u);
+		eng::u8 n = 2u;
+		while (t > 0u && n < 6u) {
+			field[n++] = tmp[--t];
+		}
+		field[6] = '\0';
+		(void)hud.draw_text_words(kHudCounterX, 4, field, kHudColor);
+	}
+
 	bool m_init_ok = false;
 	bool m_memory_ok = false;
 	eng::s16 m_angle = 0;
 	scene::Scene m_scene {};
 	eng::Block<eng::MaskTag> m_mask_block {};
+	eng::Block<eng::PlaneTag> m_hud_block {};
+	playfield::ContiguousPlayfield m_hud_pf {}; ///< lienzo de la franja (1 bpp, por palabras)
 	eng::object3d::Object3D m_object {};
 };
 
@@ -619,7 +726,11 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	FlatShadeDemo game {};
 	eng::Engine engine {backend, game};
-	engine.run_frames_polling(0xffff);
+	// La demo no usa la cola de fondo: sin servicio de Blitter, las esperas del Blitter
+	// son un sondeo apretado sin llamadas de servicio por vuelta (mas barato por linea).
+	engine.set_blit_service_enabled(false);
+	// Bucle por defecto: VBlank por IRQ + espera bloqueada en `Wait()` (sin sondeo de VPOSR).
+	engine.run_frames(0xffff);
 
 	return 0;
 }
