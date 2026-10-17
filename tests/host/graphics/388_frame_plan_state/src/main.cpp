@@ -250,6 +250,40 @@ int main() {
 	full.clear();
 	check(full.ok() && full.blit_job_count() == 0u, "clear() sanea el plan lleno");
 
+	// --- Límites del destino: un job MANUAL fuera de la reserva deja el plan no-ok ----------
+	// La composición fija `TargetBounds` desde el framebuffer; el plan valida cada job (también
+	// los construidos a mano) para que el Blitter no escriba fuera del bitmap.
+	{
+		FramePlan bounded {};
+		bounded.clear();
+		bounded.set_target_bounds(eng::graphics::TargetBounds {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(g_buf), sizeof(g_buf)});
+		BlitJob inside = make_job(BlitJobKind::OrBlob, 0u, 0xfcu, 0);
+		inside.destination = eng::graphics::BlitPtr::from_storage(g_buf + 32u);
+		inside.destination_modulo_bytes = 0;
+		inside.height = 8u;
+		check(bounded.add_or_blob(inside), "job dentro de los límites se encola");
+		check(bounded.blit_job_count() == 1u && bounded.ok(), "plan dentro de límites ok");
+
+		BlitJob outside = inside;
+		outside.destination = eng::graphics::BlitPtr::from_storage(g_buf + 500u);
+		check(!bounded.add_or_blob(outside), "job fuera de la reserva se rechaza");
+		check(bounded.blit_job_count() == 1u, "el rechazo no consume ranura");
+		check(!bounded.ok(), "plan fuera de límites no-ok");
+
+		// Línea fuera del plano: también se rechaza.
+		FramePlan line_plan {};
+		line_plan.clear();
+		line_plan.set_target_bounds(eng::graphics::TargetBounds {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(g_buf), sizeof(g_buf)});
+		BlitJob line = make_job(BlitJobKind::Line, 0u, 0xffu, 0);
+		line.destination = eng::graphics::BlitPtr::from_storage(g_buf + 500u);
+		line.line.row_bytes = 40u;
+		line.line.y1 = 20;
+		check(!line_plan.add_line(line, BlitJobKind::Line), "línea fuera de la reserva se rechaza");
+		check(!line_plan.ok(), "plan de línea fuera no-ok");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

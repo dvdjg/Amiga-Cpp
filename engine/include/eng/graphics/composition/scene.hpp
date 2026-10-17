@@ -369,6 +369,12 @@ public:
 		playfield::Playfield& pf = interleaved
 					       ? static_cast<playfield::Playfield&>(m_playfield)
 					       : static_cast<playfield::Playfield&>(m_contiguous);
+		// La composición **declara los límites del framebuffer activo** para que el plan
+		// rechace cualquier job que escriba fuera de su reserva (aunque lo construya a mano
+		// un camino distinto de `bob_*`).
+		if (plan.valid()) {
+			plan->set_target_bounds(bob_target().bound());
+		}
 		return playfield::DrawTarget {surface(), pf.rasterizer(), plan, bob_target()};
 	}
 

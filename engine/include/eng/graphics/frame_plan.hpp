@@ -32,6 +32,7 @@
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/blit_job.hpp>
+#include <eng/graphics/target_bounds.hpp>
 #include <eng/res/asset_cache.hpp>
 
 namespace eng::graphics {
@@ -198,6 +199,15 @@ public:
 		m_dirty_report = {};
 		m_budget_dirty = false;
 		m_ok = true;
+	}
+
+	/// **Límites del destino**: si se fijan, todo `BlitJob`/línea añadido se valida contra la
+	/// reserva (`blit_job_within`); un trabajo fuera del framebuffer deja `ok()==false` y no se
+	/// programa. La composición los fija desde la escena (`BitmapView::bound()`); un plan sin
+	/// límites (tests/herramientas) no valida.
+	void set_target_bounds(const TargetBounds& bounds) noexcept { m_bounds = bounds; }
+	[[nodiscard]] constexpr const TargetBounds& target_bounds() const noexcept {
+		return m_bounds;
 	}
 
 	/// Retiene un asset DMA Chip durante la vida de la escena; se adquiere en setup y no por frame.
@@ -483,6 +493,10 @@ public:
 			m_ok = false;
 			return false;
 		}
+		if (!line_within_bounds(job)) {
+			m_ok = false;
+			return false;
+		}
 		// Copia ÚNICA y presupuesto DIFERIDO (el informe pondera las líneas por
 		// `|Δy|+3` palabras × plano al reconstruirse): añadir N líneas no es O(N²).
 		BlitJob& slot = m_blit_jobs[m_blit_job_count];
@@ -525,6 +539,10 @@ public:
 			slot.kind == BlitJobKind::Line || slot.kind == BlitJobKind::LineEor;
 		if (!line_kind || slot.destination.words() == nullptr || slot.line.row_bytes == 0u ||
 		    slot.bitplane_count == 0u) {
+			m_ok = false;
+			return false;
+		}
+		if (!line_within_bounds(slot)) {
 			m_ok = false;
 			return false;
 		}
@@ -678,11 +696,36 @@ private:
 			m_ok = false;
 			return false;
 		}
+		// **Límites del destino** (si la composición los declaró): ningún job escribe fuera
+		// de la reserva, aunque lo haya construido a mano un camino distinto de `bob_*`.
+		if (!blit_job_within(job, m_bounds)) {
+			m_ok = false;
+			return false;
+		}
 		++m_blit_job_count;
 		// El presupuesto se acumula **una vez** en `finalize()` (recorrido O(N)): así encolar N
 		// trabajos no paga por-job ni es O(N²). Ver `ZERO_COST_FRAME_PATH.md`.
 		m_budget_dirty = true;
 		return true;
+	}
+
+	/// Cota conservadora de la huella de una **línea** (`BLTCON1` LINE): una palabra por fila
+	/// más el arranque, dentro del plano destino. `bounds.contains` rechaza además un
+	/// desplazamiento negativo (base del plano).
+	[[nodiscard]] bool line_within_bounds(const BlitJob& job) const noexcept {
+		if (!m_bounds.active()) {
+			return true;
+		}
+		const s32 base = static_cast<s32>(m_bounds.base.value);
+		const s32 rel = static_cast<s32>(job.destination.addr.value) - base;
+		// Destino fuera de esta reserva = otro buffer (máscara/staging): no se valida aquí.
+		if (rel < 0 || static_cast<u32>(rel) >= m_bounds.bytes) {
+			return true;
+		}
+		const s32 dy = job.line.y1 > job.line.y0 ? job.line.y1 - job.line.y0
+							  : job.line.y0 - job.line.y1;
+		const u32 need = static_cast<u32>(dy + 1) * job.line.row_bytes + 2u;
+		return m_bounds.contains(rel, need);
 	}
 
 	void rebuild_blit_budget_report() {
@@ -759,6 +802,8 @@ private:
 
 	eng::util::Array<PalettePatch, max_palette_patches> m_palette_patches {};
 	eng::util::Array<BlitJob, max_blit_jobs> m_blit_jobs {};
+	/// Límites del destino para validar cada job/línea; inactivo = sin límites (no valida).
+	TargetBounds m_bounds {};
 	/// Ranura de **descarte** que devuelve `begin_blit_job`/`begin_line_job` con el plan lleno:
 	/// el llamador escribe in situ sin rebasar el array (el `commit` fallará y `ok()` es false).
 	BlitJob m_scratch {};

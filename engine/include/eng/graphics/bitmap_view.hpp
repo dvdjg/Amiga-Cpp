@@ -18,6 +18,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/graphics/plane_layout.hpp>
+#include <eng/graphics/target_bounds.hpp>
 
 namespace eng::graphics {
 
@@ -101,6 +102,15 @@ struct BitmapView {
 		const eng::u32 row_bytes_total = eng::math::mulu16(row_bytes, height);
 		return eng::math::mulu32x16(plane_pointer_step(), static_cast<eng::u16>(plane_count - 1u)) +
 		       row_bytes_total;
+	}
+	/// **Límites de memoria** (base Chip + bytes usados) para que el `FramePlan` valide los
+	/// blits contra la reserva. Inactivo si la geometría no está completa.
+	[[nodiscard]] constexpr TargetBounds bound() const noexcept
+		requires (Bank == eng::MemoryKind::Chip) {
+		if (row_bytes == 0u || plane_count == 0u || height == 0u) {
+			return {};
+		}
+		return TargetBounds {planes.address(0), storage_bytes_used()};
 	}
 };
 

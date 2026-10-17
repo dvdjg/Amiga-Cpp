@@ -14,6 +14,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/types/typed.hpp>
+#include <eng/graphics/target_bounds.hpp>
 
 namespace eng::graphics {
 
@@ -250,6 +251,43 @@ struct BlitJob {
 	};
 	Fill fill {};
 };
+
+/// **¿El trabajo escribe solo dentro de `bounds`?** Cubre los jobs rectangulares
+/// (`destination`, `words_per_row`, `height`, módulo y `destination_plane_stride_bytes`):
+/// se comprueba el rango de la **primera y última** fila de cada plano (con módulo positivo
+/// o negativo) contra la reserva. Es la validación que permite al `FramePlan` rechazar un
+/// `BlitJob` construido a mano fuera del framebuffer. Los jobs de **línea** y **C2P** tienen
+/// su propio chequeo en el plan (usan otros campos).
+[[nodiscard]] inline bool blit_job_within(const BlitJob& job, const TargetBounds& bounds) {
+	if (!bounds.active()) {
+		return true;
+	}
+	if (job.destination.words() == nullptr || job.words_per_row == 0u || job.height == 0u) {
+		return false;
+	}
+	const eng::s32 base = static_cast<eng::s32>(bounds.base.value);
+	const eng::s32 first = static_cast<eng::s32>(job.destination.addr.value) - base;
+	// Si el destino **no empieza** en esta reserva, el job es de otro buffer (save-under,
+	// staging de C2P, patrón…): no es competencia de estos límites y no se rechaza.
+	if (first < 0 || static_cast<eng::u32>(first) >= bounds.bytes) {
+		return true;
+	}
+	const eng::s32 step = static_cast<eng::s32>(job.words_per_row) * 2 +
+			      static_cast<eng::s32>(job.destination_modulo_bytes);
+	const eng::u32 len = static_cast<eng::u32>(job.words_per_row) * 2u;
+	const eng::s32 rows = static_cast<eng::s32>(job.height) - 1;
+	const eng::s32 pstride = static_cast<eng::s32>(job.destination_plane_stride_bytes);
+	for (eng::u8 p = 0u; p < job.bitplane_count; ++p) {
+		const eng::s32 row0 = first + static_cast<eng::s32>(p) * pstride;
+		const eng::s32 row1 = row0 + rows * step;
+		const eng::s32 lo = row0 < row1 ? row0 : row1;
+		const eng::s32 hi = row0 < row1 ? row1 : row0;
+		if (!bounds.contains(lo, len) || !bounds.contains(hi, len)) {
+			return false;
+		}
+	}
+	return true;
+}
 
 /// Configura `job` como **area fill XOR de un rectángulo** (`BlitJobKind::AreaFill`): el
 /// barrido descendente del Blitter (`A = D`, `FILL_XOR`) desde la ultima palabra del rect
