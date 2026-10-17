@@ -427,6 +427,25 @@ void test_register_map_and_report() {
 	      "strict_mode es constexpr (opt-in por build)");
 }
 
+/// `ListBuilder` con una reserva menor que un par (1 palabra) o vacía: rechaza el MOVE y deja
+/// los canarios intactos (el par WAIT/MOVE necesita 2 palabras; capacidad 0 envolvía `cap-2`).
+void test_list_builder_capacity() {
+	alignas(4) eng::u16 buf[4] {0xAAAu, 0x1234u, 0xBBBu, 0xCCCu};
+	const eng::Block<eng::CopperTag> one_word {
+		eng::Bytes<eng::CopperTag> {reinterpret_cast<eng::u8*>(&buf[1]), 2u},
+		eng::MemoryKind::Chip};
+	ListBuilder b {one_word};
+	b.move(Register::COLOR00, 0x0fffu);
+	CHECK(!b.ok(), "ListBuilder con 1 palabra rechaza el MOVE");
+	CHECK(buf[0] == 0xAAAu && buf[1] == 0x1234u && buf[2] == 0xBBBu && buf[3] == 0xCCCu,
+	      "canarios intactos con capacidad 1");
+
+	const eng::Block<eng::CopperTag> empty {eng::Bytes<eng::CopperTag> {}, eng::MemoryKind::Chip};
+	ListBuilder b2 {empty};
+	b2.move(Register::COLOR00, 0x0fffu);
+	CHECK(!b2.ok(), "ListBuilder vacío no escribe");
+}
+
 } // namespace
 
 int main() {
@@ -435,6 +454,7 @@ int main() {
 	test_check_column();
 	test_static_budget();
 	test_register_map_and_report();
+	test_list_builder_capacity();
 	if (g_failures != 0) {
 		std::printf("FAIL: %d comprobacion(es) fallaron\n", g_failures);
 		return 1;
