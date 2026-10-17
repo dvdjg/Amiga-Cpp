@@ -40,6 +40,8 @@ El HUD de la primera pasada activaba el 5º plano con un WAIT `>255` al final de
 | + `-O3` en la TU de la demo (`build.args`) | 21,54 | 2,321 | +0,31 |
 | + long-writes en `blitter_line_draw` (con0/1, bmod/amod) | **21,62** | **2,313** | +0,08 |
 
+Con las palancas fijadas, remedidas: **release 21,63 fps / 2,312 campos** y **debug 20,43 / 2,447** (el debug también sube desde 18,05). `ENGINE_OPT=-O3` probado: 21,61 vs 21,62 → sin cambio, no se aplica. Protección registrada (bitácora): en modo línea WinUAE lee `bltapt`/`bltcon*`/mods EN VIVO durante el blit (`blitter.cpp:731-745`, `:1097-1110`; solo `BLTSIZE` reinicia, `custom.cpp:3981`) → la espera por línea es del hardware, no se puede solapar la programación (a diferencia de los jobs de estado fijado del feeder async).
+
 Visual tras los cambios: secuencia + visión (`qwen3-vl`) sin anomalías («caras planas azules con contornos, sin rayas/huecos/líneas cruzadas»); captura completa y lupa del HUD limpias. Suelo del pipeline actual (ablaciones): transform+overhead 142k (1 campo), fill ~66k, edges ~112k, clear ~100k expuestos; límite teórico ~262k = 1,85 campos ≈ 27 fps con solape perfecto. Holgura restante (~44k): esperas por línea del contrato de registros del Blitter + cuantización a VBlank.
 
 ## Ruta asm (estado 2026-10-17)
