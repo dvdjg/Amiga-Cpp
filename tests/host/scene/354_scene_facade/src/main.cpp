@@ -32,7 +32,8 @@ int main() {
 	std::printf("== HOST-354 scene facade ==\n");
 
 	// --- Display declarativo -----------------------------------------------
-	eng::u8 chip[64] {};
+	// Banco + hoja de BOB (16×16 a 2 planos con guarda: 2·16·4 = 128 B).
+	eng::u8 chip[128] {};
 	eng::MemBank<eng::MemoryKind::Chip> bank {};
 	bank.configure(chip, sizeof(chip), 16u);
 	const auto planes_blk = bank.reserve<eng::PlaneTag>(32u, 16u);

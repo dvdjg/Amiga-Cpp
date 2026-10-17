@@ -30,12 +30,13 @@ using eng::graphics::CompositeSequence;
 using eng::graphics::CompositeVisual;
 using eng::scene::CompositeState;
 
-// Piernas: 16x8 a 2 planos, 2 frames (16 words por frame, planar).
-alignas(16) eng::u16 g_legs[2u * 16u] {};
-// Torso: 16x8 a 4 planos (par *attached* derivado al materializar), 1 frame.
-alignas(16) eng::u16 g_torso[32u] {};
-// Máscara planar 16x8 (cookie-cut de los BOBs).
-alignas(16) eng::u16 g_mask[8u] {};
+// Piernas: 16x8 a 2 planos, 2 frames. Contrato de hoja con guarda: 4 B/fila × 8 filas × 2
+// planos = 64 B (32 words) por frame; con `frame_stride=32` el último frame llega a 96 B.
+alignas(16) eng::u16 g_legs[64u] {};
+// Torso: 16x8 a 4 planos (par *attached* derivado al materializar), 1 frame: 128 B (64 words).
+alignas(16) eng::u16 g_torso[64u] {};
+// Mǭscara planar 16x8 (cookie-cut de los BOBs): 4 B/fila × 8 filas = 32 B (16 words).
+alignas(16) eng::u16 g_mask[16u] {};
 // Bitmap destino 4 planos para los BOB: 20 B/fila x 128 filas x 4 planos = 10240 B
 // (el compuesto y sus partes llegan hasta y=58+8; el `BobTarget` debe cubrir la geometría).
 alignas(16) eng::u16 g_bitmap[4u * 64u * 20u] {};
@@ -72,8 +73,8 @@ int main() {
 
 	// Contenido (setup del asset).
 	CompositePart parts[2] {};
-	parts[0].visual.pixels = eng::Span<const eng::u16> {g_legs, 32u};
-	parts[0].visual.mask = eng::Span<const eng::u16> {g_mask, 8u};
+	parts[0].visual.pixels = eng::Span<const eng::u16> {g_legs, 64u};
+	parts[0].visual.mask = eng::Span<const eng::u16> {g_mask, 16u};
 	parts[0].visual.w = 16u;
 	parts[0].visual.h = 8u;
 	parts[0].visual.bitplanes = 2u;
@@ -82,8 +83,8 @@ int main() {
 	parts[0].offset_x = 0;
 	parts[0].offset_y = 8; // piernas bajo el ancla
 	parts[0].z = 0;
-	parts[1].visual.pixels = eng::Span<const eng::u16> {g_torso, 32u};
-	parts[1].visual.mask = eng::Span<const eng::u16> {g_mask, 8u};
+	parts[1].visual.pixels = eng::Span<const eng::u16> {g_torso, 64u};
+	parts[1].visual.mask = eng::Span<const eng::u16> {g_mask, 16u};
 	parts[1].visual.w = 16u;
 	parts[1].visual.h = 8u;
 	parts[1].visual.bitplanes = 4u; // par *attached* derivado al materializar

@@ -32,7 +32,8 @@ void check(bool ok, const char* m) {
 }
 
 /// Hoja 16x16 a 2 planos en memoria host (escape documentado del test: en Amiga sería Chip).
-eng::u16 g_sheet[16u * 2u] {};
+/// Hoja 16x16 a 2 planos con guarda: 2·16·4 = 128 B (64 words) por frame.
+eng::u16 g_sheet[32u * 2u] {};
 
 alignas(16) eng::u8 g_chip[8 * 1024];
 
@@ -70,7 +71,7 @@ int main() {
 		g_sheet[i] = 0xffffu;
 	}
 	eng::graphics::Visual v {};
-	v.pixels = eng::Span<const eng::u16> {g_sheet, 32u};
+	v.pixels = eng::Span<const eng::u16> {g_sheet, 64u};
 	v.w = 16u;
 	v.h = 16u;
 	v.bitplanes = 2u;
@@ -119,7 +120,7 @@ int main() {
 	ch_scene.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
 	eng::graphics::Visual v8 = v;
 	v8.h = 8u;
-	v8.pixels = eng::Span<const eng::u16> {g_sheet, 16u}; // 8 líneas × 2 planos
+	v8.pixels = eng::Span<const eng::u16> {g_sheet, 32u}; // 8 líneas × 2 planos con guarda
 	eng::scene::ActorDesc cd = d;
 	cd.visual = v8;
 	cd.preferred_channel = 0u;
@@ -210,9 +211,10 @@ int main() {
 
 	// Conflicto simultáneo: C (canal 1, misma franja que B, paleta distinta y menor `z`)
 	// degrada a BOB; B solo conmuta (A queda en otra franja).
-	eng::u16 g_mask[16] {};
+	/// Máscara planar 16x16 con guarda: 4 B/fila × 16 = 64 B (32 words).
+	eng::u16 g_mask[32] {};
 	eng::graphics::Visual vm = v;
-	vm.mask = eng::Span<const eng::u16> {g_mask, 16u};
+	vm.mask = eng::Span<const eng::u16> {g_mask, 32u};
 	eng::SpriteScene<8u> pal_scene2 {};
 	pal_scene2.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
 	eng::scene::ActorDesc pc = pa;

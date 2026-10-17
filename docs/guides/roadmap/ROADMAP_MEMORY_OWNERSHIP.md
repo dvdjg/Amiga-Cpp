@@ -194,7 +194,7 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 - **Copperlist**: `ListBuilder::write_pair`/`move32` rechazan capacidad `< 2` (antes `capacity - 2` envolvía y escribía con puntero nulo/vacío). La capacidad ya viajaba en el `Block<CopperTag, Chip>`.
 - **Racha de blits**: `Screen::stamp::at` y `clear_now` acotan contra la geometría del destino; `clear_now` exige `x` alineado a 16 (el blit D-only no lleva máscara de borde).
 
-**Pendiente** (detalle y gates en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §F8): `BoundTarget`/validación genérica de `BlitJob` en la alta; contrato de tamaño de la hoja del BOB; canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio; y barrido de escrituras directas `Block::view.data()` en demos técnicas.
+**Pendiente** (detalle y gates en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §F8): `BoundTarget`/validación genérica de `BlitJob` en la alta; canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio; y barrido de escrituras directas `Block::view.data()` en demos técnicas. El **contrato de tamaño de la hoja del BOB** queda hecho (`frame_bytes`/`mask_bytes`, con los tests de hojas débiles endurecidos).
 
 ## Estado: frente pausado
 

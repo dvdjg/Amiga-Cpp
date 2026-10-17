@@ -297,6 +297,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Ergonomia de apps: sin plomeria de plataforma ni numeros magicos (API_ERGONOMICS.md).
+	DEMO_ERGONOMICS="$ROOT/tools/check/demo-ergonomics.mjs"
+	if [ -f "$DEMO_ERGONOMICS" ] && command -v node >/dev/null 2>&1; then
+		echo "== demo-ergonomics =="
+		if ! node "$DEMO_ERGONOMICS"; then
+			echo "demo-ergonomics fallo: una app nueva usa plomeria de plataforma o numeros magicos." >&2
+			exit 1
+		fi
+	fi
 	# Estructura tematica del engine (eng/ y core/ por tema; familias de backend).
 	ENGINE_TREE="$ROOT/tools/check/engine-tree.mjs"
 	if [ -f "$ENGINE_TREE" ] && command -v node >/dev/null 2>&1; then

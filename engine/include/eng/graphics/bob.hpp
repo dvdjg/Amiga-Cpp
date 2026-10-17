@@ -204,9 +204,40 @@ constexpr bool target_valid(const BobTarget& t) {
 	       (t.height == 0u || t.planes.size() >= t.storage_bytes_used());
 }
 
+/// Bytes que la hoja necesita **por frame**: todas las filas físicas de sus planos con la
+/// guarda por fila (`sheet_row_of`). Es la unidad del contrato de `frame_count`/`frame_stride`.
+constexpr u32 frame_bytes(const Bob& bob) {
+	return eng::math::mulu32x16(eng::math::mulu32x16(sheet_row_of(bob), bob.height),
+				    bob.planes);
+}
+
+/// Bytes que la **máscara separable** necesita (un plano, `height` filas con guarda).
+constexpr u32 mask_bytes(const Bob& bob) {
+	return eng::math::mulu32x16(sheet_row_of(bob), bob.height);
+}
+
 constexpr bool valid(const Bob& bob, const BobTarget& t) {
-	return !bob.sheet.empty() && target_valid(t) && bob.width != 0u && bob.height != 0u &&
-	       bob.planes != 0u && bob.planes <= 6u && bob.planes <= t.plane_count;
+	if (bob.sheet.empty() || !target_valid(t) || bob.width == 0u || bob.height == 0u ||
+	    bob.planes == 0u || bob.planes > 6u || bob.planes > t.plane_count) {
+		return false;
+	}
+	// El Blitter lee la hoja (y la máscara) con la geometría declarada: la vista debe
+	// cubrir al menos un frame y, con `frame_stride` explícito, el último frame usado.
+	const u32 per_frame = frame_bytes(bob);
+	if (bob.sheet.size() < per_frame) {
+		return false;
+	}
+	if (bob.frame_count > 1u && bob.frame_stride != 0u &&
+	    bob.sheet.size() < eng::math::mulu32x16(bob.frame_stride,
+						     static_cast<eng::u16>(bob.frame_count - 1u)) +
+					per_frame) {
+		return false;
+	}
+	if (bob.draw == BobDraw::CookieCut && bob.mask_pack == BobMaskPack::SeparatePlane &&
+	    !bob.mask.empty() && bob.mask.size() < mask_bytes(bob)) {
+		return false;
+	}
+	return true;
 }
 
 /// `true` si la caja en `(x,y)` con `words` palabras por fila y `h` filas **cabe entera en

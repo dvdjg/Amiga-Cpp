@@ -58,3 +58,7 @@ El objetivo no es que la demo tenga el menor número de líneas posible, sino qu
 - Bootstrap: `engine/include/eng/platform/amiga/entry.hpp`, `engine/src/platform/amiga/amiga_boot.cpp`.
 - Ejemplo canónico de demo ergonómica: `demos/techniques/amiga/effects/122_circles` (port de `circles`: `main` con `GameDisplay` imperativo + `run_demo`, `screen.circle`, `debug::draw_hud`; sin `SysBase`, sin `gcc8_c_support.h`, sin hex).
 - Coste y estilo: [CODING_STYLE.md](CODING_STYLE.md), [`METODO_OPTIMIZACION.md`](../../guides/optimization/METODO_OPTIMIZACION.md).
+
+## 9. Gate mecánico
+
+`tools/check/demo-ergonomics.mjs` (en `tools/run-host-tests.sh`) comprueba en `demos/` y `games/` que una app **nueva** no incluye cabeceras de `support/`, no nombra `SysBase` ni define `g_eng_run_status`, no usa `run(0x...)` y no pasa literales hexadecimales a `mark_failed`/`mark_ready`. Las apps históricas están en `demo-ergonomics-baseline.txt`; la baseline **solo puede encoger**: al migrar una app a `run_demo`/`draw_hud` se borra su línea. La demo de referencia que cumple el gate es `demos/techniques/amiga/effects/122_circles`.

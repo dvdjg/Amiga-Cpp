@@ -29,10 +29,13 @@ void check(bool ok, const char* m) {
 }
 
 alignas(16) eng::u8 g_mem[8u * 1024u];
-alignas(16) u16 g_legs[2u * 16u] {};
-alignas(16) u16 g_torso[32u] {};
-alignas(16) u16 g_big[64u] {};
-alignas(16) u16 g_mask[16u] {};
+// Hojas con el contrato de guarda por fila: piernas 16x8x2 (64 B/frame), torso 16x8x4
+// (128 B), grande 32x16x2 (192 B) y máscara de un plano 16x8 (32 B).
+alignas(16) u16 g_legs[64u] {};
+alignas(16) u16 g_torso[64u] {};
+alignas(16) u16 g_big[128u] {};
+/// Máscara de un plano: la parte grande (32x16) necesita 6 B/fila × 16 = 96 B (48 words).
+alignas(16) u16 g_mask[64u] {};
 /// Destino 160x128 a 4 planos (20 B/fila x 128 x 4 = 10240 B): el compuesto y sus partes
 /// (hasta y=50+16+16) caben enteros.
 alignas(16) u16 g_bitmap[4u * 64u * 20u] {};
@@ -58,8 +61,8 @@ int main() {
 	// Contenido: piernas BOB (2 planos con mascara), torso *attached* (4 planos) y una
 	// parte grande que no cabe como Sprite HW.
 	eng::graphics::CompositePart parts[3] {};
-	parts[0].visual.pixels = eng::Span<const eng::u16> {g_legs, 32u};
-	parts[0].visual.mask = eng::Span<const eng::u16> {g_mask, 8u};
+	parts[0].visual.pixels = eng::Span<const eng::u16> {g_legs, 64u};
+	parts[0].visual.mask = eng::Span<const eng::u16> {g_mask, 16u};
 	parts[0].visual.w = 16u;
 	parts[0].visual.h = 8u;
 	parts[0].visual.bitplanes = 2u;
@@ -67,14 +70,14 @@ int main() {
 	parts[0].visual.frame_stride = 32u;
 	parts[0].offset_y = 8;
 
-	parts[1].visual.pixels = eng::Span<const eng::u16> {g_torso, 32u};
-	parts[1].visual.mask = eng::Span<const eng::u16> {g_mask, 8u}; // para el BOB degradado
+	parts[1].visual.pixels = eng::Span<const eng::u16> {g_torso, 64u};
+	parts[1].visual.mask = eng::Span<const eng::u16> {g_mask, 16u}; // para el BOB degradado
 	parts[1].visual.w = 16u;
 	parts[1].visual.h = 8u;
 	parts[1].visual.bitplanes = 4u; // par *attached* derivado
 
-	parts[2].visual.pixels = eng::Span<const eng::u16> {g_big, 64u};
-	parts[2].visual.mask = eng::Span<const eng::u16> {g_mask, 8u};
+	parts[2].visual.pixels = eng::Span<const eng::u16> {g_big, 96u};
+	parts[2].visual.mask = eng::Span<const eng::u16> {g_mask, 48u};
 	parts[2].visual.w = 32u;
 	parts[2].visual.h = 16u;
 	parts[2].visual.bitplanes = 2u;

@@ -35,7 +35,8 @@ eng::u16 g_dest[2048] {};
 
 scene::ActorDesc make_bob(eng::s16 x, eng::s16 y, eng::u8 z) {
 	scene::ActorDesc d {};
-	d.visual.pixels = eng::Span<const eng::u16> {g_sheet, 64u};
+	// Hoja 32x16 a 3 planos con guarda: 3·16·6 = 288 B (144 words) por frame.
+	d.visual.pixels = eng::Span<const eng::u16> {g_sheet, 144u};
 	d.visual.mask = eng::Span<const eng::u16> {g_mask, 64u};
 	d.visual.w = 32u;
 	d.visual.h = 16u;

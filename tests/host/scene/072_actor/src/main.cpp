@@ -71,7 +71,8 @@ constexpr eng::u32 kPlaneBytes = 10240;
 // del `BobTarget` debe cubrir la geometría completa.
 alignas(16) eng::u8 g_screen[6 * kPlaneBytes];
 alignas(16) eng::u16 g_pixels[32];
-alignas(16) eng::u16 g_mask[16];
+/// Máscara planar 16x8 con guarda por fila: 6 B/fila × 8 = 48 B (24 words).
+alignas(16) eng::u16 g_mask[32];
 alignas(16) eng::u16 g_save[64];
 alignas(16) eng::u16 g_pixel_pool[256];
 alignas(16) eng::u8 g_chip_plan[32 * 1024];
@@ -109,7 +110,7 @@ const Animation kAnim {eng::Span<const Frame> {kFrames, 2u}, true};
 Visual make_visual() {
 	Visual v {};
 	v.pixels = eng::Span<const eng::u16> {g_pixels, 32u};
-	v.mask = eng::Span<const eng::u16> {g_mask, 16u};
+	v.mask = eng::Span<const eng::u16> {g_mask, 32u};
 	v.w = 16u;
 	v.h = 8u;
 	v.bitplanes = 1u;
@@ -643,7 +644,7 @@ void test_sprite_allocation_and_bob_fallback() {
 		d.y = 100;
 		d.surface = 0u;
 		d.z = static_cast<eng::u8>(10u * (i + 1u));
-		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 16u, 16u};
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 24u, 24u};
 		CHECK(store.add(d, alloc).valid(), "alta de actor para el reparto");
 	}
 
@@ -679,7 +680,7 @@ void test_sprite_allocation_and_bob_fallback() {
 	CHECK(plan.blit_job(0).source.words() ==
 	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 0u), "job 0: menor z (slot 0)");
 	CHECK(plan.blit_job(1).source.words() ==
-	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 16u), "job 1: mayor z (slot 1)");
+	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 24u), "job 1: mayor z (slot 1)");
 
 	// Capacidad insuficiente para las intenciones: rechazo controlado.
 	CHECK(eng::scene::build_sprite_intents(store, {order, n}, ctx, {intents, 4u}, intent_actor) == 0u,
@@ -741,7 +742,9 @@ void test_compose_sprite_frame_data() {
 void test_compose_attached_pair() {
 	constexpr eng::u16 kH = 4u;                        // alto corto: 4 planos x 4 lineas
 	constexpr eng::usize kFrameWords = 4u * kH;        // words por frame (4 planos contiguos)
-	alignas(16) eng::u16 planes[2u * 4u * kH] {};
+	// El contrato de hoja exige guarda por fila: 4 planos x 4 filas x (1 palabra + guarda) =
+	// 64 B por frame; con `frame_stride` de 32 B, el último frame llega a 96 B (48 words).
+	alignas(16) eng::u16 planes[64] {};
 	for (eng::u16 p = 0; p < 4u; ++p) {
 		for (eng::u16 row = 0; row < kH; ++row) {
 			planes[p * kH + row] =
@@ -765,7 +768,7 @@ void test_compose_attached_pair() {
 		d.x = 16;
 		d.y = 100;
 		d.z = 10;
-		d.visual.pixels = eng::Span<const eng::u16> {planes, 2u * 4u * kH};
+		d.visual.pixels = eng::Span<const eng::u16> {planes, 48u};
 		d.visual.w = 16u;
 		d.visual.h = kH;
 		d.visual.bitplanes = 4u;
@@ -900,10 +903,11 @@ void test_compose_template_chain() {
 	d.x = 100;
 	d.y = 120;
 	d.z = 10;
-	d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u}; // contenido para el BOB
+	d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 32u}; // 16x8x2 con guarda
 	d.visual.w = 16u;
 	d.visual.h = kH;
 	d.visual.bitplanes = 2u;
+	d.sheet_row_bytes = 4u; // base 1 palabra + guarda
 	d.sprite_template = tpl;
 	CHECK(store.add(d, alloc).valid(), "alta del actor con plantilla");
 
@@ -975,10 +979,11 @@ void test_compose_group_and_rank() {
 		d.x = 0;
 		d.y = y;
 		d.z = z;
-		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u};
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 32u};
 		d.visual.w = 16u;
 		d.visual.h = 8u;
 		d.visual.bitplanes = 2u;
+		d.sheet_row_bytes = 4u; // base 1 palabra + guarda
 		return d;
 	};
 
@@ -1073,7 +1078,7 @@ void test_compose_sprites() {
 		d.surface = 0u;
 		d.z = static_cast<eng::u8>(10u * (i + 1u));
 		d.sprite_priority = 2u;
-		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 16u, 16u};
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 24u, 24u};
 		d.copper = eng::Span<const CopperIntent> {&need, 1u};
 		CHECK(store.add(d, alloc).valid(), "alta para componer");
 	}
@@ -1154,7 +1159,7 @@ void test_compose_sprites_overlapping_windows() {
 		d.surface = 0u;
 		d.z = 10u;
 		d.sprite_priority = 2u;
-		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u};
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 24u};
 		return store.add(d, alloc);
 	};
 	CHECK(add_at(105u).valid(), "actor arriba (solo A)");
@@ -1321,7 +1326,7 @@ void test_bob_job_matrix() {
 		b.height = 32u;
 		b.planes = planes;
 		b.frame_count = 4u;
-		b.frame_stride = 1u << 14;
+		b.frame_stride = 0u; // hoja densa (la matriz prueba geometría, no atlas)
 		b.layout = layout;
 		b.draw = draw;
 		b.erase = BobErase::None;
