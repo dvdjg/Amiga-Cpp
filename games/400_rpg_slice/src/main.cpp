@@ -678,9 +678,14 @@ struct RpgSlice {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		setup_world();
+		// Fases de init en `detail` (state queda en init): un cuelgue deja la ultima fase vista.
+		g_eng_run_status.detail = 0x40110u; // mundo construido
 		upload_assets(app.memory_manager());
+		g_eng_run_status.detail = 0x40111u; // assets subidos a Chip
 		cook_room();
+		g_eng_run_status.detail = 0x40112u; // salas cocinadas
 		refresh_stats();
+		g_eng_run_status.detail = 0x40113u; // init completa
 	}
 
 	/// Recalcula atributos derivados desde el equipo.
@@ -1372,6 +1377,7 @@ int main() {
 		eng::debug::mark_failed(g_eng_run_status, 0x00040102u);
 		return 0;
 	}
+	g_eng_run_status.detail = 0x40114u; // init + start completos; esperando primer render
 	app.run(0xffffu);
 	return 0;
 }
