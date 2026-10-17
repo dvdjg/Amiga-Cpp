@@ -13,6 +13,7 @@ Se enlaza un `ContiguousPlayfield` a memoria host y se dibuja con `DrawTarget`:
 4. `line(...)` deja una fila completa (32 bits) en el plano 1.
 5. `frame(Box, color)` deja el perímetro (2 filas + 2 columnas) en el plano 2.
 6. `c2p(req)` (vía `Rasterizer::c2p`) escribe 16 bits en el plano 3.
+7. `bitmap(asset, destino, origen, shift)` construye **un** `CopyRect` con ventana: offset de origen, shift fino, módulo derivado del **stride real** del asset (una ventana más estrecha que la fila salta el resto) y rechazo cuando la guarda del shift no cabe.
 
 Las comprobaciones cuentan **bits por plano** (no bytes exactos): el playfield escribe
 palabras y el orden de bits depende del endianness del host; el conteo es portable.
@@ -25,7 +26,7 @@ Motivo: antes, dibujar exigía coordinar `Scene::surface()`, el `Rasterizer` del
 ## Salida de referencia
 
 ```
-OK: DrawTarget (fill/fill_run/line/frame/c2p/circle + box) validado.
+OK: DrawTarget (fill/fill_run/line/frame/c2p/circle/bitmap + box) validado.
 ```
 
 ## Ejecutar

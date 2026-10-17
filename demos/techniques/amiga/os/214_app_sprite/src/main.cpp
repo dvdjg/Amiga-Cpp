@@ -145,10 +145,13 @@ struct AppSpriteDemo {
 		const eng::u16* src_words =
 			reinterpret_cast<const eng::u16*>(m_planar.view.data() + static_cast<eng::u32>(coarse) / 8u +
 										(fine != 0u ? 2u : 0u)); // la palabra extra del barrel shift
-		const bool copy_ok = s.blit(eng::Span<const eng::u16> {src_words, kBackdropBytes / 2u},
-					    0, 0, kWidth, kHeight,
-					    static_cast<eng::u16>(kBackdropWidth / 8u), kBackdropPlaneBytes,
-					    kPlanes, fine);
+		// Ventana visible (320 px) de un asset de 640: palabra de origen + shift fino del Blitter.
+		// El engine deriva el modulo del stride real del asset.
+		eng::graphics::ChipBitmapView<eng::PlaneTag> window = m_backdrop;
+		window.width = kWidth;
+		const eng::u16 source_x = static_cast<eng::u16>(m_scroll & ~15u);
+		const eng::u8 source_shift = static_cast<eng::u8>(m_scroll & 15u);
+		const bool copy_ok = s.bitmap(window, eng::Box {0, 0, kWidth, kHeight}, source_x, source_shift);
 		if (!copy_ok) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;

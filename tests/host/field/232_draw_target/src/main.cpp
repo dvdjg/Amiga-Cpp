@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // Valida que `DrawTarget` agrupa el destino y enruta las primitivas por el `Surface`
-// (`fill`/`fill_run`/`line`/`frame`/`c2p`), y que `box()` expone el clip del destino. Se enlaza un
+// (`fill`/`fill_run`/`line`/`frame`/`c2p`/`bitmap`), y que `box()` expone el clip del destino. Se enlaza un
 // `ContiguousPlayfield` a memoria host (sin Chip), de modo que el test es puro.
 //
 // Las comprobaciones cuentan BITS por plano (no bytes exactos): el playfield escribe
@@ -20,6 +20,7 @@
 #include <eng/field/draw_target.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/bitmap_view.hpp>
 
 namespace {
 
@@ -135,8 +136,44 @@ int main() {
 	check(!screen.fill_run(eng::Box {-8, 3, 8u, 1u}, 4u), "fill_run fuera del clip");
 	check(!screen.fill_run(eng::Box {4, 100, 8u, 1u}, 4u), "fill_run fuera por abajo");
 
+	// bitmap(): construcción del job de ventana (origen + shift fino + módulo del stride del asset).
+	{
+		eng::graphics::FramePlan plan {};
+		eng::playfield::Surface surf2 {pf, eng::playfield::SurfaceRect {0, 0, kW, kH}};
+		const eng::graphics::BobTarget bt = eng::graphics::make_bob_target(
+			eng::MemView<eng::PlaneTag, eng::MemoryKind::Chip> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(planes), sizeof(planes)},
+			kRow, kH, 4u, eng::graphics::BobLayout::Planar);
+		eng::playfield::DrawTarget dt2 {surf2, &eng::playfield::kCpuRaster, &plan, bt};
+		eng::Screen scr2 {dt2};
+		// Asset de 32 px con fila de 8 B; ventana de 16 px en x=16 con shift 4 (necesita la
+		// palabra extra: 2 B de origen + 2 copiados + 2 de guarda = 6 <= 8).
+		eng::u8 asset_bytes[8u * kH * 4u] {};
+		eng::graphics::ChipBitmapView<eng::PlaneTag> asset {};
+		asset.planes = eng::MemView<eng::PlaneTag, eng::MemoryKind::Chip> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(asset_bytes), sizeof(asset_bytes)};
+		asset.width = kW;
+		asset.height = kH;
+		asset.row_bytes = 8u;
+		asset.plane_count = 4u;
+		asset.layout = eng::graphics::PlaneLayout::Contiguous;
+		check(scr2.bitmap(asset, eng::Box {0, 0, 16u, kH}, 16u, 4u), "bitmap ventana + shift");
+		check(plan.blit_job_count() == 1u, "bitmap: un solo job (4 planos)");
+		if (plan.blit_job_count() == 1u) {
+			const eng::graphics::BlitJob& j = plan.blit_job(0u);
+			check(j.kind == eng::graphics::BlitJobKind::CopyRect, "bitmap: CopyRect");
+			check(j.words_per_row == 1u && j.height == kH, "bitmap: 1 palabra x altura");
+			check(j.source_shift == 4u, "bitmap: shift fino");
+			check(j.source_modulo_bytes == 6, "bitmap: modulo = stride(8) - copiado(2)");
+			check(j.destination_modulo_bytes == 2, "bitmap: destino 32 px copiando 16 -> modulo 2");
+			check(j.bitplane_count == 4u, "bitmap: 4 planos en un job");
+		}
+		// La guarda del shift no cabe en la fila del asset (6 + 2 + 2 > 8): rechazado.
+		check(!scr2.bitmap(asset, eng::Box {0, 0, 16u, kH}, 48u, 4u), "bitmap: guarda fuera de fila");
+	}
+
 	if (failures == 0) {
-		std::printf("OK: DrawTarget (fill/fill_run/line/frame/c2p/circle + box) validado.\n");
+		std::printf("OK: DrawTarget (fill/fill_run/line/frame/c2p/circle/bitmap + box) validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

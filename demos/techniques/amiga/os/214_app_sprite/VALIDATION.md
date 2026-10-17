@@ -4,15 +4,15 @@ Informe de validación de la demo (procedimiento F0–F5 de `docs/guides/methodo
 
 ## Estado
 
-**ABIERTA (cadencia) — mejora 39×**. La imagen es correcta (fondo planar con scroll suave de 1 px, sprite por `screen.sprite` y actor por `draw_world`; visión canónica sin artefactos) y la cadencia sube de **0,70 fps / 71,5 campos** a **27,63 fps / 1,81 campos / 256.709 ciclos** en `A500_debug`. Queda fuera de 1 VBlank: la copia completa del fondo por Blitter cuesta ~0,72 campo y el frame reparte entre 1 y 2 campos (cadencia mixta). El camino a 1 campo es la **capa de scroll por hardware** (DT-030).
+**ABIERTA (cadencia) — mejora 44×**. La imagen es correcta (fondo planar con scroll suave de 1 px, sprite por `screen.sprite` y actor por `draw_world`; visión canónica sin artefactos) y la cadencia sube de **0,70 fps / 71,5 campos** a **30,96 fps / 1,61 campos / 229.108 ciclos** en `A500_debug`. Queda fuera de 1 VBlank: la copia completa del fondo por Blitter cuesta ~0,5 campo y el frame reparte entre 1 y 2 campos (cadencia mixta). El camino a 1 campo es la **capa de scroll por hardware** (DT-030).
 
 ## Medidas (`A500_debug`, `tools/debug/measure-fps.mjs`, 20 s)
 
 | Medida | Antes | Ahora |
 |---|---|---|
-| fps emulado | 0,70 | 27,63 |
-| campos/frame | 71,54 | 1,81 |
-| ciclos/frame | 10.150.143 | 256.709 |
+| fps emulado | 0,70 | 30,96 |
+| campos/frame | 71,54 | 1,61 |
+| ciclos/frame | 10.150.143 | 229.108 |
 
 ## Causa raíz (ablaciones)
 
@@ -31,13 +31,13 @@ Conclusión: el materializador hace ~164 k lecturas + ~25 k escrituras a Chip po
 ## Corrección aplicada
 
 1. **Pre-render planar una vez** (`eng::graphics::c2p_1x1_naive`, 640×256×4, ~0,7 s en `init`).
-2. **Copia de la ventana visible por Blitter** cada frame con `screen.blit(span, 0,0,320,256, row_bytes=80, plane_stride, 4 planos, shift_fino)`: palabra de origen `scroll & ~15` y **una palabra extra** para el barrel shift (sin ella aparece una línea negra de 16 px en el borde izquierdo; verificado A/B).
+2. **Copia de la ventana visible por Blitter** cada frame con `screen.bitmap(asset, destino, palabra_origen, shift)`: **un solo job** de 4 planos, palabra de origen `scroll & ~15` y **una palabra extra** para el barrel shift (sin ella aparece una línea negra de 16 px en el borde izquierdo; verificado A/B). El motor deriva el **módulo del stride real** del asset: el `0` fijo de la rama contigua solo valía cuando `row_bytes == ancho copiado` — era el bug latente de `Screen::bitmap`, arreglado y cubierto por HOST-232.
 3. Scroll de 2 px/frame con vuelta al agotar la ventana extra del asset (640 − 320 px).
 4. El mundo retenido se conserva para el **actor** (segunda vía de representación); el fondo deja de ser capa `Bitmap` del `World` (su materializador CPU no cabe, ver arriba).
 
 ## Hallazgos colaterales (registrados en DT-030)
 
-- **`Screen::bitmap` no pinta** (ruta sin consumidores; la demo usa `Screen::blit`, que sí funciona). Pendiente de test/corrección.
+- **`Screen::bitmap` no pintaba** (bug latente sin consumidores): la rama contigua fijaba los módulos de origen y destino a 0, válido solo si la fila del asset coincide con el ancho copiado. **Arreglado** (módulos desde los strides) + ventana con origen/shift, y con test de construcción en HOST-232; la 214 es su primer consumidor.
 - **Escena de 2 planos patológica**: con `color_depth = 2` la base sin copia mide 853 k ciclos/frame (6 campos) frente a 154 k (1,09 campos) con 4 planos; el modo de 2 planos del compositor merece investigación aparte.
 
 ## Alcance y límites

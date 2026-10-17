@@ -253,10 +253,13 @@ public:
 		return m_target.blit(*m_target.plan(), src, x, y, w, h, src_row_bytes, src_plane_stride,
 				    planes, source_shift, descending, op);
 	}
-	/// Copia un asset planar completo (procedencia Chip + geometría + layout) a la pantalla en el
-	/// plan del frame. El juego no pasa punteros,
-	/// strides, plano ni cantidad de planos: los trae el asset tipado y el contexto Screen.
-	[[nodiscard]] bool bitmap(graphics::ChipBitmapView<PlaneTag> source, Box destination) {
+	/// Copia un asset planar (procedencia Chip + geometría + layout) a la pantalla en el plan del
+	/// frame. El juego no pasa punteros, strides ni planos: los trae el asset tipado. `source_x`
+	/// (múltiplo de 16 px) y `source_shift` (0..15) permiten copiar una **ventana** con
+	/// desplazamiento fino (p. ej. un fondo que scrollea sin re-materializar); el asset debe cubrir
+	/// la palabra extra del barrel shift.
+	[[nodiscard]] bool bitmap(graphics::ChipBitmapView<PlaneTag> source, Box destination,
+				  u16 source_x = 0u, u8 source_shift = 0u) {
 		const Box screen_bounds = bounds();
 		const auto& target = m_target.bob_target();
 		if (!m_target.plan().valid() || !source.valid() || destination.empty() ||
@@ -267,16 +270,24 @@ public:
 		    (source.row_bytes & (graphics::kBytesPerBlitterWord - 1u)) != 0u ||
 		    source.planes.size() < source.byte_count() ||
 		    destination.x < screen_bounds.x || destination.y < screen_bounds.y ||
-		    static_cast<u32>(destination.w) > source.width || static_cast<u32>(destination.h) > source.height ||
+		    source_shift >= 16u ||
+		    (source_x & (graphics::kPixelsPerBlitterWord - 1u)) != 0u ||
 		    static_cast<s32>(destination.x) + destination.w > static_cast<s32>(screen_bounds.x) + screen_bounds.w ||
 		    static_cast<s32>(destination.y) + destination.h > static_cast<s32>(screen_bounds.y) + screen_bounds.h ||
 		    (destination.x & (graphics::kPixelsPerBlitterWord - 1u)) != 0 ||
 		    (destination.w & (graphics::kPixelsPerBlitterWord - 1u)) != 0u ||
 		    source.width / graphics::kPixelsPerBlitterWord > graphics::kBlitterMaxWordsPerRow ||
 		    source.height > graphics::kBlitterMaxRows ||
-		    destination.w != source.width || destination.h != source.height) return false;
-		const u16 words = static_cast<u16>(source.width / graphics::kPixelsPerBlitterWord);
+		    destination.h != source.height) return false;
+		const u16 words = static_cast<u16>(destination.w / graphics::kPixelsPerBlitterWord);
 		const u32 copied_row_bytes = static_cast<u32>(words) * graphics::kBytesPerBlitterWord;
+		const u32 source_byte_x = static_cast<u32>(source_x) / graphics::kPixelsPerByte;
+		// La ventana + la palabra extra del barrel shift deben caber en la fila del asset.
+		if (source_byte_x + copied_row_bytes +
+			    (source_shift != 0u ? graphics::kBytesPerBlitterWord : 0u) >
+		    source.row_bytes) {
+			return false;
+		}
 		const u32 source_row_stride = source.interleaved()
 				       ? static_cast<u32>(source.row_bytes) * source.plane_count
 				       : source.row_bytes;
@@ -287,37 +298,22 @@ public:
 		const u32 destination_row_stride = target.interleaved()
 					   ? static_cast<u32>(target.row_bytes) * target.plane_count
 					   : target.row_bytes;
-		if (source.interleaved()) {
-			// Each physical plane row is `row_bytes` apart; the modulo skips the remaining
-			// planes to reach the same plane on the next logical scanline.
-			graphics::BlitJob job {};
-			job.kind = graphics::BlitJobKind::CopyRect;
-			job.source = graphics::BlitPtr {source.planes};
-			job.destination = graphics::BlitPtr {target.planes,
-				static_cast<s32>(static_cast<u32>(destination.y) * destination_row_stride +
-						 destination.x / graphics::kPixelsPerByte)};
-			job.words_per_row = words;
-			job.height = source.height;
-			job.source_modulo_bytes = static_cast<s16>(source_row_stride - copied_row_bytes);
-			job.destination_modulo_bytes = static_cast<s16>(destination_row_stride - copied_row_bytes);
-			job.bitplane_count = source.plane_count;
-			job.interleaved = true;
-			job.source_plane_stride_bytes = source.plane_pointer_step();
-			job.destination_plane_stride_bytes = target.plane_pointer_step();
-			return m_target.plan()->add_copy_rect(job);
-		}
 		graphics::BlitJob job {};
 		job.kind = graphics::BlitJobKind::CopyRect;
-		job.source = graphics::BlitPtr {source.planes};
+		job.source = graphics::BlitPtr {source.planes, static_cast<s32>(source_byte_x)};
 		job.destination = graphics::BlitPtr {target.planes,
 			static_cast<s32>(static_cast<u32>(destination.y) * destination_row_stride +
 					 destination.x / graphics::kPixelsPerByte)};
 		job.words_per_row = words;
 		job.height = source.height;
-		job.source_modulo_bytes = 0;
-		job.destination_modulo_bytes = 0;
+		job.source_shift = source_shift;
+		// El módulo sale del **stride real** del asset (no del ancho copiado): una ventana más
+		// estrecha que la fila del asset debe saltar el resto de la fila (el `0` fijo solo valía
+		// cuando `row_bytes == copied_row_bytes`, y con ventana no lo es).
+		job.source_modulo_bytes = static_cast<s16>(source_row_stride - copied_row_bytes);
+		job.destination_modulo_bytes = static_cast<s16>(destination_row_stride - copied_row_bytes);
 		job.bitplane_count = source.plane_count;
-		job.interleaved = false;
+		job.interleaved = source_interleaved;
 		job.source_plane_stride_bytes = source.plane_pointer_step();
 		job.destination_plane_stride_bytes = target.plane_pointer_step();
 		return m_target.plan()->add_copy_rect(job);
