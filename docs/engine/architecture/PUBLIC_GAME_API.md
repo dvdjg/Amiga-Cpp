@@ -89,10 +89,15 @@ s.fill({10, 10, 40, 12}, color);            // inmediato (rasterizador)
 s.fill_box({10, 24, 40, 12}, color);        // diferido (Blitter, preserva el borde)
 s.frame({8, 8, 100, 40}, color);
 s.line(0, 0, 319, 0, color);
+s.circle(160, 128, 80, color);              // contorno (punto medio), clip del contexto
+s.pixel(10, 10, color);                     // píxel suelto (dominio)
 s.text(4, 4, "hola", color);
+s.text_words(0, 248, "HUD v1.0 F 123", 1u); // HUD 1 bpp por palabras (2 glifos/16 px)
 s.sprite(...);            // cuando exista el sistema de objetos
 app.present();            // ejecuta el plan del frame y publica
 ```
+
+Las primitivas inmediatas (`fill`, `line`, `frame`, `circle`, `pixel`, `text`) comparten el mismo contrato: reciben **coordenadas y color de paleta**, recortan contra el clip del contexto y se resuelven por el mapeo del playfield (CPU o Blitter según el rasterizador). La figura no nombra planos ni punteros; `Playfield::draw_circle` es la implementación reutilizable y `Surface`/`DrawTarget`/`Screen` solo la exponen. Gate: demo `122_circles` (port de `demoscene-repo-orig/effects/circles`, 49,87 fps) + HOST-232.
 
 ### 2.0 Estados de escena — `App::push_scene`/`pop_scene`/`set_scene`
 
@@ -237,6 +242,7 @@ pendientes; no tratar el boceto `app.load<Music>(path)` como llamada real.
 | `scene::compose(scene, memory, res, limits, stages...)` | `app.init_display(...)` / `world` + planner |
 | `scene::Scene::surface()` + `field::DrawTarget` + `FramePlan` | `app.screen()` (`Screen`) |
 | `field::RasterOp` | parámetro de `Screen` (nombrado) |
+| `Playfield::draw_circle` + `Surface::circle` | `Screen::circle(x, y, r, color)` (demo 122) |
 | `backend.memory().chip` / `Block<Tag>` | gestión de recursos del `App`/`World` |
 | `task::BackgroundQueue` | `app.tasks()` |
 | `input::InputAggregator` | `app.input()` |

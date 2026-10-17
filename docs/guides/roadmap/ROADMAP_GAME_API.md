@@ -44,6 +44,8 @@ ENG_GAME_MAIN(MyGame);
 Todo lo que hoy **no** sea esto es trabajo de este roadmap: `configure_memory`, `res::load`, `Block<Tag, Chip>`,
 `INCBIN`+memcpy, `0x5200`, `os::set_frame_task`, `p61_needs_sample_buffer`, `bob.sheet/width/...`, `#if ENG_AMIGA`.
 
+**Evidencia del gap (port 122, 2026-10).** El efecto de `circles` (círculos concéntricos, original de 46 líneas con libgfx) se escribe en la fachada en **~12 líneas** (`GameDisplay` + `App::start` + bucle de `screen.circle`); el resto del fichero (~100 líneas) es bootstrap (backend + memoria + `g_eng_run_status`) y HUD. La lógica de juego ya es simple; lo que impide el «efecto en ~50 líneas» es el **arranque**: falta un `eng::Demo`/`ENG_GAME_MAIN` con perfil de display y HUD por defecto. El detalle conceptual está en el README de `demos/techniques/amiga/effects/122_circles` y en `ROADMAP_API_COHERENCE.md` §2.2/F8.
+
 **Premisa de coste** (canónica en [`CODING_STYLE.md`](../../engine/architecture/CODING_STYLE.md)): el API de juego es
 de **coste ~cero en el bucle de animación** — la fachada no añade ciclos por frame; el **setup** (init, carga,
 composición) puede ser lento; lo resoluble en compilación se resuelve con C++23 (`consteval`/`constexpr`,
@@ -92,8 +94,7 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 
 ## 3. `Screen` de juego y ocultar el display
 
-- **Estado (corrección de la revisión)**: las **primitivas ya existen** — `Screen::clear`, `fill(Box,color)`,
-  `frame`, `line`, `text`, `clear_box`, `sprite`, `erase_sprite`, `blit`, `c2p`. No es una carencia de API.
+- **Estado (corrección de la revisión)**: las **primitivas ya existen** — `Screen::clear`, `fill(Box,color)`, `frame`, `line`, `circle`, `pixel`, `text`, `text_words`, `clear_box`, `sprite`, `erase_sprite`, `blit`, `c2p`. No es una carencia de API. `circle`/`pixel`/`text_words` se añadieron con el port 122 (F8 de `ROADMAP_API_COHERENCE.md`); `circle` se resuelve dentro de `Playfield` (punto medio, cualquier planos/color/layout) y `text_words` es la vía del HUD 1 bpp.
 - **Problema real**: la demo 213 **no las usa** (copia `bitplanes().raw()` a mano) y el montaje del display mete
   `SceneResources`/`ocs_a500`/`BPLCON0` (`comp::display(res, 0x5200)`) en código de juego.
 - **Salida**: el juego dibuja solo con `Screen`; el display se pide a alto nivel ("fondo 320x256, N planos, esta

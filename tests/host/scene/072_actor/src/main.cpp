@@ -66,7 +66,10 @@ using eng::scene::TransparencyMode;
 constexpr eng::u16 kRowBytes = 40;
 constexpr eng::u32 kPlaneBytes = 10240;
 
-alignas(16) eng::u8 g_screen[4 * kPlaneBytes];
+// Pantalla de trabajo: 6 planos de `kPlaneBytes` (la matriz de geometría prueba 3..6 planos
+// interleaved y el segundo playfield del DPF es un subview de un plano de datos); la reserva
+// del `BobTarget` debe cubrir la geometría completa.
+alignas(16) eng::u8 g_screen[6 * kPlaneBytes];
 alignas(16) eng::u16 g_pixels[32];
 alignas(16) eng::u16 g_mask[16];
 alignas(16) eng::u16 g_save[64];

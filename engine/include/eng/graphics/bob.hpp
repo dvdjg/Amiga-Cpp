@@ -141,6 +141,9 @@ using BobTarget = BitmapView<PlaneTag, eng::MemoryKind::Chip>;
 					       eng::u32 plane_step = 0u) noexcept {
 	BobTarget t {};
 	t.planes = planes;
+	// Ancho lógico = píxeles que cubre una fila de la reserva; es el límite horizontal con
+	// el que se validan los blits (si el llamador conoce un ancho visible menor, lo fija él).
+	t.width = static_cast<eng::u16>(static_cast<eng::u32>(row_bytes) * 8u);
 	t.row_bytes = row_bytes;
 	t.height = height;
 	t.plane_count = plane_count;
@@ -191,9 +194,33 @@ constexpr u32 sheet_row_of(const Bob& bob) {
 	return bob.sheet_row_bytes != 0u ? bob.sheet_row_bytes : sheet_row_bytes(bob);
 }
 
+/// ¿La geometría del destino es utilizable como destino de blits? Además de tener fila y
+/// planos, la **reserva debe cubrir la geometría completa** (`storage_bytes_used`): si no,
+/// el blit escribiría en el buffer contiguo (la «contaminación» clásica entre recursos
+/// Chip). Los destinos **de banda** pueden declarar `height == 0` (la altura la fija el
+/// emisor de la banda): en ese caso no se valida el tamaño vertical.
+constexpr bool target_valid(const BobTarget& t) {
+	return !t.planes.empty() && t.row_bytes != 0u && t.plane_count != 0u &&
+	       (t.height == 0u || t.planes.size() >= t.storage_bytes_used());
+}
+
 constexpr bool valid(const Bob& bob, const BobTarget& t) {
-	return !bob.sheet.empty() && !t.planes.empty() && bob.width != 0u && bob.height != 0u &&
-	       bob.planes != 0u && bob.planes <= 6u && bob.planes <= t.plane_count && t.row_bytes != 0u;
+	return !bob.sheet.empty() && target_valid(t) && bob.width != 0u && bob.height != 0u &&
+	       bob.planes != 0u && bob.planes <= 6u && bob.planes <= t.plane_count;
+}
+
+/// `true` si la caja en `(x,y)` con `words` palabras por fila y `h` filas **cabe entera en
+/// la reserva**. El Blitter no recorta: fuera de aquí escribe fuera del bitmap. En bandas
+/// (`t.height == 0`) solo se puede validar el eje horizontal.
+constexpr bool box_fits(const BobTarget& t, s16 x, s16 y, u16 h, u16 words) {
+	if (x < 0 || y < 0 || t.row_bytes == 0u) {
+		return false;
+	}
+	const u32 right = static_cast<u32>(x & ~15) + static_cast<u32>(words) * 16u;
+	if (right > static_cast<u32>(t.row_bytes) * 8u) {
+		return false;
+	}
+	return t.height == 0u || static_cast<u32>(y) + h <= t.height;
 }
 
 } // namespace bob_detail
@@ -223,6 +250,9 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	// derecho del objeto sin limpiar (residuo de hasta 15 px por fila). La hoja par ya
 	// trae la guarda en la ventana: su huella es `width/16` (`box_words`).
 	const u16 words = box_words(bob, w, x);
+	if (!box_fits(t, x, y, h, words)) {
+		return true; // caja fuera de la geometría del destino: no se emite el blit
+	}
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count
 				    : t.row_bytes; // fila del bitmap en la que empieza la caja
 	// **Construcción IN SITU**: ranura del plan, sin `BlitJob` local ni copia; se fijan todos los
@@ -275,8 +305,8 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 			 u16 save_height) {
 	const u16 words = bob_detail::box_words(bob, w, x);
 	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
-	    (x & ~15) < 0) {
-		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
+	    (x & ~15) < 0 || !bob_detail::box_fits(t, x, y, h, words)) {
+		return false; // sin buffer, buffer insuficiente o caja fuera de la reserva destino
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
 	// Paso de fila DENTRO de un plano del destino: `row_bytes` (planar) o
@@ -310,8 +340,8 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 			    u16 save_height) {
 	const u16 words = bob_detail::box_words(bob, w, x);
 	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
-	    (x & ~15) < 0) {
-		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
+	    (x & ~15) < 0 || !bob_detail::box_fits(t, x, y, h, words)) {
+		return false; // sin buffer, buffer insuficiente o caja fuera de la reserva destino
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
 	// Paso de fila DENTRO de un plano del destino (ver `bob_save_box`).
@@ -383,6 +413,9 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	const s16 wx = static_cast<s16>(x & ~15);
 	if (wx < 0) {
 		return true;
+	}
+	if (!box_fits(t, x, y, rows, words)) {
+		return false; // no cabe en el destino: fuera de la reserva del bitmap
 	}
 	const u8 shift = static_cast<u8>(x & 15);
 	const s16 x_start = wx;
@@ -470,6 +503,9 @@ __attribute__((always_inline)) inline bool draw_rows(FramePlan& plan, const Bob&
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 	if (masked && bob.mask.empty()) {
 		return false; // cookie-cut sin mascara
+	}
+	if (!box_fits(t, x, y, rows, words)) {
+		return false; // no cabe en el destino: fuera de la reserva del bitmap
 	}
 	// Rango de filas del arte: en `flat` (hoja intercalada por los planos del destino)
 	// cada fila de arte ocupa `planos` filas físicas; en la hoja apilada por plano, una.

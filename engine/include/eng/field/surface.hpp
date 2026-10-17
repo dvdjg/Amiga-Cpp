@@ -150,6 +150,30 @@ public:
         return fill_polygon(xs, ys, static_cast<u8>(N), color);
     }
 
+    /// **Círculo** de radio `radius` centrado en `(cx, cy)` (contorno de 1 px), recortado
+    /// contra el clip. Algoritmo de **punto medio** (Bresenham entero): 8 puntos por
+    /// iteración con simetría de octantes, **sin raíces ni multiplicaciones de 32 bits** en
+    /// runtime. `op` aplica la operación lógica por punto (los duplicados del eje/diagonal se
+    /// omiten, de modo que `Xor` no se cancela). El color se escribe por el mapeo del
+    /// playfield: vale igual sobre EHB, single o DPF.
+    /// \param cx,cy  centro en píxeles.
+    /// \param radius radio en píxeles (>= 0; 0 pinta el centro).
+    /// \param color  índice de paleta.
+    /// \param op     operación de rasterizado (por defecto `Copy`).
+    /// \return `false` si el contexto no vale o el radio es negativo; `true` si se dibujó
+    ///         o el círculo quedó completamente fuera del clip.
+    bool circle(s32 cx, s32 cy, s32 radius, u8 color, RasterOp op = RasterOp::Copy) {
+        if (!valid() || radius < 0) return false;
+        // Caja envolvente contra el clip: si no se tocan, nada que dibujar.
+        if (cx + radius < m_clip.x || cx - radius >= m_clip.x + static_cast<s32>(m_clip.w) ||
+            cy + radius < m_clip.y || cy - radius >= m_clip.y + static_cast<s32>(m_clip.h)) {
+            return true;
+        }
+        return m_target->draw_circle(cx, cy, radius, color, op, m_clip.x, m_clip.y,
+                                     m_clip.x + static_cast<s32>(m_clip.w) - 1,
+                                     m_clip.y + static_cast<s32>(m_clip.h) - 1);
+    }
+
     /// Línea, recortada al clip de la superficie. Delegada en el `Rasterizer` (CPU por
     /// defecto; un rasterizador Blitter la traza por hardware si se pasa `plan`;
     /// `op == Xor` usa la variante EOR/ONEDOT).

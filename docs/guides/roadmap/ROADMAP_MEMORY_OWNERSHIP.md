@@ -183,9 +183,22 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada del pool; la arena
     *bump* sigue necesitándolo hasta migrar).
 
+## Fase 8 — Recursos acotados en emisión (frente acotado y activo)
+
+**Motivo.** Una reserva correcta no evita que un **consumidor** calcule una dirección fuera de ella: el «buffer contagiado» era una escritura de emisión (BOB, job de línea, racha de blits o copperlist) que rebasaba la reserva, no un fallo de `BlockPool`/`MemBank`. Esta fase cierra ese hueco en los caminos que usa la fachada; no reabre el ownership completo.
+
+**Hecho (2026-10):**
+
+- **BOB/bitmap**: `bob_detail::target_valid` exige que `planes.size()` cubra `storage_bytes_used()` (incluye `plane_step` explícito) y `box_fits` rechaza cajas que el Blitter escribiría fuera de fila/alto. Aplicado a `bob_draw`, `bob_erase_box`, `bob_save_box`/`bob_restore_box` y `scene::clear_box`. Tests: **HOST-439** (fuera de buffer, reserva corta, límite exacto y shift, canarios).
+- **FramePlan**: `begin_blit_job`/`begin_line_job` devuelven una ranura de **descarte** con el plan lleno (`m_scratch`) y marcan `ok()==false`; nunca escriben en `m_blit_jobs[max]`. Test: **HOST-388**.
+- **Copperlist**: `ListBuilder::write_pair`/`move32` rechazan capacidad `< 2` (antes `capacity - 2` envolvía y escribía con puntero nulo/vacío). La capacidad ya viajaba en el `Block<CopperTag, Chip>`.
+- **Racha de blits**: `Screen::stamp::at` y `clear_now` acotan contra la geometría del destino; `clear_now` exige `x` alineado a 16 (el blit D-only no lleva máscara de borde).
+
+**Pendiente** (detalle y gates en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §F8): `BoundTarget`/validación genérica de `BlitJob` en la alta; contrato de tamaño de la hoja del BOB; canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio; y barrido de escrituras directas `Block::view.data()` en demos técnicas.
+
 ## Estado: frente pausado
 
-Este frente queda **pausado y fuera del trabajo activo**. Se conservan los contratos ya existentes (`Block`, `AssetLease`, `AssetDmaLease`, rollback y teardown), sin añadir una segunda capa de leases dentro de los planes. Las dudas restantes se reabren solo con un consumidor concreto y un fallo reproducible; primero se comprobará si el handle movible existente, mantenido en el scope propietario, cubre su vida útil.
+El frente de **ownership persistente** sigue **pausado y fuera del trabajo activo**; la **Fase 8** es una excepción acotada y activa porque protege contra escrituras fuera de reserva con consumidores reales (demo 122 y tests host). Se conservan los contratos ya existentes (`Block`, `AssetLease`, `AssetDmaLease`, rollback y teardown), sin añadir una segunda capa de leases dentro de los planes. Las dudas restantes se reabren solo con un consumidor concreto y un fallo reproducible; primero se comprobará si el handle movible existente, mantenido en el scope propietario, cubre su vida útil.
 
 Estado respaldado por evidencia anterior: rollback/reinit gráficos (HOST-016/069/070), caché y leases (HOST-254/330/353/386), configuración/rollback genérico de audio (HOST-269) y builds Amiga previas 057/061. No se añadieron retenciones automáticas al `FramePlan`/CopperPlan ni una demo SFX nueva. La ruta explícita `play_sfx_asset` ya existente no se certifica aquí en hardware.
 

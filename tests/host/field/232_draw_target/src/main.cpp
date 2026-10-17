@@ -13,7 +13,9 @@
 //   bash tools/run-host-tests.sh tests/host/field/232_draw_target
 
 #include <cstdio>
+#include <cstring>
 
+#include <eng/api/screen.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/field/raster.hpp>
@@ -90,8 +92,39 @@ int main() {
 	check(dt.c2p(req), "c2p por el seam");
 	check(bits_in_plane(planes, 3) == 16u, "c2p: 16 bits en el plano 3");
 
+	// circle: contorno de radio 3 en (16,4), color 2 -> plano 1.
+	// Extremos por eje + diagonales del punto medio; el centro NO pertenece al contorno.
+	eng::Screen screen {dt};
+	check(screen.valid(), "Screen sobre el DrawTarget");
+	check(screen.circle(16, 4, 3, 2u), "circle");
+	// El playfield escribe la palabra como VALOR u16; el test la lee igual (memcpy) y
+	// consulta el bit con el orden Amiga (bit 15 = píxel izquierdo), portable al host.
+	auto bit_at = [&](eng::u16 x, eng::u16 y) {
+		const eng::u32 off = static_cast<eng::u32>(y) * kRow + static_cast<eng::u32>(x >> 4u) * 2u;
+		eng::u16 word = 0u;
+		std::memcpy(&word, planes + kPlaneBytes + off, sizeof(word));
+		return (word & static_cast<eng::u16>(0x8000u >> (x & 15u))) != 0u;
+	};
+	check(bit_at(13, 4) && bit_at(19, 4), "circle: extremos horizontales (16±3,4)");
+	check(bit_at(16, 1) && bit_at(16, 7), "circle: extremos verticales (16,4±3)");
+	check(bit_at(14, 2) && bit_at(18, 2), "circle: diagonal del octante (16±2,2)");
+	check(!bit_at(16, 4), "circle: el centro NO se pinta (es contorno)");
+	// Radio 0: un solo punto en el centro.
+	check(screen.circle(8, 4, 0, 2u), "circle radio 0");
+	check(bit_at(8, 4), "circle radio 0 pinta el centro");
+	// Fuera del clip por completo: true sin dibujar.
+	check(screen.circle(200, 4, 5, 2u), "circle fuera del clip no falla");
+	// Xor sin duplicados: dos pasadas del MISMO círculo se cancelan exactamente (si el
+	// algoritmo repitiera un punto del eje/diagonal, ese píxel quedaría encendido).
+	const eng::u32 p1_before = bits_in_plane(planes, 1);
+	check(screen.circle(24, 4, 3, 2u, eng::playfield::RasterOp::Xor), "circle Xor");
+	const eng::u32 p1_xor = bits_in_plane(planes, 1);
+	check(p1_xor > p1_before, "circle Xor enciende puntos");
+	check(screen.circle(24, 4, 3, 2u, eng::playfield::RasterOp::Xor), "circle Xor segunda pasada");
+	check(bits_in_plane(planes, 1) == p1_before, "circle Xor se cancela sin puntos duplicados");
+
 	if (failures == 0) {
-		std::printf("OK: DrawTarget (fill/line/frame/c2p + box) validado.\n");
+		std::printf("OK: DrawTarget (fill/line/frame/c2p/circle + box) validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

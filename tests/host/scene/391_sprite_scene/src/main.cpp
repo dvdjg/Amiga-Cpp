@@ -91,12 +91,14 @@ int main() {
 	check(!sp.add(bad).valid(), "add sin visual -> invalido");
 	check(sp.count() == 1u, "count sigue 1");
 
-	eng::u16 bitmap[320u * 8u] {};
+	// Destino 320x256 a 2 planos (40 B/fila x 256 x 2 = 20480 B): cubre los actores hasta
+	// y=140 del caso de conflicto/ristra.
+	eng::u16 bitmap[320u * 32u] {};
 	eng::graphics::FramePlan plan {};
 	const eng::graphics::BobTarget target = eng::graphics::make_bob_target(
 		eng::MemView<eng::PlaneTag, eng::MemoryKind::Chip> {
 			eng::Address<eng::MemoryKind::Chip>::from_storage(bitmap), sizeof(bitmap)},
-		40u, 8u, 2u, eng::graphics::BobLayout::Planar);
+		40u, 256u, 2u, eng::graphics::BobLayout::Planar);
 	const eng::graphics::BobTarget targets[1] = {target};
 	eng::scene::ActorEmitContext ctx {};
 	ctx.targets = eng::Span<const eng::graphics::BobTarget> {targets, 1u};

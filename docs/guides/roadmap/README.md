@@ -10,7 +10,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_DEUDA_TECNICA.md](ROADMAP_DEUDA_TECNICA.md) | **ACTIVO** | Registro transversal de deuda (DT-NNN) con síntoma, evidencia, impacto y plan; incluye demos NO VERIFICADAS. |
 | [DEMOS_A_ELIMINAR_O_MEJORAR.md](DEMOS_A_ELIMINAR_O_MEJORAR.md) | **ACTIVO** | Auditoría viva de demos que no pasan el umbral de calidad, con criterios y regeneración. |
 | [ROADMAP_GAME_API.md](ROADMAP_GAME_API.md) | **ACTIVO** | Fachada de juego limpio: pila de escenas, manifiesto de assets, estados; fases abiertas. |
-| [ROADMAP_API_COHERENCE.md](ROADMAP_API_COHERENCE.md) | **ACTIVO** | Diagnóstico contrastado del API real y plan por fases (F0–F7) hacia la fachada final; consumidores externos (§7). |
+| [ROADMAP_API_COHERENCE.md](ROADMAP_API_COHERENCE.md) | **ACTIVO** | Diagnóstico contrastado del API real y plan por fases (F0–F8) hacia la fachada final; F8 = dibujo inmediato de dominio (círculo/píxel) + recursos acotados en emisión; consumidores externos (§7). |
 | [ROADMAP_MINI_OS.md](ROADMAP_MINI_OS.md) | **ACTIVO** | Mini-SO de mensajes (`eng::os`) y UI reactiva: entregados M0–M6; pendientes M9–M11. |
 | [ROADMAP_GUI.md](ROADMAP_GUI.md) | **ACTIVO** | Librería GUI (`eng::ui`): widgets, compositor con backing store, keymaps; pendiente acelerar el copy con Blitter (G8). |
 | [ROADMAP_RESOURCES.md](ROADMAP_RESOURCES.md) | **ACTIVO** | Caché de assets (`eng::res`), E/S asíncrona y DynLoader `.englib`. |
@@ -21,6 +21,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_BOARD_GAMES.md](ROADMAP_BOARD_GAMES.md) | **ACTIVO** | Motores de tablero (`eng::board`): ajedrez con variantes y Go 9×9; faltan trackloader Amiga y MCTS ligero. |
 | [ROADMAP_CARD_GAMES.md](ROADMAP_CARD_GAMES.md) | **ACTIVO** | Motores de naipes (`eng::cards`): Hold'em con footprint N20–N512; falta el juego con UI (C5). |
 | [ROADMAP_NPC_PSYCHOLOGY.md](ROADMAP_NPC_PSYCHOLOGY.md) | **ACTIVO** | Perfil psicológico de NPC sobre `eng::sim` (arquetipos, tells, evolución); fases P0–P5 planificadas. |
+| [ROADMAP_RPG.md](ROADMAP_RPG.md) | **ACTIVO** | Capa RPG/CRPG (`eng::rpg`): núcleo de mundo e interacción/crafteo (M0–M2 HECHOS, HOST-454…461; demo `001_rpg_dungeon` verificada) y motores de conflicto/sociedad/narrativa; cierre con vertical slice en `games/` (M6). |
 | [ROADMAP_GAME_AI.md](ROADMAP_GAME_AI.md) | **ACTIVO** | IA de juego (`eng::ai`): GOAP, decisión, navegación, steering y percepción; fases G1–G7. |
 | [ROADMAP_PROCEDURAL_WORLDS.md](ROADMAP_PROCEDURAL_WORLDS.md) | **ACTIVO** | Generación procedural de mundos metroidvania (W0–W12): biomas, grafos, gating, geometría. |
 | [ROADMAP_TILED_WORLD_SUPPORT.md](ROADMAP_TILED_WORLD_SUPPORT.md) | **ACTIVO** | Soporte completo de Tiled: parser/cooker, tilesets, capas y streaming de mundos grandes. |
@@ -40,7 +41,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [SCROLL_DEMOS_CLEANUP.md](SCROLL_DEMOS_CLEANUP.md) | **ACTIVO** | Fase 0 de la limpieza de demos de scroll: inventario, glosario y matriz por algoritmo. |
 | [BOARD_LEVEL_AND_STATS.md](BOARD_LEVEL_AND_STATS.md) | **ACTIVO** | Nivel de juego por footprint, medición fiable del cómputo y estadística para los motores de tablero. |
 | [REGLAS_PIPELINE_TILES.md](REGLAS_PIPELINE_TILES.md) | **REGLAS** | Reglas de oro del pipeline de tiles/EHB (cuantizar antes de extraer, no romper el 100 %). |
-| [ROADMAP_MEMORY_OWNERSHIP.md](ROADMAP_MEMORY_OWNERSHIP.md) | **PAUSADO** | Correcciones de ownership de memoria respaldadas por tests; se retoma con un consumidor y fallo concretos. |
+| [ROADMAP_MEMORY_OWNERSHIP.md](ROADMAP_MEMORY_OWNERSHIP.md) | **PAUSADO** (F8 activa) | Ownership persistente pausado; la **Fase 8** (recursos acotados en emisión: BOB/FramePlan/copperlist/racha) queda activa con consumidor y tests (122/HOST-232/388/439). |
 | [ROADMAP_BLITTER_COPPER.md](ROADMAP_BLITTER_COPPER.md) | **PAUSADO** | Blitter ↔ Copper: batch `PaletteLine` hecho; falta perfil A/B en target al reactivar. |
 | [ROADMAP_GENERICIDAD_PLANTILLAS.md](ROADMAP_GENERICIDAD_PLANTILLAS.md) | **CERRADO** | Genericidad de plantillas (sin tipos de dato concretos): todo hecho o descartado con motivo. |
 | [CONSULTA-SPLIT-208.md](CONSULTA-SPLIT-208.md) | **CERRADO** | Resuelto: el split vertical del corkscrew sobre la línea 255 es un límite de hardware (8 bits de VPOS). |

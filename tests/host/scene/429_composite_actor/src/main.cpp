@@ -36,8 +36,9 @@ alignas(16) eng::u16 g_legs[2u * 16u] {};
 alignas(16) eng::u16 g_torso[32u] {};
 // Máscara planar 16x8 (cookie-cut de los BOBs).
 alignas(16) eng::u16 g_mask[8u] {};
-// Bitmap destino 4 planos para los BOB.
-alignas(16) eng::u16 g_bitmap[4u * 8u * 20u] {};
+// Bitmap destino 4 planos para los BOB: 20 B/fila x 128 filas x 4 planos = 10240 B
+// (el compuesto y sus partes llegan hasta y=58+8; el `BobTarget` debe cubrir la geometría).
+alignas(16) eng::u16 g_bitmap[4u * 64u * 20u] {};
 
 constexpr eng::u8 kFrameLegs[2] = {1u, 0u}; // frame del compuesto 1: piernas frame 1, torso 0
 constexpr eng::u8 kFrame0[2] = {0u, 0u};
@@ -61,7 +62,7 @@ eng::graphics::BobTarget make_target() {
 		eng::MemView<eng::PlaneTag, eng::MemoryKind::Chip> {
 			eng::Address<eng::MemoryKind::Chip>::from_storage(g_bitmap),
 			sizeof(g_bitmap)},
-		40u, 8u, 4u, eng::graphics::BobLayout::Planar);
+		20u, 128u, 4u, eng::graphics::BobLayout::Planar);
 }
 
 } // namespace

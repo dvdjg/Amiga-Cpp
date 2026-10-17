@@ -29,7 +29,9 @@ void check(bool ok, const char* what) {
 
 eng::u16 g_sheet[256] {};
 eng::u16 g_mask[256] {};
-eng::u16 g_dest[256] {};
+/// Destino real de los actores: fila de 16 B (128 px) x 64 filas x 4 planos = 4096 B.
+/// El `BobTarget` debe cubrir la geometría: los actores se colocan hasta (80, 32).
+eng::u16 g_dest[2048] {};
 
 scene::ActorDesc make_bob(eng::s16 x, eng::s16 y, eng::u8 z) {
 	scene::ActorDesc d {};
@@ -58,7 +60,7 @@ eng::ChipView<Tag> chip_view(const T (&a)[N]) {
 }
 
 const graphics::BobTarget g_target =
-	graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 8u, 8u, 4u, graphics::BobLayout::Planar);
+	graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 16u, 64u, 4u, graphics::BobLayout::Planar);
 
 } // namespace
 

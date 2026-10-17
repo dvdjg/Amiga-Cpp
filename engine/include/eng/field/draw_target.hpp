@@ -68,6 +68,25 @@ public:
 		  RasterOp op = RasterOp::Copy) {
 		return m_surface.draw_line(x0, y0, x1, y1, color, m_plan, op);
 	}
+	/// Píxel suelto, recortado al clip del destino.
+	/// \param x,y  posición (px); \param color  índice de paleta.
+	/// \return `false` si el punto queda fuera del clip.
+	bool pixel(eng::s16 x, eng::s16 y, eng::u8 color) {
+		return m_surface.set_pixel(x, y, color);
+	}
+	/// Contorno de círculo (punto medio) recortado al clip; ver `Surface::circle`.
+	/// \param cx,cy  centro (px); \param radius  radio (px); \param color  índice.
+	/// \return `false` si el contexto no vale o el radio es negativo.
+	bool circle(eng::s32 cx, eng::s32 cy, eng::s32 radius, eng::u8 color,
+		    RasterOp op = RasterOp::Copy) {
+		return m_surface.circle(cx, cy, radius, color, op);
+	}
+	/// **Texto por palabras** (HUD): delega en `Surface::draw_text_words` (dos glifos de
+	/// Font8 por palabra de 16 px, una escritura por fila y plano). `x` debe ir alineada a
+	/// 16 px y la fila completa debe caber en el clip.
+	bool text_words(eng::s32 x, eng::s32 y, const char* s, eng::u8 color) {
+		return m_surface.draw_text_words(x, y, s, color);
+	}
 	/// Marco de 1 px alrededor de `b` (4 líneas).
 	/// \param b  rectángulo; \param color  índice.
 	/// \return `false` si no cupo; `true` si siempre había sitio.

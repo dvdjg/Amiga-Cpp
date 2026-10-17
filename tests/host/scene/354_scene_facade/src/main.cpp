@@ -96,11 +96,12 @@ int main() {
 	// --- Limpieza de zona (clear_box) --------------------------------------
 	eng::graphics::FramePlan plan {};
 	plan.clear();
+	// Destino con geometría que cubre la caja borrada (y=8, h=4 sobre 16 filas).
 	eng::graphics::BobTarget t = eng::graphics::make_bob_target(
 		eng::ChipView<eng::PlaneTag> {
 			eng::Address<eng::MemoryKind::Chip>::from_storage(copper),
 			sizeof(copper)},
-		4u, 4u, 2u, eng::graphics::BobLayout::Interleaved);
+		4u, 16u, 2u, eng::graphics::BobLayout::Interleaved);
 	check(eng::scene::clear_box(plan, t, 0, 8, 32u, 4u), "clear_box encola");
 	check(plan.blit_job_count() == 1u, "clear_box: un blit");
 	check(plan.blit_job(0).kind == eng::graphics::BlitJobKind::ClearRect, "clear_box kind");

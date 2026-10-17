@@ -79,6 +79,35 @@ public:
 	/// \return `false` si no cabe.
 	bool text(s16 x, s16 y, const char* s, u8 color) { return m_target.text(x, y, s, color); }
 
+	/// **Píxel suelto** (`P`), recortado al clip del contexto.
+	/// \param x,y    posición (px).
+	/// \param color  índice de paleta.
+	/// \return `false` si el punto queda fuera del clip.
+	bool pixel(s16 x, s16 y, u8 color) { return m_target.pixel(x, y, color); }
+
+	/// **Círculo** (contorno de 1 px) centrado en `(cx, cy)` con radio `radius`, recortado
+	/// al clip. El juego pide la figura; el contexto decide cómo escribirla (mapeo del
+	/// playfield, CPU/Blitter), igual que `line`/`frame`.
+	/// \param cx,cy  centro (px).
+	/// \param radius radio en píxeles (>= 0).
+	/// \param color  índice de paleta.
+	/// \return `false` si el contexto no vale o el radio es negativo.
+	bool circle(s32 cx, s32 cy, s32 radius, u8 color,
+		    playfield::RasterOp op = playfield::RasterOp::Copy) {
+		return m_target.circle(cx, cy, radius, color, op);
+	}
+
+	/// **Texto por palabras** (HUD de depuración): dos glifos de Font8 por palabra de 16 px,
+	/// una escritura por fila y plano (`Surface::draw_text_words`). Es la vía barata del
+	/// HUD; `x` debe estar alineada a 16 px y la línea (8 filas) dentro del clip.
+	/// \param x,y    esquina superior izquierda (x múltiplo de 16).
+	/// \param s      texto ASCII/Latin-1 (sin decodificar UTF-8).
+	/// \param color  índice de paleta.
+	/// \return `false` si la línea no cabe en el clip o `x` no está alineada.
+	bool text_words(s32 x, s32 y, const char* s, u8 color) {
+		return m_target.text_words(x, y, s, color);
+	}
+
 	/// Borra `b` (`D = 0`) **encolado en el plan del frame**, en orden con los sprites (a
 	/// diferencia de `fill`, que se vuelca con el rasterizador y puede pisar lo dibujado después).
 	/// Es la forma de limpiar una banda/región antes de pintar objetos. `false` si no hay plan.
@@ -305,23 +334,43 @@ public:
 		graphics::BlobOp op = graphics::BlobOp::CookieCut;
 		u16 words = 0u;
 		s32 start_row = 0;
+		/// Posición máxima admitida para el ancla, precalculada al abrir la racha con el
+		/// tamaño del sprite (`destino - sprite`). El chequeo por objeto son dos comparaciones
+		/// sin signo (una sola bifurcación con OR bit a bit): un `x`/`y` negativo envuelve y se
+		/// rechaza. `max_y = 0x7fff` = altura desconocida (destino de banda).
+		u16 max_x = 0u;
+		u16 max_y = 0x7fffu;
 		bool active = false;
 
 		/// Emite una copia del `frame` del sprite en `(x, y)`.
-		bool at(s16 x, s16 y, u8 frame) {
-			if (!active || sheet == nullptr || frame >= sheet->bob().frame_count) {
+		/// El Blitter **no recorta**: si el sprite no cabe entero en el destino (por
+		/// cualquiera de los cuatro lados), no se emite (evita escribir fuera de la reserva
+		/// del bitmap). El juego decide si mueve o recorta antes de pedirlo.
+		__attribute__((always_inline)) inline bool at(s16 x, s16 y, u8 frame) {
+			if (!active || sheet == nullptr) {
 				return false;
 			}
 			const graphics::Bob& bob = sheet->bob();
+			if (frame >= bob.frame_count) {
+				return false;
+			}
+			// El Blitter no recorta: si no cabe entero no se emite. OR bit a bit (sin
+			// cortocircuito): dos comparaciones y un solo salto.
+			if ((static_cast<u16>(x) > max_x) | (static_cast<u16>(y) > max_y)) {
+				return false;
+			}
 			const s16 wx = static_cast<s16>(x & ~15);
 			// Origen: la hoja es un `ChipView<BobTag>`, así que `BlitPtr` sale de ella directamente (sin punteros crudos).
-			const eng::s32 frame_off = static_cast<eng::s32>(static_cast<eng::u32>(frame) * bob.frame_stride);
+			// Sin `__mulsi3`: `frame` y `y` son de 16 bits (`mulu.w`), no hace falta el producto de 32.
+			const eng::s32 frame_off = static_cast<eng::s32>(
+				eng::math::mulu32x16(bob.frame_stride, static_cast<eng::u16>(frame)));
 			const graphics::BlitPtr image = graphics::BlitPtr {bob.sheet, frame_off};
 			const graphics::BlitPtr image_word1 = graphics::BlitPtr {bob.sheet, frame_off + static_cast<eng::s32>(words) * 2};
 			// Destino: plano 0 de la fila `y` de la rejilla de BOBs (interleaved), palabra `wx/16`.
+			const eng::u32 row_off = eng::math::mulu16(
+				static_cast<eng::u16>(start_row), static_cast<eng::u16>(y));
 			const graphics::BlitPtr dst = graphics::BlitPtr {target.plane_address(
-				0u, static_cast<eng::s32>(start_row) * static_cast<eng::s32>(y) +
-					    static_cast<eng::s32>(wx < 0 ? 0 : wx) / 8)};
+				0u, static_cast<eng::s32>(row_off + (static_cast<eng::u32>(wx) >> 3u)))};
 			if (op == graphics::BlobOp::CookieCut) {
 				stream.one(stream.ctx, image_word1, image, dst, static_cast<u8>(x & 15));
 			} else {
@@ -370,35 +419,50 @@ public:
 		run.op = op;
 		run.words = words;
 		run.start_row = static_cast<s32>(bt.row_bytes) * bt.plane_count;
+		const u32 width_limit = bt.width != 0u ? bt.width
+						      : static_cast<u32>(bt.row_bytes) * 8u;
+		const u16 max_x =
+			width_limit >= bob.width ? static_cast<u16>(width_limit - bob.width) : 0u;
+		run.max_x = max_x;
+		run.max_y = (bt.height != 0u && bt.height >= bob.height)
+				    ? static_cast<u16>(bt.height - bob.height)
+				    : 0x7fffu;
 		run.active = true;
 		return run;
 	}
 
-	/// **Borra ahora** (streaming, `D = 0`) la banda completa de `box` (filas completas de todos los
+	/// **Borra ahora** (streaming, `D = 0`) el rectángulo `box` (palabras completas de todos los
 	/// planos, interleaved). Complementa a `stamp`; ambas emiten **en orden**, sin `FramePlan`.
+	/// `box.x` debe estar **alineado a 16 px** (el blit D-only de la racha no lleva máscaras
+	/// de borde): un valor no alineado se rechaza en vez de borrar palabras de más. El
+	/// rectángulo debe caber entero en el destino; si no, `false` (el Blitter no recorta).
 	bool clear_now(Box box) {
-		if (!m_stream.valid() || box.empty()) {
+		if (!m_stream.valid() || box.empty() || box.x < 0 || (box.x & 15) != 0) {
 			return false;
 		}
 		const graphics::BobTarget bt = m_target.bob_target();
-		if (bt.planes.empty()) {
+		if (bt.planes.empty() || bt.row_bytes == 0u) {
+			return false;
+		}
+		if (static_cast<u32>(box.x) + box.w > bt.width ||
+		    static_cast<u32>(box.y) + box.h > bt.height) {
 			return false;
 		}
 		const u16 words = static_cast<u16>((box.w + 15u) / 16u);
-		if (words == 0u) {
+		if (words == 0u || static_cast<u32>(box.x >> 3) + static_cast<u32>(words) * 2u > bt.row_bytes) {
 			return false;
 		}
 		const u16 height = static_cast<u16>(box.h * bt.plane_count);
+		const u32 row_stride = static_cast<u32>(bt.row_bytes) * bt.plane_count;
 		// Fila completa de un plano → filas interleaved contiguas: un solo blit D-only, `dmod = 0`.
 		const bool full_row = (static_cast<u32>(words) * 2u == bt.row_bytes);
 		const s16 dmod = full_row ? 0
-					  : static_cast<s16>(static_cast<s32>(bt.row_bytes) *
-									     bt.plane_count -
+					  : static_cast<s16>(static_cast<s32>(row_stride) -
 								     static_cast<s32>(words) * 2);
-		// Destino: plano 0 de la fila `box.y` (la vista del destino ya es Chip, así que la dirección DMA sale de ella sin cast).
+		// Destino: plano 0 de la fila `box.y`, palabra `box.x/16` (la vista del destino ya
+		// es Chip: la dirección DMA sale de ella sin cast).
 		const graphics::BlitPtr dst = graphics::BlitPtr {bt.plane_address(
-			0u, static_cast<eng::s32>(box.y) * static_cast<eng::s32>(bt.row_bytes) *
-				    static_cast<eng::s32>(bt.plane_count))};
+			0u, static_cast<eng::s32>(static_cast<u32>(box.y) * row_stride + (static_cast<u32>(box.x) >> 3u)))};
 		if (!m_stream.begin(m_stream.ctx, graphics::BlobOp::Clear, words, height, 0, 0, 0, dmod)) {
 			return false;
 		}

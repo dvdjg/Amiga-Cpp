@@ -13,6 +13,7 @@
 /// Sustituye al `BobTarget` (`u8*` suelto): misma geometría (base/row_bytes/planos/layout) pero con
 /// la **procedencia en el tipo**, sin `u8*`.
 
+#include <eng/core/math/arith.hpp>
 #include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/types/typed.hpp>
@@ -81,9 +82,25 @@ struct BitmapView {
 	[[nodiscard]] constexpr eng::Address<Bank> plane_address(eng::u8 p, eng::s32 off = 0) const noexcept {
 		return planes.address(static_cast<eng::s32>(plane_pointer_step()) * p + off);
 	}
-	/// Nº de bytes que ocupa la zona (para validar la reserva).
+	/// Nº de bytes que ocupa la zona (para validar la reserva). Sin `__mulsi3`: dos
+	/// `mulu.w` (16×16) con `mulu32x16`, porque esto puede ejecutarse por BOB/frame.
 	[[nodiscard]] constexpr eng::u32 byte_count() const noexcept {
-		return static_cast<eng::u32>(row_bytes) * height * plane_count;
+		return eng::math::mulu32x16(eng::math::mulu16(row_bytes, height), plane_count);
+	}
+	/// **Bytes que la geometría usa de verdad**: cubre todas las direcciones que pueden
+	/// tocar los blits de BOB (incluido un `plane_step` explícito, p. ej. los planos de un
+	/// dual playfield). Es el límite contra el que se valida la reserva (`planes.size()`):
+	/// dibujar fuera de él escribiría en el buffer contiguo.
+	[[nodiscard]] constexpr eng::u32 storage_bytes_used() const noexcept {
+		if (row_bytes == 0u || height == 0u || plane_count == 0u) {
+			return 0u;
+		}
+		if (plane_step == 0u) {
+			return byte_count(); // interleaved y planar estándar usan la misma cuenta
+		}
+		const eng::u32 row_bytes_total = eng::math::mulu16(row_bytes, height);
+		return eng::math::mulu32x16(plane_pointer_step(), static_cast<eng::u16>(plane_count - 1u)) +
+		       row_bytes_total;
 	}
 };
 

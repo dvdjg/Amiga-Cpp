@@ -218,6 +218,38 @@ int main() {
 	np.clear();
 	check(np.notify_count() == 0u, "clear() vacía los avisos");
 
+	// --- Plan LLENO: `begin_*` no puede devolver una ranura fuera del array -------------------
+	// `begin_blit_job`/`begin_line_job` se usan para rellenar el job IN SITU; con el plan lleno
+	// deben devolver una ranura dentro del objeto (descarte) y fallar el `commit`, nunca
+	// escribir en `m_blit_jobs[max]` (que pisa el siguiente miembro del plan).
+	FramePlan full {};
+	full.clear();
+	for (eng::u8 i = 0u; i < FramePlan::max_blit_jobs; ++i) {
+		check(full.add_or_blob(a0), "se llena el plan hasta max_blit_jobs");
+	}
+	check(full.blit_job_count() == FramePlan::max_blit_jobs, "plan lleno");
+	const auto* plan_lo = reinterpret_cast<const eng::u8*>(&full);
+	const auto* plan_hi = plan_lo + sizeof(FramePlan);
+	{
+		BlitJob& out = full.begin_blit_job(BlitJobKind::OrBlob);
+		const auto* slot = reinterpret_cast<const eng::u8*>(&out);
+		check(slot >= plan_lo && slot + sizeof(BlitJob) <= plan_hi,
+		      "begin_blit_job con plan lleno devuelve ranura DENTRO del plan");
+		out = a0; // el llamador escribe in situ: no debe rebasar el array
+		check(!full.commit_blit_job(), "commit_blit_job con plan lleno falla");
+		check(!full.ok(), "plan lleno queda no-ok");
+	}
+	{
+		BlitJob& out = full.begin_line_job(BlitJobKind::Line);
+		const auto* slot = reinterpret_cast<const eng::u8*>(&out);
+		check(slot >= plan_lo && slot + sizeof(BlitJob) <= plan_hi,
+		      "begin_line_job con plan lleno devuelve ranura DENTRO del plan");
+		out = a0;
+		check(!full.commit_line_job(), "commit_line_job con plan lleno falla");
+	}
+	full.clear();
+	check(full.ok() && full.blit_job_count() == 0u, "clear() sanea el plan lleno");
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

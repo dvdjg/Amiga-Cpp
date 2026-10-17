@@ -158,7 +158,7 @@ private:
 [[nodiscard]] inline bool clear_box(eng::graphics::FramePlan& plan,
 				    const eng::graphics::BobTarget& t, eng::s16 x, eng::s16 y,
 				    eng::u16 w, eng::u16 h) {
-	if (t.planes.empty() || t.plane_count == 0u || w == 0u || h == 0u) {
+	if (!eng::graphics::bob_detail::target_valid(t) || w == 0u || h == 0u) {
 		return true;
 	}
 	const eng::s16 wx = static_cast<eng::s16>(x & ~15);
@@ -170,6 +170,9 @@ private:
 	// caja como en el dibujo): asi no queda residuo en el borde derecho.
 	const eng::u16 words =
 		static_cast<eng::u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	if (!eng::graphics::bob_detail::box_fits(t, x, y, h, words)) {
+		return true; // no cabe en el destino: el Blitter no recorta (no se emite)
+	}
 	const eng::u32 start_row = inter ? static_cast<eng::u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 	const bool full_interleaved_rows = inter && wx == 0 &&
 		static_cast<eng::u32>(words) * sizeof(eng::u16) == t.row_bytes;

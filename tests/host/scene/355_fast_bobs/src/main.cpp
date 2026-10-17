@@ -29,7 +29,9 @@ void check(bool ok, const char* m) {
 
 alignas(2) eng::u8 g_fast_sheet[16384] {};
 alignas(2) eng::u8 g_cookie_sheet[16384] {};
-alignas(2) eng::u8 g_screen[16384] {};
+/// Pantalla 320x256 a 4 planos interleaved (40 B/fila x 256 x 4 = 40960 B): la reserva del
+/// `BobTarget` debe cubrir la geometría completa.
+alignas(2) eng::u8 g_screen[40u * 256u * 4u] {};
 
 // En host no hay Chip RAM: escape documentado del test.
 template <class Tag = eng::BobTag, class T, eng::usize N>

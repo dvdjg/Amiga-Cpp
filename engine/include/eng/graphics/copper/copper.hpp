@@ -504,7 +504,7 @@ public:
 	/// es siempre par, así que el destino está alineado a 4 bytes.
 	__attribute__((always_inline)) inline void move32(RegisterOffset offset, u16 value) {
 		const u16 used = m_used_words;
-		if (used > m_capacity_words - 2u) {
+		if (m_capacity_words < 2u || used > m_capacity_words - 2u) {
 			m_ok = false;
 			m_overflow_sent = true;
 			return;
@@ -745,7 +745,7 @@ private:
 	/// tocar memoria salvo las dos escrituras.
 	__attribute__((always_inline)) inline void write_pair(u16 a, u16 b) {
 		const u16 used = m_used_words;
-		if (used > m_capacity_words - 2u) {
+		if (m_capacity_words < 2u || used > m_capacity_words - 2u) {
 			m_ok = false;
 			m_overflow_sent = true;
 			return;

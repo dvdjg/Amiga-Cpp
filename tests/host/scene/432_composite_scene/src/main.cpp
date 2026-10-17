@@ -33,7 +33,9 @@ alignas(16) u16 g_legs[2u * 16u] {};
 alignas(16) u16 g_torso[32u] {};
 alignas(16) u16 g_big[64u] {};
 alignas(16) u16 g_mask[16u] {};
-alignas(16) u16 g_bitmap[4u * 16u * 20u] {};
+/// Destino 160x128 a 4 planos (20 B/fila x 128 x 4 = 10240 B): el compuesto y sus partes
+/// (hasta y=50+16+16) caben enteros.
+alignas(16) u16 g_bitmap[4u * 64u * 20u] {};
 alignas(16) u16 g_cooked[256u] {};
 
 eng::graphics::BobTarget make_target() {
@@ -41,7 +43,7 @@ eng::graphics::BobTarget make_target() {
 		eng::MemView<eng::PlaneTag, eng::MemoryKind::Chip> {
 			eng::Address<eng::MemoryKind::Chip>::from_storage(g_bitmap),
 			sizeof(g_bitmap)},
-		40u, 16u, 4u, eng::graphics::BobLayout::Planar);
+		20u, 128u, 4u, eng::graphics::BobLayout::Planar);
 }
 
 } // namespace

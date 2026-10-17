@@ -693,10 +693,44 @@ int main() {
 		check_bob_at(bitmap(), 16, 4, "T12 And");
 	}
 
+	// ── T13: fuera de la geometría/reserva del destino: NO se emite blit ────────────────────
+	// El Blitter no recorta: un bob a caballo del borde derecho o inferior escribiría en la
+	// reserva contigua (contaminación entre buffers). La validación es en el encolado.
+	{
+		build_planar_sheet();
+		reset_bitmap();
+		eng::graphics::FramePlan plan {};
+		CHECK(!eng::graphics::bob_draw(plan, make_bob(), 0u, 120, 4, target())); // 120+12 > 128
+		CHECK(plan.blit_job_count() == 0u);
+		eng::graphics::FramePlan plan2 {};
+		CHECK(!eng::graphics::bob_draw(plan2, make_bob(), 0u, 40, 58, target())); // 58+8 > 64
+		CHECK(plan2.blit_job_count() == 0u);
+		eng::graphics::FramePlan plan3 {};
+		CHECK(eng::graphics::bob_erase_box(plan3, make_bob(), kBobW, kBobH, 120, 4, target()));
+		CHECK(plan3.blit_job_count() == 0u);
+		// Reserva MÁS CORTA que la geometría (faltan 16 B del último plano): rechazado.
+		eng::graphics::BobTarget short_t = eng::graphics::make_bob_target(
+			chip_view<eng::PlaneTag>(g_bitmap).first(kPlaneBytes * kPlanes - 16u),
+			kRowBytes, kHeight, kPlanes, eng::graphics::BobLayout::Planar);
+		eng::graphics::FramePlan plan4 {};
+		CHECK(!eng::graphics::bob_draw(plan4, make_bob(), 0u, 0, 0, short_t));
+		CHECK(plan4.blit_job_count() == 0u);
+		// En el límite exacto (x=112, 12 px → 124; sin shift, 1 palabra) sí se dibuja.
+		eng::graphics::FramePlan plan5 {};
+		CHECK(eng::graphics::bob_draw(plan5, make_bob(), 0u, 112, 4, target()));
+		const auto res5 = eng::test::execute_plan(plan5, bitmap());
+		expect_result(res5, "T13 limite derecho");
+		// Con shift (x=116) el barrel procesa una palabra de más: 112+32 > 128 → rechazado.
+		eng::graphics::FramePlan plan6 {};
+		CHECK(!eng::graphics::bob_draw(plan6, make_bob(), 0u, 116, 4, target()));
+		CHECK(plan6.blit_job_count() == 0u);
+		check_canaries("T13");
+	}
+
 	check_canaries("final");
 
 	if (g_fail == 0) {
-		std::printf("OK: matriz de render de bobs validada (13 casos + canarios).\n");
+		std::printf("OK: matriz de render de bobs validada (14 casos + canarios).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", g_fail);

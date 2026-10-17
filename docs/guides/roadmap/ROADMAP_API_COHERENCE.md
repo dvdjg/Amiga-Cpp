@@ -54,7 +54,8 @@ Ordenadas por impacto sobre el diseño interno y la usabilidad de la API.
 10. **Entrada con dos caminos.** `App::input()` (`InputAggregator`, sondeo) y los mensajes del
     mini-SO (`Joystick`/`Gamepad`/`MouseButton`). Transitorio, pero hoy hay dos verdades.
 11. **`api.hpp` mezcla niveles.** Reexporta tipos crudos de `core`, `field`, `graphics`,
-    `scene`, `ui`, `task`… sin separar "lo que usa un juego" de "lo que usa el engine".
+   `scene`, `ui`, `task`… sin separar "lo que usa un juego" de "lo que usa el engine".
+12. **Recursos no acotados en la emisión.** Varios caminos de bajo nivel calculaban la dirección de un blit sin comprobar que cupiera en la reserva del destino (`bob_draw`/`bob_erase_box` no miraban el borde derecho/inferior ni el tamaño del `MemView`; `FramePlan::begin_*_job` devolvía `m_blit_jobs[max]` con el plan lleno; `ListBuilder` escribía con capacidad 0; `Screen::stamp`/`clear_now` no acotaban). El «buffer que se contagia» era una escritura fuera de la reserva, no un fallo del asignador. Cierre y tests en F8.
 
 ### 2.1 Estado contrastado con el API que compila
 
@@ -71,6 +72,14 @@ El API **no está todavía lo suficientemente limpio para ser la única interfaz
 | Resultados de operaciones | Coexisten `bool`, id cero, vista vacía y bloques inválidos. | La llamada requiere convenciones locales para distinguir fallo de recurso pendiente o API ausente. |
 
 Conclusión: la API es **parcialmente limpia**, no final. Su superficie actual es razonable para prototipos y demos que aceptan el nivel `Device`; aún no permite a un developer hacer un juego 2D completo sin configurar memoria, reservar buffers o entender handles crudos. El diseño de `GAME_API_TWO_LEVELS.md` es objetivo, no prueba de que esa capa A ya exista.
+
+### 2.2 Caso de estudio: port de `circles` (demo 122)
+
+El original (`demoscene-repo-orig/effects/circles/circles.c`, 46 líneas) es el patrón de API simple que se busca: `Circle(screen, plane, x, y, r)` sobre un bitmap de libgfx. El port a la fachada (demo `demos/techniques/amiga/effects/122_circles`) hace la misma figura con `screen.circle(x, y, r, color)` y sin nombrar plano, copper, punteros ni Blitter; la comparación conceptual lado a lado está en el README de la demo. Lo que el port mide:
+
+- **El efecto son ~12 líneas** de fachada (`GameDisplay` + `App::start` + bucle de `screen.circle`); el resto del fichero es bootstrap (backend, memoria, run-status) y HUD. El objetivo «~50 líneas» exige el punto F8.1 (bootstrap `eng::Demo`), no más primitivas.
+- **Faltaba una primitiva de figura**: `Screen` tenía `clear/fill/frame/line/text/blit/sprite`, no círculo/píxel inmediato; se añadieron en F8 sin abrir un segundo modelo de dibujo (delegan en `Playfield`, como `line`/`fill`).
+- **El «contagio de buffers» era un hueco real de emisión**, no del asignador: bounds ausentes en `bob_*`/`begin_*`/`stamp` (F8, item 0 del §2), con tests de canarios que fallan con el código anterior.
 
 ## 3. Solución elegante (arquitectura objetivo)
 
@@ -225,11 +234,23 @@ gate; ninguna fase rompe una demo verde sin migrarla en la misma pasada.
   `Device` de las demos técnicas ni cambiar la fachada por estética.
 - Actualizar el índice y la matriz de demos; gate `api-facade`, docs y pruebas del consumidor nuevo.
 
-**Lectura del estado actual:** F1–F6 no están cerradas como bloque. F2 existe como separación de
-servicios; F3–F5 tienen piezas aisladas, pero falta el camino de capas y assets del ejemplo de juego.
-No marcar la fachada como «API limpio final» hasta que un juego representativo complete
-init/update/render con vocabulario de dominio y los escapes de `Device` queden acotados a demos
-técnicas.
+### F8 — Dibujo inmediato de dominio y recursos acotados
+- **Valor**: cerrar los dos huecos que descubrió el port de `circles` (demo 122): (a) primitivas inmediatas de figura con vocabulario de juego, y (b) que ningún camino de emisión pueda escribir fuera de la reserva de un recurso (copperlist, bitmap, plan de blits).
+- **Hecho (2026-10)**:
+  - `Screen::pixel`/`circle`/`text_words` (+ `DrawTarget` + `Surface::circle` + `Playfield::draw_circle`): el contorno se resuelve **dentro** del playfield (punto medio entero, 8 octantes, una escritura de palabra por punto) y el clip lo pone `Surface`; vale para cualquier nº de planos/color y layout.
+  - Demo `demos/techniques/amiga/effects/122_circles` (port del original): el efecto son ~12 líneas de fachada; **49,87 fps / 1,003 campos/frame** en estado estable, visión canónica sin artefactos.
+  - **Bounds en emisión**: `bob_detail::target_valid` (la reserva debe cubrir `storage_bytes_used()`, con `plane_step` explícito) y `box_fits` (borde derecho/inferior) aplicados a `bob_draw`, `bob_erase_box`, `bob_save_box`/`bob_restore_box` y `scene::clear_box`; `FramePlan::begin_blit_job`/`begin_line_job` devuelven ranura de **descarte** con el plan lleno; `ListBuilder` rechaza capacidad `< 2`; `Screen::stamp::at`/`clear_now` acotan contra el destino y exigen alineación.
+  - Gates: `HOST-232` (círculo/clip), `HOST-388` (plan lleno), `HOST-439` (bob fuera de reserva); la 213 (streaming con 16 BOBs) **no regresa**: 49,97 fps / 1,001 campos tras compensar el chequeo con `mulu.w` en `StampRun::at` (antes 49,92).
+- **Pendiente** (orden por dependencia):
+  1. **Bootstrap de demo con presupuesto cero-config**: `eng::Demo`/`ENG_GAME_MAIN` que fije backend + `GameDisplay` + run-status + HUD por defecto, para que el objetivo «efecto en ~50 líneas» cuente el efecto y no el arranque (la 122 gasta ~100 líneas fuera del efecto). Enlaza con §0/§9 de `ROADMAP_GAME_API.md`.
+  2. **Validación genérica de `BlitJob` en la alta**: hoy los bounds viven en los creadores (`bob_*`); un `BoundTarget`/plan con geometría permitiría rechazar en `FramePlan::add`/backend cualquier job cuyo destino no quepa (cubre caminos que construyan jobs a mano).
+  3. **Contrato de la hoja del BOB**: validar que la vista cubre `frame_count`/`frame_stride` (hoy se confía en el contrato documentado de `bob.hpp`).
+  4. **Barrido de owners**: canarios de capacidad en `SpriteManager`, `copper::Plan`/`DoubleBuffer`, `TileScrollDriver` y pools de audio (mismo patrón que F8.2 de la 122: llenar y comprobar que no se escribe fuera).
+  5. **Escapes de las demos técnicas**: sustituir escrituras por `Block::view.data()` donde exista primitiva del engine; las que queden, declaradas en el gate de casts (`casts-frontier.txt`).
+
+**Lectura del estado actual:** F1–F6 no están cerradas como bloque. F2 existe como separación de servicios; F3–F5 tienen piezas aisladas, pero falta el camino de capas y assets del ejemplo de juego. F8 deja cerrada la **seguridad de emisión** de los caminos usados por la fachada y las primitivas inmediatas; su punto pendiente 1 (bootstrap) es el que falta para que un efecto como la 122 quepa en ~50 líneas contando el arranque. No marcar la fachada como «API limpio final» hasta que un juego
+representativo complete init/update/render con vocabulario de dominio y los escapes de `Device` queden
+acotados a demos técnicas.
 
 ### Orden de salida para la próxima implementación de API
 

@@ -497,8 +497,16 @@ public:
 	/// ranura para que el llamador rellene los campos del modo línea (`destination`, `line.*`,
 	/// `bitplane_count`) sin construir un `BlitJob` local (que en `-O0`/`-O1` es un `memset` +
 	/// copia por línea) ni copiarlo dos veces. Cierra con `commit_line_job()`.
+	/// Si el plan está **lleno**, devuelve una ranura de **descarte** (`m_scratch`) y marca
+	/// `ok()==false`: el llamador puede escribir sin rebasar el array (el `commit` fallará).
 	/// Referencia del patrón: `begin_blit_job`/`commit_blit_job` y `ZERO_COST_FRAME_PATH.md`.
 	[[nodiscard]] BlitJob& begin_line_job(BlitJobKind kind) noexcept {
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			m_scratch = {};
+			m_scratch.kind = kind;
+			return m_scratch;
+		}
 		BlitJob& slot = m_blit_jobs[m_blit_job_count];
 		slot.kind = kind;
 		return slot;
@@ -546,8 +554,16 @@ public:
 	/// `BlitJob` local (que en `-O0` es un `memset` + `memcpy` por objeto) ni copiarlo. Cierra con
 	/// `commit_blit_job()`. El llamador debe fijar **todos los campos que el encoder lea** para ese
 	/// `kind`; los grupos no usados (`line`/`c2p`) conservan valores previos (no se leen).
+	/// Si el plan está **lleno**, devuelve una ranura de **descarte** (`m_scratch`) y marca
+	/// `ok()==false`: escribir los campos del job no rebasa el array y el `commit` falla.
 	/// Ver `docs/engine/architecture/ZERO_COST_FRAME_PATH.md`.
 	[[nodiscard]] BlitJob& begin_blit_job(BlitJobKind kind) noexcept {
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			m_scratch = {};
+			m_scratch.kind = kind;
+			return m_scratch;
+		}
 		BlitJob& slot = m_blit_jobs[m_blit_job_count];
 		slot.kind = kind;
 		return slot;
@@ -743,6 +759,9 @@ private:
 
 	eng::util::Array<PalettePatch, max_palette_patches> m_palette_patches {};
 	eng::util::Array<BlitJob, max_blit_jobs> m_blit_jobs {};
+	/// Ranura de **descarte** que devuelve `begin_blit_job`/`begin_line_job` con el plan lleno:
+	/// el llamador escribe in situ sin rebasar el array (el `commit` fallará y `ok()` es false).
+	BlitJob m_scratch {};
 	eng::util::Array<DirtyRect, max_dirty_rects> m_dirty_rects {};
 	eng::util::Array<NotifyMark, kMaxNotifies> m_notifies {}; ///< avisos de la cadena async
 	BlitBudget m_blit_budget {};

@@ -335,6 +335,59 @@ public:
         return true;
     }
 
+    /// **Contorno de círculo** (punto medio, 8 octantes) con clip explícito. Escribe por el
+    /// mapeo del playfield (`planeline_for`/`byte_for`), así que vale para cualquier layout
+    /// (contiguo, interleaved, espejo…) y para cualquier número de planos/color. Se resuelve
+    /// **dentro** del playfield (no por `draw_span`/callback por píxel): el coste por punto es
+    /// una escritura de palabra, no una cadena de llamadas. `false` si no está inicializado o
+    /// el radio es negativo.
+    bool draw_circle(s32 cx, s32 cy, s32 radius, u8 color, RasterOp op,
+                     s32 clip_x0, s32 clip_y0, s32 clip_x1, s32 clip_y1) {
+        if (!m_initialized || radius < 0) return false;
+        // `Clear` = `D = 0`: se normaliza a `Copy` con pluma 0 (write_planes_op no tiene
+        // semántica de borrado: aplicaría el color del bit del plano).
+        const u8 pen = (op == RasterOp::Clear) ? 0u : color;
+        const RasterOp eff = (op == RasterOp::Clear) ? RasterOp::Copy : op;
+        auto dot = [&](s32 x, s32 y) {
+            if (x < clip_x0 || x > clip_x1 || y < clip_y0 || y > clip_y1) return;
+            if (!in_bounds(x, y)) return;
+            const u32 byte = byte_for(x);
+            if (!supports_walk() && byte >= m_bytes_per_row) return;
+            const u16 mask = static_cast<u16>(0x8000u >> (x & 15));
+            const u32 pl = planeline_for(y);
+            if (eff == RasterOp::Copy) write_planes(pl, byte, mask, pen);
+            else write_planes_op(pl, byte, mask, pen, eff);
+            const u32 mir = mirror_planelines();
+            if (mir != 0u) {
+                if (eff == RasterOp::Copy) write_planes(pl + mir, byte, mask, pen);
+                else write_planes_op(pl + mir, byte, mask, pen, eff);
+            }
+        };
+        // Simetría de 8 octantes sin duplicar ejes/diagonal (con `Xor` un punto repetido se
+        // cancelaría). `plot4` pinta los cuatro cuadrantes de un par (dx,dy).
+        auto plot4 = [&](s32 dx, s32 dy) {
+            dot(cx + dx, cy + dy);
+            if (dx != 0) dot(cx - dx, cy + dy);
+            if (dy != 0) dot(cx + dx, cy - dy);
+            if (dx != 0 && dy != 0) dot(cx - dx, cy - dy);
+        };
+        s32 x = 0;
+        s32 y = radius;
+        s32 d = 3 - 2 * radius; // decisión entera del punto medio
+        while (x <= y) {
+            plot4(x, y);
+            if (x != y) plot4(y, x);
+            if (d < 0) {
+                d += 4 * x + 6;
+            } else {
+                d += 4 * (x - y) + 10;
+                --y;
+            }
+            ++x;
+        }
+        return true;
+    }
+
     /// `draw_span` con **operación lógica**. `Copy`/`Clear` reutilizan la ruta rápida
     /// (`draw_span`); `Or`/`And`/`Xor` van por `write_planes_op` (palabra a palabra).
     bool draw_span_op(eng::pix x0, eng::pix x1, eng::pix wy, u8 color, RasterOp op) {
