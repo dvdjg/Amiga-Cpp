@@ -19,12 +19,16 @@ struct arith<s16> {
 	/// Producto **con signo** `s16 × s16 -> s32`. En runtime emite `muls.w` nativo (evita el
 	/// libcall `__mulsi3`); en `consteval` usa la multiplicación portable para seguir siendo
 	/// `constexpr`. Lo usan `fixed`/`linalg` a través de `mul_wide`/`arith<R>::mul`.
+	/// Los operandos entran como `s16` (HImode): GCC emite `move.w` + `muls.w` directos.
+	/// Un cast a `s32` en el constraint `"0"` forzaba `ext.l` + copia por operando, y en
+	/// varios sitios (playfield `add_world_bitmap*`) rompía el patrón `mulhisi3` y metía
+	/// `__mulsi3` (regresión medida 2026-10-17: 14 -> 22 libcalls).
 	[[nodiscard]] static constexpr s32 mul(s16 a, s16 b) {
 		if consteval {
 			return static_cast<s32>(a) * b;
 		} else {
 			s32 r;
-			asm("muls %2,%0" : "=d"(r) : "0"(static_cast<s32>(a)), "dm"(b));
+			asm("muls.w %2,%0" : "=d"(r) : "0"(a), "d"(b));
 			return r;
 		}
 	}
@@ -35,7 +39,7 @@ struct arith<s16> {
 			return static_cast<u32>(a) * b;
 		} else {
 			u32 r;
-			asm("mulu %2,%0" : "=d"(r) : "0"(static_cast<u32>(a)), "dm"(b));
+			asm("mulu.w %2,%0" : "=d"(r) : "0"(a), "d"(b));
 			return r;
 		}
 	}
