@@ -1,0 +1,4 @@
+{
+  "max_candidates": 2,
+  "note": "Movimiento por casillas de 16 px: entre pasos (cada 8 frames) los frames son identicos y el cambio es un salto discreto legitimo de una casilla, que el detector marca como candidato (corruption/tearing de score bajo sobre la caja del jugador). Ventana medida (10 frames consecutivos, paso de casilla incluido): 2 candidatos, 8/9 pares congelados. Sin oscilacion A-B-A ni glitch temporal; display con doble buffer."
+}
