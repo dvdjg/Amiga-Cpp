@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-17T12:30:00.193Z
+- Fecha: 2026-10-17T13:32:42.954Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_004.png, frame_008.png, frame_011.png, frame_015.png, frame_019.png (6)
+- Frames: frame_000.png, frame_002.png, frame_004.png, frame_007.png, frame_009.png, frame_011.png (6)
 - Secuencia: `out/run/400_rpg_slice/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -16,45 +16,33 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 ## Respuesta (cruda)
 
 **Imagen 1:**
-- **Escena:** Mapa de juego en vista isométrica, con terreno verde y caminos marrones.
-- **Elementos visibles:**
-  - Un personaje (cuadrado negro con interior verde) en el centro, sobre un camino marrón.
-  - En la parte superior izquierda: dos bloques marrones con patrones de ojos negros.
-  - En la parte superior derecha: cuatro bloques marrones con patrones de ojos negros.
-  - En la parte inferior izquierda: un bloque rojo con un cuadrado amarillo encima.
-  - En la parte derecha: un bloque azul vertical con líneas blancas y un bloque rojo con un cuadrado amarillo encima.
-  - En el centro, sobre el camino: dos bloques verdes con patas marrones.
+- **Escena:** Vista isométrica de un mapa de juego con terreno verde, caminos marrones y árboles verdes dispersos.
+- **Personaje:** Un personaje (cuadrado negro con un cuadrado verde en el centro) está en el centro del mapa, sobre un camino marrón.
+- **Objetos:** Hay varios objetos (cuadrados negros con un cuadrado amarillo en el centro) y un objeto azul (parecido a una puerta o cofre) en la parte superior derecha.
 - **Texto en la parte inferior:**
-  - `RPG SLICE v1.0.4269 F 120HP 218TK7`
-  - `G0 PELT0 POT0 OBJ: BANK ZOWDREELDER`
+  - `RPG SLICE v1.0.4319 F 299HP3 ATK7`
+  - `G0 PELT0 POT0 OBJ:HUNT 3 WOLVES`
+- **Observaciones:** El personaje está en un punto de interacción. El texto indica que el objetivo es cazar 3 lobos.
 
 **Imagen 2:**
-- **Escena:** Mapa de juego en vista isométrica, con terreno verde y caminos marrones.
-- **Elementos visibles:**
-  - Un personaje (cuadrado negro con interior verde) en la parte derecha, sobre un camino marrón.
-  - En la parte superior: varios bloques verdes con patas marrones.
-  - En la parte inferior: varios bloques verdes con patas marrones.
-  - En la parte izquierda: un bloque rojo con un cuadrado amarillo encima.
-  - En la parte derecha: un bloque rojo con un cuadrado amarillo encima.
+- **Escena:** Vista isométrica de un mapa de juego con terreno verde, caminos marrones y árboles verdes dispersos.
+- **Personaje:** El personaje (cuadrado negro con un cuadrado verde en el centro) está en el centro del mapa, sobre un camino marrón.
+- **Objetos:** Hay varios objetos (cuadrados negros con un cuadrado amarillo en el centro) y un objeto azul (parecido a una puerta o cofre) en la parte superior derecha.
 - **Texto en la parte inferior:**
-  - `RPG SLICE v1.0.4269 F 323 HP6 ATK7`
-  - `G0 PELT2 POT3 OBJ: SUNL BENDLUGST KEY`
+  - `RPG SLICE v1.0.4319 F 512 HP3 ATK7`
+  - `G0 PELT0 POT0 OBJ:SELL PELLS GET KEY`
+- **Observaciones:** El personaje está en un punto de interacción. El texto indica que el objetivo es vender pelotas y obtener una llave.
 
 **Imagen 3:**
-- **Escena:** Mapa de juego en vista isométrica, con terreno verde y caminos marrones.
-- **Elementos visibles:**
-  - Un personaje (cuadrado negro con interior verde) en la parte derecha, sobre un camino marrón.
-  - En la parte superior izquierda: dos bloques marrones con patrones de ojos negros.
-  - En la parte superior derecha: cuatro bloques marrones con patrones de ojos negros.
-  - En la parte inferior izquierda: un bloque rojo con un cuadrado amarillo encima.
-  - En la parte derecha: un bloque azul vertical con líneas blancas y un bloque rojo con un cuadrado amarillo encima.
-  - En el centro, sobre el camino: dos bloques verdes con patas marrones.
+- **Escena:** Vista isométrica de un mapa de juego con terreno negro, caminos marrones y una cuadrícula blanca.
+- **Personaje:** El personaje (cuadrado negro con un cuadrado verde en el centro) está en el centro del mapa, sobre un camino marrón.
+- **Objetos:** Hay varios objetos (cuadrados negros con un cuadrado amarillo en el centro) y un objeto azul (parecido a una puerta o cofre) en la parte superior derecha.
 - **Texto en la parte inferior:**
-  - `RPG SLICE v1.0.4269 F 7693HP3 ATK7`
-  - `G10 PELT0 POT3 OBJ: SELLCPENTSHEGETOWER`
+  - `RPG SLICE v1.0.4319 F 1459 HP3 ATK7`
+  - `G10 PELT0 POT8 OBJ:RECTORY IN THE TOWER`
+- **Observaciones:** El personaje está en un punto de interacción. El texto indica que el objetivo es ir a la capilla en la torre.
 
 **Cambios entre imágenes:**
-- El personaje se mueve de la posición central (Imagen 1) a la derecha (Imagen 2) y luego vuelve a la derecha (Imagen 3).
-- El texto en la parte inferior cambia, mostrando diferentes valores de HP, ATK y objetos.
-- En la Imagen 2, el personaje está sobre un bloque rojo con un cuadrado amarillo encima, mientras que en las otras imágenes está sobre un camino marrón.
-- En la Imagen 3, el texto en la parte inferior muestra "G10" en lugar de "G0", y el objeto es "SELLCPENTSHEGETOWER" en lugar de "BANK ZOWDREELDER" o "SUNL BENDLUGST KEY".
+- El personaje se mueve de un punto a otro en el mapa.
+- El texto en la parte inferior cambia, indicando diferentes objetivos.
+- El mapa cambia de una vista isométrica a una vista de cuadrícula.

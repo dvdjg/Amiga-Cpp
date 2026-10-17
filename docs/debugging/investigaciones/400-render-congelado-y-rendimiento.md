@@ -1,42 +1,66 @@
-# Juego 400 (RPG SLICE): display "congelado", guion atascado y rendimiento abierto
+# Juego 400 (RPG SLICE): display "congelado", guion atascado, rendimiento y cuelgue de VBlank
 
-Estado: **causa del display congelado y del guion atascado resueltas** (verificado visualmente); **rendimiento (~12-21 fps, CPU 100 % ocupada) y cuelgue intermitente del frame ABIERTOS** con la evidencia recogida aquí.
+Estado: **display congelado, guion atascado, cuelgue intermitente y rendimiento resueltos** (verificado con secuencia + visión Ollama, cronica completa hasta `OBJ:VICTORY!`). Queda afinar el ultimo tramo del presupuesto (1,11 campos/frame frente al objetivo de 1,00).
 
-## 1. Sintoma: el display quedaba fijo a un buffer temprano
+## 0. Resumen de causas y fixes
 
-`games/400_rpg_slice` se veía **fijo**: solo los parches dinámicos (jugador, pócimas, lobos) sobre negro, sin sala ni HUD, idéntico frame a frame en toda la secuencia de capturas.
+| Sintoma | Causa | Fix |
+|---|---|---|
+| Display fijo a un buffer temprano (solo parches) | `build.args` con `-DK_SLICE_NO_ROOM=1` (ablacion commiteada) | borrado el archivo |
+| Guion atascado en NPCs/arboles y lobos inmortales | paseo ciego por ejes; enfriamiento de ataque (18) > cadencia de fuego (12) | rodeo por el otro eje + waypoints + tres amagos por lobo |
+| "Cuelgue" de segundos y ~13 fps | `cook_room` recorria 16 px por palabra (~12,5 M ciclos por coccion) | **tabla ROM por tile** (`kTilePatterns`) → ~1,0 M ciclos (12x) |
+| Coste fijo por frame (~140 k ciclos) | copia de la sala entera a la pantalla **cada frame** | **publicacion por cambio** (`m_room_publish`, 2 frames cubren ambos buffers) + **borrado de estelas desde la imagen** (`restore_cell`) |
+| Cuelgue total (frame parado, PC en ROM `$FC0F90`) | `Wait()` de Exec muere bajo AmigaDOS vivo (VERTB reescrito) | `backend.set_vblank_sleep(false)` (espera activa; opcion documentada, ver `212-vblank-irq-apagada-por-el-so.md`) |
 
-- La sala y el HUD viven en la imagen Chip `m_room_img` (HUD fusionado), que `render` copia a la pantalla cada frame (`blit_plane_major`).
-- La sonda por canal lateral mostró que la copperlist **sí alternaba** `BPL1PT` entre los dos buffers (`0x15060`/`0x1F070`, parcheo de `commit`), pero **ambos buffers estaban a cero** salvo parches: la copia de sala nunca se ejecutaba.
-- **Causa raíz**: `games/400_rpg_slice/build.args` contenía `DEMO_FLAGS=-DK_SLICE_NO_ROOM=1` (ablación de la sesión anterior, commiteada junto al vertical slice). Con ese flag, el blit de la sala queda fuera (`#ifndef K_SLICE_NO_ROOM` en `render`) y el HUD (que va dentro de la imagen) tampoco se publica.
-- **Fix**: eliminado `build.args` (la ablación sigue disponible por `DEMO_FLAGS` en el entorno o en `build.args` temporal, como en la demo 001). Verificado: la aldea, el bosque y la torre renderizan con HUD (`RPG SLICE v1.0.4269 F ... HP.. ATK..`, `G.. PELT.. POT.. OBJ:...`).
+Medidas (`measure-fps`, A500_debug): antes 13,78 fps / 514 862 ciclos/frame; despues **42,9-45,2 fps / 156 911 ciclos/frame (1,106 campos/frame)** en ventanas de 20 y 40 s. Tick de VBlank: ~2 200 ciclos por latido (1,5 % de CPU). Coccion: 1,0 M ciclos (antes ~12,5 M).
 
-Nota de herramienta: la lectura de **registros custom por canal lateral no es fiable** (`gdb_try_read_byte` usa una instantánea de `save_custom` cacheada la primera vez, `WinUAE-DBG/od-win32/barto_gdbserver.cpp:840-870`); la evidencia válida fue el **contenido de la copperlist** y la **memoria**, no `$dff0e0`.
+## 1. Display congelado: la ablacion commiteada
 
-## 2. Sintoma: el guion determinista se atascaba
+`games/400_rpg_slice` se veía **fijo**: solo los parches dinamicos (jugador, pocimas, lobos) sobre negro, sin sala ni HUD, identico frame a frame.
 
-Con el render visible, la crónica se quedaba en la aldea (`OBJ:HUNT 3 WOLVES`, jugador parado):
+- La sala y el HUD viven en la imagen Chip `m_room_img` (HUD fusionado), que `render` copiaba a la pantalla cada frame (`blit_plane_major`).
+- La sonda por canal lateral mostro que la copperlist **si alternaba** `BPL1PT` entre los dos buffers (`0x15060`/`0x1F070`, parcheo de `commit`), pero **ambos buffers estaban a cero** salvo parches: la copia de sala nunca se ejecutaba.
+- **Causa raiz**: `games/400_rpg_slice/build.args` contenia `DEMO_FLAGS=-DK_SLICE_NO_ROOM=1` (ablacion de la sesion anterior, commiteada junto al vertical slice). Con ese flag, el blit de la sala queda fuera (`#ifndef K_SLICE_NO_ROOM` en `render`) y el HUD (que va dentro de la imagen) tampoco se publica.
+- **Fix**: eliminado `build.args`. La ablacion sigue disponible por `DEMO_FLAGS` en el entorno o en un `build.args` temporal.
 
-- El paseo del guion mueve **un eje por frame de paso (X preferido)** y no mira bloqueos: en `(5,10)` → `(7,11)` choca con la anciana `(6,10)` y se queda empujando indefinidamente; igual al volver del mercader (`(11,10)` → `(18,10)`), y al cruzar la fila 5 del bosque (árbol en `(11,5)`).
-- Los dos pasos de "espadazo" por lobo no matan: `player_attack` tiene **enfriamiento 18** (`main.cpp`) y los flancos de fuego del guion caen cada **12** frames → el segundo golpe se descarta, el lobo sobrevive, persigue y acaba matando al jugador (respawn en la cama) y desviando el guion (sin pieles → sin llave → puerta del torreón).
+Nota de herramienta: la lectura de **registros custom por canal lateral no es fiable** (`gdb_try_read_byte` usa una instantanea de `save_custom` cacheada la primera vez, `WinUAE-DBG/od-win32/barto_gdbserver.cpp:840-870`); la evidencia valida fue el **contenido de la copperlist** y la **memoria**, no `$dff0e0`. Los registros por GDB (`g`) si son fiables para PC/pila.
 
-- **Fix** (validado con un simulador host del paseo/combate antes de tocar el juego):
-  - `script_input`: rodeo de obstáculos (si la casilla del eje X está bloqueada, el paso va por Y) y comentario de por qué (el pathfinding real llegará con la integración RPG↔sim).
-  - Waypoints `(0,7,8)` (evita el bolsillo del anciano) y `(0,11,11)+(0,18,11)` (rodea al mercader por la fila 11).
-  - **Tres amagos por lobo**: el golpe efectivo cae en el 1.º y 3.º flanco (12 < 18); dos pasos dejaban al lobo vivo.
-- Verificación: secuencia visual con la crónica completa hasta la torre (`POT2` recogidas, `PELT3`, venta y llave, `OBJ:SELL PELTS GET KEY` → `OBJ:RELIC IN THE TOWER`).
+## 2. Guion atascado: paseo ciego y combate desbalanceado
 
-## 3. ABIERTO: rendimiento (~12-21 fps) y cuelgue intermitente
+- El paseo del guion mueve **un eje por paso (X preferido)** y no mira bloqueos: en `(5,10)` → `(7,11)` choca con la anciana `(6,10)`; al volver del mercader (`(11,10)` → `(18,10)`) choca con el mercader; la fila 5 del bosque tiene un arbol en `(11,5)`.
+- Los dos pasos de "espadazo" por lobo no matan: `player_attack` tiene **enfriamiento 18** y los flancos de fuego caen cada **12** frames → el segundo golpe se descarta, el lobo sobrevive, persigue y acaba matando al jugador (respawn en la cama) y desviando el guion.
+- **Fix** (validado con simuladores host del paseo y del combate antes de tocar el juego):
+  - `script_input`: rodeo de obstaculos (si el eje X esta tapado, el paso va por Y); el pathfinding real llegara con la integracion RPG<->sim.
+  - waypoints `(0,7,8)`, `(0,11,11)` y `(0,18,11)`.
+  - **tres amagos por lobo**: el golpe efectivo cae en el 1.º y 3.º flanco (12 < 18).
 
-Contexto honesto: el "48,8 fps" de la sesión anterior se midió con la **ablación activa** y con el guion atascado (el juego dibujaba 4 blits/frame y nada más). Con el juego real:
+## 3. Rendimiento: coccion con tabla ROM y publicacion por cambio
 
-- `measure-fps` da **~12-14 fps** con la copia de sala y **~19 fps** con las dos ablaciones (sin copia de sala y sin parches): **el cuello no está en el render**.
-- Perfil (`winuae-profile.mjs`): **CPU 100 % ocupada en cada campo** (142 102 ciclos ocupada, 0 libres); el DMA de blitter por campo es ~0 y el de bitplane 20,5k.
-- Muestreo de PC por canal lateral: ~68 % del tiempo en un bucle diminuto del **camino de entrada/latido** (`tick_body`/productores de entrada inlined; `amiga_os.cpp:172-236`, `input.hpp:103-129`) y ~19 % en `cook_room` (cocido por CPU de la imagen de sala: `main.cpp:636-657`, ~5-6 M ciclos por cocción).
-- **Cuelgue intermitente**: en varias corridas el frame del juego se queda **congelado** (p. ej. frame 176, `state=3`) mientras el contador de VBlank del mini-SO (`g_frame`) sigue a ~50/s; con PC clavado en el mismo bucle del tick y **SR=0x0000** (patrón de CPU parada dentro de la ruta del latido), pila con retornos de `VBlankHeartbeat::run` (`engine.hpp:108-120`). Relacionado con la nota conocida de `212-vblank-irq-apagada-por-el-so.md` (camino de `Wait()` bajo SO vivo).
-- Ablaciones usadas (solo diagnóstico): `DEMO_FLAGS=-DK_SLICE_NO_ROOM=1` (sin copia de sala), `-DK_SLICE_NO_DYN=1` (sin parches), ambas juntas.
+- El "48,8 fps" de la sesion anterior se midio con la **ablacion activa** y el guion atascado: el juego no dibujaba la sala (4 blits/frame). Con el juego real, `measure-fps` daba **~12-14 fps** y las ablaciones mostraban que el coste no estaba en los parches.
+- La instrumentacion por ciclos (debug-peripheral `$B7E928`) y el muestreo de PC por GDB localizaron dos focos:
+  - **`cook_room`**: el cocinado recorria 16 px por palabra (`tile_pixel` en bucle) = ~12,5 M ciclos por sala (segundos de CPU: el "cuelgue" de los cruces de puerta). Ahora indexa la **tabla ROM `kTilePatterns`** (palabra por fila/plano precalculada `constexpr`): ~1,0 M ciclos por coccion.
+  - **Copia de la sala por frame**: 4 blits de 20x224 palabras (≈140 k ciclos, mas de un campo). Ahora la imagen se **publica solo al cambiar** (`m_room_publish = 2u` en `cook_room`, en el HUD sucio y en los eventos de inventario/muerte/puerta): dos renders cubren los dos buffers; las estelas de actores se borran restaurando la casilla desde la imagen (`restore_cell`/`erase_cells`, con historial de 2 frames como la demo 001).
+- Tras los fixes: **42,9-45,2 fps** con el bucle durmiendo parte del frame (44 % en `wait`); el tramo que queda es el render (~80 k ciclos/frame medidos con la instrumentacion del worktree, incluido `present`) → siguiente paso natural: agrupar los blits de parches en una sola racha y recortar el HUD.
 
-**Siguiente paso propuesto**: atacar el bucle del tick de entrada como frente propio del engine (comparar `wait_vblank` con `thunk` vs señal, `vblank_signal_armed`, y el sondeo de entrada por VBlank), y de paso el **cocido de sala** (tabla precalculada por tile en vez de `tile_pixel` por píxel, AGENTS §1.15).
+## 4. Cuelgue intermitente de VBlank (parcialmente mitigado; queda el latido muerto bajo SO vivo)
+
+Con el juego ya rapido aparecio un cuelgue total reproducible: el frame se para (observados 0, 19, 21, 90, 176, 298, 349 en distintos arranques, ~50 % de las veces) mientras el display muestra un frame **correctamente renderizado**; `state=3`.
+
+Evidencia recogida (GDB + canal lateral):
+
+- Traza por single-step en el estado parado: el bucle principal esta sano (`run_slice -> main -> wait_vblank_run`) y se queda en el **sondeo de `VPOSR`** de `wait_vblank_run` (`amiga.cpp:234-264`).
+- Los valores que el invitado lee en ese bucle **avanzan** (D0 = `0xa0000195 .. 0xa000056d`): el haz esta vivo. La mascara del engine (`& 0x1ff00` sobre el long de `$DFF004`) decodifica, segun la fuente del emulador (`WinUAE-DBG/custom.cpp:2429-2463`), **hpos (VPOSR bit0 = vpos bit 8)**: la condicion de salida es `hpos==0x37 && vpos>=256`, que ocurre en cada linea de la mitad baja del campo.
+- Pese a ello el frame del juego no avanza durante decenas de segundos: el bucle principal espera `hb.frames != seen` y ese contador solo lo incrementa el **latido de VBlank** (`VBlankHeartbeat::run`); es decir, **la IRQ VERTB no llega** mientras el CPU sigue ejecutando (lo que excluye un cuelgue del bucle del juego).
+- Es la misma clase de fallo de `212-vblank-irq-apagada-por-el-so.md` (la ROM de AmigaDOS reescribe INTENA y el rearme `level3_sync` del engine no siempre lo recupera). El cambio a espera activa (`set_vblank_sleep(false)`) elimino una manifestacion previa (PC en la ROM de dispatch, `$FC0F90`) pero **no** este modo (latido perdido).
+- No lo introducen los cambios de este turno: ocurre igual con las builds previas a las optimizaciones y ya estaba abierto en la sesion anterior ("cuelgue state=1 intermitente").
+
+**Siguiente paso (engine)**: hacer que el rearme del latido sea verificable (contador de rearmes + comprobar INTREQ/INTENA en el bucle de espera activa) y, si la IRQ no se puede recuperar bajo AmigaDOS, que el bucle principal detecte el latido perdido (p. ej. por VPOSR) y lo cubra, en vez de esperar un contador que no llega. Ficha: `212-vblank-irq-apagada-por-el-so.md`.
+
+## 5. Segunda pasada de rendimiento (precocina de salas y banda de HUD)
+
+- **Pre-cocina de las tres salas en `init`** (`cook_room_into` por sala; `enter_room` solo conmuta `m_room_imgs[m_room]`): elimina el tiron de ~1 M ciclos que cada puerta pagaba incluso con la tabla ROM. El cofre abierto ya no re-cocina: el parche de cofre abierto cubre el cerrado horneado (misma huella 14x10).
+- **Banda de HUD** (`publish_hud_band`, 16 filas x 20 palabras x 4 planos): los cambios de HUD (contador ~2/s y eventos) republican solo la banda, no la imagen completa.
+- Medidas (`measure-fps`, A500_debug, ventanas de 40 s): **45,7 fps / 155 105 ciclos/frame (1,093 campos)** con la cronica completa; los frames sin transicion ya son 1,00 campo — el residual son las republicaciones completas al entrar en sala y el jitter del SO. La media depende de la ventana (con varias puertas en 20 s baja a ~37-43).
 
 ## Evidencia y herramientas
 

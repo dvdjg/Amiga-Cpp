@@ -460,6 +460,31 @@ constexpr eng::u8 map_tile(const eng::u8* map, eng::u8 x, eng::u8 y) noexcept {
 	return map[static_cast<eng::usize>(y) * kMapW + x];
 }
 
+/// Patron de un tile precalculado en ROM: la palabra de cada (fila, plano). El cocinado
+/// indexa la tabla en vez de recorrer 16 px por palabra — el bucle por pixel costaba
+/// ~12 M ciclos por sala (segundos de CPU en el cruce de puerta; AGENTS §1.15).
+constexpr eng::u8 kTilePatternCount = 9u; // ids 0..8 (kTileHouse = 8)
+struct TilePattern {
+	eng::util::Array<eng::u16, 4> plane[16]; ///< [fila][plano] = palabras del tile
+};
+constexpr eng::util::Array<TilePattern, kTilePatternCount> kTilePatterns = [] {
+	eng::util::Array<TilePattern, kTilePatternCount> table {};
+	for (eng::u8 t = 0u; t < kTilePatternCount; ++t) {
+		for (eng::u8 y = 0u; y < 16u; ++y) {
+			for (eng::u8 p = 0u; p < 4u; ++p) {
+				eng::u16 bits = 0u;
+				for (eng::u8 x = 0u; x < 16u; ++x) {
+					if ((tile_pixel(t, y, x) & static_cast<eng::u8>(1u << p)) != 0u) {
+						bits = static_cast<eng::u16>(bits | static_cast<eng::u16>(0x8000u >> x));
+					}
+				}
+				table[t].plane[y][p] = bits;
+			}
+		}
+	}
+	return table;
+}();
+
 // --- El juego -------------------------------------------------------------------
 
 /// Pixeles del area de mapa (14 filas de tile) y palabras por fila de la imagen.
@@ -508,6 +533,7 @@ struct RpgSlice {
 		eng::u8 alert = 0u;
 		eng::u8 cd = 0u;
 		bool dead = false;
+		eng::u8 p1x = 0, p1y = 0, p2x = 0, p2y = 0; ///< historial (2 frames) para borrar estela
 	};
 	eng::util::Array<Wolf, 3> m_wolves {};
 
@@ -515,16 +541,37 @@ struct RpgSlice {
 	eng::u8 m_sword_owned = 0u;
 	eng::u8 m_chest_open = 0u;
 
-	// Chip: imagen de sala (plane-major, pantalla completa con el HUD) y parches.
-	eng::Block<eng::BobTag, eng::MemoryKind::Chip> m_room_img {};
+	// Chip: una imagen pre-cocinada por sala (plane-major, con el HUD dentro) y los parches.
+	// `m_room_active` indexa la sala vigente; `active_image()` da su bloque (Block no es
+	// asignable: la imagen activa se conmuta por indice, sin copias).
+	eng::util::Array<eng::Block<eng::BobTag, eng::MemoryKind::Chip>, 3> m_room_imgs {};
+	eng::u8 m_room_active = 0u;
 	eng::util::Array<eng::Block<eng::BobTag, eng::MemoryKind::Chip>, 14> m_patches {};
 
 	/// Renders que ya pintaron la banda inferior negra (los dos primeros, uno por buffer).
 	eng::u8 m_static_paints = 0u;
 
-	/// Cocciones de sala acumuladas: se publica en el `detail` del run-status (un ping-pong
-	/// de puertas lo dispara; un valor estable = cocidos puntuales por transicion).
-	eng::u16 m_cook_count = 0u;
+	/// Renders que faltan para publicar la imagen de sala en el buffer trasero (2 cubre los
+	/// dos buffers). Se repone al entrar en sala y en cada cambio de la imagen (eventos).
+	eng::u8 m_room_publish = 0u;
+
+	/// Renders que faltan para republicar solo la **banda del HUD** (2 cubre los dos
+	/// buffers): el HUD cambia a menudo y arrastrarlo con la imagen entera costaba un
+	/// publicacion completa por cambio.
+	eng::u8 m_hud_band = 0u;
+
+	/// Historial del jugador (posicion hace 1 y 2 renders) para borrar la estela del buffer
+	/// de turno restaurando desde la imagen cocinada.
+	eng::u8 m_prev1x = 3u, m_prev1y = 11u, m_prev2x = 3u, m_prev2y = 11u;
+
+	/// Entradas de sala acumuladas: se publica en el `detail` del run-status (un ping-pong
+	/// de puertas lo dispara; un valor estable = transiciones puntuales).
+	eng::u16 m_entry_count = 0u;
+
+	/// Bloque de la imagen de sala vigente (`Block` no es asignable: se indexa).
+	[[nodiscard]] eng::Block<eng::BobTag, eng::MemoryKind::Chip>& active_image() noexcept {
+		return m_room_imgs[m_room_active < 3u ? m_room_active : 0u];
+	}
 
 	// Ablación de comprobación (misma familia que la demo 001).
 	bool m_hud_dirty = true;
@@ -553,6 +600,10 @@ struct RpgSlice {
 		for (eng::u8 i = 0u; i < 3u; ++i) {
 			m_wolves[i].x = kWolfHome[i][0];
 			m_wolves[i].y = kWolfHome[i][1];
+			m_wolves[i].p1x = m_wolves[i].x;
+			m_wolves[i].p1y = m_wolves[i].y;
+			m_wolves[i].p2x = m_wolves[i].x;
+			m_wolves[i].p2y = m_wolves[i].y;
 		}
 		// Quest inicial: la caza (se completa la apertura al hablar con la anciana).
 		quest_open(m_quest_book, m_quests, 0u);
@@ -586,9 +637,13 @@ struct RpgSlice {
 		return block;
 	}
 
-	/// Reserva imagen/tira y sube los parches (setup; coste libre).
+	/// Reserva las imagenes de sala y sube los parches (setup; coste libre).
 	void upload_assets(auto& memory) {
-		m_room_img = memory.chip().template reserve<eng::BobTag>(kImageBytes);
+		// Una imagen por sala (3): se pre-cocinan en el setup y el cambio de sala solo
+		// conmuta el bloque activo — cero coste y cero tiron en las puertas.
+		for (eng::u8 r = 0u; r < 3u; ++r) {
+			m_room_imgs[r] = memory.chip().template reserve<eng::BobTag>(kImageBytes);
+		}
 		m_patches[0] = upload(memory, kPatchPlayer);
 		m_patches[1] = upload(memory, kPatchPlayerSword);
 		m_patches[2] = upload(memory, kPatchWolf);
@@ -605,15 +660,17 @@ struct RpgSlice {
 		m_patches[13] = upload(memory, kPatchBlack16);
 	}
 
-	/// Cocina la imagen de la sala actual en Chip (al entrar; coste de entrada, no por
-	/// frame): tiles del mapa + decorado estático (anciana, mercader, cama, cofre cerrado).
-	void cook_room() {
-		++m_cook_count;
-		if (!m_room_img.alive()) {
+	/// Cocina la imagen de la sala `room` en `img_block`: tiles del mapa + decorado estatico
+	/// (anciana, mercader, cama; cofre cerrado en el torreon). Se llama en el setup para las
+	/// tres salas (una vez cada una), de modo que entrar en una sala NO cocina: solo
+	/// conmuta la imagen activa (`enter_room`).
+	void cook_room_into(eng::Block<eng::BobTag, eng::MemoryKind::Chip>& img_block,
+			    eng::u8 room) {
+		if (!img_block.alive()) {
 			return;
 		}
-		auto img = m_room_img.view.as_words();
-		const eng::u8* map = room_map(m_room);
+		auto img = img_block.view.as_words();
+		const eng::u8* map = room_map(room);
 		for (eng::u16 ty = 0u; ty < kMapH; ++ty) {
 			for (eng::u16 tx = 0u; tx < kMapW; ++tx) {
 				const eng::u8 tile = map_tile(map, static_cast<eng::u8>(tx),
@@ -621,39 +678,40 @@ struct RpgSlice {
 				stamp_tile(img, tile, tx, ty);
 			}
 		}
-		// Decorado estático por sala (parches cocinados por CPU en la imagen).
-		if (m_room == 0u) {
+		// Decorado estatico por sala (parches cocinados por CPU en la imagen).
+		if (room == 0u) {
 			stamp_patch(img, m_patches[3], kElderX, kElderY);     // anciana
 			stamp_patch(img, m_patches[4], kMerchantX, kMerchantY); // mercader
 			stamp_patch(img, m_patches[5], kBedX, kBedY);         // cama
-		} else if (m_room == 2u && m_chest_open == 0u) {
-			stamp_patch(img, m_patches[10], kChestX, kChestY);    // cofre cerrado
+		} else if (room == 2u) {
+			// Cofre cerrado horneado; al abrirlo, el parche de cofre abierto lo cubre.
+			stamp_patch(img, m_patches[10], kChestX, kChestY);
 		}
+	}
+
+	/// Entra en la sala `m_room`: conmuta la imagen pre-cocinada y programa su publicacion
+	/// en los dos buffers. Si una reserva fallo (sin Chip), cocina esa sala al vuelo.
+	void enter_room() {
+		m_room_active = m_room;
+		if (!active_image().alive()) {
+			cook_room_into(active_image(), m_room);
+		}
+		m_room_publish = 2u;
+		++m_entry_count;
 	}
 
 	/// Escribe el patron del tile `tile` en la imagen (casilla `tx,ty`), en formato
-	/// plane-major (`[plano][fila][palabra]`).
+	/// plane-major (`[plano][fila][palabra]`), indexando la tabla ROM.
 	void stamp_tile(eng::Words<eng::BobTag> img, eng::u8 tile, eng::u16 tx, eng::u16 ty) {
+		const TilePattern& pat = kTilePatterns[tile < kTilePatternCount ? tile : 0u];
+		eng::u32 dest = static_cast<eng::u32>(ty * kTile) * kImageWordsPerRow + tx;
 		for (eng::u8 y = 0u; y < kTile; ++y) {
 			for (eng::u8 plane = 0u; plane < 4u; ++plane) {
-				const eng::u32 dest = plane * kImagePlaneWords +
-						      static_cast<eng::u32>(ty * kTile + y) *
-							  kImageWordsPerRow + tx;
-				img[dest] = tile_row_word(tile, y, plane);
+				img[dest + static_cast<eng::u32>(plane) * kImagePlaneWords] =
+				    pat.plane[y][plane];
 			}
+			dest += kImageWordsPerRow;
 		}
-	}
-
-	/// Palabra del patron del tile (fila `y`, plano `plane`): misma generacion que los
-	/// parches, pero para 16 px de ancho (1 palabra por plano y fila).
-	[[nodiscard]] static eng::u16 tile_row_word(eng::u8 tile, eng::u8 y, eng::u8 plane) {
-		eng::u16 bits = 0u;
-		for (eng::u8 x = 0u; x < kTile; ++x) {
-			if ((tile_pixel(tile, y, x) & static_cast<eng::u8>(1u << plane)) != 0u) {
-				bits = static_cast<eng::u16>(bits | static_cast<eng::u16>(0x8000u >> x));
-			}
-		}
-		return bits;
 	}
 
 	/// Cocinado de un parche 16x16 (interleaved en ROM) a la imagen (plane-major).
@@ -686,7 +744,11 @@ struct RpgSlice {
 		g_eng_run_status.detail = 0x40110u; // mundo construido
 		upload_assets(app.memory_manager());
 		g_eng_run_status.detail = 0x40111u; // assets subidos a Chip
-		cook_room();
+		// Pre-cocina las tres salas (coste unico en init): entrar en sala no vuelve a cocinar.
+		for (eng::u8 r = 0u; r < 3u; ++r) {
+			cook_room_into(m_room_imgs[r], r);
+		}
+		enter_room(); // activa la imagen de la sala inicial y pide su publicacion
 		g_eng_run_status.detail = 0x40112u; // salas cocinadas
 		refresh_stats();
 		g_eng_run_status.detail = 0x40113u; // init completa
@@ -770,7 +832,12 @@ struct RpgSlice {
 			m_room = d->target;
 			m_tx = d->tx;
 			m_ty = d->ty;
-			cook_room();
+			// El historial de estela no cruza salas: la imagen se conmuta y se publica.
+			m_prev1x = m_tx;
+			m_prev1y = m_ty;
+			m_prev2x = m_tx;
+			m_prev2y = m_ty;
+			enter_room();
 			m_hud_dirty = true;
 			return;
 		}
@@ -849,7 +916,7 @@ struct RpgSlice {
 		spawn_ground(kItemPotion, static_cast<eng::u8>(kChestX - 1u), kChestY, 1u);
 		(void)m_facts.set_flag(kRelicFound);
 		(void)m_facts.add(kGold, 50u);
-		cook_room(); // el cofre pintado en la imagen queda abierto
+		m_room_publish = 2u; // el parche de cofre abierto cubre el cerrado horneado
 		m_hud_dirty = true;
 	}
 
@@ -889,6 +956,7 @@ struct RpgSlice {
 				w.dead = true;
 				spawn_ground(kItemPelt, w.x, w.y, 1u);
 				(void)m_facts.add(kWolfKills, 1u); // hecho compartido con las quests
+				m_room_publish = 2u; // el lobo sale de la imagen (y suelta la piel)
 			}
 			m_hud_dirty = true;
 			return; // un objetivo por golpe
@@ -920,6 +988,7 @@ struct RpgSlice {
 								    m_catalog)) {
 					(void)m_facts.set_flag(kDoorOpen);
 					m_hud_dirty = true;
+					m_room_publish = 2u; // el parche de puerta cerrada se retira
 				}
 				return;
 			}
@@ -952,6 +1021,7 @@ struct RpgSlice {
 			} else {
 				quest_invalidate(m_quests); // inventario cambiado: reevaluar quests
 				m_hud_dirty = true;
+				m_room_publish = 2u; // el objeto del suelo desaparece de la imagen
 			}
 		}
 	}
@@ -1012,7 +1082,11 @@ struct RpgSlice {
 					m_tx = kBedX;
 					m_ty = static_cast<eng::u8>(kBedY + 1u);
 					m_player_hp.hp = m_player_hp.hp_max;
-					cook_room();
+					m_prev1x = m_tx;
+					m_prev1y = m_ty;
+					m_prev2x = m_tx;
+					m_prev2y = m_ty;
+					enter_room();
 					m_hud_dirty = true;
 				}
 			}
@@ -1212,14 +1286,71 @@ struct RpgSlice {
 		}
 	}
 
-	/// HUD: tira Chip compuesta al cambiar el estado y publicada cada frame.
-	void draw_hud(auto&) {
-		if (!m_room_img.alive()) {
+	/// Restaura una casilla 16x16 **desde la imagen cocinada** a la pantalla (un blit por
+	/// plano): asi se borra la estela de un actor sin repintar la sala entera. El origen es
+	/// plane-major (filas contiguas de 40 B → `cmod = 38`); el destino, la rejilla de la
+	/// pantalla (`dmod = row_bytes - 2`).
+	void restore_cell(auto& s, eng::u8 tx, eng::u8 ty) {
+		if (!active_image().alive()) {
 			return;
 		}
-		const auto img = m_room_img.view.as_words();
+		const auto img = active_image().view.as_words();
+		const auto bt = s.target().bob_target();
+		const eng::s16 dmod = static_cast<eng::s16>(static_cast<eng::s32>(bt.row_bytes) - 2);
+		for (eng::u8 plane = 0u; plane < 4u; ++plane) {
+			const eng::graphics::BlitPtr src {eng::graphics::blit_ptr(
+			    img, static_cast<eng::s32>(plane) * kImagePlaneWords * 2 +
+				 static_cast<eng::s32>(ty) * kTile * kImageWordsPerRow * 2 +
+				 static_cast<eng::s32>(tx) * 2)};
+			const eng::graphics::BlitPtr dst {bt.plane_address(
+			    plane, static_cast<eng::s32>(ty) * kTile * bt.row_bytes +
+				       static_cast<eng::s32>(tx) * 2)};
+			(void)s.copy_now(src, dst, 1u, kTile, 38, dmod);
+		}
+	}
+
+	/// Restaura el rectangulo de casillas `[x0..x1]x[y0..y1]` (sin ordenar) desde la imagen.
+	void erase_cells(auto& s, eng::u8 x0, eng::u8 y0, eng::u8 x1, eng::u8 y1) {
+		const eng::u8 lx = x0 < x1 ? x0 : x1;
+		const eng::u8 ly = y0 < y1 ? y0 : y1;
+		const eng::u8 hx = x0 < x1 ? x1 : x0;
+		const eng::u8 hy = y0 < y1 ? y1 : y0;
+		for (eng::u8 ty = ly; ty <= hy; ++ty) {
+			for (eng::u8 tx = lx; tx <= hx; ++tx) {
+				restore_cell(s, tx, ty);
+			}
+		}
+	}
+
+	/// Republica la **banda del HUD** (filas 208..223) desde la imagen al buffer trasero: un
+	/// blit por plano de 20x16 palabras. Es lo que se copia al cambiar el HUD (no la imagen
+	/// entera: el HUD cambia a menudo y la sala no).
+	void publish_hud_band(auto& s) {
+		if (!active_image().alive()) {
+			return;
+		}
+		const auto img = active_image().view.as_words();
+		const auto bt = s.target().bob_target();
+		// Origen y destino tienen filas contiguas de 40 B: `cmod = dmod = 0`.
+		for (eng::u8 plane = 0u; plane < 4u; ++plane) {
+			const eng::graphics::BlitPtr src {eng::graphics::blit_ptr(
+			    img, static_cast<eng::s32>(plane) * kImagePlaneWords * 2 +
+				     static_cast<eng::s32>(kImageHudWord) * 2)};
+			const eng::graphics::BlitPtr dst {bt.plane_address(
+			    plane, static_cast<eng::s32>(208u) * bt.row_bytes)};
+			(void)s.copy_now(src, dst, kImageWordsPerRow, 16u, 0, 0);
+		}
+	}
+
+	/// HUD: tira Chip compuesta al cambiar el estado y publicada cada frame.
+	void draw_hud(auto&) {
+		if (!active_image().alive()) {
+			return;
+		}
+		const auto img = active_image().view.as_words();
 		if (m_hud_dirty) {
 			m_hud_dirty = false;
+			m_hud_band = 2u; // la banda del HUD vive en la imagen: republicar solo la banda
 			// La banda del HUD (filas 208..223, dos lineas de 8 px) vive en la propia
 			// imagen de sala: cero por plano y componer; lo publica la copia de la sala
 			// (cero jobs de Blitter extra por frame).
@@ -1302,12 +1433,21 @@ struct RpgSlice {
 		return r;
 	}
 
-	/// `render` de la fachada: imagen de sala + actores + HUD.
+	/// `render` de la fachada: imagen de sala (solo al cambiar) + actores + HUD.
 	void render(auto& app) {
 		auto s = app.screen();
-#ifndef K_SLICE_NO_ROOM
-		blit_plane_major(s, m_room_img, 20u, static_cast<eng::u16>(kImageRows), 0u);
-#endif
+		// **Publicacion de la imagen por cambio, no por frame**: la sala cocinada solo se
+		// copia al buffer trasero cuando cambia (entrada de sala, HUD o eventos), en los
+		// DOS buffers (2 renders). Copiarla cada frame costaba ~1 campo de CPU/Blitter.
+		if (m_room_publish != 0u) {
+			blit_plane_major(s, active_image(), kImageWordsPerRow,
+					 static_cast<eng::u16>(kImageRows), 0u);
+			--m_room_publish;
+			m_hud_band = 0u; // la publicacion completa ya incluye la banda del HUD
+		} else if (m_hud_band != 0u) {
+			publish_hud_band(s);
+			--m_hud_band;
+		}
 		// Banda inferior (224..255) negra: dos filas de parches negros en los dos primeros
 		// renders (uno por buffer); despues nadie la toca.
 		if (m_static_paints < 2u) {
@@ -1318,6 +1458,31 @@ struct RpgSlice {
 			++m_static_paints;
 		}
 #ifndef K_SLICE_NO_DYN
+		// **Borrado de estelas** antes de pintar: restaura desde la imagen las casillas
+		// donde estaba cada actor dos frames atras (la huella que queda en este buffer).
+		if (m_tx != m_prev2x || m_ty != m_prev2y) {
+			erase_cells(s, m_tx, m_ty, m_prev2x, m_prev2y);
+		}
+		if (m_room == 1u) {
+			for (eng::u8 i = 0u; i < 3u; ++i) {
+				Wolf& w = m_wolves[i];
+				if (w.dead) {
+					continue;
+				}
+				if (w.x != w.p2x || w.y != w.p2y) {
+					erase_cells(s, w.x, w.y, w.p2x, w.p2y);
+				}
+				w.p2x = w.p1x;
+				w.p2y = w.p1y;
+				w.p1x = w.x;
+				w.p1y = w.y;
+			}
+		}
+		// Avance del historial del jugador (dos frames: bbox cur/prev2 cubre este buffer).
+		m_prev2x = m_prev1x;
+		m_prev2y = m_prev1y;
+		m_prev1x = m_tx;
+		m_prev1y = m_ty;
 		// Puerta del torreon cerrada (parche solo mientras no se desbloquea).
 		if (m_room == 1u && !m_facts.has(kDoorOpen)) {
 			stamp_cell(s, m_patches[11], 19u, 7u);
@@ -1360,9 +1525,10 @@ struct RpgSlice {
 #endif
 		draw_hud(s);
 		app.present();
-		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_cook_count));
+		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_entry_count));
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
-	}
+	} 	
+
 };
 
 } // namespace
@@ -1376,6 +1542,12 @@ int main() {
 		eng::debug::mark_failed(g_eng_run_status, 0x00040101u);
 		return 0;
 	}
+	// **Espera activa de VBlank** (`set_vblank_sleep(false)`): el juego corre como proceso
+	// AmigaDOS con el SO vivo y NO hace takeover del sistema; en ese escenario AmigaDOS
+	// reescribe INTENA y el camino de `Wait()` de Exec puede morir (cuelgue observado con
+	// PC en la ROM de dispatch). Es la opción documentada para demos sin takeover:
+	// `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
+	backend.set_vblank_sleep(false);
 
 	eng::GameDisplay display {};
 	display.width = kWidth;
