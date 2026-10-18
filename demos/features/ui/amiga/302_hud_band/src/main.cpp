@@ -411,6 +411,12 @@ private:
 		// par con la mascara dentro de la hoja).
 		if (auto a = app.world().actor(m_actor)) {
 			a->bob = bob;
+			// **Coherencia de setup** (PROCEDIMIENTO regla 22): un cookie-cut sin mascara
+			// reconstruible deja el plan sin dibujar EN SILENCIO; se falla con codigo.
+			if (!eng::setup::check_bob_plan(a->bob).ok()) {
+				eng::amiga::mark_failed(eng::debug::BootFail::Game);
+				return false;
+			}
 		}
 		return true;
 	}

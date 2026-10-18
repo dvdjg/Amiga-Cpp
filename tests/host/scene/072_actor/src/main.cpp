@@ -150,6 +150,7 @@ void use_targets(ActorEmitContext& ctx) {
 	ctx.targets = g_targets;
 }
 
+
 int fails = 0;
 
 #define CHECK(cond, label)                                                                        \
@@ -408,6 +409,72 @@ void test_surface_selection_and_sprite_intent() {
 	CHECK(si.hpos == 88u, "X del sprite");
 	CHECK(si.width_words == 1u && !si.attach, "16 px sin attach");
 	CHECK(si.priority == 2u, "prioridad del sprite frente a los playfields");
+}
+
+/// **Barrido de `y` del save-under con hoja par** (regresión de DT-035): el emit y la
+/// validación del plan deben pasar en TODAS las posiciones; el "actor que desaparece" de la
+/// 302 era captura con vídeo congelado, no el motor (la memoria estaba correcta).
+void test_emit_save_under_sweep() {
+	static eng::u16 sheet[512u / 2u] {};
+	static eng::u16 save[256u / 2u] {};
+	ActorStore<2> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
+	Bob bob {};
+	bob.sheet = chip_view(sheet);
+	bob.width = 32u; // ventana = arte + guarda (hoja par)
+	bob.height = 16u;
+	bob.planes = 4u;
+	bob.layout = BobLayout::Interleaved;
+	bob.sheet_row_bytes = 8u; // [imagen][guarda][mascara][guarda]
+	bob.draw = BobDraw::CookieCut;
+	bob.mask_pack = BobMaskPack::InterleavedPair;
+	bob.frame_count = 1u;
+	ActorDesc d = make_desc();
+	// La hoja par usa la VENTANA (arte 16 + guarda 16 = 32 px): el visual/frame debe medir
+	// 32x16 (como `Sprite::visual()` del camino de assets) y sin animacion de 16x8.
+	d.animation = nullptr;
+	d.visual.w = 32u;
+	d.visual.h = 16u;
+	d.transparency = TransparencyMode::Mask1Bit;
+	d.background = BackgroundPolicy::SaveUnder;
+	d.save[0] = chip_view(save);
+	d.save_words_per_row = 2u;
+	d.save_height = 16u;
+	const ActorId id = store.add(d, alloc);
+	auto a = store.get(id);
+	a->bob = bob; // patrón de las demos 121/302 (el camino visual no expresa la hoja par)
+	const BobTarget target = make_bob_target(chip_view<eng::PlaneTag>(g_screen), kRowBytes,
+						 256u, 4u, BobLayout::Interleaved);
+	const BobTarget targets[1] = {target};
+	int fallos = 0;
+	// El desc del 072 ancla {5,5} con offset {3,-2}: el rect queda en (x-2, y-7). Se barre
+	// y desde 10 (rect dentro del clip) y el primer frame no tiene `prev` (2 jobs: save+draw).
+	bool primero = true;
+	for (eng::s16 y = 10; y <= 192; y += 2) {
+		FramePlan plan {};
+		plan.clear();
+		plan.set_blit_budget_limits({0xffffffffu, 0xffffffffu, 0xffffu, 16u});
+		plan.set_target_bounds(target.bound());
+		ActorEmitContext ctx {};
+		ctx.targets = eng::Span<const BobTarget> {targets, 1u};
+		ctx.clip = DirtyRect {0, 0, 320, 256};
+		ctx.buffer = 0;
+		a->desc.x = static_cast<eng::s16>(64 + (y & 63));
+		a->desc.y = y;
+		const ActorEmitStatus st = eng::scene::actor_emit(plan, *a, ctx);
+		plan.finalize();
+		const eng::u8 esperados = primero ? 2u : 3u;
+		if (st != ActorEmitStatus::Ok || !plan.ok() || plan.blit_job_count() != esperados) {
+			std::printf("  y=%d st=%d ok=%d jobs=%u (esperados %u) x=%d\n", int(y), int(st),
+				    int(plan.ok()), unsigned(plan.blit_job_count()), unsigned(esperados),
+				    int(a->desc.x));
+			++fallos;
+		}
+		primero = false;
+	}
+	CHECK(fallos == 0, "barrido de y del save-under (hoja par): emit OK y plan ok en 97 posiciones");
 }
 
 void test_emit_save_under() {
@@ -1481,6 +1548,7 @@ int main() {
 	test_copper_priority_wiring();
 	test_add_anchored();
 	test_emit_save_under();
+	test_emit_save_under_sweep();
 	test_bob_save_under_helpers();
 	test_copper_anchoring();
 	test_bob_job_matrix();
