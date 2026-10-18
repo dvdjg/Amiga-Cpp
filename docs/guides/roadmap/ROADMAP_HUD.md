@@ -40,7 +40,7 @@ Plan de implementación del diseño canónico [`HUD_SYSTEM.md`](../../engine/arc
 - **Entregable**: `DragSession` global con captura, umbral, *ghost* (sprite si hay canal; BOB/overlay si no), política `accepts(item_id, qty)`, *drop* entre slots y cancelación; apilado de cantidades; realce del destino.
 - **Detalle**: [`HUD_SYSTEM.md`](../../engine/architecture/HUD_SYSTEM.md) §5.6 y §7.2. La captura se libera en `PointerUp`, `PointerCancel`, cierre de panel o cambio de escena; la política de destino se consulta al entrar en la celda y al soltar, no por píxel.
 - **Verificación**: **HOST-470** — *click* vs *drag* por umbral, destino válido/inválido, cancelación sin efecto, cantidad apilada y liberación de captura. **Demo `304_hud_drag`** con inventario arrastrable y validación de visión de la secuencia de arrastre.
-- **Estado**: **pendiente**.
+- **Estado**: **parcial (2026-10-18)** — `DragSession` entregado en el modelo (fases, umbral, posición, terminales `Dropped`/`Cancelled` + `drag_reset`; cubierto por HOST-467/470) y **demo `304_hud_drag` entregada**: inventario RPG arrastrable con fantasma del atlas (H6), drop que mueve el objeto real en la `ItemBag` y cancelación alternada en el guion; gate de memoria (`drag_ok`/`drag_bad`) + visión (`VALIDATION.md`, 49,9 fps). Pendiente: política `accepts(item_id, qty)` consultada al entrar/soltar y apilado de cantidades en la demo.
 
 ### H4 — Overlay, sprites, Copper y presupuesto
 
@@ -78,7 +78,7 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 | HOST-473 | test | Tema, atlas de iconos, *skins*, cambio en caliente y fachada. |
 | `302_hud_band` | demo | HUD de acción en franja propia: contador, medidor y vidas. **Entregada y verificada** (H1). |
 | `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. **Entregada** (H2; cadencia con nota DT-036 en su `VALIDATION.md`). |
-| `304_hud_drag` | demo | Inventario con arrastre, *ghost*, *drop* válido/inválido y cancelación. |
+| `304_hud_drag` | demo | Inventario con arrastre, *ghost*, *drop* válido/inválido y cancelación. **Entregada** (H3; `VALIDATION.md`). |
 | `305_hud_overlay` | demo | Overlay sobre juego en movimiento, sprites y presupuesto. |
 | `306_hud_crpg` | demo | Panel/verbos/inventario y puente con `eng::rpg`. **Entregada y verificada** (H5; `VALIDATION.md`). |
 
