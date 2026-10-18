@@ -3,7 +3,8 @@
 ## Contenido (regla 25) y H5/H6
 
 - **Dos regiones simultáneas** (cierre del H5): la banda (verbos + rejilla + tooltip) y un **overlay** en pantalla con dos botones (EQUIP/DROP) pintados sobre el campo; el juego despacha de delante hacia atrás con `hud_hit_test_region` (las entradas llevan `HudHitRect::region`; HOST-469 lo verifica). El overlay se comprueba además por conteo de píxeles en su caja (9.984 px pintados en la captura).
-- **Tema con presets y cambio en caliente** (H6): `hud_theme_classic()` ↔ `hud_theme_amber()` cada 300 frames con repintado completo de la banda; el modelo no cambia, solo los índices de color que pinta el presentador (HOST-472 verifica los presets).
+- **Tema con presets y cambio en caliente** (H6): `hud_theme_classic()` ↔ `hud_theme_amber()` cada 300 frames con repintado completo de la banda; el tema es **contrato de la región** (`set_region_theme`/`region_theme`, instantánea por valor en el modelo; HOST-472 verifica).
+- **Atlas de iconos integrado** (H6): `src/prebuild.sh` regenera `out/assets/hud/test_icons` con `tools/assets/hud-atlas.mjs` y la demo incbina el `.bin` (2 planos, interleaved por filas, color 0 = transparente) pintándolo por CPU en una **pasada de iconos** tras el `apply`; la visión lee las **formas** de las celdas (cuadrado, cruz, círculo, rombo — ya no son tiras de color).
 
 ## Medidas (A500_debug, ventana de 8 s)
 

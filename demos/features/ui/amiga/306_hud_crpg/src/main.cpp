@@ -27,12 +27,30 @@
 #include <eng/rpg/hud_bridge.hpp> // puente RPG -> HUD (H5)
 #include <eng/scene/display.hpp>
 
+// **Atlas de iconos del HUD** (H6): blob de 2 planos generado por `src/prebuild.sh`
+// (`tools/assets/hud-atlas.mjs`) e incbinado; el ejecutable vive en Chip, asi que las
+// palabras quedan direccionables por el camino de la banda (formato HUD_SYSTEM §8.2:
+// palabras interleaved por filas, bit 15 = pixel 0, color 0 = transparente).
+__asm__(".globl g_hud_atlas_words\ng_hud_atlas_words:\n"
+	".align 2\n"
+	".incbin \"out/assets/hud/test_icons/test_icons.atlas.bin\"\n");
+extern "C" const eng::u16 g_hud_atlas_words[];
+
 namespace {
 
 using eng::s16;
 using eng::u16;
 using eng::u32;
 using eng::u8;
+
+// Geometria del atlas (debe coincidir con el manifiesto `test_icons.atlas.json`).
+constexpr u16 kAtlasFrameW = 16u;
+constexpr u16 kAtlasFrameH = 16u;
+constexpr u8 kAtlasPlanes = 2u;
+constexpr u16 kAtlasCount = 4u;
+constexpr u16 kAtlasStrideWords = 16u; // palabras por frame y plano (16 filas x 1 palabra)
+// Palabras por frame: planos x stride (interleaved por filas: [fila0 p0][fila0 p1]...).
+constexpr u16 kAtlasFrameWords = static_cast<u16>(kAtlasPlanes * kAtlasStrideWords);
 
 constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
@@ -307,6 +325,7 @@ struct HudCrpgDemo {
 		draw_state_numbers();
 		show_tooltip_for_state();
 		(void)m_strip.apply(m_hud.ops());
+		paint_icon_pass();
 		m_hud.clear_ops();
 		m_hud.clear_dirty();
 
@@ -491,6 +510,7 @@ struct HudCrpgDemo {
 		}
 		if (m_hud.any_dirty()) {
 			(void)m_strip.apply(m_hud.ops());
+			paint_icon_pass();
 			m_hud.clear_ops();
 			m_hud.clear_dirty();
 		}
@@ -523,6 +543,7 @@ private:
 		draw_state_numbers();
 		paint_tooltip_line();
 		(void)m_strip.apply(m_hud.ops());
+		paint_icon_pass();
 		m_hud.clear_ops();
 		m_hud.clear_dirty();
 	}
@@ -658,8 +679,9 @@ private:
 		}
 	}
 
-	/// Pinta una celda del inventario: fondo, tira del objeto (color por tipo) y marcos de
-	/// hover (blanco) y foco (rojo); la seleccion invierte el fondo.
+	/// Pinta una celda del inventario: fondo (seleccion), barra de cantidad y marcos de hover
+	/// (blanco) y foco (rojo); el **icono** (atlas H6) va en una pasada posterior al `apply`
+	/// (color 0 = transparente).
 	void paint_cell(u16 slot, bool selected, bool focused, bool hovered) {
 		if (slot >= kSlotCount) {
 			return;
@@ -667,32 +689,78 @@ private:
 		const s16 cx = static_cast<s16>(kGridX + static_cast<s16>(slot % kGridCols) * kCell);
 		const s16 cy = static_cast<s16>(kGridY + static_cast<s16>(slot / kGridCols) * kCell);
 		push_fill(cx, cy, kCell, kCell, selected ? m_theme.fg : m_theme.bg);
-		const eng::hud::IconGrid& grid = m_hud.grid(m_grid);
-		const eng::hud::HudSlotView* sv = nullptr;
-		if (slot < grid.slots.size()) {
-			sv = &grid.slots[slot];
-		}
-		if (sv != nullptr && (sv->flags & eng::hud::kHudSlotEmpty) == 0u &&
-		    sv->item_id != 0u) {
-			const u8 tone = static_cast<u8>(1u + ((sv->item_id - 1u) % 3u));
-			push_fill(static_cast<s16>(cx + kTileMargin),
-				  static_cast<s16>(cy + kTileMargin), kTile, kTile,
-				  selected ? m_theme.warn : tone);
-			// Cantidad > 1: barra de 2 px por unidad en el borde inferior de la tira.
-			if (sv->qty > 1u) {
-				const u16 wq = static_cast<u16>(sv->qty * 2u > kTile ? kTile
-										     : sv->qty * 2u);
-				push_fill(static_cast<s16>(cx + kTileMargin),
-					  static_cast<s16>(cy + kCell - kTileMargin - 1),
-					  wq, 1u, m_theme.accent);
-			}
-		}
+		push_icon(slot);
 		if (hovered) {
 			push_frame(cx, cy, kCell, kCell, m_theme.fg);
 		}
 		if (focused) {
 			push_frame(cx, cy, kCell, kCell, m_theme.warn);
 		}
+	}
+
+	/// Marca una celda para la **pasada de iconos** (sin duplicados; tope = celdas).
+	void push_icon(u16 slot) {
+		for (u8 i = 0u; i < m_icon_n; ++i) {
+			if (m_icon_pass[i] == slot) {
+				return;
+			}
+		}
+		if (m_icon_n < kSlotCount) {
+			m_icon_pass[m_icon_n++] = slot;
+		}
+	}
+
+	/// **Pasada de iconos** (H6): lee el atlas (2 planos, interleaved por filas, bit 15 =
+	/// pixel 0, color 0 = transparente) y pinta la trama de cada celda marcada en el lienzo
+	/// de la banda; la barra de cantidad va encima. Debe correr DESPUES de `m_strip.apply`
+	/// (los ops de fondo ya estan puestos).
+	void paint_icon_pass() {
+		auto surf = m_strip.surface();
+		const eng::hud::IconGrid& grid = m_hud.grid(m_grid);
+		for (u8 i = 0u; i < m_icon_n; ++i) {
+			const u16 slot = m_icon_pass[i];
+			if (slot >= kSlotCount || slot >= grid.slots.size()) {
+				continue;
+			}
+			const eng::hud::HudSlotView& sv = grid.slots[slot];
+			if ((sv.flags & eng::hud::kHudSlotEmpty) != 0u || sv.item_id == 0u) {
+				continue;
+			}
+			const s16 cx = static_cast<s16>(kGridX +
+							static_cast<s16>(slot % kGridCols) * kCell);
+			const s16 cy = static_cast<s16>(kGridY +
+							static_cast<s16>(slot / kGridCols) * kCell);
+			const u16 frame = static_cast<u16>(sv.icon_frame % kAtlasCount);
+			for (u16 row = 0u; row < kAtlasFrameH; ++row) {
+				const eng::u16* const w = &g_hud_atlas_words[frame * kAtlasFrameWords +
+									     row * kAtlasPlanes];
+				const u16 p0 = w[0];
+				const u16 p1 = w[1];
+				for (u16 px = 0u; px < kAtlasFrameW; ++px) {
+					const u16 bit = static_cast<u16>(0x8000u >> px);
+					const u8 c = static_cast<u8>(
+						((p0 & bit) != 0u ? 1u : 0u) |
+						((p1 & bit) != 0u ? 2u : 0u));
+					if (c != 0u) {
+						(void)surf.set_pixel(
+							static_cast<s16>(cx + static_cast<s16>(px)),
+							static_cast<s16>(cy + static_cast<s16>(row)), c);
+					}
+				}
+			}
+			// Barra de cantidad (2 px por unidad) sobre el borde inferior de la trama.
+			if (sv.qty > 1u) {
+				const u16 wq = static_cast<u16>(sv.qty * 2u > kTile ? kTile
+										     : sv.qty * 2u);
+				for (u16 k = 0u; k < wq; ++k) {
+					(void)surf.set_pixel(
+						static_cast<s16>(cx + kTileMargin + static_cast<s16>(k)),
+						static_cast<s16>(cy + kCell - kTileMargin - 1),
+						m_theme.accent);
+				}
+			}
+		}
+		m_icon_n = 0u;
 	}
 
 	/// Pinta un verbo: fondo (activo = amarillo), marco de foco (rojo) y etiqueta centrada.
@@ -872,6 +940,8 @@ private:
 	eng::hud::HudTheme m_theme = eng::hud::hud_theme_classic(); ///< tema vigente (H6)
 	u8 m_prev_theme = 0u;  ///< 0 = clasico, 1 = ambar (para el cambio en caliente)
 	s16 m_ov_hover = -1;   ///< boton del overlay bajo el puntero (-1 = ninguno)
+	u16 m_icon_pass[kSlotCount] {}; ///< celdas marcadas para la pasada de iconos (H6)
+	u8 m_icon_n = 0u;
 	eng::hud::GridHandle m_grid {};
 	eng::hud::VerbBarHandle m_verbs {};
 	eng::hud::TooltipHandle m_tooltip {};

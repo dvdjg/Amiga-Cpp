@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-18T20:12:08.254Z
+- Fecha: 2026-10-18T20:34:58.213Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_003.png, frame_004.png, frame_006.png, frame_007.png (6)
+- Frames: frame_000.png, frame_001.png, frame_003.png, frame_004.png, frame_005.png (5)
 - Secuencia: `out/run/ui_amiga_306_hud_crpg/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,28 +15,27 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes son idénticas entre sí. No hay cambios en el contenido visual, la posición de los elementos ni en la calidad de la representación.
+Las tres imágenes son idénticas entre sí. No hay cambios en la disposición, el contenido o los elementos gráficos.
 
 **Descripción de los elementos observables:**
 
-*   **Fondo:** Es completamente negro.
-*   **Elementos gráficos en la parte superior:**
-    *   En la esquina superior derecha, hay un rectángulo de color azul pálido con dos líneas horizontales dentro, una arriba y otra abajo.
-    *   Más abajo, centrado horizontalmente, hay un rectángulo más pequeño de color azul oscuro.
-    *   A la izquierda, hay un rectángulo de color azul oscuro.
-    *   En el centro, hay un rectángulo vertical de color azul oscuro.
-*   **Elementos gráficos en la parte inferior (HUD):**
-    *   En la parte inferior izquierda, hay una fila de cinco cuadrados: blanco, amarillo, rojo, blanco, amarillo. El cuadrado blanco de la izquierda tiene un borde rojo.
-    *   A la derecha de los cuadrados, hay una barra de texto con las palabras: `LOOK TAKE USE OPEN TALK`. La palabra `TALK` está resaltada con un fondo amarillo y un borde negro.
-    *   Debajo de esa barra, se muestra: `V:4 S:--`.
-    *   Debajo de eso, se muestra: `VERB:LOOK ITEM:--`.
-    *   En la parte inferior más baja, se muestra: `HUD CRPG v1.0.4911 F__00100 FPS 49.90`.
+*   **Fondo:** Negro sólido.
+*   **Elementos gráficos en la pantalla:**
+    *   **Cuatro rectángulos de color azul oscuro:** Se encuentran dispersos en la pantalla. Uno en la parte superior derecha (con dos líneas horizontales superpuestas), uno en la parte central derecha, uno en la parte izquierda central y uno en el centro inferior.
+    *   **Barra de interfaz en la parte inferior:** Un recuadro negro con borde blanco que contiene texto y símbolos.
+*   **Contenido de la barra de interfaz (de izquierda a derecha):**
+    *   **Símbolos de estado (rojos):** Un cuadrado, un signo más, un círculo, un rombo y otro signo más.
+    *   **Verbos de acción (blancos):** `LOOK`, `TAKE`, `USE`, `OPEN`, `TALK`. El verbo `TALK` está resaltado con un fondo amarillo.
+    *   **Información de estado (amarillos):** `V:4 S:--`
+    *   **Información de acción (blancos):** `VERB:LOOK ITEM:--`
+    *   **Información de versión y rendimiento (blancos):** `HUD CRPG v1.0.4934 F__00100 FPS 49.90`
 
-**Análisis de movimientos y artefactos:**
+**Análisis de la coherencia y calidad visual:**
 
-*   **Movimiento:** No hay ningún elemento que se mueva entre las imágenes. Todo está estático.
-*   **Contornos y bordes:** Todos los rectángulos tienen bordes limpios y definidos, sin halos, bandas ni píxeles cortados. No hay artefactos visibles.
-*   **Fondo alrededor:** El fondo negro permanece uniforme y sin alteraciones alrededor de los elementos gráficos. No hay restos de posiciones anteriores ni superposiciones incompletas.
-*   **Coherencia:** La composición es consistente en todas las imágenes. No hay elementos extraños, defectuosos o incoherentes.
+*   **Contornos de los objetos:** Los rectángulos y la barra de interfaz tienen bordes limpios y definidos, sin halos, bandas ni artefactos visibles.
+*   **Fondo alrededor de los objetos:** El fondo negro permanece uniforme y sin alteraciones alrededor de los elementos gráficos.
+*   **Consistencia entre imágenes:** No hay ningún cambio, movimiento, parpadeo o artefacto entre las tres imágenes. Todo es estático y coherente.
 
-En resumen, las tres imágenes son exactamente iguales, mostrando una interfaz de usuario estática de un juego de rol con una HUD visible.
+**Conclusión:**
+
+Las imágenes no muestran ninguna secuencia temporal ni cambio. Son tres capturas idénticas de una pantalla de juego o simulador con una interfaz de usuario (HUD) y elementos gráficos estáticos. No hay elementos defectuosos, superpuestos ni incompletos.
