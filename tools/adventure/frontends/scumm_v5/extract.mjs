@@ -17,13 +17,16 @@
 //
 // Uso:
 //   node tools/adventure/frontends/scumm_v5/extract.mjs index <juego.000>
-//   node tools/adventure/frontends/scumm_v5/extract.mjs rooms <juego.000> [--digest] [--room N]
+//   node tools/adventure/frontends/scumm_v5/extract.mjs rooms <juego.000> [--room N]
 //   node tools/adventure/frontends/scumm_v5/extract.mjs dump-room <juego.000> --room N [--out <dir>]
+//   node tools/adventure/frontends/scumm_v5/extract.mjs dump-game <juego.000> [--out <dir>] [--descumm <exe>] [--no-descumm]
 //   node tools/adventure/frontends/scumm_v5/extract.mjs scripts <juego.000> [--room N] [--out <dir>] [--descumm <exe>] [--no-descumm]
-//   node tools/adventure/frontends/scumm_v5/extract.mjs rooms-json <juego.000> --out <file.json>
+//   node tools/adventure/frontends/scumm_v5/extract.mjs decode-boxes <juego.000> [--room N] [--out <dir>]
+//   node tools/adventure/frontends/scumm_v5/extract.mjs rooms-json <juego.000> [--out <file.json>]
 //
-// Salida por defecto: out/assets/scumm-v5/<base>/ (regla out/README.md). Nada se escribe en git.
-// Herramientas del pipeline: ver tools/adventure/README.md.
+// Salida por defecto: out/adventure/<base>/ con la estructura canónica del workspace (ver
+// tools/adventure/WORKSPACE.md). Nada se escribe en git. Herramientas del pipeline:
+// tools/adventure/README.md.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -266,9 +269,49 @@ function cmdRooms(args) {
 }
 
 function outDir(args, base) {
-	const dir = args.out ? String(args.out) : path.join(REPO_ROOT, 'out', 'assets', 'scumm-v5', base);
+	// Raíz del workspace del juego (ver tools/adventure/WORKSPACE.md): out/adventure/<juego>/.
+	const dir = args.out ? String(args.out) : path.join(REPO_ROOT, 'out', 'adventure', base);
 	fs.mkdirSync(dir, { recursive: true });
 	return dir;
+}
+
+// Vuelca los bloques de una sala (ROOM + sección de scripts del LFLF) a raw/rooms/room_N/.
+// Los bloques se guardan como payload (sin cabecera tag+size); la cabecera queda en blocks.json.
+function dumpRoomBlocks(work, data, room) {
+	const dir = path.join(work, 'raw', 'rooms', `room_${room.room}`);
+	fs.mkdirSync(dir, { recursive: true });
+	const manifest = { game: path.basename(data.file), room: room.room, file: path.basename(data.file), blocks: [] };
+	for (const b of [...room.blocks, ...room.lflf_blocks]) {
+		const payload = data.buf.subarray(b.off + 8, b.off + b.size);
+		const name = `${b.tag}_${b.off}.bin`;
+		fs.writeFileSync(path.join(dir, name), payload);
+		manifest.blocks.push({ tag: b.tag, size: b.size, off: b.off, file: name });
+	}
+	fs.writeFileSync(path.join(dir, 'blocks.json'), JSON.stringify(manifest, null, 2) + '\n');
+	return manifest.blocks.length;
+}
+
+// Vuelca los bloques de guion de una sala (con cabecera, para descumm) a raw/scripts/room_N/
+// y los descompila si `descumm` está disponible.
+function dumpRoomScripts(work, data, room, descumm) {
+	const dir = path.join(work, 'raw', 'scripts', `room_${room.room}`);
+	fs.mkdirSync(dir, { recursive: true });
+	let total = 0, ok = 0;
+	for (const b of [...room.blocks, ...room.lflf_blocks]) {
+		if (!SCRIPT_TAGS.has(b.tag)) continue;
+		total++;
+		const bin = path.join(dir, `${b.tag}_${b.off}.bin`);
+		fs.writeFileSync(bin, data.buf.subarray(b.off, b.off + b.size));
+		if (!descumm) continue;
+		const out = spawnSync(descumm, ['-5', bin], { encoding: 'latin1', maxBuffer: 64 * 1024 * 1024 });
+		if (out.status === 0 && out.stdout && !/Unknown|ERROR/i.test(out.stdout.slice(0, 120))) {
+			fs.writeFileSync(bin.replace(/\.bin$/, '.txt'), out.stdout);
+			ok++;
+		} else {
+			fs.writeFileSync(bin.replace(/\.bin$/, '.err.txt'), (out.stdout || '') + (out.stderr || ''));
+		}
+	}
+	return { total, ok };
 }
 
 function cmdDumpRoom(args) {
@@ -278,18 +321,91 @@ function cmdDumpRoom(args) {
 	const found = findRoom(g, roomNo);
 	if (!found) die(`sala ${roomNo} no encontrada`);
 	const base = path.basename(args._[1]).replace(/\.[^.]*$/, '');
-	const dir = outDir(args, base);
-	const { data, room } = found;
-	const manifest = { game: base, room: roomNo, file: path.basename(data.file), blocks: [] };
-	for (const b of [...room.blocks, ...room.lflf_blocks]) {
-		// `data.buf` es el fichero descifrado; los offsets del digest apuntan ahí.
-		const payload = data.buf.subarray(b.off + 8, b.off + b.size);
-		const name = `${b.tag}_${roomNo}_${b.off}.bin`;
-		fs.writeFileSync(path.join(dir, name), payload);
-		manifest.blocks.push({ tag: b.tag, size: b.size, off: b.off, file: name });
+	const work = outDir(args, base);
+	const n = dumpRoomBlocks(work, found.data, found.room);
+	console.log(`[extract] sala ${roomNo}: ${n} bloques -> ${path.join(work, 'raw', 'rooms', `room_${roomNo}`)}`);
+}
+
+// Vuelca el juego entero: bloques por sala + guiones descompilados + SIM (raw/index/rooms.json).
+function cmdDumpGame(args) {
+	const g = loadGame(args._[1]);
+	const base = path.basename(args._[1]).replace(/\.[^.]*$/, '');
+	const work = outDir(args, base);
+	const descumm = args['no-descumm'] ? null : descummPath(args);
+	let rooms = 0, blockCount = 0, total = 0, ok = 0;
+	for (const d of g.data) {
+		for (const r of d.rooms) {
+			rooms++;
+			blockCount += dumpRoomBlocks(work, d, r);
+			const s = dumpRoomScripts(work, d, r, descumm);
+			total += s.total;
+			ok += s.ok;
+		}
 	}
-	fs.writeFileSync(path.join(dir, `room_${roomNo}.json`), JSON.stringify(manifest, null, 2) + '\n');
-	console.log(`[extract] sala ${roomNo}: ${manifest.blocks.length} bloques -> ${dir}`);
+	cmdRoomsJson({ ...args, out: path.join(work, 'raw', 'index', 'rooms.json') });
+	console.log(`[extract] dump-game: ${rooms} salas, ${blockCount} bloques, ${total} guiones (descumm OK: ${ok}) -> ${work}`);
+}
+
+// Decodifica las walkboxes (BOXD + BOXM) a JSON semántico en decoded/walkboxes/.
+// Formato V5 (boxes.cpp: `old` struct): u16 LE numBoxes, 20 B/caja:
+// 8×s16 LE (ulx,uly,urx,ury,lrx,lry,llx,lly) + mask u8 + flags u8 + scale u16 LE.
+// BOXM = listas de adyacencia por caja terminadas en 0xFF (`getBoxMatrixBaseAddr`, boxes.cpp:702).
+const BOX_SIZE_V5 = 20;
+function decodeRoomBoxes(data, room) {
+	const all = [...room.blocks, ...room.lflf_blocks];
+	const boxd = all.find((b) => b.tag === 'BOXD');
+	const boxm = all.find((b) => b.tag === 'BOXM');
+	if (!boxd) return null;
+	const p = data.buf.subarray(boxd.off + 8, boxd.off + boxd.size);
+	const count = p.readUInt16LE(0);
+	const boxes = [];
+	for (let i = 0; i < count && 2 + (i + 1) * BOX_SIZE_V5 <= p.length; i++) {
+		const o = 2 + i * BOX_SIZE_V5;
+		const g = (k) => p.readInt16LE(o + k * 2);
+		boxes.push({
+			id: i,
+			ul: [g(0), g(1)],
+			ur: [g(2), g(3)],
+			lr: [g(4), g(5)],
+			ll: [g(6), g(7)],
+			mask: p[o + 16],
+			flags: p[o + 17],
+			scale: p.readUInt16LE(o + 18),
+		});
+	}
+	let adjacency = null;
+	if (boxm) {
+		const m = data.buf.subarray(boxm.off + 8, boxm.off + boxm.size);
+		adjacency = [];
+		let q = m.length > 0 && m[0] === 0xff ? 1 : 0; // prefijo 0xFF opcional
+		for (let i = 0; i < count && q < m.length; i++) {
+			const ids = [];
+			while (q < m.length && m[q] !== 0xff) ids.push(m[q++]);
+			q++;
+			adjacency.push(ids);
+		}
+	}
+	return { room: room.room, numBoxes: count, boxes, adjacency, source: { file: path.basename(data.file), boxdOff: boxd.off, boxmOff: boxm ? boxm.off : -1 } };
+}
+
+function cmdDecodeBoxes(args) {
+	const g = loadGame(args._[1]);
+	const base = path.basename(args._[1]).replace(/\.[^.]*$/, '');
+	const work = outDir(args, base);
+	const dir = path.join(work, 'decoded', 'walkboxes');
+	fs.mkdirSync(dir, { recursive: true });
+	const index = [];
+	for (const d of g.data) {
+		const list = args.room ? d.rooms.filter((r) => r.room === Number(args.room)) : d.rooms;
+		for (const r of list) {
+			const decoded = decodeRoomBoxes(d, r);
+			if (!decoded) continue;
+			fs.writeFileSync(path.join(dir, `room_${r.room}.json`), JSON.stringify(decoded, null, 2) + '\n');
+			index.push({ room: r.room, boxes: decoded.numBoxes, adjacency: decoded.adjacency ? decoded.adjacency.length : 0 });
+		}
+	}
+	fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ format: 'adv-walkboxes/1', game: base, rooms: index }, null, 2) + '\n');
+	console.log(`[extract] walkboxes: ${index.length} salas -> ${dir}`);
 }
 
 function cmdRoomsJson(args) {
@@ -330,7 +446,7 @@ function cmdRoomsJson(args) {
 			})),
 		),
 	};
-	const file = args.out ? String(args.out) : path.join(outDir(args, base), 'rooms.json');
+	const file = args.out ? String(args.out) : path.join(outDir(args, base), 'raw', 'index', 'rooms.json');
 	fs.mkdirSync(path.dirname(file), { recursive: true });
 	fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
 	console.log(`[extract] rooms.json -> ${file}`);
@@ -346,29 +462,18 @@ function descummPath(args) {
 function cmdScripts(args) {
 	const g = loadGame(args._[1]);
 	const base = path.basename(args._[1]).replace(/\.[^.]*$/, '');
-	const dir = outDir(args, base);
+	const work = outDir(args, base);
 	const descumm = args['no-descumm'] ? null : descummPath(args);
 	let total = 0, ok = 0;
 	for (const d of g.data) {
 		const list = args.room ? d.rooms.filter((r) => r.room === Number(args.room)) : d.rooms;
 		for (const r of list) {
-			for (const b of [...r.blocks, ...r.lflf_blocks]) {
-				if (!SCRIPT_TAGS.has(b.tag)) continue;
-				total++;
-				const bin = path.join(dir, `${b.tag}_${r.room}_${b.off}.bin`);
-				fs.writeFileSync(bin, d.buf.subarray(b.off, b.off + b.size));
-				if (!descumm) continue;
-				const out = spawnSync(descumm, ['-5', bin], { encoding: 'latin1', maxBuffer: 64 * 1024 * 1024 });
-				if (out.status === 0 && out.stdout && !/Unknown|ERROR/i.test(out.stdout.slice(0, 120))) {
-					fs.writeFileSync(bin.replace(/\.bin$/, '.txt'), out.stdout);
-					ok++;
-				} else {
-					fs.writeFileSync(bin.replace(/\.bin$/, '.err.txt'), (out.stdout || '') + (out.stderr || ''));
-				}
-			}
+			const s = dumpRoomScripts(work, d, r, descumm);
+			total += s.total;
+			ok += s.ok;
 		}
 	}
-	console.log(`[extract] scripts: ${total} bloques -> ${dir} (descumm OK: ${ok}${descumm ? '' : '; desactivado'})`);
+	console.log(`[extract] scripts: ${total} bloques -> ${path.join(work, 'raw', 'scripts')} (descumm OK: ${ok}${descumm ? '' : '; desactivado'})`);
 }
 
 // --- main -------------------------------------------------------------------------------
@@ -379,17 +484,22 @@ switch (cmd) {
 case 'index': cmdIndex(args); break;
 case 'rooms': cmdRooms(args); break;
 case 'dump-room': cmdDumpRoom(args); break;
+case 'dump-game': cmdDumpGame(args); break;
 case 'scripts': cmdScripts(args); break;
+case 'decode-boxes': cmdDecodeBoxes(args); break;
 case 'rooms-json': cmdRoomsJson(args); break;
 default:
-	console.log(`Uso: node ${path.relative(process.cwd(), fileURLToPath(import.meta.url))} <index|rooms|dump-room|scripts|rooms-json> <juego.000> [opciones]
+	console.log(`Uso: node ${path.relative(process.cwd(), fileURLToPath(import.meta.url))} <index|rooms|dump-room|dump-game|scripts|decode-boxes|rooms-json> <juego.000> [opciones]
 
-  index       tabla del índice (bloques, cuentas, nombres de sala)
-  rooms       salas con sus bloques internos (digest)
-  dump-room   vuelca los bloques de una sala a <out>/ (def. out/assets/scumm-v5/<base>/)
-  scripts     vuelca los bloques SCRP/EXCD/ENCD y los descompila con descumm
-  rooms-json  manifiesto JSON del juego (salas y bloques)
+  index         tabla del índice (bloques, cuentas, nombres de sala)
+  rooms         salas con sus bloques internos (digest)
+  dump-room     vuelca los bloques de una sala a <out>/raw/rooms/room_N/
+  dump-game     vuelca el juego entero (bloques + guiones + SIM) al workspace
+  scripts       vuelca los bloques SCRP/EXCD/ENCD y los descompila con descumm
+  decode-boxes  decodifica walkboxes (BOXD/BOXM) a <out>/decoded/walkboxes/
+  rooms-json    manifiesto SIM v1 (rooms.json)
 
-Opciones: --room N  --out <dir|file>  --descumm <exe>  --no-descumm`);
+Opciones: --room N  --out <dir|file>  --descumm <exe>  --no-descumm
+Workspace canónico: tools/adventure/WORKSPACE.md (defecto out/adventure/<juego>/).`);
 	process.exit(cmd ? 1 : 0);
 }

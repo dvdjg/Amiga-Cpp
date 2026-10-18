@@ -2,7 +2,7 @@
 
 Extrae juegos **SCUMM V5** (PC floppy/CD con `GF_USE_KEY`: MI1/MI2, Indy4, etc.) a **recursos por sala** y a un **SIM v1** (manifiesto, ver [`../../sim/SCHEMA.md`](../../sim/SCHEMA.md)); los bloques de guion se descompilan con `descumm` a texto legible. Es el primer paso de I0 (ver [`ROADMAP_ADVENTURE_IMPORT.md`](../../../../docs/guides/roadmap/ROADMAP_ADVENTURE_IMPORT.md)).
 
-**Estado verificado** (MI2 *Ultimate Talkie Edition*, datos PC en `../SCUMM/Games/PC/`): 127 salas en el índice (110 con datos), **1006 bloques de guion descompilados al 100 %** (`descumm -5`), 163 costumes, 229 sonidos, 9 charsets y 1200 objetos globales; SIM validado y golden test en verde (`node --test tools/adventure/sim/sim.test.mjs`).
+**Estado verificado** (datos PC en `../SCUMM/Games/PC/`): **MI1 *Ultimate Talkie Edition*** — 86 salas con datos, **748/748 guiones** descompilados (`descumm -5`), 150 costumes, 179 sonidos, 7 charsets, 1000 objetos globales, 86 salas con walkboxes; **MI2 *Ultimate Talkie Edition*** — 110 salas, **1006/1006 guiones**, 163 costumes, 229 sonidos. SIM validado y golden test en verde (`node --test tools/adventure/sim/sim.test.mjs`).
 
 ## Formato (contrastado con el oráculo y con datos reales)
 
@@ -23,22 +23,26 @@ node tools/adventure/frontends/scumm_v5/extract.mjs index "<juego>/monkey2.000"
 # Digest de salas (bloques de cada ROOM + sección de scripts del LFLF)
 node tools/adventure/frontends/scumm_v5/extract.mjs rooms "<juego>/monkey2.000" [--room N]
 
-# Volcar todos los bloques de una sala (RMHD/BOXD/RMIM/OBIM/OBCD/SCRP/COST/...) + room_N.json
-node tools/adventure/frontends/scumm_v5/extract.mjs dump-room "<juego>/monkey2.000" --room 4
+# Extracción COMPLETA al workspace del juego (raw/rooms + raw/scripts + raw/index/rooms.json)
+node tools/adventure/frontends/scumm_v5/extract.mjs dump-game "<juego>/monkey2.000" --out out/adventure/<juego>
 
-# Volcar y descomprimir (descumm) los guiones de una sala o del juego entero
-node tools/adventure/frontends/scumm_v5/extract.mjs scripts "<juego>/monkey2.000" [--room N] [--no-descumm] [--descumm <exe>]
+# Una sola sala (bloques a raw/rooms/room_N/ + blocks.json) / solo guiones
+node tools/adventure/frontends/scumm_v5/extract.mjs dump-room "<juego>/monkey2.000" --room 4
+node tools/adventure/frontends/scumm_v5/extract.mjs scripts "<juego>/monkey2.000" [--room N] [--no-descumm]
+
+# Walkboxes (BOXD/BOXM) decodificadas a decoded/walkboxes/room_N.json
+node tools/adventure/frontends/scumm_v5/extract.mjs decode-boxes "<juego>/monkey2.000"
 
 # Manifiesto SIM v1 (rooms.json)
 node tools/adventure/frontends/scumm_v5/extract.mjs rooms-json "<juego>/monkey2.000" [--out <file>]
 ```
 
-- Salida por defecto: `out/assets/scumm-v5/<juego>/` (gitignored; regla `out/README.md`).
+- Salida por defecto: el **workspace del juego** `out/adventure/<juego>/` (estructura y reglas en [`../../WORKSPACE.md`](../../WORKSPACE.md); `raw/` lo escribe solo el frontend).
 - `descumm` por defecto: `../SCUMM/scummvm-tools-2.9.0/descumm.exe` (compilado con `tools/adventure/build-scummvm-tools.sh`); se puede fijar con `--descumm` o `DESCUMM`.
 - El extractor **detecta la clave** (`0x69` o sin cifrado) por la cabecera y falla con mensaje claro si el contenedor no es V5.
 
 ## Pendiente de este frontend
 
-- Decodificar `RMIM` (imagen), `BOXD/BOXM` (cajas → SIM) y `COST` (frames de actor) a estructuras semánticas (I0/I2; referencia: `room.cpp`, `boxes.cpp`, `costume.cpp`).
+- Decodificar `RMIM` (imagen), `OBIM/OBCD` (objetos) y `COST` (frames de actor) a estructuras semánticas (I0/I2; referencia: `room.cpp`, `costume.cpp`). Las walkboxes ya se decodifican con `decode-boxes` (referencia: `boxes.cpp`).
 - Frontend **V3/V4 (LFL)** para las copias Amiga de MI1/Indy3/Loom (formato `.LFL` con índice propio; referencia: `resource_v3.cpp`/`resource_v4.cpp`).
-- Los scripts se vuelcan con nombre `SCRP_<sala>_<offset>.bin/.txt`; al añadir la tabla `DSCR` (sala+offset por id) se recuperará el **id de script** para nombrarlos y enlazarlos con el SIM.
+- Los scripts se vuelcan con nombre `SCRP_<sala>_<offset>.bin/.txt` dentro de `raw/scripts/room_<N>/`; al añadir la tabla `DSCR` (sala+offset por id) se recuperará el **id de script** para nombrarlos y enlazarlos con el SIM.

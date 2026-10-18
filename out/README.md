@@ -15,6 +15,8 @@ out/
 ├── demos/<demo>/<CONFIG_ID>/        → builds (elf/exe/map/listing) — p. ej. out/demos/107_xlimited_corkscrew/A500_debug/
 ├── run/<demo>[/<CONFIG_ID>]/        → capturas del runner (screenshot.png, sequence/, run-report.json)
 ├── assets/<pipeline>/…              → assets generados (ehb/, demo202/, tile-demos/, …)
+├── adventure/<juego>/…              → workspace del pipeline de aventuras (raw/decoded/edited/cook/preview/reports;
+│                                      estructura y reglas en tools/adventure/WORKSPACE.md)
 ├── profile/<nombre>/                → profiling (bin + frames + profile-summary.json + informes)
 ├── regression/<YYYYmmdd-HHMMSS>/    → informes de regresión completa
 ├── framescope/<demo>/               → informes FrameScope
