@@ -232,6 +232,8 @@ status y reanuda; no depende del tiempo real):
   run status y la imagen quedan en el MISMO frame (sin la latencia del polling de los modos
   anteriores). Con `--sequence-step-start-fine F` se alinea la captura a ese `fine scroll`
   (p. ej. `2`) para evitar el cruce de word (`15 -> 0`) de cada 16 frames.
+  **Aviso (DT-035):** en este entorno el modo por paso puede servir **vídeo congelado** (frames consecutivos idénticos aunque la demo avance: los contadores lo desmienten). Para gates visuales de demos **animadas** usar `--sequence-frames N --sequence-interval-ms T` (CPU viva: el vídeo se refresca); el modo por paso queda para depuración puntual.
+- `--sequence-frames N --sequence-interval-ms T` captura **N frames** a intervalos de pared con la **CPU viva** (sin breakpoint): es el modo fiable para validar movimiento por visión (ver DT-035).
 - `--hide bpl,spr,blt,cop` captura con **canales de render apagados** (escena simplificada para
   el análisis con visión; procedimiento en `DEMO_VISUAL_DEBUG.md` §6.4.2) **sin recompilar la
   demo**: parchea por canal lateral el `MOVE DMACON` *dentro* de las copperlist en Chip (la lista

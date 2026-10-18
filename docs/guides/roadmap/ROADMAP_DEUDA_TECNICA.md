@@ -468,6 +468,8 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Leccion / acciones:** (a) para verificar render NO basta el PNG de la captura por paso en este entorno: usar tambien evidencia de MEMORIA (self-check del framebuffer via contadores, como el que se hizo) o la ventana visible; (b) los tramos "congelados" de las capturas no son del demo (anotado junto a DT-023(d)); (c) los contadores acumulados del plan (plan no-ok / ejecucion fallida) son una telemetria barata que conviene dejar disponible.
 
+**Fix de captura (2026-10-18, demo 306):** el modo **`--sequence-step-frames`** (breakpoint en el probe + CPU parada por frame) sirve **video congelado** en este entorno (se confirmo con la 306: 48 frames consecutivos identicos pese a que los contadores probaban que el guion avanzaba). El modo **`--sequence-frames` por intervalos** corre con la **CPU viva** y el video se refresca: la secuencia de la 306 muestra cada par de frames distinto (480-4700 px), 5 firmas de estado y el foco presente en todos. **Regla:** los gates visuales de demos animadas usan captura por intervalos; la captura por paso queda para depuracion puntual, y su verificador no debe exigir animacion.
+
 ## DT-036 - Demo 303 (H2): cadencia ~44 fps reales con la CPU muy holgada - ABIERTA (mecanismo acotado)
 
 **Sintoma:** `fps10` (contador del periferico) = **419-424 (41,9-42,4 fps)** frente a **499 (49,9)** de la 302 en el mismo entorno; el frame pierde VBlanks.

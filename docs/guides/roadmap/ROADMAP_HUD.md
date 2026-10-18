@@ -77,7 +77,7 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 | HOST-472 | test | Paneles, barra de verbos, *tooltips*, múltiples regiones y puente RPG. |
 | HOST-473 | test | Tema, atlas de iconos, *skins*, cambio en caliente y fachada. |
 | `302_hud_band` | demo | HUD de acción en franja propia: contador, medidor y vidas. **Entregada y verificada** (H1). |
-| `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. **WIP** (funcional; cierre pendiente de DT-036). |
+| `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. **Entregada** (H2; cadencia con nota DT-036 en su `VALIDATION.md`). |
 | `304_hud_drag` | demo | Inventario con arrastre, *ghost*, *drop* válido/inválido y cancelación. |
 | `305_hud_overlay` | demo | Overlay sobre juego en movimiento, sprites y presupuesto. |
 | `306_hud_crpg` | demo | Panel/verbos/inventario y puente con `eng::rpg`. **Entregada y verificada** (H5; `VALIDATION.md`). |
