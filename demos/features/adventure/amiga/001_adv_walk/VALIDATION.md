@@ -12,20 +12,18 @@
 | **Sin artefactos** en el perfil de los bobs y el fondo | Respuesta cruda en `src/VISION.md`: «contornos limpios… sin bandas, halos ni píxeles cortados», «el fondo inmediatamente alrededor… permanece igual» | 6 frames repartidos de la secuencia de 12 |
 | **Chip presupuestado** | `configure_memory({160 KiB, 8 KiB, 8 KiB})` + escena compuesta con validadores del engine (`scene::compose` rechaza lo que no cabe) | A500 PAL, debug |
 
-## 2. Presupuesto: NO VERIFICADA (bug de cadencia abierto)
+## 2. Presupuesto: NO VERIFICADA (coste de la HUD abierto)
 
-Medida (`node tools/debug/measure-fps.mjs adventure_amiga_001_adv_walk A500_debug --json`):
+Medida con la demo commiteada + fixes de este turno (measure-fps, sin warp): **~10–17 fps** (~4,6 campos/frame). Objetivo del repo: 1 frame por VBlank (50 Hz).
 
-```
-emulado=10.8 fps (media con arranque) | estable ~16,6 fps | 659.000–668.000 ciclos/frame ≈ 4,65-4,71 campos/frame
-```
+Estado de la investigación (detalle en docs/debugging/investigaciones/001-adv-walk-pacing.md):
 
-- Objetivo del repo: **1 frame por VBlank (50 Hz), sin tirones**. La demo queda **NO VERIFICADA**: la cadencia estable (~16,6 fps ≈ 50/3) incumple el umbral por un factor ~3.
-- **Síntoma**: con el `update` **vacío** (ablation `-DADVWALK_NO_UPDATE`) la medida es idéntica (~16,6 fps, 4,65 campos/frame, CPU 100% ocupada en el perfil `winuae-profile`). La cadencia no depende del trabajo del frame.
-- **Descartes ya realizados** (todos sin efecto sobre la cadencia): quitar el dibujo del HUD; quitar los blits del actor/puntero; quitar la sección Copper de la banda HUD; ventana DDF estándar `$38..$d0`; `run_frames_polling` en vez de `run_frames`; añadir `eng::os::init`; activar/desactivar el servicio de Blitter de fondo.
-- **Control positivo en el mismo entorno**: `rpg_amiga_001_rpg_dungeon` mide **48,1 fps (1,04 campos/frame)** y `engine_amiga_064_shmup_wave` **43,5 fps (1,15)** con el mismo `measure-fps` y emulador → el entorno y el mecanismo de medida funcionan; la anomalía es de esta demo (estructura `Engine` + `scene::compose`/`takeover` propias, frente a `eng::App`/`GameDisplay` de las dos de control).
-- Hipótesis viva para el siguiente turno: el bucle de `run_frames` consume ~3 campos por iteración con esta composición (¿interacción del `wait_vblank` por señal/VPOS con la lista de Copper propia?); contrastar portando la demo a `eng::App`/`GameDisplay` (camino ergonómico, gate `demo-ergonomics`) o instrumentando `hb.frames`/`frames_elapsed` en el HUD.
-- **Flicker**: no medido (una cadencia inestable no permite declarar `flicker-baseline.json` con garantías).
+- Una tanda inicial de ablaciones fue **inválida**: uild.args con BOM UTF-8 hacía que DEMO_FLAGS se ignorase en silencio (builds «diferentes» con el mismo binario). **Corregido** en uild-demo.sh.
+- Ablaciones rehechas con flags efectivos: sin update → **~49,5 fps**; sin HUD dinámica → **~49,4 fps**; sin blits → ~17,7 fps. El coste es el **redibujo completo del HUD** (~230 000 ciclos/línea, ~1 500 por palabra por la vía virtual del playfield); los blits son despreciables.
+- **Corregido**: engine.set_blit_service_enabled(false) (el servicio de Blitter de fondo competía con los litter_submit síncronos: estela y bloqueos intermitentes).
+- **Corregido**: clamp de la ventana de los bobs al bitmap (con el actor en y=186 el blit escribía filas fuera del plano; el puntero podía salir por la derecha; corrupción/bus error).
+- **Abierto**: el intento de HUD por diferencias (redibujar solo palabras cambiadas) degradó la cadencia de forma no explicada (~0,1 fps) y se revirtió; falta perfil por función de draw_text_words/store_plane_word y una primitiva por filas de una sola llamada.
+- **Flicker**: no medido (cadencia fuera de presupuesto).
 
 ## 3. Prompts de visión y respuestas crudas
 

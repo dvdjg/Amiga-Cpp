@@ -638,11 +638,25 @@ private:
 	void blit_stash(eng::amiga::AmigaBackend& backend, Bob& b, eng::Block<eng::MaskTag, eng::MemoryKind::Chip>& stash) {
 		const eng::PlaneBytes planes = m_scene.buffer(0u);
 		const u16 words = b.words();
-		const s16 px = static_cast<s16>((b.x + kMarginX) & ~15);
+		// **Clamp de la ventana del bob al bitmap**: la ventana son `words` palabras (32 px
+		// con la guarda) x `h` filas y el Blitter escribe el rectangulo COMPLETO (donde la
+		// mascara vale 0 reescribe D); sin este clamp, cerca del borde inferior/derecho del
+		// bitmap la ventana sale del plano (rebasa al plano siguiente / al bloque vecino):
+		// corrupcion intermitente y bus error (CPU parada). El clamp se aplica a la region
+		// de STASH, y `px/py` son los que usan restore y draw (misma ventana siempre).
+		s16 px = static_cast<s16>((b.x + kMarginX) & ~15);
+		const s16 px_max = static_cast<s16>(kBitmapW - words * 16u);
+		if (px > px_max) px = px_max;
+		if (px < 0) px = 0;
+		s16 py = b.y;
+		if (py < 0) py = 0;
+		if (py + static_cast<s16>(b.h) > static_cast<s16>(kFbH)) {
+			py = static_cast<s16>(kFbH - b.h);
+		}
 		eng::graphics::BlitJob j {};
 		j.kind = eng::graphics::BlitJobKind::CopyRect;
 		j.source = eng::graphics::BlitPtr::from_storage(reinterpret_cast<u16*>(
-			const_cast<u8*>(planes.data()) + static_cast<u32>(b.y) * kRowBytes +
+			const_cast<u8*>(planes.data()) + static_cast<u32>(py) * kRowBytes +
 			static_cast<u32>(px >> 3)));
 		j.destination = eng::graphics::BlitPtr::from_storage(stash.view.as_words().data());
 		j.words_per_row = words;
@@ -654,7 +668,7 @@ private:
 		j.destination_plane_stride_bytes = static_cast<u32>(words) * 2u * b.h;
 		if (!backend.blitter_submit(j, true)) m_blit_fail++;
 		b.px = px;
-		b.py = b.y;
+		b.py = py;
 	}
 
 	void blit_draw(eng::amiga::AmigaBackend& backend, const Bob& b, const u16* sheet) {
@@ -666,7 +680,7 @@ private:
 		j.mask = eng::graphics::BlitPtr::from_storage(b.mask);
 		j.source = eng::graphics::BlitPtr::from_storage(sheet);
 		j.destination = eng::graphics::BlitPtr::from_storage(reinterpret_cast<u16*>(
-			const_cast<u8*>(planes.data()) + static_cast<u32>(b.y) * kRowBytes +
+			const_cast<u8*>(planes.data()) + static_cast<u32>(b.py) * kRowBytes +
 			static_cast<u32>(b.px >> 3)));
 		j.words_per_row = words;
 		j.height = b.h;
@@ -858,6 +872,12 @@ int main() {
 	// Mini-SO: el latido de VBlank por IRQ + senal es lo que deja al bucle dormir en `Wait()`
 	// (sin esto `run_frames` no duerme, la CPU gira y el frame pierde cadencia).
 	(void)eng::os::init(engine, 0u);
+	// **Servicio de Blitter de fondo OFF**: la demo lanza blits con `blitter_submit(j, true)`
+	// síncrono; el servicio de fondo (IRQ) usa el mismo slot y compite por los registros del
+	// Blitter entre dos jobs del mismo frame (carreras: filas del save-under perdidas -> estela
+	// en el fondo y bloqueos intermitentes). El slot es exclusivo por contrato (ver
+	// `engine.hpp`, `set_blit_service_enabled`).
+	engine.set_blit_service_enabled(false);
 	engine.run_frames(0xffffu);
 	return 0;
 }

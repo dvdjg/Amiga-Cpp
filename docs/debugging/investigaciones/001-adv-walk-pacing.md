@@ -1,36 +1,36 @@
-# Cadencia ~1/3 del VBlank en 001_adv_walk (bug abierto)
+# Cadencia de 001_adv_walk: causas encontradas y estado (abierto)
 
-Síntoma, evidencia y descartes de la anomalía de cadencia de la demo `demos/features/adventure/amiga/001_adv_walk` (A0, capa `eng::adv`). Registrado aquí como error **ajeno al hilo** que lo encontró (turno del 2026-10-18); el objetivo siguiente es aislarlo con instrumentación de `hb.frames`/`frames_elapsed`.
+Historia de depuración de la cadencia de `demos/features/adventure/amiga/001_adv_walk` (A0). Contiene **hallazgos corregidos** (una hipótesis inicial resultó ser un artefacto del build) y lo que queda **abierto**.
 
-## Síntoma
+## Hecho 1: las ablaciones iniciales eran inválidas (BOM en `build.args`) — CORREGIDO
 
-- `node tools/debug/measure-fps.mjs adventure_amiga_001_adv_walk A500_debug --json` → **~16,6 fps estables** (media con arranque 10,8), **~4,65-4,71 campos por frame** (~660.000 ciclos CPU por frame), CPU al 100 % en `winuae-profile` (142.102 ciclos ocupados por campo, 0 libres).
-- El HUD de la demo muestra `FRM` avanzando a ese ritmo también en `--warp` (no es throttle del host).
-- **Con el `update` vacío** (ablation `-DADVWALK_NO_UPDATE`, `update()` retorna sin hacer nada) la cifra es **idéntica** (4,65 campos/frame): la cadencia no depende del trabajo del frame.
+`tools/build/build-demo.sh` leía `build.args` tal cual: un fichero guardado con **BOM UTF-8** (p. ej. `Set-Content -Encoding utf8` de PowerShell) hacía que la primera clave fuese `\xEF\xBB\xBFDEMO_FLAGS` y se ignorase **en silencio**. Se detectó porque dos builds con `DEMO_FLAGS` distinto produjeron el **mismo hash de .exe**. Consecuencia: la primera tanda de ablaciones (quitar HUD/blits/banda/DDF/polling) midió **siempre el mismo binario**; la afirmación inicial «la cadencia es 1/3 del VBlank incluso con `update` vacío» era **falsa**.
 
-## Control positivo (mismo entorno, misma herramienta)
+Corrección aplicada: el script elimina el BOM al parsear (`build-demo.sh`, comentario junto al bloque). Las ablaciones rehechas con flags efectivos:
 
-| Demo | medida |
+| Configuración | Resultado (medido con `measure-fps`, `--json`) |
 |---|---|
-| `rpg_amiga_001_rpg_dungeon` (`eng::App` + `GameDisplay`) | **48,1 fps**, 1,04 campos/frame |
-| `engine_amiga_064_shmup_wave` (`os::init` + `run_frames`) | **43,5 fps**, 1,15 campos/frame |
+| `update` vacío (`-DADVWALK_NO_UPDATE`) | **~49,5 fps estables** (1,0 campos/frame) |
+| Sin dibujo de la HUD dinámica | **~49,4 fps** |
+| Sin los blits del actor/puntero | ~17,7 fps (los blits **no** son el coste) |
+| Completa (HUD redibujando líneas enteras) | **~10–17 fps** (~4,6 campos/frame) |
 
-⇒ ni la herramienta ni el emulador están mal; la anomalía es específica de la composición/estructura de la demo afectada (usa `eng::Engine` + `eng::os::init` + `scene::compose`/`Scene::takeover` + parcheo de ventana propios, en vez de `eng::App`/`GameDisplay`).
+## Hecho 2: el coste es el redibujo del HUD (≈1 500 ciclos por palabra)
 
-## Descartes realizados (ninguno cambió la cadencia)
+La HUD se repintaba **entera cada frame** (2 líneas × 19 palabras × 8 filas de stores al plano por la vía virtual del `Playfield`: `draw_text_words` → `store_plane_word` con `planeline_for`/`byte_for` virtuales). Medido por ablación: una línea ≈ **230 000 ciclos** (~2 campos); los blits del actor/puntero son despreciables al lado.
 
-1. Sin dibujo de HUD (`-DADVWALK_NO_HUD`): 4,65 campos/frame.
-2. Sin blits del actor/puntero (`-DADVWALK_NO_BLITS`): 4,65.
-3. Sin la sección Copper de la banda HUD (`-DADVWALK_NO_BAND`): 4,71.
-4. Ventana DDF estándar `$38..$d0` + MOD de fila (`-DADVWALK_PLAIN_DDF`): 4,69.
-5. `run_frames_polling` en vez de `run_frames` (señal IRQ): 4,71.
-6. Añadir `eng::os::init(engine, 0u)` (patrón de 064): 4,69.
-7. Servicio de Blitter de fondo activado (por defecto) vs desactivado: igual.
+- La demo 080 pagaba lo mismo (su techo de 25 fps con HUD de 2 líneas es coherente).
+- **Abierto**: por qué el intento de HUD **por diferencias** (redibujar solo las palabras cambiadas), que en teoría cuesta ~2 palabras/frame, degradó la cadencia a ~0,1 fps en vez de arreglarla. El experimento se revirtió para no dejar una regresión; el perfilado por función de `draw_text_words`/`store_plane_word` queda como siguiente paso (posible coste oculto por llamada más allá de las 8 filas: comprobar con `ENG_PROF` alrededor de cada llamada y con el `.amigaprofile`).
 
-## Hipótesis viva y siguiente paso
+## Hecho 3: servicio de Blitter de fondo vs `blitter_submit` síncrono — CORREGIDO
 
-Con `update` vacío, el bucle del engine debería completar un frame por campo; se observan ~4,65. Sospechosos a instrumentar en el siguiente turno:
+El estado commiteado (tras el refactor de ergonomía) había perdido `engine.set_blit_service_enabled(false)`. Con el servicio de fondo (IRQ) activo, sus blits y los `blitter_submit(j, true)` síncronos de la demo comparten registros del Blitter entre jobs del mismo frame: carreras → **filas del save-under perdidas** (estela de pies/restos del puntero sobre el fondo) y **bloqueos intermitentes** (CPU parada en `wait_blitter`). El slot es exclusivo por contrato (`engine.hpp`). Restaurado con comentario que cita el motivo.
 
-1. Contar `context.frame.frames_elapsed` (catch-up del bucle) por frame en el HUD para ver si el bucle **se pierde latidos** (esperado 1) o si `wait_vblank` se resuelve cada ~3 campos.
-2. Leer `hb.frames` en un hook de VBlank propio y compararlo con el contador del bucle (¿la IRQ de VBlank se sirve a 1/3 de rate con esta lista de Copper? ¿el `level3_sync`/re-arme de `INTENA` de `wait_vblank_run` interactúa con el `takeover` de la escena propia?).
-3. A/B decisivo: portar la demo a `eng::App`/`GameDisplay` (camino ergonómico vigente, gate `demo-ergonomics`) manteniendo el parcheo de ventana si el seam lo permite, y medir de nuevo.
+## Hecho 4: ventanas de bob sin recortar (escrituras fuera del plano) — CORREGIDO
+
+La ventana de un bob (`words`=2 palabras × `h` filas) se escribía completa aunque el actor/ratón estuviera junto al borde inferior/derecho: con el actor en `y=186` y `h=24`, el blit tocaba filas 208–209 (fuera de las 208 del bitmap, rebasando al plano siguiente o al bloque vecino); con el puntero pegado al borde derecho, `px+32 > 368`. Resultado: corrupción intermitente y bus error. **Clamp aplicado** en `blit_stash` (la región de stash, y `px/py` que usan restore y draw) y el draw usa `b.py`; el guion se ajustó a `y=184`.
+
+## Estado
+
+- La demo vuelve a ser la versión commiteada (HUD de línea completa) **más** los fixes 3 y 4: escena limpia, sin cuelgues, visión OK (`src/VISION.md`).
+- **NO VERIFICADA por presupuesto**: ~10–17 fps (objetivo 50). El siguiente paso medible es arreglar el coste por palabra de la HUD (perfil por función + primitiva de escritura por filas de una sola llamada, o HUD por diferencias con el coste medido y explicado) y volver a medir con `measure-fps` (sin warp).
