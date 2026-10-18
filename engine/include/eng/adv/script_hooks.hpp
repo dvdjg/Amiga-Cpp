@@ -8,10 +8,14 @@
 /// referencia sin efectos, útil para compilar/validar el código generado en host.
 ///
 /// Reglas del contrato: `var/local/bit` devuelven referencias `s32` (lectura/escritura);
-/// las primitivas devuelven `s32` (0 = ok/falso) para poder usarse en expresiones; las no
+/// las primitivas devuelven `s32` (0 = ok/falso) para poder usarse en expresiones; los
+/// argumentos de **lista** del original (`startScript`, `setClass`, `setVarRange`…) llegan
+/// como `w.list(…)` (`arg_list`, por valor); `ActorOps`/`VerbOps` llegan como **una llamada
+/// por sub-operación** (`w.actor_op`/`w.verb_op` con los enums de `types.hpp`); las no
 /// soportadas por el traductor llegan como `unsupported`/`unsupported_value` y quedan
 /// contabilizadas en el informe de traducción.
 
+#include <eng/adv/types.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::adv {
@@ -41,6 +45,15 @@ struct NullScriptWorld {
 	/// \param i índice (fuera de rango → 0).
 	/// \return referencia al valor.
 	eng::s32& bit(int i) { return bits[(i >= 0 && i < 2048) ? i : 0]; }
+
+	/// Lista de valores de un argumento de array del original (`w.list(3, 5)` en el guion
+	/// generado): por valor, para que viva en la pila del guion (sin asignaciones dinámicas).
+	/// \param a valores (siempre `s32`); el mundo real los interpreta según la primitiva.
+	/// \return `arg_list` con los valores en orden.
+	template <class... A>
+	arg_list<sizeof...(A)> list(A... a) {
+		return arg_list<sizeof...(A)> {static_cast<eng::s32>(a)...};
+	}
 
 	/// Primitiva no traducida usada como sentencia.
 	/// \param name nombre de la primitiva original.
@@ -110,6 +123,40 @@ struct NullScriptWorld {
 	template <class... A> eng::s32 set_string_char(A...) { return 0; }
 	template <class... A> eng::s32 load_resource(A...) { return 0; }
 	template <class... A> eng::s32 lock_resource(A...) { return 0; }
+	/// Una llamada por sub-operación de `ActorOps` (`w.actor_op(actor, eng::adv::ActorOp::x, …)`).
+	template <class... A> eng::s32 actor_op(eng::s32, ActorOp, A...) { return 0; }
+	/// Una llamada por sub-operación de `VerbOps` (`w.verb_op(verbo, eng::adv::VerbOp::x, …)`).
+	template <class... A> eng::s32 verb_op(eng::s32, VerbOp, A...) { return 0; }
+	template <class... A> eng::s32 do_sentence(A...) { return 0; }
+	template <class... A> eng::s32 init_charset(A...) { return 0; }
+	template <class... A> eng::s32 set_object_name(A...) { return 0; }
+	template <class... A> eng::s32 cursor_show(A...) { return 0; }
+	template <class... A> eng::s32 cursor_command(A...) { return 0; }
+	template <class... A> eng::s32 set_pal_color(A...) { return 0; }
+	template <class... A> eng::s32 chain_script(A...) { return 0; }
+	template <class... A> eng::s32 actor_follow_camera(A...) { return 0; }
+	template <class... A> eng::s32 wait_camera(A...) { return 0; }
+	template <class... A> eng::s32 screen_effect(A...) { return 0; }
+	template <class... A> eng::s32 start_object(A...) { return 0; }
+	template <class... A> eng::s32 stop_object(A...) { return 0; }
+	template <class... A> eng::s32 set_screen(A...) { return 0; }
+	template <class... A> eng::s32 set_rgb_room_intensity(A...) { return 0; }
+	template <class... A> eng::s32 room_intensity(A...) { return 0; }
+	template <class... A> eng::s32 draw_box(A...) { return 0; }
+	template <class... A> eng::s32 shake_on(A...) { return 0; }
+	template <class... A> eng::s32 shake_off(A...) { return 0; }
+	template <class... A> eng::s32 save_verbs(A...) { return 0; }
+	template <class... A> eng::s32 restore_verbs(A...) { return 0; }
+	template <class... A> eng::s32 put_code_in_string(A...) { return 0; }
+	template <class... A> eng::s32 set_var_range(A...) { return 0; }
+	template <class... A> eng::s32 load_costume(A...) { return 0; }
+	template <class... A> eng::s32 lock_costume(A...) { return 0; }
+	template <class... A> eng::s32 unlock_costume(A...) { return 0; }
+	template <class... A> eng::s32 load_sound(A...) { return 0; }
+	template <class... A> eng::s32 lock_sound(A...) { return 0; }
+	template <class... A> eng::s32 unlock_sound(A...) { return 0; }
+	template <class... A> eng::s32 unlock_script(A...) { return 0; }
+	template <class... A> eng::s32 load_fl_object(A...) { return 0; }
 };
 
 } // namespace eng::adv

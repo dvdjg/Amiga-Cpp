@@ -7,7 +7,7 @@ Convierte los guiones descompilados (descumm) en **AST JSON** (`adv-ast/1`) para
 | Pieza | Estado |
 |---|---|
 | **Parser descumm → AST** (`descumm.mjs` + `parse.mjs`) | **HECHO** — cobertura del corpus: **MI1 92.9 %** (39 544/42 555 sentencias) y **MI2 91.5 %** (61 956/67 696); el resto son `kind:"raw"` casi todos por líneas mal formadas del propio descumm (`drawObject(509setXY(,…)`), con `error` registrado en el AST |
-| **Traductor AST → C++ de `eng::adv`** | **PENDIENTE** — reglas por opcode/familia + emisión de funciones/tablas; el corpus y la cobertura ya están |
+| **Traductor AST → C++ de `eng::adv`** (`cpp.mjs` + `emit.mjs`) | **HECHO (base)** — reglas por opcode/familia con contabilidad honesta: **748/748 guiones MI1** y 1004/1006 MI2; **25 433 llamadas mapeadas** MI1 (4 803 no soportadas) y **35 871** MI2 (7 451). `ActorOps`/`VerbOps` → una llamada tipada por sub-operación (`ActorOp`/`VerbOp`); arrays del original (`startScript`, `setClass`, `cutscene`…) → `w.list(…)`; `print`/`printEgo` estáticos → réplicas `say`/`say_ego`. Corpus completo con syntax-check en host; ejecución verificada en guiones sin espera (sala 4; las esperas por variable son bucles fieles al original sin fuente de eventos) |
 
 ## Gramática cubierta (observada en el corpus real)
 
@@ -21,11 +21,16 @@ Convierte los guiones descompilados (descumm) en **AST JSON** (`adv-ast/1`) para
 # AST de todos los guiones del workspace (+ reports/parse-coverage.json y READMEs)
 node tools/adventure/translate/parse.mjs mi1
 
+# C++ de todos los AST (+ reports/translate-report.json y READMEs)
+node tools/adventure/translate/emit.mjs mi1
+
 # Solo una sala / otro destino
 node tools/adventure/translate/parse.mjs mi1 --room 4 --out out/adventure/mi1/decoded/ast
+node tools/adventure/translate/emit.mjs mi1 --room 4 --out out/adventure/mi1/cook/cpp/scripts
 
 # Tests (gramática representativa + casos límite)
 node --test tools/adventure/translate/parse.test.mjs
+node --test tools/adventure/translate/emit.test.mjs
 ```
 
 ## Reglas

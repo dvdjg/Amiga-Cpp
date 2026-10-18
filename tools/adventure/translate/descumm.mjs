@@ -43,11 +43,20 @@ function tokenize(text) {
 			i++;
 			while (i < text.length && text[i] !== '"') {
 				if (text[i] === '\\' && i + 1 < text.length) {
-					s += text[++i];
+					// descumm escapa los bytes no imprimibles como `\xNN` (p. ej. `\xA0`); se
+					// decodifica al carácter para que el guion generado conserve el byte real.
+					const hex = /^x[0-9A-Fa-f]{2}/.exec(text.slice(i + 1));
+					if (hex) {
+						s += String.fromCharCode(parseInt(hex[0].slice(1), 16));
+						i += 4;
+					} else {
+						s += text[++i];
+						i++;
+					}
 				} else {
 					s += text[i];
+					i++;
 				}
-				i++;
 			}
 			if (text[i] !== '"') throw new Error('cadena sin cerrar');
 			i++;
