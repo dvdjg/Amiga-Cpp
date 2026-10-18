@@ -1,6 +1,6 @@
 # Roadmap: presentación de juegos 3D (fotogramas intermedios y horizonte Copper)
 
-Plan de la **capa de presentación** para juegos poligonales estilo *Superhot* / simuladores 90s en A500: percibir 50 Hz con render real a 25 Hz (fotogramas intermedios por paneo de hardware) y fondo de cielo/tierra por offset de scanline (variante *RoboCod* de 5 planos como principal y *DPF 2+3* como alternativa), sin rellenarlo cada frame. El render 3D (cámara, clipping, mallas) y la física tienen sus propios paquetes en [`3D_GAME_ARCHITECTURE.md`](../../engine/architecture/3D_GAME_ARCHITECTURE.md) (perfil *Superhot Lite*); este roadmap añade lo que no cubren. Diseño de las dos técnicas: [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md).
+Plan de la **capa de presentación** para juegos poligonales estilo *Superhot* / simuladores 90s en A500: percibir un display fluido (≥25 Hz) con pasadas completas de render más lentas (suelo **12,5 Hz**), interpolando entre pasadas con paneo de hardware y varios fotogramas falsos por pasada según el coste medido, y fondo de cielo/tierra por offset de scanline (variante *RoboCod* de 5 planos como principal y *DPF 2+3* como alternativa), sin rellenarlo cada frame. El render 3D (cámara, clipping, mallas) y la física tienen sus propios paquetes en [`3D_GAME_ARCHITECTURE.md`](../../engine/architecture/3D_GAME_ARCHITECTURE.md) (perfil *Superhot Lite*); este roadmap añade lo que no cubren. Diseño de las dos técnicas: [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md).
 
 ## Estado de partida (piezas que ya existen: no reimplementar)
 
@@ -9,6 +9,7 @@ Plan de la **capa de presentación** para juegos poligonales estilo *Superhot* /
 | Relleno por plano (contorno XOR `ONEDOT` + area fill) | `eng/graphics/polygon_planes.hpp`, `AmigaBackend::fill_polygons_by_plane` | **Hecho**: verificado por la demo 203 y el self-test de 077 ([`ROADMAP_UNIFICADO.md`](ROADMAP_UNIFICADO.md) §«Relleno de polígonos compuesto por bitplane») |
 | Línea EOR preparada (octante + error) | `AmigaBackend::blitter_line_eor_prepare/draw` (`backend.hpp:549-560`) | Hecho (077/116/203) |
 | Malla, rotaciones, proyección, culling/orden | `core/data/mesh3d.hpp`, `graphics/mesh_renderer.hpp`, `platform/amiga/gfx3d.hpp` | Hecho (077/078/079/116; HOST-011/013/014/046) |
+| Primitivas 3D generadas en compilación (caja, prisma, tubo, cono, esfera, cápsula, platónicos) | `eng/retro/mesh_primitives.hpp` (`MeshData<S, MaxV, MaxI, MaxF>`, `fill_*`) | Hecho (HOST-472); volcado a `.cpp`/UAF desde tool host: pendiente |
 | Near clipping y viewport en el renderer | — | **Falta** (paquete 1 de `3D_GAME_ARCHITECTURE.md`) |
 | DPF 2+3 y 3+3 con fino/coarse independiente por playfield | `graphics/drivers/tile_scroll.hpp` | Hecho (110/111/112/202) |
 | Emitir una vez + parchear `MoveSlot`; doble buffer de copperlist | `TileScrollScene` (`tile_scroll.hpp:748-810`), `copper::{ListBuilder,DoubleBuffer,Plan}` | Hecho (125/201/202 y el patrón de `tile_scroll`) |
@@ -29,16 +30,16 @@ La propuesta de partida (consulta externa, 2026-10) planteaba un árbol `eng::gf
 
 ## Fases
 
-Estado (2026-10-18): **F1 parcialmente ejercitada** — demo `3d/080_camera_pan_window` creada (host test HOST-470 de la política de paneo, contrato de píxel del mecanismo probado por aislamiento y en secuencia, telemetría y visión OK) pero **ABIERTA**: la pasada completa mide ~3,3-4,1 campos (media ~2,2 campos/frame, ~22 fps) y no cumple el gate de cadencia de F1 ni el suelo de 25 fps (deuda DT-032…DT-034 en `ROADMAP_DEUDA_TECNICA.md`; evidencia y alcance en el `VALIDATION.md` de la demo). Cerrar F1 exige la campaña de optimización del Full (siguiente paso verificable).
+Estado (2026-10-18): **F1 parcialmente ejercitada** — demo `3d/080_camera_pan_window` creada (host tests HOST-470 de la política de paneo y HOST-471 del pacing adaptativo, contrato de píxel del mecanismo probado por aislamiento y en secuencia, telemetría y visión OK). La demo decide **cuántos fakes admite cada pasada** con el coste medido del Full (`eng::graphics/render_pacing.hpp`: EMA en campos PAL, `affordable_fakes`), con el display a ~28 fps (suelo de display ≥25 Hz cumplido); la **base** aún no llega a 12,5 Hz: el Full mide ~3,4 campos y con la regla actual sale K=2 (~9 Hz de base) — cerrar F1 exige dejarlo en ≤3,0 campos (K=1, base ≥12,5 Hz) con la campaña de optimización del Full (siguiente paso verificable; deuda DT-032…DT-034 en `ROADMAP_DEUDA_TECNICA.md`, evidencia y alcance en el `VALIDATION.md` de la demo).
 
 | Fase | Objetivo | Entregable | Verificación |
 |---|---|---|---|
 | **F0** | Dependencia: render 3D robusto (cámara, near clipping, buffers acotados) | Paquetes 1–2 de `3D_GAME_ARCHITECTURE.md` (no se duplican aquí) | Los gates de esos paquetes |
-| **F1** | Ventana de paneo y contrato Δcámara→píxeles | Test host del mapeo y de la aritmética de márgenes; demo `3d/080` (habitación estática): Full a 25 Hz + paneo a 50 Hz, **sin render nuevo en los Fakes** | Contrato de píxel (fake == framebuffer anterior desplazado), cadencia 50 Hz de display, flicker 0, visión de secuencia (Ollama) |
-| **F2** | `PresentController` + pasada completa rebanada por VBlank | Política Full/Fake (umbrales, márgenes, racha, `commit_full`), estados reanudables de la pasada, overlay de balas por sprites | 50 Hz sostenidos con CPU holgada; peor caso (spawn/wrap/cambio de fase) perfilado; `VALIDATION.md` |
+| **F1** | Ventana de paneo y contrato Δcámara→píxeles | Test host del mapeo y de la aritmética de márgenes; demo `3d/080` (habitación estática): pasada completa ≥12,5 Hz y display interpolado ≥25 Hz con K adaptativo (**sin render nuevo en los Fakes**) | Contrato de píxel (fake == framebuffer anterior desplazado), display ≥25 Hz y base ≥12,5 Hz, flicker 0, visión de secuencia (Ollama) |
+| **F2** | `PresentController` + pasada completa rebanada por VBlank | Política Full/Fake (umbrales, márgenes, racha adaptativa por coste, `commit_full`), estados reanudables de la pasada, overlay de balas por sprites | Display ≥25 Hz sostenidos con CPU holgada; peor caso (spawn/wrap/cambio de fase) perfilado; `VALIDATION.md` |
 | **F3** | Paneo vertical (pitch) | Ventana Y sobre el framebuffer grande (extender `AxisMode::Finite` de XYLimited a Y o ventana dedicada); cuantización a línea | Contrato de píxel del eje Y; sin salto al llegar a margen (Full forzado) |
 | **F4** | Horizonte Copper por scanline (variante **RoboCod** de 5 planos; DPF 2+3 como alternativa) | Driver por-scanline genérico (`WAIT` + par `BPLxPT` por plano; tabla (orientación, k, S) con las 16 filas variantes de frontera horneadas) **reutilizable por la carretera** de `ROADMAP_RASTER_ROAD`; demo `3d/081` solo-horizonte (sin 3D) → después con cámara | Matemática de la tabla en host; `eng::setup::check_copper_list` en verde; visión (horizonte estable, sin dientes de sierra); presupuesto Copper medido |
-| **F5** | Integración *Superhot Lite* | Demo `3d/082`: habitación + cámara (paneo) + balas (sprites) + horizonte + tiempo lento | 25 fps de render / 50 Hz de display, flicker 0, `VALIDATION.md` con prompts de visión y medidas |
+| **F5** | Integración *Superhot Lite* | Demo `3d/082`: habitación + cámara (paneo) + balas (sprites) + horizonte + tiempo lento | Full ≥12,5 Hz / display ≥25 Hz, flicker 0, `VALIDATION.md` con prompts de visión y medidas |
 | **F6** | Condicional: subpíxel de aristas | Solo proyección en fixed + preajuste de `derr` en `blitter_line_eor_prepare`; **nunca** durante Fakes | Golden de aristas y A/B medido; sin él, la fase no arranca |
 
 ## Contrato de clear (relleno por plano)
@@ -53,14 +54,14 @@ Con la ruta `fill_polygons_by_plane` (contorno XOR + area fill) el destino debe 
 
 ## Presupuesto y estabilidad
 
-- Render real de la escena poligonal: **≥ 25 fps** (suelo de las demos de relleno poligonal, `AGENTS.md` §3); display: **50 Hz** con Fakes.
+- Pasada completa (render real de la escena poligonal): **≥12,5 Hz**; display con Fakes: **≥25 Hz**. (El presupuesto de las demos de relleno poligonal de `AGENTS.md` §3 se lee con estos dos suelos: base e interpolado.)
 - Un Fake no puede introducir picos (coste acotado: unos pocos `patch_data` + sprites); un Full no puede saltarse más de un VBlank extra sin convertir el patrón en frame doblado. Perfilar cada fase con `.amigaprofile` antes de darla por cerrada.
 - Chip RAM a vigilar: dos framebuffers sobredimensionados × 3 planos, dos bloques de copperlist (8 KB/bloque por defecto), las filas del horizonte (1,3–2,7 KB según orientaciones) y los datos de sprites.
 
 ## Riesgos y falsación
 
 - **Paralaje del paneo**: con objetos cercanos grandes, el error de un pan uniforme puede notarse con Δ≥1 px/fake. Criterio: si a 2 px/fake la secuencia no convence a la visión, limitar a rotaciones lentas (perfil *Superhot*) o descartar para escenas con traslación.
-- **Rebanado**: si la pasada completa no se puede cortar en frontera de VBlank, el patrón no sostiene 50 Hz; el fallback honesto es 25 Hz declarados (nunca telemetría maquillada).
+- **Rebanado**: si la pasada completa no se puede cortar en frontera de VBlank, el patrón no sostiene el display; el fallback honesto es declarar la cadencia real por debajo de los suelos (nunca telemetría maquillada).
 - **Presupuesto Copper**: si la plantilla del horizonte no cabe o compite de más con el fetch de 5 planos, bajar a emisión/parcheo cada 2 líneas (`copper-timing-and-budget.md`).
 
 ## Demos y numeración
