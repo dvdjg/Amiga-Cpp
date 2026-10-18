@@ -28,6 +28,9 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
+#include <eng/debug/hud.hpp>        // HudFpsWindow (fps10)
+#include <eng/debug/peripheral.hpp> // contadores (telemetria de memoria)
+#include <eng/debug/prof.hpp>       // prof_clock
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_manager.hpp>
@@ -117,6 +120,10 @@ struct SpriteTemplateActorDemo {
 			return;
 		}
 		m_copper.takeover(backend);
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
+		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("comp_ok"));
+		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("comp_bad"));
+		m_fps_win.reset(0u, eng::debug::prof_clock());
 		eng::debug::mark_ready(
 			g_eng_run_status,
 			(static_cast<eng::u32>(m_chan0) << 16u) |
@@ -138,8 +145,21 @@ struct SpriteTemplateActorDemo {
 			a->desc.x = static_cast<eng::s16>(m_hpos);
 			a->desc.y = static_cast<eng::s16>(m_vpos);
 		}
-		if (compose() && build_copper()) {
+		const bool composed = compose();
+		if (composed && build_copper()) {
 			m_copper.install(backend); // swap de COP1LC (estreno en el VBlank)
+		}
+		// Telemetria de memoria (regla 25): una placement por franja (4) y fps10.
+		if (composed && static_cast<eng::u16>(m_sprites_in_hw) + m_bob_count == kSegments) {
+			++m_comp_ok;
+		} else {
+			++m_comp_bad;
+		}
+		eng::debug::DebugPeripheral::counter_value(1u, m_comp_ok);
+		eng::debug::DebugPeripheral::counter_value(2u, m_comp_bad);
+		eng::u32 fps10 = 0u;
+		if (m_fps_win.update(f, eng::debug::prof_clock(), fps10)) {
+			eng::debug::DebugPeripheral::counter_value(0u, fps10);
 		}
 	}
 
@@ -276,6 +296,9 @@ private:
 	eng::u16 m_vpos = kY0;
 	eng::u16 m_sprites_in_hw = 0;
 	eng::u8  m_bob_count = 0;
+	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps10 (telemetria)
+	eng::u32 m_comp_ok = 0u;               ///< 4 placements (una por franja)
+	eng::u32 m_comp_bad = 0u;              ///< composicion incompleta (deberia ser 0)
 	eng::u8  m_chan0 = 0xffu; ///< canal del primer placement (telemetría: fijo -> 2)
 	scene::ActorId m_id {};
 	eng::graphics::HwSpriteTemplate<kSegments, kSegments> m_template {};
