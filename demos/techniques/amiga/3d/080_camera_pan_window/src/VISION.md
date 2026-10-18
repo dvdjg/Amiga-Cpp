@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-18T17:16:56.501Z
+- Fecha: 2026-10-18T22:25:27.056Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
+- Frames: frame_000.png, frame_005.png, frame_010.png, frame_014.png, frame_019.png (5)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,23 +15,26 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes son idénticas entre sí. No hay cambio alguno en la composición visual ni en los datos de texto mostrados.
+Las tres imágenes son idénticas. No hay cambios en la composición, los elementos gráficos, ni en los datos de texto mostrados en la parte inferior.
 
 **Descripción de lo observable:**
 
-*   **Elementos gráficos principales:**
-    *   Una ventana rectangular en el centro de la pantalla, con un fondo oscuro azul marino.
-    *   Dentro de esta ventana, se muestra una escena tridimensional simplificada, con un suelo gris y paredes de color verde oliva.
-    *   En el interior de la escena, hay cuatro barras verticales: dos a la izquierda (una cian y una amarilla) y dos a la derecha (una cian y una naranja).
-    *   La escena tiene un efecto de pixelación o malla visible en los planos.
+*   **Elemento gráfico principal:** Una ventana rectangular con bordes pixelados, centrada en la parte superior de la imagen. Dentro de esta ventana se muestra una escena en perspectiva isométrica.
+    *   **Fondo de la escena:** Un plano inclinado de color verde oliva en la parte superior y un plano más oscuro, de tono grisáceo, en la parte inferior.
+    *   **Objetos en la escena:** Cuatro barras verticales, dispuestas en dos pares.
+        *   El par de la izquierda: una barra cian y una barra amarilla, muy cercanas entre sí.
+        *   El par de la derecha: una barra cian y una barra naranja, también muy cercanas entre sí.
+    *   **Contorno de los objetos:** Los contornos de las barras son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni colgando en los bordes.
+    *   **Fondo alrededor de los objetos:** El fondo inmediato alrededor de las barras es uniforme y consistente con el plano de la escena, sin restos de posiciones anteriores ni artefactos.
 
-*   **Texto en la parte inferior:**
-    *   Una línea de texto en blanco sobre fondo negro que permanece exactamente igual en todas las imágenes.
-    *   El texto es: `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 0 FULL 1 FAKE 0`, `FULL OFF 0 FAC 7 VER 28 PAN -128 K 2`.
+*   **Texto en la parte inferior:** Una línea de texto en blanco sobre fondo negro, que permanece exactamente igual en todas las imágenes.
+    *   `080 CAMERA PAN WINDOW`
+    *   `FULL 12.5 + FAKE 25`
+    *   `FRAME 0 FULL 0 FAKE 1`
+    *   `FAKE OFF 0 FAC 6 VER 26 PAN -128 K 2`
 
-*   **Estado de los elementos:**
-    *   Todos los elementos gráficos y el texto están completamente visibles, sin recortes, sin artefactos, sin parpadeos ni movimientos.
-    *   El contorno de los objetos es limpio y no presenta halos ni píxeles cortados.
-    *   El fondo inmediato alrededor de los objetos es uniforme y no muestra restos de posiciones anteriores.
+**Conclusiones:**
 
-**Conclusión:** No hay ninguna variación temporal entre las imágenes. Todas muestran exactamente la misma escena y los mismos datos.
+*   **Cambio entre imágenes:** No hay ningún cambio entre las tres imágenes. Son exactamente iguales.
+*   **Elementos extraños o defectuosos:** No se observan artefactos, parpadeos, recortes, elementos superpuestos o incompletos. La imagen es coherente y completa en todos los aspectos visibles.
+*   **Movimiento:** No hay movimiento observable, ya que las imágenes son idénticas.

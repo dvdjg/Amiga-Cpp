@@ -1,3 +1,5 @@
-# -O2: con -O3 el render de la sala se rompe (miscompilacion del TU de la demo, DT-038);
-# K080_NO_PATTERN deja la sala solida y K080_PAN_FREEZE=<pan> congela la camara.
-DEMO_OPT=-O2
+# -O3 -fno-tree-vectorize: el render del TU de la demo es sensible al codegen (DT-038/DT-040);
+# a -O2 el codigo actual renderiza la sala partida (captura congelada a pan 0, DT-041-nota).
+# No quitar -fno-tree-vectorize sin repetir la comprobacion visual con captura congelada.
+DEMO_OPT=-O3
+DEMO_FLAGS=-fno-tree-vectorize
