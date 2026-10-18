@@ -53,6 +53,12 @@ public:
 		(void)m_target.fill(b, color);
 	}
 	/// Rellena `box` con `color` (inmediato, CPU; puede pisar lo dibujado después).
+	///
+	/// **No restaura el fondo**: es un volcado crudo de color. Para un objeto que se mueve
+	/// sobre un fondo estático usa el **sistema de actores** (`World::add_actor` con
+	/// `BackgroundPolicy::SaveUnder`), que guarda/restaura el fondo con el Blitter; borrar y
+	/// repintar con relleno deja daño permanente en el fondo (medido en la demo 302: el
+	/// borrado negro del actor marcaba los bloques estáticos).
 	/// \param box    rectángulo a rellenar.
 	/// \param color  índice de paleta.
 	/// \return `false` si el rectángulo queda fuera del clip.
@@ -131,6 +137,10 @@ public:
 	/// `D = (A & B) | (~A & C)` (`$CA`), donde A = máscara de borde (`AFWM`/`ALWM`), B = color y
 	/// C = destino. Los píxeles fuera del rect (primera/última palabra) se **preservan**, así que
 	/// `b` puede **no estar alineado a 16 px**. `false` si no hay plan.
+	///
+	/// **No restaura el fondo** (igual que `fill`): es un relleno de color, no un borrado con
+	/// recuperación. Para un objeto que se mueve sobre fondo estático usa el sistema de actores
+	/// con `SaveUnder` (restaurar→guardar→dibujar encadenado en el plan).
 	/// \param b      rectángulo a rellenar.
 	/// \param color  índice de paleta.
 	/// \return `false` si no hay plan o el destino no vale.

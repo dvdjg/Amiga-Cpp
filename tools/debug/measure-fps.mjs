@@ -223,26 +223,69 @@ const state = async () => {
 };
 
 await state();
-const a = await state(); const t0 = Date.now();
-await sleep(DURATION_MS);
-const b = await state(); const t1 = Date.now();
-let dCycles = b.cycles - a.cycles;
-if (dCycles < 0) dCycles += 4294967296;
-const dFrame = b.frame - a.frame;
-if (dFrame <= 0) {
-  console.error('[fps] la ventana no tiene frames de juego (dFrame=0): demo colgada o sin run-status; medida abortada.');
-  await conn.disconnect(true);
-  process.exit(2);
+// **Muestreo por sub-ventanas**: una media única engaña cuando el frame está en el borde
+// del campo (una demo que alterna frames de 1 y 2 campos da ~33 fps de media, pero ni va a
+// 50 ni a 25: cada ventana oscila). Se toman N sub-ventanas, se calcula el fps de cada una
+// y se informa min/max: si la dispersión es alta, la cadencia es inestable y la media NO es
+// un dato válido para el presupuesto (medido en la 302: el frame a ~142k de 142.102 alternaba
+// 1/2 campos y `measure-fps` daba 26, 33 o 49 según la fase de la ventana).
+const SAMPLE_COUNT = 8;
+const sampleMs = Math.max(500, Math.floor(DURATION_MS / SAMPLE_COUNT));
+const samples = [];
+let t0 = Date.now();
+let prev = await state();
+for (let i = 0; i < SAMPLE_COUNT; ++i) {
+  await sleep(sampleMs);
+  const now = await state();
+  let dC = now.cycles - prev.cycles;
+  if (dC < 0) dC += 4294967296;
+  const dF = now.frame - prev.frame;
+  samples.push({
+    frames: dF,
+    cycles: dC,
+    fps: dC > 0 ? dF / (dC / CPU_HZ) : 0,
+    detail: now.detail,
+  });
+  prev = now;
 }
-const emuFps = dFrame / (dCycles / CPU_HZ);
+const t1 = Date.now();
+// Si NINGUNA sub-ventana avanzó frames, el run-status no está vivo (dirección falsa o demo
+// colgada): reintento corto antes de abortar, con diagnóstico (antes se abortaba a ciegas).
+if (samples.every((s) => s.frames <= 0)) {
+  console.error('[fps] ninguna sub-ventana avanzó frames (run-status sin actualizar en 0x' +
+    magicAddr.toString(16) + ', detail=0x' + (samples[samples.length - 1].detail >>> 0).toString(16) +
+    '): reintento en 3 s…');
+  await sleep(3000);
+  const retry = await state();
+  if (retry.frame - prev.frame <= 0) {
+    console.error('[fps] sigue sin avanzar: demo colgada o símbolo `g_eng_run_status` incorrecto; medida abortada.');
+    await conn.disconnect(true);
+    process.exit(2);
+  }
+}
+const dFrame = samples.reduce((s, x) => s + x.frames, 0);
+const dCycles = samples.reduce((s, x) => s + x.cycles, 0);
+const emuFps = dCycles > 0 ? dFrame / (dCycles / CPU_HZ) : 0;
 const hostFps = dFrame / ((t1 - t0) / 1000);
 const cyclesPerFrame = dCycles / Math.max(1, dFrame);
 const nominalFieldsPerFrame = cyclesPerFrame / (CPU_HZ / 50);
+const fpsList = samples.map((s) => s.fps);
+const minFps = Math.min(...fpsList);
+const maxFps = Math.max(...fpsList);
+const spread = maxFps - minFps;
+const stable = spread <= Math.max(2, 0.1 * emuFps);
 console.log('[fps] ' + DEMO + '/' + CONFIG_NAME +
   ' | emulado=' + emuFps.toFixed(2) + ' fps' +
   ' | host=' + hostFps.toFixed(2) + ' fps' +
   ' | ' + cyclesPerFrame.toFixed(0) + ' ciclos/frame (' + nominalFieldsPerFrame.toFixed(3) + ' campos/frame)' +
-  ' | detail=0x' + (b.detail >>> 0).toString(16));
+  ' | por ventana=' + fpsList.map((f) => f.toFixed(1)).join('/') +
+  ' | detail=0x' + (samples[samples.length - 1].detail >>> 0).toString(16));
+if (!stable) {
+  console.error('[fps] AVISO: cadencia INESTABLE (min=' + minFps.toFixed(2) + ' max=' + maxFps.toFixed(2) +
+    ' fps; dispersión ' + spread.toFixed(2) + '): el frame está en el borde del campo (alterna 1 y 2 campos)' +
+    ' o hay picos periódicos. La media (' + emuFps.toFixed(2) + ') NO vale como presupuesto: perfila por' +
+    ' secciones (`ENG_PROF_*`) y mira el peor caso.');
+}
 
 if (JSON_OUT) {
   let commit = null;
@@ -259,7 +302,11 @@ if (JSON_OUT) {
     frames: dFrame,
     cycles: dCycles,
     measurementMs: t1 - t0,
-    detail: '0x' + (b.detail >>> 0).toString(16),
+    detail: '0x' + (samples[samples.length - 1].detail >>> 0).toString(16),
+    stable,
+    minFps: Number(minFps.toFixed(2)),
+    maxFps: Number(maxFps.toFixed(2)),
+    samples: samples.map((s) => ({ frames: s.frames, fps: Number(s.fps.toFixed(2)) })),
   };
   console.log(JSON.stringify(result));
 }

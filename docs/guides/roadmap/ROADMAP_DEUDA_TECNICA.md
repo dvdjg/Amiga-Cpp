@@ -216,6 +216,8 @@ El helper `write_ppm` del test `tests/host/graphics/442_proc_bitmaps` usa índic
 
 `node tools/analyze/cast-audit.mjs --check` falla en HEAD sin cambios locales: `field/surface.hpp` tiene 51 `static_cast` (baseline 35) y `graphics/planar_band.hpp` 3 `reinterpret+const` (baseline 0). Son ficheros **no tocados** por el hilo de rachas de Blitter (2026-10-16): o el baseline quedó corto tras cambios previos, o hay casts reales que migrar a tipos. **Resuelto (2026-10-16)**: revisados ambos: los 3 de `planar_band.hpp` son frontera documentada (vistas de palabra sobre buffers planares alineados) y los 51 de `surface.hpp` son estrechamientos de rects/texto con rango acotado; aceptados en `tools/check/casts-baseline.txt` (entradas actualizadas). El gate queda en verde.
 
+**Reapertura parcial (2026-10-18, hilo HUD).** El gate vuelve a rojo con offenders de ficheros **ajenos al hilo HUD**: `graphics/planar_patch.hpp` (5), `rpg/combat.hpp` (8), `rpg/quest.hpp` (10), `rpg/sim_bridge.hpp` (1) — de la capa RPG (`e312bbbf`) —, `retro/wireframe.hpp` (3, `606e487d`) y `graphics/pan_window.hpp` (2, en vuelo, sin commitear). El hilo HUD actualizó en la misma pasada sus propias entradas (`hud/model.hpp` 29, `hud/region.hpp` 3, `hud/strip.hpp` 5 — nuevos desde `cfdb7a25`) y `ui/widgets.hpp` (33 → 36, dispatch de `UiAction` en `cfdb7a25`); los casts ajenos se revisaron **uno a uno**: todos son estrechamientos de rango acotado (`u16`/`s16`/`u8`/`usize`), no fronteras, así que se aceptaron en el baseline para desbloquear el barrido de flota (gate en verde). **Pendiente:** cada hilo reduce los suyos cuando toque ese código (p. ej. `planar_patch` puede tipar el índice con `constexpr`); el baseline solo puede bajar.
+
 ## DT-021 · Demo 213: `A500_release` no alcanza READY (init, reserva Chip)
 
 `A500_release` de la 213 falla en init con `detail=0x06CBF005` (`mark_mem_failed` del grupo sprite/música, banco Chip con ~191 KB libres). Reproducible en el engine sin los cambios del turno. Detalle y evidencia: `docs/debugging/investigaciones/213_release-strict-aliasing.md` §Reapertura.
@@ -270,6 +272,7 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 - [ ] Documentar en `ZERO_COST_FRAME_PATH.md` el **coste por job** medido y la guía de decisión «pocos jobs por frame / streaming para muchos objetos pequeños» (la promesa actual «encolar es barato» sólo vale por job, no por cantidad).
 - [x] **Herramientas (2026-10-17):** `measure-fps` reintenta el read de `$b7e928` (5 intentos) y **aborta con mensaje claro** si el GDB sigue atascado en vez de tumbar la medida (su `state` del canal lateral NO sirve para ciclos: ~14x, no está en unidades de CPU_HZ). El runner **borra el PNG antes de capturar** y reintenta por canal lateral: un fallo ya no deja `screenshot.png` obsoleto.
+- [x] **Herramientas (2026-10-18, hilo HUD):** `measure-fps` muestrea por **sub-ventanas** (8 por defecto) y reporta min/max/estabilidad: una media única engañaba cuando el frame está en el borde del campo (la 302 alternaba 1 y 2 campos y daba 26, 33 o 49 fps según la fase de la ventana; con la dispersión el aviso salta solo). Si ninguna sub-ventana avanza frames, reintenta y aborta indicando la dirección del run-status y el `detail`. La **instancia propia** del tool sigue sin arrancar sano en este entorno (`$b7e928` timeout de 21,5 s + run-status sin avanzar); el camino `run-demo` + perfilador + `HudFpsWindow` en pantalla sí mide (recomendado en el procedimiento, regla 15). Pendiente: revisar el launch propio del tool (¿`runner.uae`/instancia huérfana?).
 - [ ] Investigar el atasco de la cadena de espera de VBlank con cadencias mixtas (repro: 001_rpg_dungeon con HUD compuesto 1 de cada 25 frames; ver `dist` de la demo en `VALIDATION.md`), en la línea de `vblank-timer-inconsistencies.md`.
 
 **Evidencia:** `demos/features/rpg/amiga/001_rpg_dungeon/VALIDATION.md` (tabla de medidas y ablaciones); código y comentarios de coste en `src/main.cpp` de esa demo.
@@ -423,3 +426,29 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 **Resolución (2026-10-17, frente 116/wireframe):** aplicado el plan en ambas cabeceras — `cache::a` es `eng::Ref<const affine_t>` (anulable, para el estado persistente del interleaving; `make` construye desde la referencia) y `wire_lines(..., eng::Ref<const eng::retro::Rect> clip = nullptr)` con `clip.valid()`; los llamadores con `&rect`/`nullptr` no cambian (conversión implícita). Verificado: **gate OK**; HOST-213/047/050/053/011/013 verdes; builds release de 079/116 OK; 116 medido **21,64 fps / 2,311 campos** (banda 21,62..21,72, cambio de tipo sin coste) y `asm-audit` TOTAL `mul32=14` sin cambios (codegen idéntico). La baseline conserva solo las entradas `fixed_affine.hpp:m0/m1/m2` (locales del camino caliente, deuda aceptada aparte).
 
 **Estado: CERRADA** (resuelta por el frente 116/wireframe, que es el autor de ambas cabeceras).
+
+## DT-032 - `PatchHandle` corrompe la copperlist activa en escenas sin `commit()` por frame - ABIERTA (mitigada en 080)
+
+**Síntoma:** en la demo 080 (`3d/080_camera_pan_window`) el frame quedaba efectivamente colgado (~0,2 fps; el contador de frames avanzaba 1 por ventana de 5 s) y la palabra 0 de la copperlist activa aparecía corrupta (`word0=0x58B0` en vez del opcode del `MOVE DMACON`).
+
+**Evidencia:** `profile.mjs` mostró 89 frames/4 s con `-DK080_SKIP_PATCH` (parcheo desactivado) frente a 1 frame/6 s con el parche; aislado con `-DK080_PATCH_NO_BPLCON1` vs `-DK080_PATCH_NO_PLANES`: el parche de `BPLCON1` hecho con `PatchHandle::set` (`Scheduler::patchable`) ralentiza el bucle ~100× y corrompe la lista; sustituido por `move_at` + `copper::patch_data(active_span())` la demo vuelve a ~22 fps. La 080 no llama a `Scene::commit()` por frame (gestiona los buffers a mano) y el handle escribe a través del emisor del `Plan`.
+
+**Impacto:** cualquier consumidor que use `patchable()` sin el ciclo `begin_frame`/`end_frame` + `commit` puede corromper la lista y colgar el frame; es una trampa silenciosa de la API del Copper.
+
+**Plan:** documentar el contrato de `patchable` (requiere el ciclo del `Plan`) y/o validar el slot contra el bloque activo en `PatchHandle::apply`; añadir el caso a un HOST de copper.
+
+## DT-033 - `measure-fps.mjs` aborta con `dFrame=0` en la demo 080 - ABIERTA (herramienta)
+
+**Síntoma:** `node tools/debug/measure-fps.mjs 080_camera_pan_window A500_debug` aborta con «la ventana no tiene frames de juego (dFrame=0)»; `profile.mjs` sobre el mismo binario cuenta frames y ciclos correctamente (89/4 s).
+
+**Evidencia:** repetido en varias corridas; la resolución de `g_eng_run_status` da runtime `0xc2213a` (map + qOffsets) y el canal lateral responde, pero el campo `frame` no avanza en la ventana del medidor (el `ProfBlock`, que sí avanza, se lee por el mismo canal).
+
+**Plan:** revisar la resolución/estructura del run-status del medidor para este binario (comparar con `side_read runstatus <addr>`) y, si es un problema del canal lateral, registrarlo junto a DT-025.
+
+## DT-034 - 080: el relleno por plano de la pasada completa no cabe en el objetivo de F1 (1 campo/Full) - ABIERTA
+
+**Síntoma:** con la técnica ya correcta (contrato de píxel exacto), la cadencia de F1 (50 Hz de display con Full a 25 Hz) no se alcanza: perfil medido `full` = 467-585k ciclos/Full (3,3-4,1 campos; el relleno por plano son 113-327k) y la media queda en ~2,2 campos/frame (~22 fps, por debajo también del suelo de 25 fps del repo), con el frame desbordando el VBlank (firma: costura de captura en la secuencia y parches a mitad de campo).
+
+**Evidencia:** `demos/techniques/amiga/3d/080_camera_pan_window/VALIDATION.md` §2 (contrato en secuencia) y §5 (perfil por secciones con `profile.mjs`).
+
+**Plan (siguiente paso del `ROADMAP_3D_PRESENTACION.md`, F1):** campaña de optimización del Full con el método del repo (presupuesto de bus y mapa de contención, A/B con hot-patch): caja de sala por fase, menos lanzamientos de Blitter por plano o rediseño de la pasada (p. ej. sala en un solo plano con patrones, o fondo por bandas de color de Copper en lugar de geometría).

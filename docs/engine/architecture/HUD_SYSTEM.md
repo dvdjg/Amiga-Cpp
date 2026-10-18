@@ -204,9 +204,9 @@ struct HudDrawOp {
     eng::Box box;
     eng::u8 color;
     eng::u8 flags;
-    eng::u16 asset;       ///< frame del atlas o canal de sprite
-    const char* text;     ///< válido hasta present(); sin heap
-    eng::u8 text_len;
+    eng::u16 asset;             ///< frame del atlas o canal de sprite
+    eng::u8 text_len;           ///< longitud válida de `text`
+    char text[kHudTextMax];     ///< texto POR VALOR (copiado con `set_text`; sin heap)
 };
 
 struct HudHitRect {
@@ -215,6 +215,8 @@ struct HudHitRect {
     eng::u8 layer;        ///< orden dentro de la región; mayor = delante
 };
 ```
+
+El texto de `HudDrawOp`/`Label`/`Button` va **por valor** en un buffer fijo (`kHudTextMax`, copiado con `set_text`; rechazo controlado si no cabe): el llamador puede reutilizar su buffer de origen sin que las operaciones ya emitidas cambien. Cierra el fallo clásico de las listas de operaciones (todas apuntando al mismo buffer mutable, con el texto pintado siendo el último escrito o basura si el buffer muere); es el mismo patrón que el buffer del `Counter`.
 
 Las rejillas no generan N rectángulos: guardan un `HudGridHit` con origen, pitch, filas/columnas y el índice de la primera celda; el *slot* se calcula al recibir el evento (`(x - origin) / pitch`), no por frame. La división solo ocurre en entrada, no en el bucle de render, y el pitch se restringe o se mide según §5.5.
 

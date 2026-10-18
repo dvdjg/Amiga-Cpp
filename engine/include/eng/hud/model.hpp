@@ -31,6 +31,32 @@ inline constexpr eng::u8 kHudMaxDigits = 32u;
 /// Caracteres del buffer de un contador (32 dígitos + signo).
 inline constexpr eng::u8 kHudCounterChars = static_cast<eng::u8>(kHudMaxDigits + 1u);
 
+/// Capacidad del texto **por valor** de etiquetas, botones y operaciones de dibujo: se copia
+/// al emitir y **no** se guarda un observador. Cierra el fallo clásico de las listas de
+/// operaciones: todas apuntando al mismo buffer mutable, de modo que el texto pintado acaba
+/// siendo el último escrito (o basura si el buffer muere). Con el texto por valor, reutilizar
+/// el buffer de origen es seguro por construcción. 24 cubre las etiquetas y el prefijo de la
+/// línea de depuración de las demos.
+inline constexpr eng::u8 kHudTextMax = 24u;
+
+namespace hud_detail {
+
+/// Copia `text` al buffer `dst`/`len` (sin heap). `false` si no cabe: **rechazo controlado**,
+/// no se trunca en silencio (un texto recortado es un fallo de contenido, no de espacio).
+constexpr bool copy_text(char (&dst)[kHudTextMax], eng::u8& len,
+			 eng::Span<const char> text) noexcept {
+	if (text.size() > static_cast<eng::usize>(kHudTextMax)) {
+		return false;
+	}
+	len = static_cast<eng::u8>(text.size());
+	for (eng::usize i = 0u; i < text.size(); ++i) {
+		dst[i] = text[i];
+	}
+	return true;
+}
+
+} // namespace hud_detail
+
 /// Umbral de arrastre por defecto (px): por debajo del umbral un *down*+*up* es un *click*
 /// (histéresis contra el temblor del ratón; `HUD_SYSTEM.md` §7.2).
 inline constexpr eng::s16 kHudDragStartPx = 4;
@@ -121,18 +147,37 @@ struct IconGrid {
 	bool dirty = true;               ///< true si cambió desde el último `clear_dirty`
 };
 
-/// Etiqueta de texto estático (o refrescado por el juego); el texto es un observador.
+/// Etiqueta de texto estático (o refrescado por el juego); el texto se copia **por valor**
+/// al añadirla (el juego puede reutilizar su buffer sin cambiar lo pintado).
 struct Label {
-	eng::Span<const char> text {}; ///< texto (sin terminador; el juego lo mantiene vivo)
-	bool dirty = true;             ///< true si cambió desde el último `clear_dirty`
+	eng::u8 text_len = 0u;             ///< longitud válida de `text`
+	char text[kHudTextMax] {};         ///< texto por valor (sin heap)
+	bool dirty = true;                 ///< true si cambió desde el último `clear_dirty`
+	/// Copia el texto a la etiqueta; `false` si no cabe en `kHudTextMax` (rechazo controlado).
+	[[nodiscard]] bool set_text(eng::Span<const char> t) noexcept {
+		return hud_detail::copy_text(text, text_len, t);
+	}
+	/// Texto vigente (observador a la propia etiqueta).
+	[[nodiscard]] eng::Span<const char> text_view() const noexcept {
+		return eng::Span<const char> {text, text_len};
+	}
 };
 
 /// Botón de HUD (barra de verbos, menú de acción): etiqueta, habilitado y pulsado.
 struct Button {
-	eng::Span<const char> text {}; ///< etiqueta (observador)
-	bool enabled = true;           ///< false = no interactivo
-	bool pressed = false;          ///< true mientras está pulsado
-	bool dirty = true;             ///< true si cambió desde el último `clear_dirty`
+	eng::u8 text_len = 0u;             ///< longitud válida de `text`
+	char text[kHudTextMax] {};         ///< etiqueta por valor (sin heap)
+	bool enabled = true;               ///< false = no interactivo
+	bool pressed = false;              ///< true mientras está pulsado
+	bool dirty = true;                 ///< true si cambió desde el último `clear_dirty`
+	/// Copia la etiqueta al botón; `false` si no cabe en `kHudTextMax` (rechazo controlado).
+	[[nodiscard]] bool set_text(eng::Span<const char> t) noexcept {
+		return hud_detail::copy_text(text, text_len, t);
+	}
+	/// Etiqueta vigente (observador al propio botón).
+	[[nodiscard]] eng::Span<const char> text_view() const noexcept {
+		return eng::Span<const char> {text, text_len};
+	}
 };
 
 /// Panel de HUD (columna/fila/rejilla): agrupa y recorta; **no** es una ventana de `eng::ui`.
@@ -154,14 +199,25 @@ enum class HudOpKind : eng::u8 {
 };
 
 /// Operación de dibujo emitida por el modelo; el presentador la materializa (CPU/Blitter/Copper).
-/// `text` es un observador válido hasta `present()` en el mismo frame.
+/// El texto va **por valor** (`text`/`text_len`, copiado con `set_text`): la operación es
+/// autocontenida y el llamador puede reutilizar su buffer sin afectar a lo ya emitido.
 struct HudDrawOp {
 	HudOpKind kind = HudOpKind::Fill; ///< tipo de operación
 	eng::Box box {};                  ///< región afectada
 	eng::u8 color = 0u;               ///< índice lógico de color
 	eng::u8 flags = 0u;               ///< bits del presentador (máscara, alineación…)
 	eng::u16 asset = 0u;              ///< frame del atlas o canal de sprite
-	eng::Span<const char> text {};    ///< texto/dígitos (observador)
+	eng::u8 text_len = 0u;            ///< longitud válida de `text`
+	char text[kHudTextMax] {};        ///< texto/dígitos por valor (sin heap)
+
+	/// Copia el texto a la operación; `false` si no cabe en `kHudTextMax` (rechazo controlado).
+	[[nodiscard]] bool set_text(eng::Span<const char> t) noexcept {
+		return hud_detail::copy_text(text, text_len, t);
+	}
+	/// Texto vigente (observador a la propia operación).
+	[[nodiscard]] eng::Span<const char> text_view() const noexcept {
+		return eng::Span<const char> {text, text_len};
+	}
 };
 
 /// Entrada de *hit-test* rectangular de una región (rectángulos ordenados por capa).
@@ -172,7 +228,8 @@ struct HudHitRect {
 };
 
 /// Entrada de *hit-test* de una rejilla: la celda se calcula por fórmula al recibir el evento
-/// (sin generar N rectángulos). `first_id` es el id lógico del slot [0][0].
+/// (sin generar N rectángulos). `first_id` es el id lógico del slot [0][0]; `grid` enlaza la
+/// rejilla del modelo para que `HudInput` pueda mover su selección/foco (`input.hpp`).
 struct HudGridHit {
 	eng::Box area {};        ///< zona de la rejilla
 	eng::u8 cols = 0u;       ///< columnas
@@ -180,6 +237,7 @@ struct HudGridHit {
 	eng::u8 pitch_x = 16u;   ///< paso horizontal
 	eng::u8 pitch_y = 16u;   ///< paso vertical
 	eng::u16 first_id = 0u;  ///< id del primer slot
+	GridHandle grid {};      ///< rejilla del modelo (opcional; vacío = solo id lógico)
 };
 
 /// Fase de la sesión de arrastre (máquina de puntero de `HUD_SYSTEM.md` §7.2).
@@ -475,14 +533,17 @@ public:
 
 	// --- Etiquetas, botones y paneles -------------------------------------------------------
 
-	/// Añade una etiqueta; handle inválido si no cabe (`MaxWidgets`).
+	/// Añade una etiqueta; handle inválido si no cabe (`MaxWidgets`) o el texto excede
+	/// `kHudTextMax`.
 	[[nodiscard]] LabelHandle add_label(eng::Span<const char> text) noexcept {
 		if (m_widgets_used >= MaxWidgets) {
 			return {};
 		}
 		Label& l = m_labels[m_labels_used];
 		l = Label {};
-		l.text = text;
+		if (!l.set_text(text)) {
+			return {};
+		}
 		++m_widgets_used;
 		return LabelHandle {static_cast<eng::u8>(m_labels_used++)};
 	}
@@ -493,14 +554,17 @@ public:
 		return m_labels[handle.index];
 	}
 
-	/// Añade un botón; handle inválido si no cabe (`MaxWidgets`).
+	/// Añade un botón; handle inválido si no cabe (`MaxWidgets`) o la etiqueta excede
+	/// `kHudTextMax`.
 	[[nodiscard]] ButtonHandle add_button(eng::Span<const char> text) noexcept {
 		if (m_widgets_used >= MaxWidgets) {
 			return {};
 		}
 		Button& b = m_buttons[m_buttons_used];
 		b = Button {};
-		b.text = text;
+		if (!b.set_text(text)) {
+			return {};
+		}
 		++m_widgets_used;
 		return ButtonHandle {static_cast<eng::u8>(m_buttons_used++)};
 	}

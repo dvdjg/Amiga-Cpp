@@ -386,7 +386,9 @@ private:
 			// x alineada a 16 px: el presentador usa `draw_text_words` (2 glifos por word).
 			digits.box = eng::Box {kScoreX, 4, 48u, 8u};
 			digits.color = kHudAccent;
-			digits.text = text;
+			// Texto **por valor** en el op: `counter_text` apunta al buffer interno del
+			// contador y se copia al emitir (el op es autocontenido).
+			(void)digits.set_text(text);
 			(void)m_hud.push_op(digits);
 			m_score_len = static_cast<u8>(text.size());
 			for (eng::usize i = 0u; i < text.size() && i < sizeof(m_score_text); ++i) {
@@ -439,17 +441,18 @@ private:
 	/// Borrado de una zona con el color de fondo de la franja.
 	void push_clear(s16 x, s16 y, u16 w, u16 h) { push_fill(x, y, w, h, kHudBg); }
 
-	/// Encoda una etiqueta estatica como operacion de texto (observador a la cadena literal).
+	/// Encoda una etiqueta estatica como operacion de texto (copia por valor; el literal de la
+	/// demo cabe de sobra en `kHudTextMax`).
 	void push_text(s16 x, s16 y, const char* text, u8 color) {
 		eng::usize n = 0u;
-		while (text[n] != '\0' && n < 32u) {
+		while (text[n] != '\0' && n < eng::hud::kHudTextMax) {
 			++n;
 		}
 		eng::hud::HudDrawOp op {};
 		op.kind = eng::hud::HudOpKind::Text;
 		op.box = eng::Box {x, y, static_cast<u16>(n * 8u), 8u};
 		op.color = color;
-		op.text = eng::Span<const char> {text, n};
+		(void)op.set_text(eng::Span<const char> {text, n});
 		(void)m_hud.push_op(op);
 	}
 

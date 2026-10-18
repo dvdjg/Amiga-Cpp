@@ -214,7 +214,9 @@
   3    28  engine/include/eng/graphics/glyph_cache.hpp
   0     8  engine/include/eng/graphics/mesh_renderer.hpp
   0     7  engine/include/eng/graphics/palette.hpp
+  0     2  engine/include/eng/graphics/pan_window.hpp
   3     0  engine/include/eng/graphics/planar_band.hpp
+  0     5  engine/include/eng/graphics/planar_patch.hpp
   0     2  engine/include/eng/graphics/playfield_scroll.hpp
   0    15  engine/include/eng/graphics/polygon_planes.hpp
   0     2  engine/include/eng/graphics/raster_intent.hpp
@@ -232,6 +234,9 @@
   0     3  engine/include/eng/graphics/tilemap/attribute_table.hpp
   0     8  engine/include/eng/graphics/tilemap/tile_editor.hpp
   0    26  engine/include/eng/graphics/tilemap/tile_scroll.hpp
+  0    29  engine/include/eng/hud/model.hpp
+  0     3  engine/include/eng/hud/region.hpp
+  0     5  engine/include/eng/hud/strip.hpp
   0    15  engine/include/eng/hw/bus_budget.hpp
   0     3  engine/include/eng/hw/info.hpp
   3     6  engine/include/eng/memory/arena.hpp
@@ -282,6 +287,10 @@
   0    40  engine/include/eng/retro/lib2d.hpp
   0    26  engine/include/eng/retro/minifloat_fixed.hpp
   0     2  engine/include/eng/retro/sintab.hpp
+  0     3  engine/include/eng/retro/wireframe.hpp
+  0     8  engine/include/eng/rpg/combat.hpp
+  0    10  engine/include/eng/rpg/quest.hpp
+  0     1  engine/include/eng/rpg/sim_bridge.hpp
   0     3  engine/include/eng/rpg/stats.hpp
   0    19  engine/include/eng/scene/actor_sprite.hpp
   0    20  engine/include/eng/scene/actor_store.hpp
@@ -357,7 +366,7 @@
   5    14  engine/include/eng/ui/text.hpp
   0     4  engine/include/eng/ui/ui_bridge.hpp
   0     6  engine/include/eng/ui/widget.hpp
-  0    33  engine/include/eng/ui/widgets.hpp
+  0    36  engine/include/eng/ui/widgets.hpp
   0     2  engine/include/eng/ui/window.hpp
   1     1  engine/src/platform/amiga/amiga_boot.cpp
   0    20  engine/src/platform/amiga/amiga_c2p.cpp

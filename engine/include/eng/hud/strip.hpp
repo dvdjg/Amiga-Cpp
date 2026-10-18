@@ -59,9 +59,11 @@ struct HudStripConfig {
 			break;
 		case HudOpKind::Text:
 		case HudOpKind::Digits: {
+			// El texto del op va por valor (buffer fijo); se copia a un buffer local
+			// NUL-terminado para `draw_text`/`draw_text_words`.
 			char buf[kHudCounterChars] {};
 			const eng::usize limit = static_cast<eng::usize>(kHudCounterChars - 1u);
-			const eng::usize n = op.text.size() < limit ? op.text.size() : limit;
+			const eng::usize n = op.text_len < limit ? op.text_len : limit;
 			for (eng::usize c = 0u; c < n; ++c) {
 				buf[c] = op.text[c];
 			}
