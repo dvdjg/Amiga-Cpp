@@ -84,6 +84,87 @@ inline constexpr eng::u8 kMaxCrossings = 128;
 
 } // namespace detail
 
+/// Arista proyectada del relleno por plano (extremos en pantalla; la orientación es
+/// indiferente para el planificador de paridad).
+struct PlaneEdge {
+	eng::s16 x0 = 0;
+	eng::s16 y0 = 0;
+	eng::s16 x1 = 0;
+	eng::s16 y1 = 0;
+};
+
+/// **Planifica las aristas que hay que dibujar en el plano `bit`** con paridad *even-odd*:
+/// cada cara con ese bit aporta sus aristas una vez; las **compartidas** por dos caras del
+/// mismo bit se dibujan dos veces y el EOR las cancela. Como «dibujar 2× ≡ no dibujar»,
+/// el plan devuelve solo las aristas de **multiplicidad impar, una vez cada una**: mismo
+/// contorno (misma paridad por fila) con menos blits de línea. Devuelve el número de
+/// aristas escritas en `out`, o `cap + 1` si no caben (el llamador dibuja todas, como sin
+/// plan). `bit` = plano (0..7). Las aristas horizontales se incluyen en el recuento (el
+/// trazador EOR las descarta después por diseño).
+[[nodiscard]] inline eng::u32 plan_plane_edges(const PlanePolygon* faces, eng::u32 n, eng::u8 bit,
+					       PlaneEdge* out, eng::u32 cap) {
+	if (faces == nullptr || out == nullptr) {
+		return cap + 1u;
+	}
+	const auto canon = [](PlaneEdge e) {
+		const bool swap = (e.y0 > e.y1) || (e.y0 == e.y1 && e.x0 > e.x1);
+		if (swap) {
+			const eng::s16 tx = e.x0, ty = e.y0;
+			e.x0 = e.x1;
+			e.y0 = e.y1;
+			e.x1 = tx;
+			e.y1 = ty;
+		}
+		return e;
+	};
+	const auto same = [](PlaneEdge a, PlaneEdge b) {
+		return a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
+	};
+	eng::u32 total = 0u;
+	for (eng::u32 f = 0u; f < n; ++f) {
+		if ((faces[f].color & (1u << bit)) == 0u || faces[f].count < 3u) {
+			continue;
+		}
+		total += faces[f].count;
+	}
+	if (total > cap) {
+		return cap + 1u;
+	}
+	// Recuento por multiplicidad (comparación canónica, O(E^2) con E pequeño).
+	eng::u32 e_count = 0u;
+	for (eng::u32 f = 0u; f < n; ++f) {
+		const PlanePolygon& face = faces[f];
+		if ((face.color & (1u << bit)) == 0u || face.count < 3u) {
+			continue;
+		}
+		for (eng::u8 i = 0u; i < face.count; ++i) {
+			const eng::u8 j = static_cast<eng::u8>((i + 1u) % face.count);
+			out[e_count] = canon(PlaneEdge {face.xs[i], face.ys[i], face.xs[j], face.ys[j]});
+			++e_count;
+		}
+	}
+	eng::u32 written = 0u;
+	for (eng::u32 i = 0u; i < e_count; ++i) {
+		if (out[i].x0 == 0x7fff) {
+			continue; // ya consumida como duplicado par
+		}
+		eng::u32 mult = 1u;
+		for (eng::u32 j = i + 1u; j < e_count; ++j) {
+			if (out[j].x0 == 0x7fff) {
+				continue;
+			}
+			if (same(out[i], out[j])) {
+				++mult;
+				out[j].x0 = 0x7fff; // marca de consumida
+			}
+		}
+		if ((mult & 1u) != 0u) {
+			out[written++] = out[i];
+		}
+	}
+	return written;
+}
+
 /// **Rellena un conjunto de caras componiendo por bitplane (CPU)**: para cada plano `p`,
 /// rasteriza por **scanline even-odd** la unión de las caras cuyo `color` tiene el bit `p`
 /// a 1 y escribe los spans en el plano `p` de `dest` (contiguo, `plane_bytes` por plano),

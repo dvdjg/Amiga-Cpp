@@ -20,6 +20,7 @@
 #include <eng/graphics/polygon_planes.hpp>
 
 #include <cstdio>
+#include <vector>
 
 namespace {
 
@@ -114,6 +115,8 @@ bool expected_pixel(FillPattern kind, u32 x, u32 y, u32 x0, u32 y0, u32 x1, u32 
 		return true;
 	case FillPattern::Checker2:
 		return ((x + y) & 1u) == 0u;
+	case FillPattern::Checker2Inv:
+		return ((x + y) & 1u) != 0u;
 	case FillPattern::Checker4:
 		return ((x & 2u) == (y & 2u));
 	case FillPattern::Dots2:
@@ -240,6 +243,85 @@ void test_compose_dither() {
 	check(ok, "dither (1,2): par -> indice 1, impar -> indice 2, bit a bit");
 }
 
+void test_edge_dedupe() {
+	using eng::graphics::PlaneEdge;
+	// Dos quads que comparten una arista (mismo bit) y un triangulo suelto: la arista
+	// compartida es de multiplicidad 2 (se salta); las demas, impar.
+	const eng::s16 xs_a[4] = {10, 50, 50, 10};
+	const eng::s16 ys_a[4] = {10, 10, 40, 40};
+	const eng::s16 xs_b[4] = {50, 90, 90, 50};
+	const eng::s16 ys_b[4] = {10, 10, 40, 40};
+	const eng::s16 xs_c[3] = {10, 40, 10};
+	const eng::s16 ys_c[3] = {50, 70, 70};
+	const eng::graphics::PlanePolygon faces[3] = {
+		{xs_a, ys_a, 4u, 1u}, {xs_b, ys_b, 4u, 1u}, {xs_c, ys_c, 3u, 1u}};
+	PlaneEdge planned[64];
+	const u32 np = eng::graphics::plan_plane_edges(faces, 3u, 0u, planned, 64u);
+	check(np == 9u, "plan de aristas: 11 aristas, 2 del borde compartido se saltan");
+	// La arista compartida (x=50, y 10..40) no debe estar en el plan.
+	bool shared_found = false;
+	for (u32 i = 0; i < np; ++i) {
+		if (planned[i].x0 == 50 && planned[i].x1 == 50) {
+			shared_found = true;
+		}
+	}
+	check(!shared_found, "plan: la arista compartida (par) no se dibuja");
+	// Equivalencia de paridad: el conjunto COMPLETO (todas las aristas de las caras) y el
+	// planificado producen la misma región even-odd por fila.
+	PlaneEdge all[64];
+	u32 na = 0u;
+	for (u32 f = 0u; f < 3u; ++f) {
+		for (u32 i = 0u; i < faces[f].count; ++i) {
+			const u32 j = (i + 1u) % faces[f].count;
+			all[na++] = PlaneEdge {faces[f].xs[i], faces[f].ys[i], faces[f].xs[j],
+					       faces[f].ys[j]};
+		}
+	}
+	// Comparación por REGIÓN (máscara de 64 px por fila): dos cruces iguales cancelan en el
+	// emparejado even-odd, así que el plan (sin la arista par) debe pintar el MISMO conjunto
+	// de píxeles por fila.
+	bool same_spans = true;
+	for (u32 y = 0u; y < 96u && same_spans; ++y) {
+		const auto row_mask = [&](const PlaneEdge* e, u32 n) -> eng::u64 {
+			eng::s32 c[64];
+			u32 m = 0u;
+			for (u32 i = 0u; i < n && m < 64u; ++i) {
+				const eng::s32 y0 = e[i].y0, y1 = e[i].y1;
+				if ((y0 <= static_cast<eng::s32>(y) && static_cast<eng::s32>(y) < y1) ||
+				    (y1 <= static_cast<eng::s32>(y) && static_cast<eng::s32>(y) < y0)) {
+					c[m++] = e[i].x0 + (e[i].x1 - e[i].x0) *
+								  (static_cast<eng::s32>(y) - y0) /
+								  (y1 - y0);
+				}
+			}
+			for (u32 i = 1u; i < m; ++i) {
+				const eng::s32 key = c[i];
+				u32 k = i;
+				while (k > 0 && c[k - 1] > key) {
+					c[k] = c[k - 1];
+					--k;
+				}
+				c[k] = key;
+			}
+			eng::u64 mask = 0u;
+			for (u32 k = 0u; k + 1u < m; k += 2u) {
+				for (eng::s32 x = c[k]; x < c[k + 1u] && x < 64; ++x) {
+					if (x >= 0) {
+						mask |= (1ull << static_cast<u32>(x));
+					}
+				}
+			}
+			return mask;
+		};
+		if (row_mask(all, na) != row_mask(planned, np)) {
+			same_spans = false;
+		}
+	}
+	check(same_spans, "dedupe: el plan preserva la region por fila (misma paridad)");
+	check(eng::graphics::plan_plane_edges(faces, 3u, 1u, planned, 64u) == 0u,
+	      "plan: el plano sin bits de esas caras no tiene aristas");
+}
+
 } // namespace
 
 int main() {
@@ -252,6 +334,9 @@ int main() {
 	test_compose(FillPattern::Oblique45, "Oblique45");
 	test_compose(FillPattern::Dots2, "Dots2");
 	test_solid_matches_polygon();
+	test_edge_dedupe();
+	test_dither_planes();
+	test_compose_dither();
 
 	if (g_fail == 0) {
 		std::printf("OK: patrones de relleno (checker, punteado, líneas v/h y oblicuas)\n");

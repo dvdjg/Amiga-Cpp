@@ -829,21 +829,36 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 		// 1) limpia el plano.
 		blitter_clear(plane, 1u, row_bytes, plane_bytes, width, height);
 		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1; las
-		//    aristas compartidas por dos caras del mismo bit se dibujan dos veces y el
-		//    fill even-odd las cancela. Los registros comunes EOR se fijan UNA vez por
-		//    plano (`blitter_lines_begin`), no por arista.
+		//    aristas de multiplicidad PAR (compartidas por dos caras del mismo bit) se
+		//    SALTAN con el planificador de paridad (`plan_plane_edges`: dibujarlas dos
+		//    veces las cancela, así que no dibujarlas deja el mismo contorno con menos
+		//    blits); las impares se dibujan una vez. Si el plan no cabe, se dibujan todas
+		//    (como antes). Los registros comunes EOR se fijan UNA vez por plano.
 		blitter_lines_begin(row_bytes);
-		for (u32 f = 0; f < n_faces; ++f) {
-			const graphics::PlanePolygon& face = faces[f];
-			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
-				continue;
-			}
-			for (u8 i = 0; i < face.count; ++i) {
-				const u8 j = static_cast<u8>((i + 1u) % face.count);
+		graphics::PlaneEdge edges[64];
+		const u32 ne = graphics::plan_plane_edges(faces, n_faces, p, edges, 64u);
+		if (ne <= 64u) {
+			for (u32 e = 0u; e < ne; ++e) {
 				LineEorParams eor;
-				if (blitter_line_eor_prepare(eor, row_bytes, face.xs[i], face.ys[i],
-							     face.xs[j], face.ys[j])) {
+				if (blitter_line_eor_prepare(eor, row_bytes, edges[e].x0, edges[e].y0,
+							     edges[e].x1, edges[e].y1)) {
 					blitter_line_draw(eor, plane.data(), plane.data());
+				}
+			}
+		} else {
+			for (u32 f = 0; f < n_faces; ++f) {
+				const graphics::PlanePolygon& face = faces[f];
+				if ((face.color & (1u << p)) == 0u || face.count < 3u) {
+					continue;
+				}
+				for (u8 i = 0; i < face.count; ++i) {
+					const u8 j = static_cast<u8>((i + 1u) % face.count);
+					LineEorParams eor;
+					if (blitter_line_eor_prepare(eor, row_bytes, face.xs[i],
+								     face.ys[i], face.xs[j],
+								     face.ys[j])) {
+						blitter_line_draw(eor, plane.data(), plane.data());
+					}
 				}
 			}
 		}

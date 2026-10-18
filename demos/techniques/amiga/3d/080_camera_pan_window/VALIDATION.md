@@ -66,6 +66,8 @@ Build actual (política adaptativa, `-O3`, HUD cada 32 frames):
 - Control `SKIP_FILL` (ablación): 152 frames / 4 s = **38 fps**, 1,32 campos/frame — el relleno por plano es el grueso del Full; los candidatos de optimización están ahí (ver DT-034).
 - **Patrón de sala (A/B, `profile.mjs`)**: pasada completa **426k–552k** sin patrón (`-DK080_NO_PATTERN`) vs **508k–595k** con `Checker4` en un pase de plano (A = plano de patrón, 6 c/palabra). Con la **aplicación por fases** (`pattern_period`, 4 c/palabra y clears a 2 en fases vacías) el mínimo de la sección `fill` baja de **117k a 104k** (≈ el ahorro teórico de ~2 c/palabra por fase); la comparación de `full` por llamada entre corridas tiene ruido de ±10–20k, así que la cifra fiable es la de `fill`. El barrido único de planos contiguos no aplica a este layout; el análisis completo está en `blitter-line-subpixel-fill.md` §5.
 
+- **Dedupe de aristas pares** (engine, `plan_plane_edges`): las aristas compartidas por dos caras del mismo bit (6 en la sala) ya no se dibujan dos veces para cancelarse — se saltan. El render es **identico** (captura comparada; equivalencia de region probada bit a bit en HOST-474) y el ahorro (~6 blits de linea) no es separable del ruido del perfil en esta escena (valor general en mallas).
+
 Objetivo: **base (Full) ≥12,5 Hz y display ≥25 Hz**. Display cumplido; base pendiente de la campaña de optimización del Full.
 
 ## 6. Qué cubre esta validación y qué NO
