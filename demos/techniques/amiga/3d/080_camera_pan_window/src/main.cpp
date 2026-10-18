@@ -44,6 +44,7 @@
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/graphics/pan_window.hpp>
 #include <eng/graphics/polygon_planes.hpp>
+#include <eng/graphics/render_pacing.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/fixed_trig.hpp>
@@ -143,8 +144,11 @@ enum : eng::u8 {
 };
 
 // Margen 15 px por lado (ventana centrada en S=16; el FB admite S en [1..31]) y racha
-// de 1 Fake entre Fulls (render real a 25 Hz con display a 50 Hz).
-constexpr eng::graphics::PanWindowPolicy kPanPolicy {15, 0, 1};
+// ADAPTATIVA: el numero de Fakes entre Fulls lo fija `RenderPacing` a partir del coste
+// medido de la pasada completa (HOST-471), con tope `kFakeCap` (tolerancia visual: en la
+// fase lenta cada Fake acumula 1 px de paneo no resuelto). Sin medida aun, racha 1.
+constexpr eng::u8 kFakeCap = 3u;
+constexpr eng::graphics::PanWindowPolicy kPanPolicyBase {15, 0, 1};
 
 // --- Escena: sala (5 caras) + 4 paneles en fila (mismo z: sin solapes entre ellos) ---
 constexpr u32 kFaceCount = 9u;
@@ -183,14 +187,22 @@ constexpr FaceSpec kFaces[kFaceCount] = {
 	{{p3(88, -80, 635), p3(112, -80, 645), p3(112, 80, 645), p3(88, 80, 635)}, 12u},
 };
 
+// Caja FIJA de la sala (planos 0-1): la proyeccion del tubo cabe en las filas 8..200
+// para TODO el rango de paneo (en yaw 0 el borde cercano de suelo/techo toca 8 y 200;
+// con yaw los bordes se meten hacia dentro). El barrido de clear+area fill se acota a
+// esta caja (~7% menos palabras por plano); cubre tambien la posicion de los renders
+// anteriores del mismo buffer (el contenido varia poco entre rerenders).
+constexpr s16 kRoomBoxY = 8;
+constexpr u16 kRoomBoxH = 193u; // filas 8..200 inclusive
+
 // Caja FIJA de los planos de panel (2-3): cubre la posicion de los paneles para todo el
 // rango de paneo (+-29 grados). Debe cubrir tambien la posicion en el render ANTERIOR del
 // mismo buffer (hasta 64 px de paneo entre rerenders en la fase rapida), o quedarian
 // paneles fantasma al limpiar solo la caja del frame actual. Filas 44..163.
 constexpr s16 kPanelBoxX = 0;
 constexpr u16 kPanelBoxW = kFbW;      // 352 px (22 palabras)
-constexpr s16 kPanelBoxY = 44;
-constexpr u16 kPanelBoxH = 120u;
+constexpr s16 kPanelBoxY = 52;
+constexpr u16 kPanelBoxH = 104u;
 
 /// Decimal de `v` en `out` (NUL incluido); devuelve los caracteres escritos.
 u8 u16_to_str(u16 v, char* out) {
@@ -302,7 +314,7 @@ struct PanWindowDemo {
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfFrame);
 		eng::graphics::PanWindowStep step =
-			eng::graphics::pan_window_step(m_pan_state, m_pan, 0, kPanPolicy);
+			eng::graphics::pan_window_step(m_pan_state, m_pan, 0, m_policy);
 #if defined(K080_OFFSET_TEST)
 		{
 			static constexpr s16 kCycle[17] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
@@ -316,7 +328,16 @@ struct PanWindowDemo {
 		if (step.full) {
 			++m_fulls;
 			ENG_PROF_BEGIN(kProfFull);
+#if defined(ENG_AMIGA)
+			const eng::u32 full_c0 = eng::debug::prof_clock();
+#endif
 			render_full(backend, m_pan);
+#if defined(ENG_AMIGA)
+			// Ratio de render: coste medido del Full -> racha de Fakes para la base
+			// (>=12,5 Hz) y la presentacion con interpolados (>=25 Hz), HOST-471.
+			m_pacing.observe(eng::debug::prof_clock() - full_c0);
+			m_policy.max_consecutive_fakes = m_pacing.affordable_fakes(kFakeCap);
+#endif
 			ENG_PROF_END(kProfFull);
 			m_show_buf = m_draw_buf;
 			m_draw_buf = static_cast<u8>(m_draw_buf ^ 1u);
@@ -329,7 +350,7 @@ struct PanWindowDemo {
 		// palabras cuesta ~190k ciclos medidos cuando el frame desborda el VBlank y
 		// escribe con el display activo; medido con `profile.mjs`).
 #if !defined(K080_SKIP_HUD)
-		if ((f & 15u) == 0u) {
+		if ((f & 31u) == 0u) {
 			ENG_PROF_BEGIN(kProfHud);
 			draw_hud_dynamic(f, step);
 			ENG_PROF_END(kProfHud);
@@ -448,10 +469,14 @@ private:
 					 eng::retro::turns(static_cast<u16>(yaw_steps)),
 					 eng::retro::turns(0u));
 
-		// Proyeccion + recorte 2D al area de escena (el contorno del Blitter no
-		// recorta; los cuadrilateros que salen del FB deben llegar recortados).
+		// Proyeccion + recorte 2D. El recorte de Sutherland-Hodgman (4 pasadas) solo se
+		// paga cuando la cara CRUZA el borde: si su AABB esta dentro se envia tal cual y
+		// si esta fuera se descarta (fast path; la mayoria de las caras en la vista tipica).
 		const eng::retro::Rect clip =
 			eng::retro::rect(0, 0, static_cast<s16>(kFbW), static_cast<s16>(kFbH));
+		const eng::retro::Rect room_box =
+			eng::retro::rect(0, kRoomBoxY, static_cast<s16>(kFbW),
+					 static_cast<s16>(kRoomBoxY) + static_cast<s16>(kRoomBoxH));
 		eng::retro::Vec2 in[kMaxVerts];
 		eng::retro::Vec2 tmp[kMaxVerts];
 
@@ -461,6 +486,30 @@ private:
 		eng::graphics::PlaneFillBuilder<kFaceCount> walls_fb;
 		eng::graphics::PlaneFillBuilder<kFaceCount> panels_fb;
 		u32 verts = 0u;
+		// Fast path del recorte: dentro = sin pasadas; fuera = descartar; si no, S-H.
+		const auto inside_box = [](const eng::retro::Vec2* v, const eng::retro::Rect& r) {
+			for (u32 k = 0u; k < 4u; ++k) {
+				if (!(v[k].x().v >= r.minX.v && v[k].x().v < r.maxX.v &&
+				      v[k].y().v >= r.minY.v && v[k].y().v < r.maxY.v)) {
+					return false;
+				}
+			}
+			return true;
+		};
+		const auto outside_box = [](const eng::retro::Vec2* v, const eng::retro::Rect& r) {
+			bool left = true;
+			bool right = true;
+			bool top = true;
+			bool bottom = true;
+			for (u32 k = 0u; k < 4u; ++k) {
+				left = left && (v[k].x().v < r.minX.v);
+				right = right && (v[k].x().v >= r.maxX.v);
+				top = top && (v[k].y().v < r.minY.v);
+				bottom = bottom && (v[k].y().v >= r.maxY.v);
+			}
+			return left || right || top || bottom;
+		};
+
 		for (u32 i = 0u; i < kFaceCount; ++i) {
 			eng::math3d::Vec3 cam[4];
 			eng::math3d::mesh_transform(eng::Span<const eng::math3d::Vec3>(kFaces[i].v, 4),
@@ -471,21 +520,51 @@ private:
 				eng::graphics::project_perspective(cam[k], kFocal, kCx, kCy, sx, sy);
 				in[k] = eng::retro::v2(sx, sy);
 			}
-			const u32 n = eng::retro::clip_polygon(
-				clip, in, tmp, 4u,
-				static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
-						eng::retro::PF_RIGHT | eng::retro::PF_BOTTOM));
-			m_fn[i] = static_cast<u8>(n);
-			if (n < 3u || n > kMaxVerts) {
+			u32 n = 0u;
+			if (inside_box(in, clip)) {
+				n = 4u; // fast path: todo dentro del framebuffer
+			} else if (!outside_box(in, clip)) {
+				n = eng::retro::clip_polygon(
+					clip, in, tmp, 4u,
+					static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
+							eng::retro::PF_RIGHT | eng::retro::PF_BOTTOM));
+			}
+			if (n < 3u) {
+				m_fn[i] = 0u;
 				continue;
 			}
-			for (u32 k = 0u; k < n; ++k) {
-				m_fx[i][k] = in[k].x().v;
-				m_fy[i][k] = in[k].y().v;
-			}
-			verts += n;
 			if (i < 5u) {
-				(void)walls_fb.submit(m_fx[i], m_fy[i], static_cast<u8>(n), kFaces[i].color);
+				// Sala: acotar a la caja de filas del tubo; coords locales a la caja.
+				if (!inside_box(in, room_box)) {
+					n = outside_box(in, room_box)
+						    ? 0u
+						    : eng::retro::clip_polygon(
+							      room_box, in, tmp, n,
+							      static_cast<u8>(eng::retro::PF_LEFT |
+									      eng::retro::PF_TOP |
+									      eng::retro::PF_RIGHT |
+									      eng::retro::PF_BOTTOM));
+				}
+				m_fn[i] = static_cast<u8>(n);
+				if (n < 3u) {
+					continue;
+				}
+				for (u32 k = 0u; k < n; ++k) {
+					m_fx[i][k] = in[k].x().v;
+					m_fy[i][k] = static_cast<s16>(in[k].y().v - kRoomBoxY);
+				}
+				verts += n;
+				(void)walls_fb.submit(m_fx[i], m_fy[i], static_cast<u8>(n),
+						      kFaces[i].color);
+			} else {
+				// Paneles: se guardan en coords globales; el bloque de paneles los
+				// recorta a su caja fija y los desplaza.
+				m_fn[i] = static_cast<u8>(n);
+				for (u32 k = 0u; k < n; ++k) {
+					m_fx[i][k] = in[k].x().v;
+					m_fy[i][k] = in[k].y().v;
+				}
+				verts += n;
 			}
 		}
 		m_dbg_verts = static_cast<u8>(verts > 255u ? 255u : verts);
@@ -498,11 +577,14 @@ private:
 #else
 		if (walls_fb.count() != 0u) {
 			ENG_PROF_BEGIN(kProfFill);
-			(void)backend.fill_polygons_by_plane(walls_fb.faces().data(), walls_fb.count(), buf,
-							     kRowBytes, kSceneBytes, 2u, kFbW, kFbH);
+			(void)backend.fill_polygons_by_plane(
+				walls_fb.faces().data(), walls_fb.count(),
+				buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes), kRowBytes,
+				kSceneBytes, 2u, kFbW, kRoomBoxH);
 			ENG_PROF_END(kProfFill);
 		} else {
-			(void)backend.blitter_clear(buf, 2u, kRowBytes, kSceneBytes, kFbW, kFbH, false);
+			(void)backend.blitter_clear(buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes),
+						    2u, kRowBytes, kSceneBytes, kFbW, kRoomBoxH, false);
 		}
 
 		// Paneles: bbox con margen de 8 px (el contenido del mismo buffer cambia como
@@ -600,6 +682,9 @@ private:
 		n = str_cat(text2, n, " PAN ");
 		(void)i16_to_str(static_cast<s16>(m_pan), buf);
 		n = str_cat(text2, n, buf);
+		n = str_cat(text2, n, " K ");
+		(void)u16_to_str(static_cast<u16>(m_policy.max_consecutive_fakes), buf);
+		n = str_cat(text2, n, buf);
 		pad_to(text2, n, kHudLineChars);
 		ENG_PROF_END(kProfHudCtor);
 		ENG_PROF_BEGIN(kProfHudLine1);
@@ -619,6 +704,8 @@ private:
 	eng::copper::MoveSlot m_plane_hi[kPlanes] {};
 	eng::copper::MoveSlot m_plane_lo[kPlanes] {};
 	eng::graphics::PanWindowState m_pan_state {};
+	eng::graphics::PanWindowPolicy m_policy = kPanPolicyBase;
+	eng::graphics::RenderPacing m_pacing {};
 	s32 m_pan = -128; ///< paneo en px de imagen (inicio en la fase rapida)
 	s32 m_dir = 1;
 	u8 m_show_buf = 0u;
