@@ -23,6 +23,10 @@ Con la cámara congelada (`pan=-128`) y el ciclo de offsets forzados 0..16:
 
 Nota: el PNG capturado muestra el campo anterior a la pausa (lag de 1 campo documentado en el runner); tras alinear ese desfase, el mapeo resulta **continuo y exacto** (cada posición de ventana produce el desplazamiento pedido, sin saltos ni dientes de sierra de 16 px). La corrupción inicial de word0 de la copperlist (slots de parche inválidos en `takeover`) quedó corregida registrando el par de punteros con `Scene::set_plane_patch`.
 
+## 2.1 Publicación al inicio de campo y contrato adaptativo (2026-10-18)
+
+El buffer del Full se **publica en el update siguiente** (que corre tras el VBlank, antes de que el haz llegue a los `MOVE` de punteros): así el frame presentado es entero y desaparece el corte a mitad de campo que salía al parchear nada más terminar el render (que desborda el campo, DT-034). Latencia de 1 frame en la publicación (como la pipeline de la 116); el offset de display del propio Full es el paneo avanzado desde su render (0..15). Verificado con captura por paso (`--sequence-step-frames 8`): frames **limpios** (visto por el agente) y **verificador adaptativo con invariantes OK y 4/4 pares de contrato** (fake == Full publicado + delta de offsets; costura 1088-1354 px ≈ 2 %). El chequeo de "Fulls consecutivos" queda **pendiente de fase de captura** (el probe pausa dentro del update, antes del patch de ese frame; ver DT-033).
+
 ## 2. Contrato en la secuencia Full/Fake
 
 ```bash

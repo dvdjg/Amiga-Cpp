@@ -108,6 +108,7 @@ function analyzeSequence(seqDir) {
 
 	// --- Invariantes de la telemetria (politica adaptativa) --------------------------
 	let lastFullPan = null;
+	let lastFullOff = 0;
 	let run = 0;
 	let sinceFull = 0;
 	let maxRun = 0;
@@ -117,8 +118,13 @@ function analyzeSequence(seqDir) {
 	for (const f of frames) {
 		if (f.full) {
 			fulls++;
-			check(f.off === 0, `f${f.frame}: Full con offset 0 (off=${f.off})`);
+			// Con la **publicación diferida al inicio de campo** el Full se muestra en el
+			// update siguiente a su render: su offset de display es pequeño y >= 0 (el paneo
+			// avanzado desde el render), no forzosamente 0.
+			check(f.off >= 0 && f.off <= MARGIN,
+			      `f${f.frame}: Full con offset 0..${MARGIN} (off=${f.off})`);
 			lastFullPan = f.pan;
+			lastFullOff = f.off;
 			maxRun = Math.max(maxRun, run);
 			run = 0;
 			sinceFull = 0;
@@ -130,8 +136,10 @@ function analyzeSequence(seqDir) {
 			check(f.off >= 1 && f.off <= MARGIN,
 			      `f${f.frame}: Fake con offset 1..${MARGIN} (off=${f.off})`);
 			if (lastFullPan !== null) {
-				check(f.pan === lastFullPan + f.off,
-				      `f${f.frame}: pan (${f.pan}) == pan del Full (${lastFullPan}) + offset (${f.off})`);
+				// El offset es absoluto respecto al paneo del RENDER del Full mostrado
+				// (`renderPan = pan del Full publicado - su offset de display`).
+				check(f.pan - (lastFullPan - lastFullOff) === f.off,
+				      `f${f.frame}: offset (${f.off}) == pan (${f.pan}) - renderPan (${lastFullPan - lastFullOff})`);
 			}
 			check(run <= FAKE_RUN_MAX, `f${f.frame}: racha de Fakes acotada (${run})`);
 			check(sinceFull <= FULL_EVERY_MAX, `f${f.frame}: Full al menos cada ${FULL_EVERY_MAX} frames`);
@@ -141,36 +149,46 @@ function analyzeSequence(seqDir) {
 	console.log(`  INFO fulls ${fulls} / fakes ${fakes}; racha maxima ${maxRun}; sin Full ${maxSinceFull} frames`);
 
 	// --- Contrato de pixel (por offset REPORTADO, con costura de captura acotada) ----
-	// La SCC puede reconstruir el campo a caballo del parche si el frame desborda el
-	// campo: el par con costura acotada se acepta; la exactitud del mecanismo se prueba
-	// aparte (aislamiento, VALIDATION §1).
+	// Semantica de la politica adaptativa: cada **Fake** muestra el contenido del ULTIMO
+	// **Full** desplazado por SU offset (los fakes intermedios no cambian el buffer). La
+	// SCC puede reconstruir el campo a caballo del parche si el frame desborda el campo: el
+	// par con costura acotada se acepta; la exactitud del mecanismo se prueba aparte
+	// (aislamiento, VALIDATION §1).
 	const kSeamMax = 2200;
-	const byFrame = new Map(frames.map((f) => [f.frame, f]));
 	let pairs = 0;
 	let exactPairs = 0;
+	let lastFull = null;
 	for (const f of frames) {
-		if (f.full) continue;
-		const next = byFrame.get(f.frame + 1);
-		if (!next) continue;
+		if (f.full) {
+			lastFull = f;
+			continue;
+		}
+		if (lastFull === null) continue;
 		// Saltar los pares en el borde de la fase rapida (el paneo no resuelto de esa
 		// frontera engorda la costura; en la fase rapida no hay Fakes por diseno).
-		if (lastFullPan !== null && Math.abs(lastFullPan) >= 96) continue;
-		const r = compareShift(f.path, next.path, f.off);
+		if (Math.abs(lastFull.pan) >= 96 || Math.abs(f.pan) >= 96) continue;
+		// Ambas imagenes muestran el MISMO buffer del Full; la fake lo hace con su offset
+		// absoluto y el propio Full publicado con el suyo: el contrato es el DELTA.
+		const delta = f.off - lastFullOff;
+		if (delta === 0) continue;
+		const r = compareShift(lastFull.path, f.path, delta);
 		pairs++;
 		const exact = r.mismatches === 0;
 		if (exact) exactPairs++;
 		check(exact || r.mismatches <= kSeamMax,
-		      `f${f.frame} (Fake off=${f.off}): PNG(f${f.frame + 1}) == PNG(f${f.frame}) + ${f.off} px [${r.mismatches}/${r.total}${exact ? '' : ' (costura de captura)'}]`);
+		      `f${f.frame} (Fake off=${f.off}): PNG(f) == PNG(Full f${lastFull.frame}, off=${lastFullOff}) + ${delta} px [${r.mismatches}/${r.total}${exact ? '' : ' (costura de captura)'}]`);
 	}
 	check(pairs >= 2, `hay al menos 2 pares de contrato en la secuencia (${pairs})`);
 	console.log(`  INFO pares con contrato exacto: ${exactPairs}/${pairs}`);
 
 	// --- Fulls consecutivos: el contenido sigue el paneo -----------------------------
+	// Cualquier par de Fulls de la secuencia (la politica adaptativa no alterna): el
+	// desplazamiento dominante debe ser |Δpan|.
+	const fullList = frames.filter((f) => f.full);
 	let fullsOk = 0;
-	for (const f of frames) {
-		if (!f.full) continue;
-		const b = byFrame.get(f.frame + 2);
-		if (!b || !b.full) continue;
+	for (let i = 0; i + 1 < fullList.length; ++i) {
+		const f = fullList[i];
+		const b = fullList[i + 1];
 		const k = Math.abs(b.pan - f.pan);
 		if (k === 0 || k > 6) continue;
 		if (Math.abs(f.pan) >= 96 || Math.abs(b.pan) >= 96) continue;

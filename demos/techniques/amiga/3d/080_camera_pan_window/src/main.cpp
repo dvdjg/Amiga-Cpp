@@ -354,6 +354,20 @@ struct PanWindowDemo {
 #endif
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfFrame);
+		// **Publicación diferida al inicio del campo**: el update corre justo tras el VBlank
+		// (latido del mini-SO), así que el cambio de buffer del Full se parchea ANTES de que
+		// el haz llegue a los `MOVE` de punteros de la copperlist → el frame presentado es
+		// entero (sin el corte a mitad de campo que salía al parchear nada más terminar el
+		// render, que desborda el campo: DT-034). El Full renderizado se muestra en el
+		// update SIGUIENTE (latencia de 1 frame, como la pipeline de la 116).
+		bool publish = false;
+		if (m_pending_full) {
+			m_show_buf = m_pending_buf;
+			m_draw_buf = static_cast<u8>(m_pending_buf ^ 1u);
+			m_shown_pan = m_pending_pan;
+			m_pending_full = false;
+			publish = true;
+		}
 		eng::graphics::PanWindowStep step =
 			eng::graphics::pan_window_step(m_pan_state, m_pan, 0, m_policy);
 #if defined(K080_OFFSET_TEST)
@@ -365,9 +379,30 @@ struct PanWindowDemo {
 		}
 #endif
 
-		u16 s = static_cast<u16>(kCenterS + step.offset_x);
-		if (step.full) {
+		// Ventana del frame PRESENTADO: desplazamiento del contenido mostrado respecto a su
+		// Full publicado, clueado al margen de la ventana (S en 1..31 = off −15..+15). El
+		// render de un Full nuevo no cambia lo mostrado hasta su publicación (arriba).
+		s32 disp_off = m_pan - m_shown_pan;
+		if (disp_off > 15) {
+			disp_off = 15;
+		}
+		if (disp_off < -15) {
+			disp_off = -15;
+		}
+#if defined(K080_OFFSET_TEST)
+		{
+			static constexpr s16 kCycle[17] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+							   12, 13, 14, 15, 16};
+			disp_off = kCycle[(f / 8u) % 17u];
+		}
+#endif
+		const u16 s = static_cast<u16>(kCenterS + disp_off);
+		if (publish) {
 			++m_fulls;
+		} else {
+			++m_fakes;
+		}
+		if (step.full) {
 			ENG_PROF_BEGIN(kProfFull);
 #if defined(ENG_AMIGA)
 			const eng::u32 full_c0 = eng::debug::prof_clock();
@@ -380,11 +415,10 @@ struct PanWindowDemo {
 			m_policy.max_consecutive_fakes = m_pacing.affordable_fakes(kFakeCap);
 #endif
 			ENG_PROF_END(kProfFull);
-			m_show_buf = m_draw_buf;
-			m_draw_buf = static_cast<u8>(m_draw_buf ^ 1u);
-			s = kCenterS;
-		} else {
-			++m_fakes;
+			// El buffer renderizado se publica en el update SIGUIENTE (inicio de campo).
+			m_pending_buf = m_draw_buf;
+			m_pending_pan = m_pan;
+			m_pending_full = true;
 		}
 		// El HUD se repinta cada 16 frames (~3 Hz): suficiente para telemetria de
 		// depuracion y deja el camino del frame en 1 campo (una linea de texto por
@@ -405,8 +439,8 @@ struct PanWindowDemo {
 		// Telemetria por frame (la leen el canal lateral y el verificador):
 		// [31:24] modo (0xA1 Full / 0xA2 Fake), [23:16] offset+128, [15:0] pan.
 		g_eng_run_status.detail =
-			(static_cast<u32>(step.full ? 0xa1u : 0xa2u) << 24u) |
-			(static_cast<u32>(static_cast<u8>(step.offset_x + 128)) << 16u) |
+			(static_cast<u32>(publish ? 0xa1u : 0xa2u) << 24u) |
+			(static_cast<u32>(static_cast<u8>(disp_off + 128)) << 16u) |
 			(static_cast<u32>(static_cast<u16>(m_pan)) & 0xffffu);
 
 		// Paneo triangular determinista: lento (1 px/frame) |pan|<96 y rapido (16)
@@ -769,6 +803,11 @@ private:
 	s32 m_dir = 1;
 	u8 m_show_buf = 0u;
 	u8 m_draw_buf = 1u;
+	/// Full renderizado pendiente de publicar (se publica al inicio del campo siguiente).
+	bool m_pending_full = false;
+	u8 m_pending_buf = 0u;
+	s32 m_pending_pan = -128; ///< paneo con el que se rindió el Full pendiente
+	s32 m_shown_pan = -128;   ///< paneo del Full publicado (ancla de la ventana mostrada)
 	u32 m_fulls = 0u;
 	u32 m_fakes = 0u;
 	u8 m_dbg_faces = 0u;
