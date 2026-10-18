@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-18T12:54:31.487Z
+- Fecha: 2026-10-18T16:45:33.314Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png (5)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,22 +15,36 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
+**Observación de las imágenes en orden temporal:**
+
 **Imagen 1:**
-- **Contenido visual:** Una ventana de visualización con un fondo de patrones de rayas diagonales en tonos azules, verdes y marrones, con un efecto de pixelización. En el centro, hay cinco barras verticales de colores: dos cian, una amarilla, una naranja y otra cian (de izquierda a derecha). Las barras están dispuestas en una fila horizontal.
-- **Texto en la parte inferior:** "080 CAMERA PAN WINDOW", "FULL 12.5 + FAKE 25", "FRAME 02 FULL 115 FAKE 20", "FAKE OFF 0 FAC 7 VER 39 PAN -128KK22".
-- **Estado:** La ventana muestra una vista completa de las barras y el fondo.
+- **Elementos gráficos:** Una ventana de visualización con un fondo azul oscuro y un patrón de malla de puntos. Dentro de la ventana, hay cinco barras verticales de colores: dos cian, una amarilla, una cian y una naranja, dispuestas en fila horizontal. A ambos lados de las barras, hay dos grandes triángulos que parecen paredes o planos inclinados, uno verde oscuro a la izquierda y uno marrón a la derecha. El fondo de la ventana tiene un patrón de malla de puntos azul oscuro.
+- **Texto en la parte inferior:** "080 CAMERA PAN WINDOW", "FULL 12.5 + FAKE 25", "FRAME 0 FULL 1 FAKE 0", "FULL OFF 0 FAC 7 VER 28 PAN -128 K 2".
+- **Estado de los objetos:** Las barras están completamente visibles dentro del marco de la ventana. No hay artefactos visibles en los bordes de los objetos ni en el fondo.
 
 **Imagen 2:**
-- **Contenido visual:** La ventana de visualización muestra el mismo fondo de rayas diagonales. Las cinco barras verticales están presentes, pero su posición ha cambiado: ahora están más centradas horizontalmente, y la barra naranja está más a la derecha.
-- **Texto en la parte inferior:** "080 CAMERA PAN WINDOW", "FULL 12.5 + FAKE 25", "FRAME 96 FULL 35 FAKE 62", "FULL OFF 0 FAC 9 VER 43 PAN 13 K 2".
-- **Estado:** Las barras han sido desplazadas hacia la derecha y hacia el centro. El texto en la parte inferior ha cambiado, indicando un cambio en los parámetros de la cámara.
+- **Cambios observables:**
+  - Las barras se han desplazado ligeramente hacia la derecha.
+  - El texto en la parte inferior ha cambiado: "FRAME 62 FULL 28 FAKE 20", "FAKE OFF 2 FAC 9 VER 39 PAN -51 K 2".
+  - El valor de "PAN" ha cambiado de -128 a -51, lo que indica un movimiento de la cámara hacia la derecha.
+  - El valor de "FAKE OFF" ha cambiado de 0 a 2.
+  - El valor de "VER" ha cambiado de 28 a 39.
+  - El valor de "FAC" ha cambiado de 7 a 9.
+- **Estado de los objetos:** Las barras están completamente visibles dentro del marco de la ventana. No hay artefactos visibles en los bordes de los objetos ni en el fondo.
 
 **Imagen 3:**
-- **Contenido visual:** La ventana de visualización es idéntica a la de la imagen 2. Las cinco barras verticales mantienen la misma posición que en la imagen 2.
-- **Texto en la parte inferior:** "080 CAMERA PAN WINDOW", "FULL 12.5 + FAKE 25", "FRAME 96 FULL 35 FAKE 62", "FULL OFF 0 FAC 9 VER 43 PAN 13 K 2".
-- **Estado:** La imagen es exactamente igual a la imagen 2. No hay cambios visibles en la posición de las barras ni en el texto.
+- **Cambios observables:**
+  - Las barras se han desplazado aún más hacia la derecha.
+  - El texto en la parte inferior ha cambiado: "FRAME 64 FULL 24 FAKE 41", "FAKE OFF 1 FAC 9 VER 39 PAN -19 K 2".
+  - El valor de "PAN" ha cambiado de -51 a -19, lo que indica un movimiento de la cámara hacia la derecha.
+  - El valor de "FAKE OFF" ha cambiado de 2 a 1.
+  - El valor de "FULL" ha cambiado de 1 a 24.
+  - El valor de "FAKE" ha cambiado de 20 a 41.
+- **Estado de los objetos:** Las barras están completamente visibles dentro del marco de la ventana. No hay artefactos visibles en los bordes de los objetos ni en el fondo.
 
-**Cambios observados:**
-- Las barras verticales se desplazan de la imagen 1 a la imagen 2, y permanecen en la misma posición en la imagen 3.
-- El texto en la parte inferior cambia de la imagen 1 a la imagen 2, y permanece igual en la imagen 3.
-- No hay artefactos visibles, como bandas, halos o píxeles cortados. Los contornos de las barras son limpios y no hay restos de su posición anterior. El fondo se ve uniforme y no hay elementos superpuestos.
+**Conclusión:**
+- Las imágenes muestran una secuencia de movimiento de la cámara (pan) hacia la derecha, lo que se refleja en el cambio de los valores de "PAN" y "FAKE OFF" en el texto de la parte inferior.
+- Los objetos (barras) se desplazan de manera coherente con el movimiento de la cámara.
+- No hay artefactos visibles en los bordes de los objetos ni en el fondo.
+- El fondo de la ventana tiene un patrón de malla de puntos azul oscuro, que permanece constante en todas las imágenes.
+- El texto en la parte inferior cambia en cada imagen, reflejando los parámetros de la cámara y el estado de los objetos.

@@ -96,6 +96,7 @@ movimiento. Ante discrepancia con el modelo, prevalece el frame-diff. Modelo rec
 
 ## 5. Lección de la 116 (caso real): el `verify-*` puede dar PASS con la imagen rota
 
+
 - **Síntoma**: el port asm de `flatshade-convex` daba `verify-116` **PASS**
   (`balon convexo flat-shaded (15 tonos, 512x498)`) pero la imagen era un amasijo de bandas
   y triángulos. Señal de alarma: el balón C++ usa **7-8 tonos** y el roto **15** (más tonos,
@@ -114,6 +115,13 @@ movimiento. Ante discrepancia con el modelo, prevalece el frame-diff. Modelo rec
 - **Regla**: ante cualquier cambio de **render**, no fiar el resultado a `verify-*`; pasar
   **Ollama** (preguntando por anomalías concretas) o comparar con una referencia por fase
   (IoU + MAD). Y si el objeto se mueve, comparar **al mismo ángulo**.
+
+## 5.1 Lección de la 080 (caso real): el eval describe el síntoma y nadie lo marca como defecto
+
+- **Síntoma**: la sala 3D de la 080 se renderizó bien al principio y luego salió partida en triángulos/bandas (patrón en X). La evaluación de visión **no lo señaló como fallo**: ya en el primer eval describía «una ventana con un **triángulo verde** (pared izquierda), suelo marrón…» — el síntoma, leído como descripción. El agente (yo) tampoco lo contrastó con el `INTENT.md` («sala en tubo con paredes/suelo/techo»), y las validaciones de la demo comprobaban el **mecanismo** (contrato de desplazamiento de ventana con cámara congelada), no la corrección de la escena.
+- **Por qué el flujo no lo cazó**: el eval canónico final (prompt único, sin pistas) **describe**; mirar contornos de objetos en movimiento no valida la **estructura**. La fase C (contraste contra la intención) del §6.4 existía como «depuración» pero no era obligatoria para declarar VERIFICADA.
+- **Cómo se acotó y cerró**: (1) captura **estática** con la cámara congelada (`-DK080_PAN_FREEZE=0`, sin tearing) → rotura inequívoca; (2) **referencia CPU** de la misma escena en host (`fill_polygons_by_plane_cpu`) → túnel correcto ⇒ la geometría/proyección/paridad están bien y el problema está en el camino Blitter **o en su entrada**; (3) **bisección por commits con `git worktree`** (árbol aparte, sin tocar el de trabajo compartido): el commit original renderiza limpio y el commit que añadió `-O3` rompe; mismo código a `-O2` limpio ⇒ **miscompilación** (DT-038), no lógica. Arreglo: `DEMO_OPT=-O2` y verificación visual del túnel con patrón.
+- **Reglas que quedan**: (a) el **pase C contra el `INTENT.md` es obligatorio** antes de VERIFICADA, y «triángulo/bandas» donde el INTENT dice «túnel/superficie» es un **fallo**; (b) para verificar un render, captura **estática con la escena congelada** cuando el mecanismo lo permita (elimina el tearing y las lecturas ambiguas); (c) ante una regresión sospechosa, **bisección barata con `git worktree`** antes de teorizar; (d) un `-O3` local (`DEMO_OPT`) es una variable de render: si cambia algo visible, es sospechoso de miscompilación (verificar con el asm o bajar a `-O2`).
 
 ## 6. Reglas obligatorias (demos y validación visual)
 
@@ -171,9 +179,10 @@ Reglas del interrogatorio:
 Vas a analizar N capturas consecutivas (frames 0..N-1) de la misma animación. No conoces el programa ni lo que pretende mostrar; describe SOLO lo que observas.
 1) Inventario: enumera los elementos distintos que ves (forma, color, tamaño relativo) y cuántos hay de cada tipo.
 2) Dinámica: para cada elemento, ¿cambia de posición, tamaño, forma o color entre frames? ¿cómo se relaciona con los demás (orden, solapes, capas)?
-3) ¿Algún elemento aparece o desaparece en algún frame? ¿alguno parpadea (está en unos frames y en otros no)?
+3. ¿Algún elemento aparece o desaparece en algún frame? ¿alguno parpadea (está en unos frames y en otros no)?
 4) ¿Ves discontinuidades, cortes, zonas incoherentes o "basura" (ruido, bloques, texto raro)? Indica zona relativa (arriba/centro/abajo, izquierda/centro/derecha) y en qué frames.
 5) ¿El conjunto se mueve de forma coherente? ¿hay algo que debería moverse y no se mueve?
+6) ¿Las formas grandes (superficies, fondos, paredes, siluetas) se ven **bien formadas y continuas**, o alguna aparece **partida, invertida o cubierta de bandas/triángulos** que no parecen parte del dibujo? Responde solo lo que ves.
 Responde en español con observaciones concretas. No inventes coordenadas en píxeles.
 ```
 
@@ -191,6 +200,8 @@ Responde en español.
 ```
 
 La fase C no sustituye a A/B: es la comprobación contra la intención, no la fuente de la verdad.
+
+**El pase C es OBLIGATORIO antes de declarar una demo VERIFICADA** (lección 080, §5.1): la lista de elementos sale del `src/INTENT.md` de la demo y el modelo debe confirmar **presencia y coherencia de CADA uno**. Si C dice «ausente», «a medias» o «incoherente» para un elemento esperado, la demo queda **ABIERTA** aunque A/B y los gates mecánicos pasen. El prompt canónico de `vision-final.mjs` (mínimo común, sin pistas) **no acredita la estructura de la escena**: una descripción fiel puede estar describiendo un fallo («un triángulo verde (pared izquierda)» era el síntoma de un render roto) — solo el contraste C contra la intención lo distingue. Regla práctica: **toda frase del eval que describa geometría debe poder mapearse a un elemento del INTENT**; si el eval dice «triángulo/bandas/abstracto» donde el INTENT dice «sala/túnel/superficie», es un FALLO, no una descripción.
 
 **Informe por demo.** Cada demo mantiene un `VALIDATION.md` en su carpeta con: prompts exactos enviados (A/B/C), **respuestas crudas** del modelo, medidas objetivas (fps/ciclos, `tools/analyze/check-elements.mjs`, band-diff) y conclusiones. Es la evidencia de F4/F5 del `PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` y se actualiza en cada pasada que cambie el render o el coste.
 
