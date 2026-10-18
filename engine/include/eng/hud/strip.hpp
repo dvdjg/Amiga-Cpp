@@ -103,6 +103,16 @@ public:
 		if (!m_canvas.bind(planes, c)) {
 			return false;
 		}
+		// **Rellenos del HUD por CPU** (la franja es la ruta CPU de referencia): las
+		// operaciones del modelo son rectangulos pequenos/medianos (pips 8x8, deltas de
+		// medidor de 2x6, marcos de 1 px) y en un lienzo de 2 planos el arranque del Blitter
+		// (~10-14k ciclos por rect, `ATRIBUCION_DE_CICLOS.md` antipatron 3) domina al coste
+		// CPU (~100-1000). Con `Auto` el umbral de 64 px manda al Blitter los pips/marcos;
+		// con `Cpu` el relleno de la franja completa (clear inicial) tambien va por CPU, que
+		// cabe de sobra en el presupuesto del setup. El Blitter queda para las hojas/atlas
+		// (H4/H6), que no pasan por `fill_rect`.
+		m_canvas.set_raster_policy(playfield::RasterPolicy {
+			playfield::AccelMode::Cpu, 0u, true });
 		m_cfg = cfg;
 		m_ok = true;
 		return true;

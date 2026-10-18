@@ -7,8 +7,8 @@ Demo de la fase **H1** del [`ROADMAP_HUD.md`](../../../../../docs/guides/roadmap
 - **Región declarativa**: `HudRegionSpec` (`Band`, `top = 208`, `height = 48`, `planes = 2`, `own_palette`) con presupuesto de operaciones; el juego no escribe registros ni conoce el chipset.
 - **Composición por la fachada**: el campo de juego es la escena del `App` (`band_from_view` sobre su `CanvasPlayfield` interleaved) y la franja se añade como segunda banda (`band_of_planes` + paleta) con `app.present_layout`; el `WAIT`/`BPLxPT`/paleta los emite el compositor.
 - **Dirty real**: `set_counter`/`set_meter` marcan *dirty* solo si el valor visible cambia; el repintado materializa `Fill`/`Frame`/`Text`/`Digits` sobre la banda **por deltas** (la barra solo repinta el tramo que cambia, los pips el que cambia de estado y los dígitos usan `draw_text_words` al estar la celda alineada a 16 px).
-- **HUD de depuración** (AGENTS §0): línea `HUD BAND vX.Y.BBBB F NNNNN` de **longitud fija** por palabras (`Surface::draw_text_words`), repintada una vez por segundo sin borrar la fila.
-- **Presupuesto**: el actor se borra/pinta con `fill_box` (Blitter, `FillRect` por plano) y el estado del juego vive en BSS; el frame entra en 1 campo (ver `VALIDATION.md`).
+- **HUD de depuración** (AGENTS §0): línea `HUD BAND vX.Y.BBBB F NNNNN FPS NN.N` de **longitud fija** por palabras (`Surface::draw_text_words`): frames y fps (`eng::debug::HudFpsWindow`, ventana de 1 s del reloj de ciclos comprobada cada frame) se repintan sin borrar la fila.
+- **Presupuesto**: el actor va por el **sistema de objetos** del engine (`World::add_actor` + `BackgroundPolicy::SaveUnder`: el Blitter restaura el fondo que tapa y lo guarda de nuevo) y el estado del juego vive en BSS; el frame entra en 1 campo (49,9 fps, ver `VALIDATION.md`).
 
 ## Búsqueda previa
 
@@ -31,7 +31,9 @@ Verificación y medidas: [`VALIDATION.md`](VALIDATION.md) · Intención: [`src/I
 
 ## Notas de implementación
 
-- El estado del juego (`Hud<>` son ~7 KB con las capacidades por defecto) vive en **BSS**, no en la pila: un local en `main` desbordaba la pila del arranque Amiga (16 KB) y corrompía el modelo.
+- El estado del juego (`Hud<>` son ~7 KB con las capacidades por defecto) vive en **BSS** (convención del repo para el estado del juego: `run_demo` ya deja `AmigaBackend`, `DemoHost` y `App` en la pila del lanzador; un local en `main` ata el demo a la pila que le dé el lanzador y no escala con mundos grandes).
 - `Band::top` es **línea de raster** (`WAIT` del Copper sobre VPOS): la línea de display 208 empieza en `0x2c + 208` (AHRM cap. 3; patrón de la demo 115).
-- El repintado **por deltas** es la clave del presupuesto: pintar el HUD completo por CPU costaba ~460k ciclos/frame (11,9 fps); con deltas, `draw_text_words`, actor por Blitter y versión de longitud fija entra en 1 campo (ver `VALIDATION.md`).
-- La franja se escribe **en el mismo frame** (tras el VBlank) con margen de sobra hasta la línea 208; la decisión de doble buffer de banda queda para cuando haya contenido que lo requiera (ver `HUD_SYSTEM.md` §6.3).
+- **Orden de pintado por banda**: la capa viva del juego (`draw_world` + `present`) se emite y ejecuta **primero** y la franja se pinta después por CPU (`HUD_SYSTEM.md` §9.3). Con el orden inverso, los blits del actor caían a media pantalla y el haz los veía a medias (parpadeo visible en 18 de 40 frames); con el orden correcto, 40/40.
+- El **repintado por deltas** es la clave del presupuesto: pintar el HUD completo por CPU costaba ~460k ciclos/frame (11,9 fps); con deltas, `draw_text_words` y la versión de longitud fija entra en 1 campo. Los **rellenos de la franja van por CPU** (`HudStrip::bind` fija `AccelMode::Cpu`): son rectángulos pequeños y el arranque del Blitter (~10-14k por rect) dominaba el frame (208k → ~18k, `ATRIBUCION_DE_CICLOS.md`).
+- El **actor** va por el sistema de objetos con `SaveUnder`: el motor encadena restaurar→guardar→dibujar en el plan del frame (el borrado por relleno negro dañaba los bloques estáticos y dejaba una ventana de «actor ausente»).
+- El fps de la franja se mide con `eng::debug::HudFpsWindow` comprobada **cada frame** (~15 ciclos): si se comprueba cada N frames la ventana pasa de 1 s y el tope de 50 frames devuelve la mitad del fps real.

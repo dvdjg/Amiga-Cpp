@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -79,6 +80,24 @@ function findMds() {
 	return out;
 }
 
+/// Filtra los ficheros **ignorados por git**: los artefactos generados (informes crudos de
+/// vision, salidas de tools) no son documentacion editable y no deben romper el gate. Si git
+/// no esta disponible, no se filtra (mejor el comportamiento estricto que el silencio).
+function filterGitIgnored(files) {
+	try {
+		// Con `-z` la entrada tambien va separada por NUL (git lo exige) y la salida viene sin
+		// comillar (con `--stdin` git C-quotea las rutas con backslashes en Windows).
+		const input = files.map((f) => path.relative(ROOT, f)).join('\0');
+		const res = execFileSync('git', ['check-ignore', '-z', '--stdin'], {
+			cwd: ROOT, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
+		});
+		const ignored = new Set(res.split('\0').map((l) => l.trim()).filter(Boolean).map((l) => l.replace(/\\/g, '/')));
+		return files.filter((f) => !ignored.has(path.relative(ROOT, f).replace(/\\/g, '/')));
+	} catch {
+		return files;
+	}
+}
+
 const args = process.argv.slice(2);
 const rel = (p) => path.relative(ROOT, p).replace(/\\/g, '/');
 // Baseline con conteo: "<n> <ruta>" -> el numero de lineas wrapeadas SOLO puede bajar.
@@ -93,7 +112,7 @@ if (fs.existsSync(BASELINE_PATH)) {
 }
 
 const offenders = [];
-for (const f of findMds()) {
+for (const f of filterGitIgnored(findMds())) {
 	const text = fs.readFileSync(f, 'utf8');
 	const bad = findWraps(text);
 	if (bad.length > 0) offenders.push({ file: rel(f), bad });
@@ -130,4 +149,4 @@ if (violations.length > 0) {
 	console.error('          el editor ajusta con word wrap). Los bloques de codigo/tablas/diagramas no cuentan.');
 	process.exit(1);
 }
-console.log(`[md-wrap] OK: ${findMds().length} .md; hard-wrap nuevo o creciente: no (baseline: ${baseline.size} ficheros historicos).`);
+console.log(`[md-wrap] OK: ${filterGitIgnored(findMds()).length} .md; hard-wrap nuevo o creciente: no (baseline: ${baseline.size} ficheros historicos).`);

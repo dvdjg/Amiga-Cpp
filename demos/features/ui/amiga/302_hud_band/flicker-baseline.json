@@ -1,5 +1,5 @@
 {
-  "max_candidates": 1,
+  "max_candidates": 4,
   "max_blocks_low": 11,
-  "note": "HUD por deltas (barra de energia, digitos cada 10 frames, pips por cambio) y actor por Blitter (2 FillRect por frame). El unico candidato determinista es el movimiento del actor entre capturas frame a frame (SSIM 0.996+, bbox en la zona del actor), no un glitch de la franja; el modelo de vision no ve anomalia."
+  "note": "HUD por deltas (barra de energia cada 2 frames, digitos cada 20, pips por cambio) y actor del sistema de objetos con SaveUnder (restore+save+draw por frame, 3 jobs de Blitter). Los candidatos del detector caen SIEMPRE en la zona del actor (16x16, 2 px/frame): su movimiento legitimo se marca como sospecha (parpadeo/corrupcion/tearing segun la fase capturada; 0-4 candidatos observados segun la ventana) y el modelo de vision lo descarta (sin anomalia). max_blocks_low 11 cubre el maximo observado (10) del movimiento del actor + cambios de franja. Sin candidatos fuera de la zona del actor."
 }

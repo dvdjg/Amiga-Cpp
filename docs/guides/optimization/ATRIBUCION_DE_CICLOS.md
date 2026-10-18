@@ -45,9 +45,7 @@ medida).
    escribir el bitmap directamente en CPU para elementos diminutos (balas, puntos).
 3. **Blits inmediatos (`submit + wait`) en bucles**: ≈ 10k por rect. Los jobs encolados cuestan
    ~3-5k; si el elemento es pequeño, casi siempre gana el CPU directo.
-4. **Dibujar capas vivas sin doble buffer tarde en el frame**: si el lienzo es single-buffer, el
-   pintado debe terminar antes de que el haz alcance la zona (y aun así hay riesgo); el arreglo
-   real es doble buffer + flip en la copperlist (110 F4).
+4. **Dibujar capas vivas sin doble buffer tarde en el frame**: si el lienzo es single-buffer, el pintado debe terminar antes de que el haz alcance la zona (y aun así hay riesgo); el arreglo real es doble buffer + flip en la copperlist (110 F4). Con capas **por bandas** el orden de pintado es la palanca barata: **de arriba abajo** — la capa viva del juego primero (sus blits se ejecutan en la parte alta del campo, antes de que el haz llegue a sus líneas) y la franja del HUD después (el haz tarda ~0,81 de campo en llegar). Medido en la 302: con el HUD primero el actor parpadeaba (22 de 40 frames visibles, alternando); con juego primero, 40/40. Regla: [`HUD_SYSTEM.md` §9.3](../../engine/architecture/HUD_SYSTEM.md).
 5. **`Wait()` bajo el SO vivo** (212): usar `set_vblank_sleep(false)` o `takeover_system`
    (DT-011, demo 126).
 6. **Mover/borrar BOBs con el CPU byte a byte en Chip**: pre-renderizar 16 variantes de offset de
@@ -75,6 +73,12 @@ sink (`RectFillSink`) y el raster del lienzo en `AccelMode::Blitter` (antes los 
 caían al camino CPU por píxel). **Pendiente (camino medido, DT-001 F4):** hojas pre-renderizadas
 de nave/torreta (16 variantes de offset de palabra) + 2 `CopyRect` por objeto + balas/cañón por
 CPU directa → FG ~25k → total ~100k (~48 fps).
+
+### 302 `hud_band`: 26 → 49,9 fps (rellenos del HUD por CPU)
+
+Atribución del frame con el HUD por deltas y el actor por el sistema de objetos (SaveUnder): secciones medidas con `ENG_PROF` (media por frame, 21 frames): `apply` del HUD **21,5k**, `draw_world` 26,5k, `present` 34,4k; el resto (bucle, espera de VBlank, update) ~60k. El pico estaba en `apply`: cada `fill_rect` de la franja (pips 8×8, deltas de medidor, marcos) superaba el umbral de 64 px de `AccelMode::Auto` y caía al **Blitter inmediato** (`RectFillSink`, submit+wait ~10-14k por rect); el primer repintado (varios rects) costó ~208k. Con `HudStrip::bind` fijando `AccelMode::Cpu` en el lienzo de la franja (la ruta CPU de referencia del HUD), `apply` bajó a ~16k (media con el pico inicial incluido) y el frame pasó de 269k (2 campos, ~26 fps) a 142k (1 campo, **49,9 fps** medidos en pantalla con `HudFpsWindow`). Contraste con la 110: allí los fills eran grandes (silueta de nave/torreta) y ganaba el Blitter; aquí son rectángulos pequeños y gana la CPU — la regla es el **tamaño del rect frente al arranque** (antipatrón 3).
+
+Detalle y visión: `demos/features/ui/amiga/302_hud_band/VALIDATION.md`.
 
 ## Cómo citar
 

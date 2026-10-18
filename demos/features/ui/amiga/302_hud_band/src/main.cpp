@@ -56,9 +56,23 @@ constexpr eng::Palette32 kHudPalette {{
 constexpr eng::debug::Version kVersion {1u, 0u};
 
 // Actividad del "juego" (el HUD es lo que se demuestra): un actor que rebota.
+// El actor se dibuja con el **sistema de objetos del engine** (`World::add_actor` con
+// `BackgroundPolicy::SaveUnder`): el Blitter guarda/restaura el fondo que tapa, de modo que
+// los bloques estaticos no se danan (el borrado con relleno negro los dejaba marcados) y no
+// hay ventana de "actor ausente" entre borrado y pintado (el motor encadena
+// restaurar->guardar->dibujar en el plan, ejecutado tras el VBlank).
 constexpr u16 kActorSize = 16u;
 constexpr u16 kActorY = 150u;
 constexpr u16 kActorTravel = kWidth - 2u * kActorSize;
+constexpr u8 kActorPlanes = 4u; // planos del campo de juego (color 15 = los cuatro)
+// Hoja planar del actor: por fila, una palabra de objeto + una de guarda (el Blitter lee la
+// palabra extra cuando `x` no esta alineada a 16; contrato de `bob.hpp`, `box_words`).
+constexpr u16 kActorSheetRowBytes = 4u; // 2 palabras
+constexpr u32 kActorSheetBytes =
+	static_cast<u32>(kActorSheetRowBytes) * kActorSize * kActorPlanes;
+// Save-under: por plano, `kActorSaveWords` palabras de guardado x `kActorSize` filas.
+constexpr u16 kActorSaveWords = 2u; // (16+15)/16 + guarda del shift = 2
+constexpr u32 kActorSaveBytes = static_cast<u32>(kActorSaveWords) * kActorSize * kActorPlanes * 2u;
 
 // Geometria del medidor de energia: marco {72,16,128,8}; relleno interior de 6 filas.
 constexpr s16 kMeterX = 72;
@@ -138,6 +152,15 @@ struct HudBandDemo {
 		draw_static_hud();
 		draw_version_prefix();
 		draw_version_number(0u);
+		draw_fps(0u);
+		m_fps_win.reset(app.frame(), eng::debug::prof_clock());
+
+		// (5) Actor por el **sistema de objetos**: hoja Chip + save-under por buffer. El
+		// Blitter restaura el fondo que el actor tapa; el motor encadena los jobs en el plan.
+		if (!init_actor(app)) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
 
 		m_ready = true;
 		eng::amiga::mark_ready();
@@ -149,34 +172,35 @@ struct HudBandDemo {
 		}
 		const u32 f = app.frame();
 		// El juego es la fuente de verdad: `set_*` solo marca *dirty* si el valor visible
-		// cambia (contador/medidor se repintan cuando toca, no por frame).
-		// Puntos: avanza cada 10 frames (5 Hz; un marcador no necesita 50 Hz y el repintado
-		// de digitos es el pico mas caro del HUD).
-		(void)m_hud.set_counter(m_score, static_cast<s32>(f / 10u));
+		// cambia (contador/medidor se repintan cuando toca, no por frame). Los valores se
+		// actualizan en fases distintas (2/20 frames) para repartir los picos del HUD y no
+		// salir de 1 campo (un frame que se pasa a 2 campos deja al haz ver el Blitter a
+		// medias: parpadeo).
+		// Puntos: cada 20 frames (2,5 Hz).
+		(void)m_hud.set_counter(m_score, static_cast<s32>(f / 20u));
 		// Energia: diente de sierra 60..0 en 120 frames; el ancho del relleno = valor*2
 		// (medidor interior de 124 px, maximo 60 -> 120), sin multiplicar por frame.
-		const s32 phase = static_cast<s32>(f % 120u);
-		const s32 energy = phase < 60 ? 60 - phase : phase - 60;
-		(void)m_hud.set_meter(m_energy, energy, 60);
+		if ((f & 1u) == 0u) {
+			const s32 phase = static_cast<s32>(f % 120u);
+			const s32 energy = phase < 60 ? 60 - phase : phase - 60;
+			(void)m_hud.set_meter(m_energy, energy, 60);
+		}
 		// Vidas: 4 pips, se pierde uno cada 50 frames y se recuperan en el ciclo.
 		const s32 lives = 4 - static_cast<s32>((f / 50u) % 5u);
 		(void)m_hud.set_meter(m_lives, lives < 0 ? 0 : lives, 4);
 
-		// Actor: borra la posicion anterior y pinta la nueva **por Blitter** (`fill_box`
-		// encola un `FillRect` por plano en el plan; se ejecuta en `present`). El relleno
-		// CPU inmediato costaba ~150k ciclos/frame por la contencion de Chip RAM; los
-		// dos jobs por frame agotaban el presupuesto, asi que el actor avanza 2 px cada
-		// 2 frames (25 Hz; paso efectivo 1 px/frame) y entra en 1 campo.
+		// Actor: el **sistema de objetos** del engine mueve el BOB (restaurar fondo ->
+		// guardar fondo nuevo -> dibujar, encolado en el plan y ejecutado en `present`).
 		// El recorrido (ida y vuelta) se calcula con desplazamientos, sin `*` ni `/`.
 		const u32 half = kActorTravel >> 1u;
 		const u32 px = f % kActorTravel;
 		const s16 x = static_cast<s16>(px < half ? kActorSize + (px << 1u)
 							 : kActorSize + ((kActorTravel - px) << 1u));
 		if (x != m_actor_x) {
-			eng::Screen screen = app.screen();
-			(void)screen.fill_box(eng::Box {static_cast<s16>(m_actor_x), kActorY, kActorSize,
-							kActorSize}, 0u);
-			(void)screen.fill_box(eng::Box {x, kActorY, kActorSize, kActorSize}, 15u);
+			if (auto a = app.world().actor(m_actor)) {
+				a->desc.x = x;
+				a->desc.y = kActorY;
+			}
 			m_actor_x = x;
 		}
 	}
@@ -185,6 +209,14 @@ struct HudBandDemo {
 		if (!m_ready) {
 			return;
 		}
+		// **Orden por banda (carrera con el haz)**: la capa viva del juego (arriba) se emite y
+		// ejecuta PRIMERO, cuando el haz aun esta en la parte alta del campo; los blits del
+		// actor terminan antes de que el haz alcance sus lineas (y=150 a ~0,58 de campo). El
+		// HUD (franja inferior, y>=208) se pinta despues por CPU: el haz tarda ~0,81 de campo
+		// en llegar. Con el orden inverso (HUD primero), los blits del actor caian a ~0,6 de
+		// campo, justo cuando el haz pasaba por y=150: carrera visible (parpadeo).
+		(void)app.draw_world();
+		app.present();
 		if (m_hud.any_dirty()) {
 			build_dynamic_ops();
 			(void)m_strip.apply(m_hud.ops());
@@ -192,20 +224,69 @@ struct HudBandDemo {
 			m_hud.clear_dirty();
 		}
 		// Franja de depuracion obligatoria (AGENTS §0): prefijo fijo (una vez, en `init`) y
-		// numero de frames por palabras, una vez por segundo (longitud constante: sin clear).
-		if (app.frame() / 50u != m_hud_second) {
-			m_hud_second = app.frame() / 50u;
+		// numero de frames por palabras, cada 2 segundos (longitud constante: sin clear).
+		if (app.frame() / 100u != m_hud_second) {
+			m_hud_second = app.frame() / 100u;
 			draw_version_number(app.frame());
 		}
-		app.present();
+		// fps: la ventana de 1 s se comprueba **cada frame** (~15 ciclos: una resta y una
+		// comparacion; `HudFpsWindow` acota a 50 frames por ventana, asi que comprobarla
+		// cada 100 frames daria la mitad) y el numero se repinta solo al cerrar la ventana.
+		eng::u32 fps10 = 0u;
+		if (m_fps_win.update(app.frame(), eng::debug::prof_clock(), fps10)) {
+			draw_fps(fps10);
+		}
 	}
 
 private:
-	/// Prefijo fijo de la linea de depuracion (AGENTS §0): `HUD BAND vX.Y.BBBB F`, con el
-	/// build a 4 digitos para que la longitud sea constante; el numero (`draw_version_number`)
-	/// empieza en x=160 (alineado a 16 px, ruta `draw_text_words`). Se pinta una vez.
+	/// Da de alta el actor del juego por el **sistema de objetos** del engine: hoja planar en
+	/// Chip (cuadrado solido de color 15; por fila, palabra de objeto + guarda del *barrel
+	/// shifter*) y save-under por buffer de display (`BackgroundPolicy::SaveUnder`). El motor
+	/// encadena restaurar→guardar→dibujar en el plan y lo ejecuta en `present`.
+	[[nodiscard]] bool init_actor(auto& app) {
+		auto& chip = app.device().memory_manager().chip();
+		m_actor_sheet = chip.template reserve<eng::BobTag>(kActorSheetBytes, 16u);
+		m_actor_save = chip.template reserve<eng::BobTag>(kActorSaveBytes, 16u);
+		if (!m_actor_sheet.valid() || !m_actor_save.valid()) {
+			return false;
+		}
+		// Contenido de la hoja por la vista tipada del bloque (sin `view.data()`): planar,
+		// un plano por bloque, filas de [0xFFFF, 0x0000].
+		eng::Words<eng::BobTag> sheet = m_actor_sheet.view.as_words();
+		for (eng::u8 p = 0u; p < kActorPlanes; ++p) {
+			for (eng::u16 r = 0u; r < kActorSize; ++r) {
+				const eng::u32 base = (static_cast<eng::u32>(p) * kActorSize + r) * 2u;
+				sheet[base] = 0xffffu;      // palabra del objeto (16 px, MSB = pixel 0)
+				sheet[base + 1u] = 0x0000u; // guarda del barrel shifter
+			}
+		}
+		eng::graphics::Bob bob {};
+		bob.sheet = m_actor_sheet.mem_view();
+		bob.width = kActorSize;
+		bob.height = kActorSize;
+		bob.planes = kActorPlanes;
+		bob.layout = eng::graphics::BobLayout::Planar;
+		bob.sheet_row_bytes = kActorSheetRowBytes;
+		bob.draw = eng::graphics::BobDraw::Opaque;
+		bob.frame_count = 1u;
+		m_actor_sprite = eng::graphics::Sprite {bob, kActorSheetBytes, 0u};
+		app.world().reset_actors(0u, 60000u, 0u);
+		eng::scene::ActorDesc d = eng::scene::actor_desc_from_sprite(
+			m_actor_sprite, static_cast<s16>(m_actor_x), kActorY, 10u, 0u,
+			eng::scene::TransparencyMode::Opaque, eng::scene::BackgroundPolicy::SaveUnder);
+		d.save[0u] = m_actor_save.mem_view();
+		d.save_words_per_row = kActorSaveWords;
+		d.save_height = kActorSize;
+		m_actor = app.world().add_actor(d);
+		return m_actor.valid();
+	}
+
+	/// Prefijo fijo de la linea de depuracion (AGENTS §0): `HUD BAND vX.Y.BBBB F` en x=0 con el
+	/// build a 4 digitos (longitud constante) y la etiqueta ` FPS ` en x=208. El numero de
+	/// frames (`draw_version_number`) va en x=160 y el de fps (`draw_fps`) en x=256; los tres
+	/// bloques estan alineados a 16 px (ruta `draw_text_words`). Se pinta una vez.
 	void draw_version_prefix() {
-		char line[24] {};
+		char line[32] {};
 		eng::u8 n = 0u;
 		for (const char* p = "HUD BAND v"; *p != '\0' && n < sizeof(line) - 1u; ++p) {
 			line[n++] = *p;
@@ -222,10 +303,13 @@ private:
 			}
 			line[n++] = static_cast<char>('0' + ((kVersion.build / div) % 10u));
 		}
-		line[n++] = ' ';
-		line[n++] = 'F';
+		for (const char* p = " F"; *p != '\0' && n < sizeof(line) - 1u; ++p) {
+			line[n++] = *p;
+		}
 		auto surf = m_strip.surface();
 		(void)surf.draw_text_words(0, 40, line, kHudFg);
+		// Etiqueta de fps en x=208 (16-alineado; el numero va en x=256, `draw_fps`).
+		(void)surf.draw_text_words(208, 40, " FPS  ", kHudFg);
 	}
 
 	/// Numero de frames de la linea de depuracion: un espacio + 5 digitos con relleno de
@@ -244,6 +328,21 @@ private:
 		}
 		auto surf = m_strip.surface();
 		(void)surf.draw_text_words(160, 40, digits, kHudFg);
+	}
+
+	/// fps de la demo (ventana de 1 s del reloj de ciclos, x10 para tener un decimal) en
+	/// x=256: 2 digitos + '.' + 1 digito ("49.4"). Etiqueta " FPS" fija en `init` (x=208).
+	/// Se repinta cada ventana cerrada, sobre las mismas celdas (longitud constante).
+	void draw_fps(u32 fps10) {
+		char digits[7] {};
+		digits[0] = static_cast<char>('0' + (fps10 / 100u));      // decenas de fps (0..5)
+		digits[1] = static_cast<char>('0' + ((fps10 / 10u) % 10u)); // unidades
+		digits[2] = '.';
+		digits[3] = static_cast<char>('0' + (fps10 % 10u));       // decima
+		digits[4] = ' ';
+		digits[5] = ' ';
+		auto surf = m_strip.surface();
+		(void)surf.draw_text_words(256, 40, digits, kHudFg);
 	}
 
 	/// Parte estatica del HUD: etiquetas, marco de la franja y marco del medidor (una vez).
@@ -360,6 +459,11 @@ private:
 	eng::hud::CounterHandle m_score {};
 	eng::hud::MeterHandle m_energy {};
 	eng::hud::MeterHandle m_lives {};
+	// Actor del juego (sistema de objetos): hoja + save-under + sprite + id.
+	eng::Block<eng::BobTag, eng::MemoryKind::Chip> m_actor_sheet {};
+	eng::Block<eng::BobTag, eng::MemoryKind::Chip> m_actor_save {};
+	eng::graphics::Sprite m_actor_sprite {};
+	eng::scene::ActorId m_actor {};
 	// Estado del ultimo repintado (para emitir solo deltas).
 	char m_score_text[8] {};
 	u8 m_score_len = 0u;
@@ -368,11 +472,14 @@ private:
 	u8 m_pip_color[4] = {0xffu, 0xffu, 0xffu, 0xffu};
 	u16 m_actor_x = kActorSize;
 	u32 m_hud_second = ~0u;
+	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps de la franja de depuracion
 	bool m_ready = false;
 };
 
-// El estado del juego (`Hud<>` son ~7 KB con las capacidades por defecto) vive en **BSS**:
-// un local en `main` desbordaba la pila del arranque Amiga (16 KB) y corrompia el modelo.
+// El estado del juego (`Hud<>` son ~7 KB con las capacidades por defecto) vive en **BSS**
+// (convención del repo para el estado del juego): `run_demo` ya deja `AmigaBackend`,
+// `DemoHost` y `App` —decenas de KB— en la pila del lanzador; un `main` con el estado del
+// juego en local ata el demo a la pila que le dé el lanzador y no escala con mundos grandes.
 HudBandDemo g_game {};
 
 } // namespace
