@@ -54,7 +54,7 @@ Ediciones de las copias locales (verificado en `scumm-md5.h`/`detection_tables.h
 
 | Hito | Contenido | Estado |
 |---|---|---|
-| **I0 — SIM y extracción** | Esquema SIM + extractor SCUMM (V5 primero —MI2/FoA—, luego V4/V3): salas, walkboxes, objetos, costumes, textos | **EN CURSO** — extractor V5 verificado sobre MI2 UE (110 salas con datos, 1006 guiones al 100 % con `descumm`; SIM v1 + fixture golden); pendiente decodificar walkboxes/objetos/costumes y el frontend V3/V4 (`.LFL`) |
+| **I0 — SIM y extracción** | Esquema SIM + extractor SCUMM (V5 primero —MI1/MI2/FoA—, luego V4/V3): salas, walkboxes, objetos, costumes, textos | **EN CURSO** — extractor V5 verificado sobre **MI1 UE** (86 salas, 748/748 guiones) y MI2 UE (110 salas, 1006/1006); workspace por juego, SIM v1 + fixture golden, walkboxes decodificadas (BOXD/BOXM) e informe de opcodes. Pendiente: decodificar objetos/costumes/imagen y el frontend V3/V4 (`.LFL`) |
 | **I1 — Traducción de guiones** | Descompilado → AST semántico → C++ de `eng::adv` (reglas; IA opcional con revisión) | Pendiente |
 | **I2 — Cocina de assets** | Fondos a planar/tiles/EHB, costumes a animaciones del engine, audio al pipeline | Pendiente |
 | **I3 — Previewer Amiga-aware** | Visor/editor de PC que reutiliza la lógica pura del engine y muestra presupuesto | Pendiente |
@@ -67,9 +67,9 @@ Ediciones de las copias locales (verificado en `scumm-md5.h`/`detection_tables.h
 
 **Objetivo**: extraer un juego completo a un modelo semántico limpio, sin ejecutar nada del motor original.
 
-**Juego piloto**: MI2 *Ultimate Talkie Edition* es el primer objetivo completo (estructura V5 stock de MI2, ya extraído); MI1 *Ultimate Talkie Edition* el segundo (mismo frontend sobre una reconstrucción de fan) y Fate of Atlantis CD el tercero (V5 CD con `monster.so3`). Indy3 FM-Towns (V3, ficheros `.LFL`) queda para abrir el frontend LFL.
+**Juego piloto**: MI1 *Ultimate Talkie Edition* es el primer objetivo completo (decisión del usuario; datos SCUMM V5 ya extraídos en `out/adventure/mi1/`); MI2 *Ultimate Talkie Edition* el segundo (misma base V5 de MI2) y Fate of Atlantis CD el tercero (V5 CD con `monster.so3`). Indy3 FM-Towns (V3, ficheros `.LFL`) queda para abrir el frontend LFL.
 
-**Estado (parcial, verificado)**: el frontend V5 existe (`tools/adventure/frontends/scumm_v5/extract.mjs`) y está probado sobre MI2 UE — 127 salas en el índice (110 con datos en `monkey2.001`), **1006/1006 bloques de guion descompilados** con `descumm -5`, SIM v1 validado con fixture sintético y golden test (`node --test tools/adventure/sim/sim.test.mjs`). Formato y comandos: [`tools/adventure/frontends/scumm_v5/README.md`](../../../tools/adventure/frontends/scumm_v5/README.md); esquema: [`tools/adventure/sim/SCHEMA.md`](../../../tools/adventure/sim/SCHEMA.md).
+**Estado (parcial, verificado)**: el frontend V5 existe (`tools/adventure/frontends/scumm_v5/extract.mjs`) con workspace canónico por juego ([`WORKSPACE.md`](../../../tools/adventure/WORKSPACE.md)) y está probado sobre **MI1 UE** (86 salas con datos, **748/748 guiones** descompilados) y MI2 UE (110 salas, **1006/1006 guiones**); walkboxes decodificadas a JSON (`decode-boxes`, BOXD/BOXM) y **informe de uso de opcodes** (`analyze/opcode-usage.mjs`: MI1 usa 182 de 256 bytes, top-30 = 83.8 %). SIM v1 validado con fixture sintético y golden test (`node --test tools/adventure/sim/sim.test.mjs`). Referencia de la VM: [`vm-v5.md`](../../reference/scumm/vm-v5.md); formato y comandos: [`frontends/scumm_v5/README.md`](../../../tools/adventure/frontends/scumm_v5/README.md); esquema: [`sim/SCHEMA.md`](../../../tools/adventure/sim/SCHEMA.md).
 
 **Entregables**:
 

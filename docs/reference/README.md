@@ -19,6 +19,7 @@ reference/
 ├── amc-wrobel/        → curso Amiga Machine Code (Mark Wrobel)
 ├── emulators/         → rarezas del emulador (fuente, `fichero:línea`)
 ├── toolchain/         → defectos del compilador/ensamblador (caso mínimo + re-verificación)
+├── scumm/             → referencia del motor original SCUMM (VM V5) para el pipeline de importación de aventuras
 └── amiga-authoritative-sources.md
 ```
 
@@ -33,6 +34,7 @@ reference/
 | [amiga/techniques/](amiga/techniques/README.md) | Fichas de técnicas de programación Amiga (módulos, dual playfield, copper chunky, audio, sprites…). |
 | [emulators/](emulators/README.md) | Hallazgos del **código fuente de los emuladores** (rarezas de comportamiento, con `fichero:línea`): `winuae/` (colisión de sprites, sprite DMA, copper, disco, IRQ de audio). |
 | [toolchain/](toolchain/README.md) | **Defectos del compilador/ensamblador** con **caso mínimo** y **re-verificación al actualizar** versión: `m68k-gcc.md` (ICE de CFI a `-O0`, libcalls en `-nostdlib`). |
+| [scumm/](scumm/README.md) | **Motor original SCUMM** para el pipeline de importación: [vm-v5.md](scumm/vm-v5.md) describe la VM V5 (MI1/MI2) — modelo de datos, sentencias, opcodes con su uso real y su traslado a `eng::adv`. |
 
 ## El AHRM
 
