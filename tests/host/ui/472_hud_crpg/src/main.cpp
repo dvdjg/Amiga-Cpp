@@ -144,6 +144,18 @@ int main() {
 		CHECK(classic.fg == 1u && amber.fg == 2u && amber.accent == 3u && amber.warn == 1u);
 		CHECK(eng::hud::hud_theme_fits(classic, 4u) && eng::hud::hud_theme_fits(amber, 4u));
 		CHECK(!eng::hud::hud_theme_fits(classic, 3u)); // warn=3 no cabe en 0..2
+		// **Tema como contrato de region** (H6): instantanea por valor en el modelo, cambio
+		// en caliente con retorno booleano (false si no cambia o el handle no vale).
+		eng::hud::HudRegionSpec spec {};
+		spec.placement = eng::hud::HudPlacement::Band;
+		spec.band = eng::hud::HudBand {208u, 48u, 2u, true};
+		const eng::hud::RegionHandle region = hud.add_region(spec);
+		CHECK(region.valid());
+		CHECK(hud.region_theme(region) == eng::hud::HudTheme {}); // defecto (clasico)
+		CHECK(hud.set_region_theme(region, amber));
+		CHECK(hud.region_theme(region) == amber);
+		CHECK(!hud.set_region_theme(region, amber)); // sin cambio
+		CHECK(!hud.set_region_theme(eng::hud::RegionHandle {}, amber)); // handle invalido
 	}
 
 	if (g_fail != 0) {

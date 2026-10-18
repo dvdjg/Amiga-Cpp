@@ -413,6 +413,8 @@ struct HudCrpgDemo {
 			m_prev_theme = want;
 			m_theme = (want == 0u) ? eng::hud::hud_theme_classic()
 					       : eng::hud::hud_theme_amber();
+			// El tema es **contrato de la region** (H6): el modelo guarda la instantanea.
+			(void)m_hud.set_region_theme(m_region, m_theme);
 			repaint_all();
 		}
 		// **Orden por banda** (HUD_SYSTEM §9.3): capa viva del juego primero (aqui el

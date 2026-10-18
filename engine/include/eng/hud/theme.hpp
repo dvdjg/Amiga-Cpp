@@ -69,6 +69,16 @@ struct HudTheme {
 	eng::u8 border = 1u;               ///< marco de paneles y botones
 	eng::u8 gap = 1u;                  ///< separación entre elementos (px)
 	eng::u8 meter_h = 8u;              ///< alto por defecto del medidor (px)
+
+	/// Igualdad **de contrato** (roles, fuente, métricas y atlas): la paleta de banda es un
+	/// observador del llamador y no participa (dos temas con la misma paleta no son "iguales"
+	/// por ella). La usa el cambio en caliente para no repintar sin cambio real.
+	[[nodiscard]] constexpr bool operator==(const HudTheme& o) const noexcept {
+		return bg == o.bg && fg == o.fg && accent == o.accent && warn == o.warn &&
+		       meter_fill == o.meter_fill && meter_back == o.meter_back &&
+		       border == o.border && gap == o.gap && meter_h == o.meter_h &&
+		       font == o.font && has_atlas == o.has_atlas;
+	}
 };
 
 /// Preset **clásico** (blanco/amarillo/rojo sobre negro): el reparto canónico (302/303/306).

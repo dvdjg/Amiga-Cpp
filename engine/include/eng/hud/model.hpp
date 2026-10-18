@@ -417,7 +417,36 @@ public:
 			return {};
 		}
 		m_regions[m_regions_used] = spec;
+		// El tema de la region se guarda **por valor** (instantanea del contrato): si el
+		// llamador pasa un `Ref`, se copia; sin tema, queda el defecto (roles clasicos).
+		if (spec.theme.valid()) {
+			m_region_themes[m_regions_used] = *spec.theme.get();
+		} else {
+			m_region_themes[m_regions_used] = HudTheme {};
+		}
 		return RegionHandle {static_cast<eng::u8>(m_regions_used++)};
+	}
+
+	/// **Tema de la region** (contrato del modelo, H6): instantánea por valor. Cambiarlo en
+	/// caliente (`set_region_theme`) marca todo sucio: el juego repinta con los índices del
+	/// tema nuevo y el modelo no cambia. `theme.hpp`.
+	[[nodiscard]] const HudTheme& region_theme(RegionHandle handle) const noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_regions_used);
+		return m_region_themes[handle.index];
+	}
+
+	/// Cambia el tema de una region en caliente. `false` si el handle no es válido o el tema
+	/// es el mismo (no hay cambio que repintar); con cambio, el juego repinta con los índices
+	/// nuevos (el modelo solo publica el contrato; el repintado es del juego).
+	[[nodiscard]] bool set_region_theme(RegionHandle handle, const HudTheme& theme) noexcept {
+		if (!handle.valid() || handle.index >= m_regions_used) {
+			return false;
+		}
+		if (m_region_themes[handle.index] == theme) {
+			return false; // sin cambio
+		}
+		m_region_themes[handle.index] = theme;
+		return true;
 	}
 
 	/// Región por handle (el llamador garantiza un handle válido).
@@ -1107,6 +1136,7 @@ private:
 	}
 
 	eng::util::Array<HudRegionSpec, MaxRegions> m_regions {};
+	eng::util::Array<HudTheme, MaxRegions> m_region_themes {}; ///< tema por region (por valor)
 	eng::u16 m_regions_used = 0u;
 
 	eng::util::Array<Meter, MaxWidgets> m_meters {};

@@ -66,6 +66,8 @@ El reparto tiene dos fases, ambas puras (sin hardware):
 
 Así, en la ventana B del ejemplo, un objeto solo puede ocupar los canales 6 o 7; con tres objetos solapados, el tercero degrada a BOB. Por encima y por debajo de la ventana, los 8 canales vuelven a estar disponibles (el escalar `busy_until` se agota y el ledger no tiene intervalos ahí).
 
+**Caso medido — multiplexado real (demos 054/062):** nueve actores de 16 px **alineados en la misma franja de líneas** no caben (8 HW + 1 degradado a BOB, el invariante del demo original); al **moverse por líneas distintas** el `busy_until` se agota entre ellos y el allocator los reparte por tiempo — el mismo canal sirve a dos sprites que no se solapan en vertical — y **los nueve caben en HW (9 + 0)**. Telemetría de la 054/062: contador `split` = `sprites_hw << 8 | degradados` (medido 2304 = 9+0 con los actores en lissajous). Corolario para juegos: el reparto puede cambiar **durante** el frame a frame (un objeto puede ganar o perder canal según la posición de los demás); el juego no debe cachear el reparto ni asumir estabilidad — la representación la decide el engine cada `emit` (misma identidad de `Visual`).
+
 ```text
   assign(intents, out, ledger):
     busy_until[8] = {0}
