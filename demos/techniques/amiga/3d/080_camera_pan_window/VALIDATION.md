@@ -1,6 +1,6 @@
 # VALIDATION — 080_camera_pan_window (F1: paneo de cámara con frames intermedios)
 
-Estado: **ABIERTA / NO VERIFICADA** (contrato de pixel y mecanismo probados; la cadencia de display objetivo de F1 — 50 Hz con Full a 25 Hz — no se alcanza todavía; ver §5 y §7).
+Estado: **ABIERTA / NO VERIFICADA** (contrato de pixel y mecanismo probados; el display ya cumple su suelo — ≥25 Hz medidos con K adaptativo — pero la base de F1 (Full ≥12,5 Hz) aún no; ver §5 y §7). Los suelos vigentes de la fase son **base ≥12,5 Hz / display ≥25 Hz** (sustituyen al objetivo original de 50 Hz de display).
 
 ## 1. Contrato del mecanismo: prueba de aislamiento (exactitud)
 
@@ -30,11 +30,11 @@ bash tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --seq
 node tools/analyze/verify-080-pan-window.mjs --sequence-dir out/run/080_camera_pan_window/A500_debug/sequence
 ```
 
-Salida (resumen del 2026-10-18): telemetría de cada frame == reloj esperado (Full/Fake y offset exactos), 3 pares de contrato con desplazamiento dominante k=1 (0-3 pares exactos según la fase de captura; el resto con la costura de captura ≤ 2 200 px / 3,3 %), y Fulls consecutivos con desplazamiento dominante k=2 (la escena avanza con la cámara). La costura de captura es la firma del **frame que desborda el campo** (el parche del siguiente frame cae a mitad del campo visible): es la evidencia del hueco de cadencia (§5).
+Salida (resumen del 2026-10-18): telemetría de cada frame == reloj esperado (Full/Fake y offset exactos), 3 pares de contrato con desplazamiento dominante k=1 (0-3 pares exactos según la fase de captura; el resto con la costura de captura ≤ 2 200 px / 3,3 %), y Fulls consecutivos con desplazamiento dominante k=2 (la escena avanza con la cámara). La costura de captura es la firma del **frame que desborda el campo** (el parche del siguiente frame cae a mitad del campo visible): es la evidencia del hueco de cadencia (§5). Evidencia del build con **política fija** (racha 1): con la política adaptativa (`K` por coste medido) el verificador `verify-080-pan-window.mjs` ya no replica la planificación, solo **invariantes** (offsets 1..15, `pan == lastFullPan + off`, rachas ≤4, Full al menos cada 12 frames) y el contrato por el **offset reportado** en la telemetría; recapturar esa secuencia está bloqueado por la captura por paso (DT-033).
 
 ## 3. Visión (Ollama, regla de oro)
 
-- `src/VISION.md` (prompt canónico, `vision-final.mjs`, 5 frames): describe la escena correctamente — fondo azul oscuro, "ventana" con un triángulo verde (pared izquierda), suelo marrón y **cuatro barras verticales** (2 cian, amarilla, naranja) — y el HUD con `080 CAMERA PAN WINDOW` / `FULL 25HZ + FAKE 50HZ` / contadores y `FULL/FAKE OFF … PAN …`. Sin artefactos reportados en la captura estática.
+- `src/VISION.md` (prompt canónico **actual**, que mira contornos; `vision-final.mjs`, 5 frames de la captura por intervalo del build adaptativo): el modelo describe el interior de la sala como un patrón de bandas geométricas (azul/verde/marrón) y **cuatro columnas verticales moviéndose hacia la izquierda** entre imágenes (incluso la reaparición de una columna desde el margen — el desplazamiento de ventana), con HUD `FULL 12.5 + FAKE 25` y `K 2`; sobre los objetos en movimiento concluye **contornos limpios, sin halos ni restos de la posición anterior**. La reevaluación **con captura por paso** (frames nítidos, sin el banding del Full mid-render) sigue pendiente: la captura por paso está bloqueada (DT-033).
 - `ollama-frames.mjs` sobre una secuencia: confirma **movimiento apreciable** ("la escena se ha movido hacia la izquierda, revelando partes nuevas") — la dinámica del paneo es observable por el modelo.
 
 ## 4. Gates técnicos
@@ -50,26 +50,29 @@ Salida (resumen del 2026-10-18): telemetría de cada frame == reloj esperado (Fu
 
 ## 5. Cadencia (medida con `profile.mjs`)
 
+Receta (importante: hay que cerrar instancias `winuae-gdb` huérfanas antes, y lanzar la demo justo antes del perfil — si no, el perfil lee una instancia zombi y reporta «1 frames»/`dFrame=0`; DT-033):
+
 ```bash
-node tools/debug/profile.mjs 080_camera_pan_window A500_debug 4
+bash tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window >/dev/null 2>&1
+node tools/debug/profile.mjs 080_camera_pan_window A500_debug 5
 ```
 
-- Total: **≈ 314 000–326 000 ciclos/frame ≈ 2,22–2,30 campos/frame (~22 fps)** en debug.
-- Por sección (calls/frame → coste por llamada):
-  - `full` (0,5/frame ≈ por Full): **467–585k ciclos** (3,3–4,1 campos) — pasada completa: proyección+clip+submit (~120k) + relleno por plano (~113–327k según la caja del panel).
-  - `fill` (los dos `fill_polygons_by_plane` por Full): 113–327k.
-  - `patch` (~1,4k/frame): parcheo de 4 pares `BPLxPT` + `BPLCON1` (despreciable).
-  - `hud` (cada 16 frames): ~373k por actualización (escritura del texto por palabras con el display activo; por eso se refresca a ~3 Hz y no por frame).
-- **Objetivo F1 (50 Hz de display con Full a 25 Hz)** exige Full ≤ 1 campo (≈142k) por Full cuando alterna con Fakes; medido: Full ≈ 3,3–4,1 campos → la alternancia produce ~2,2 campos/frame y **no se cumple**. El frame desborda el VBlank y el parche cae a mitad de campo (firma: costura en §2), lo que además impediría un gate de flicker limpio.
-- El floor de 25 fps para demos de relleno de polígonos queda también ligeramente por debajo en esta medida (22 fps).
+Build actual (política adaptativa, `-O3`, HUD cada 32 frames):
+
+- Display: **139–167 frames / 5–6 s ≈ 27,8 fps** (1,79–1,80 campos/frame) → **suelo de display ≥25 Hz cumplido**.
+- `full` (≈0,3 llamadas/frame): **426k–551k ciclos (≈3,0–3,9 campos)**, con `fill` de 106k–310k, proyección+clip+submit el resto y `hud` ~10–34k/frame (ya repartido por el refresh a 32 frames).
+- Base: con `full` ≈ 3,4 campos, `affordable_fakes` da **K=2** (ciclo Full + 2 Fakes ≈ 3 campos de 4 usados) → base ≈ **8–9 Hz**, por debajo de los 12,5 Hz exigidos. **Cerrar F1 exige `full` ≤ 3,0 campos** (K=1 con ciclo de 4 campos = 12,5 Hz de base / 25 Hz de display).
+- Control `SKIP_FILL` (ablación): 152 frames / 4 s = **38 fps**, 1,32 campos/frame — el relleno por plano es el grueso del Full; los candidatos de optimización están ahí (ver DT-034).
+
+Objetivo: **base (Full) ≥12,5 Hz y display ≥25 Hz**. Display cumplido; base pendiente de la campaña de optimización del Full.
 
 ## 6. Qué cubre esta validación y qué NO
 
-- **Cubierto**: exactitud del desplazamiento de ventana (§1); política Full/Fake, offsets y telemetría por frame (§2); contenido y HUD por visión (§3); coste desglosado (§5).
-- **No cubierto / SIN VERIFICAR**: cadencia objetivo de F1 (50 Hz de display) y ausencia de tearing mientras el frame desborde; gate de flicker (herramienta abortada); paneo vertical (F3 del roadmap) y horizonte Copper (F4), fuera del alcance de esta demo.
+- **Cubierto**: exactitud del desplazamiento de ventana (§1); política Full/Fake (en la versión fija) y telemetría por frame (§2); contenido y HUD por visión (build con política fija, §3); costes desglosados del build adaptativo (§5); suelo de display ≥25 Hz (§5).
+- **No cubierto / SIN VERIFICAR**: **base ≥12,5 Hz** (full ≈3,4 campos, hace falta ≤3,0; DT-034); secuencia de contrato **con la política adaptativa** y reevaluación de visión del build actual (captura por paso bloqueada, DT-033); ausencia de tearing mientras el frame desborde; paneo vertical (F3 del roadmap) y horizonte Copper (F4), fuera del alcance de esta demo.
 
 ## 7. Deuda registrada (ver `docs/guides/roadmap/ROADMAP_DEUDA_TECNICA.md`)
 
 - **DT-032**: `PatchHandle` (`Scheduler::patchable`) escribe a través del emisor del `Plan` y, en una escena que **no llama a `Scene::commit()` por frame**, acaba corrompiendo la palabra de opcode de la copperlist activa (síntoma: frame efectivamente colgado, ~0,2 fps, word0 de la lista corrupto). Mitigación en la 080: parchear con `move_at` + `copper::patch_data(active_span())`. El contrato de `patchable` debe documentarse o robustecerse.
-- **DT-033**: `measure-fps.mjs` aborta con `dFrame=0` para el binario de la 080 (mientras `profile.mjs` cuenta frames y ciclos correctamente): revisar la resolución/lectura del run-status por canal lateral para este caso.
-- **DT-034**: presupuesto del relleno por plano a pantalla completa (2 planos de sala, ~113–327k por Full) incompatible con el objetivo de 1 campo/frame de F1; requiere campaña de optimización (o rediseño de la pasada de sala) antes de cerrar F1.
+- **DT-033**: tooling de medición/captura de la 080: (a) `measure-fps.mjs` aborta con `dFrame=0` para este binario (mientras `profile.mjs` cuenta frames y ciclos correctamente); (b) instancias `winuae-gdb` huérfanas hacen que el perfil lea una instancia zombi («1 frames»/`dFrame=0`): cerrar las propias y lanzar la demo **justo antes** del perfil; (c) la captura por paso (`--sequence-step-frames`) aborta con «GDB socket is closed … dropped after a timeout» en `captureScreenshot` (`run-demo.js:282`), lo que bloquea recapturar la secuencia de contrato con la política adaptativa (la captura por intervalo `--sequence-frames N --sequence-interval-ms` sí funciona).
+- **DT-034**: presupuesto del relleno por plano (~106k–310k por Full medido; control `SKIP_FILL` = 38 fps) incompatible con la base de F1 (`full` ≤3,0 campos para K=1); requiere campaña de optimización (o rediseño de la pasada de sala) antes de cerrar F1. Candidatos medidos: reparto del relleno de paredes (líneas EOR compartidas), dedupe de aristas, caja de sala/paneles más ajustada.

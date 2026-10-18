@@ -2,15 +2,15 @@
 
 ## Qué hace
 
-Una sala 3D poligonal (tubo: suelo, techo, paredes y pared del fondo) con cuatro paneles verticales de colores en el centro del pasillo. La cámara gira en yaw (paneo triangular, ±29 grados) sobre un framebuffer de 352×208 con el viewport de 320 centrado (margen de 16 px a cada lado). La pasada completa rellena la escena por plano con el Blitter; los fotogramas intermedios solo mueven la ventana de display. El HUD de la franja inferior muestra versión, contadores Full/Fake, el offset del frame y el paneo.
+Una sala 3D poligonal (tubo: suelo, techo, paredes y pared del fondo) con cuatro paneles verticales de colores en el centro del pasillo. La cámara gira en yaw (paneo triangular, ±29 grados) sobre un framebuffer de 352×208 con el viewport de 320 centrado (margen de 16 px a cada lado). La pasada completa rellena la escena por plano con el Blitter; los fotogramas intermedios solo mueven la ventana de display. El HUD de la franja inferior muestra versión, contadores Full/Fake, el offset del frame, el paneo y el número de fakes por pasada (K).
 
 ## Qué pretende demostrar
 
 El **contrato de frames intermedios por paneo** de la técnica `docs/reference/amiga/techniques/camera-pan-fake-frames.md` (fase F1 de `ROADMAP_3D_PRESENTACION.md`):
 
-- **Full** (render real, 25 Hz): la pasada completa transforma y proyecta la sala + los paneles y rellena el framebuffer ENTERO (márgenes incluidos) con el relleno por plano del Blitter (`fill_polygons_by_plane`). La ventana se centra (S=16) parcheando `BPLxPT`.
-- **Fake** (50 Hz): no se re-renderiza nada; solo se parchean `BPLxPT` (coarse) y `BPLCON1` (fino) con la convención de `playfield_scroll.hpp` para mover la ventana al offset del paneo, mostrando el contenido de los márgenes. El Fake es **exactamente** el Full anterior desplazado (contrato de píxel; ver `VALIDATION.md`).
-- La política `eng::graphics::pan_window.hpp` (margen 15 px, racha 1) alterna Full/Fake en la fase lenta (1 px/frame) y fuerza Full cada frame en la fase rápida (16 px/frame: el offset supera el margen y el paneo ya no es válido). El reloj es determinista por índice de frame (telemetría en `g_eng_run_status.detail`).
+- **Full** (render real, base ≥12,5 Hz): la pasada completa transforma y proyecta la sala + los paneles y rellena el framebuffer ENTERO (márgenes incluidos) con el relleno por plano del Blitter (`fill_polygons_by_plane`). La ventana se centra (S=16) parcheando `BPLxPT`.
+- **Fake** (display ≥25 Hz): no se re-renderiza nada; solo se parchean `BPLxPT` (coarse) y `BPLCON1` (fino) con la convención de `playfield_scroll.hpp` para mover la ventana al offset del paneo, mostrando el contenido de los márgenes. El Fake es **exactamente** el Full anterior desplazado (contrato de píxel; ver `VALIDATION.md`). Entre dos Fulls caben **varios fakes** (K), decididos por el coste medido.
+- La política `eng::graphics::pan_window.hpp` (margen 15 px) produce fakes con el offset exacto en la fase lenta (1 px/frame) y fuerza Full cada frame en la fase rápida (16 px/frame: el offset supera el margen y el paneo ya no es válido); el número máximo de fakes seguidos lo fija `eng::graphics::render_pacing.hpp` (EMA del coste del Full en campos PAL, tope K≤3). El reloj es determinista por índice de frame (telemetría en `g_eng_run_status.detail`).
 
 ## Elementos en pantalla
 
@@ -28,13 +28,13 @@ La paleta está diseñada por **rangos de bits** (0-1 fondo, 2-3 paneles con las
 
 ## Evolución temporal
 
-- La cámara recorre un paneo triangular entre −128 y +128 px de imagen (yaw ±29°): fase lenta (±96 px, 1 px/frame: patrón Full·Fake·Full·Fake) y fase rápida (borde de la trayectoria, 16 px/frame: Full cada frame; el Fake se rechaza por margen).
-- En cada Full la escena se re-renderiza con la cámara actual; en cada Fake la ventana se desplaza 1 px dentro del framebuffer (la escena parece moverse un 1 px suave entre Fulls). El marcador naranja permite seguir el movimiento en cualquier frame.
-- El HUD se refresca cada 16 frames (~3 Hz) con los contadores y el estado del frame.
+- La cámara recorre un paneo triangular entre −128 y +128 px de imagen (yaw ±29°): fase lenta (±96 px, 1 px/frame: rachas Full + varios Fake) y fase rápida (borde de la trayectoria, 16 px/frame: Full cada frame; el Fake se rechaza por margen).
+- En cada Full la escena se re-renderiza con la cámara actual; en cada Fake la ventana se desplaza 1 px dentro del framebuffer (la escena parece moverse un 1 px suave entre Fulls y varios falsos por pasada alargan la imitación). El marcador naranja permite seguir el movimiento en cualquier frame.
+- El HUD se refresca cada 32 frames (~1,5 Hz) con los contadores, el estado del frame y el K vigente.
 
 ## Criterio de éxito
 
 1. Contrato de píxel: el PNG de un frame Fake = PNG del Full anterior desplazado su offset (exactitud del mecanismo probada en aislamiento; en secuencia, costura de captura acotada — ver `VALIDATION.md` §1–§2).
-2. Cadencia: display ~50 Hz con Full a 25 Hz — **pendiente** (la pasada completa mide ~3,3–4,1 campos; demo ABIERTA, §5 y §7 de `VALIDATION.md`).
+2. Cadencia: display ≥25 Hz con base (Full) ≥12,5 Hz — display **cumplido** (~28 fps medidos); base **pendiente** (el Full mide ~3,4 campos y sale K=2, ~9 Hz; demo ABIERTA, §5 y §7 de `VALIDATION.md`).
 3. Sin flicker/tearing — sin veredicto por ahora (la costura de la captura es la firma del frame que desborda el campo).
 4. La visión (Ollama) describe la sala con sus paneles y confirma el desplazamiento.

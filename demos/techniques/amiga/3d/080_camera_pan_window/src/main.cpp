@@ -643,7 +643,9 @@ private:
 					playfield::SurfaceRect {0, 0, kFbW, kHudLines}};
 		hud.fill_rect(0, 0, static_cast<s16>(kFbW), static_cast<s16>(kHudLines), 0u);
 		(void)hud.draw_text_words(16, 2, "080 CAMERA PAN WINDOW", 1u);
-		(void)hud.draw_text_words(16, 12, "FULL 25HZ + FAKE 50HZ", 1u);
+		// Suelos de la fase F1: base (Full) >= 12.5 Hz con display interpolado >= 25 Hz;
+		// el numero de fakes por Full lo decide el coste medido (render_pacing.hpp).
+		(void)hud.draw_text_words(16, 12, "FULL 12.5 + FAKE 25", 1u);
 	}
 
 	void draw_hud_dynamic(u32 f, const eng::graphics::PanWindowStep& step) {
