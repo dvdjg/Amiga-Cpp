@@ -221,7 +221,7 @@ comprometer la corrección de otros consumidores.
 6. Animación: nodos rígidos y clips; evaluar después si hace falta skinning CPU limitado.
 7. LOD y fast paths: perfiles estáticos/confinados/convexos con aserciones y fallback.
 8. Juego de prueba: una habitación Superhot Lite, validada primero en host y luego A500 con perfil.
-9. Presentación Full/Fake: fotogramas intermedios por paneo de cámara sobre framebuffer sobredimensionado y horizonte Copper en DPF 2+3 (plan: [`ROADMAP_3D_PRESENTACION.md`](../../guides/roadmap/ROADMAP_3D_PRESENTACION.md); técnicas: [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon-dpf.md`](../../reference/amiga/techniques/copper-horizon-dpf.md)).
+9. Presentación Full/Fake: fotogramas intermedios por paneo de cámara sobre framebuffer sobredimensionado y horizonte Copper por scanline (variantes RoboCod y DPF 2+3; plan: [`ROADMAP_3D_PRESENTACION.md`](../../guides/roadmap/ROADMAP_3D_PRESENTACION.md); técnicas: [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md)).
 
 ## Criterio de diseño
 
@@ -238,4 +238,4 @@ invariante y existe validación que detecte cuándo deja de cumplirse.
 - [`RASTER.md`](RASTER.md)
 - [`MEMORY_OWNERSHIP.md`](MEMORY_OWNERSHIP.md)
 - [`blitter-line-subpixel-fill.md`](../../reference/amiga/techniques/blitter-line-subpixel-fill.md)
-- [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon-dpf.md`](../../reference/amiga/techniques/copper-horizon-dpf.md) (presentación: fotogramas intermedios y horizonte), plan en [`ROADMAP_3D_PRESENTACION.md`](../../guides/roadmap/ROADMAP_3D_PRESENTACION.md)
+- [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md) (presentación: fotogramas intermedios y horizonte), plan en [`ROADMAP_3D_PRESENTACION.md`](../../guides/roadmap/ROADMAP_3D_PRESENTACION.md)

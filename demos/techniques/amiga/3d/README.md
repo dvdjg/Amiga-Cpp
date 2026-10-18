@@ -11,6 +11,7 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [077_math3d_cube](077_math3d_cube/README.md) |
 | [078_math3d_solid](078_math3d_solid/README.md) |
 | [079_wireframe](079_wireframe/README.md) |
+| [080_camera_pan_window](080_camera_pan_window/README.md) (ABIERTA: contrato ✓, cadencia F1 pendiente) |
 | [084_mf_rotation](084_mf_rotation/README.md) |
 
 ## Build / run / analyze

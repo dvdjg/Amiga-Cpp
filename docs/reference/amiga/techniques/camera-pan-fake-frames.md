@@ -46,7 +46,7 @@ permitir Fake solo si:
 | **Ventana ya pegada al borde del margen** | No queda contenido renderizado hacia el que panea. |
 | **Fakes consecutivos > K** | El error de paralaje se acumula; mejor 1 Full cada 1–2 Fakes. |
 
-Cielo/tierra y demás fondos viven en **PF2** (ver [`copper-horizon-dpf.md`](copper-horizon-dpf.md)) y se actualizan **de verdad** cada frame con la cámara real: el lag de 1 frame completo solo afecta a la geometría 3D de PF1 y el fondo correcto lo disimula.
+Cielo/tierra y demás fondos viven en el plano de horizonte (plano 4 en la variante RoboCod; PF2 en la variante DPF — ver [`copper-horizon.md`](copper-horizon.md)) y se actualizan **de verdad** cada frame con la cámara real: el lag de 1 frame completo solo afecta a la geometría 3D y el fondo correcto lo disimula.
 
 ## Integración en el engine
 
@@ -82,5 +82,5 @@ La pasada completa suele necesitar **2 VBlanks** (objetivo de relleno poligonal:
 - Plan por fases: [`ROADMAP_3D_PRESENTACION.md`](../../../guides/roadmap/ROADMAP_3D_PRESENTACION.md).
 - Arquitectura 3D objetivo (cámara, clipping, perfiles): [`3D_GAME_ARCHITECTURE.md`](../../../engine/architecture/3D_GAME_ARCHITECTURE.md).
 - Estado del render 3D actual: [`3D_RENDER_VS_PHYSICS.md`](../../../engine/architecture/3D_RENDER_VS_PHYSICS.md).
-- Horizonte cielo/tierra que acompaña al paneo: [`copper-horizon-dpf.md`](copper-horizon-dpf.md).
+- Horizonte cielo/tierra que acompaña al paneo: [`copper-horizon.md`](copper-horizon.md).
 - Zona de display e interacción con el scroll: [`playfield_scroll.hpp`](../../../../engine/include/eng/graphics/playfield_scroll.hpp), `SCROLL_VARIANTS.md` y `PLAYFIELD_SCROLL_ARCHITECTURE.md` (en `docs/engine/architecture/`).

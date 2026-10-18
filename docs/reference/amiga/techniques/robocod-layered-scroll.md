@@ -48,6 +48,8 @@ bajo el FG, no se note un cambio de color en el FG.
 Ventajas frente a un blit por-planos del FG: una sola pasada interleaved para el tilemap y una
 copia plana del fondo (barata en Blitter), sin tocar la emisión del tilemap.
 
+El mismo plano 4 puede usarse como **máscara de horizonte cielo/tierra** reescrito por línea desde el Copper (con las filas variantes de frontera): ver [`copper-horizon.md`](copper-horizon.md).
+
 ## 3. Fondo FIJO/parallax, sub-píxel y **compensación del Copper split**
 
 El plano de fondo comparte el scroll hardware del FG (mismos `BPLxPT`/`BPLCON1`), así que el
