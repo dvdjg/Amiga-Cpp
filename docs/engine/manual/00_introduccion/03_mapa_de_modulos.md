@@ -1,6 +1,6 @@
 # Mapa de módulos
 
-El engine son **23 módulos** bajo `engine/include/eng/`. Cada uno agrupa una responsabilidad; el
+El engine son **24 módulos** bajo `engine/include/eng/`. Cada uno agrupa una responsabilidad; el
 **orden** refleja dependencias (un módulo solo usa los que están por debajo, salvo la fachada).
 
 ```
@@ -10,8 +10,8 @@ El engine son **23 módulos** bajo `engine/include/eng/`. Cada uno agrupa una re
   └───────────────▲──────────────────────────────────────────────┬───────────────┘
                   │ (usa todo lo de abajo)                       │
   ┌───────────────┴───────────────┐   ┌───────────────────────────┴──────────────┐
-  │  scene/   World · ScenePlan   │   │  input/ · ui/ · debug/ · assets/ · retro/  │
-  │           actores · planes    │   │  hw/ · cpu/ · parallel/ · task/            │
+  │  scene/   World · ScenePlan   │   │  input/ · ui/ · hud/ · debug/ · assets/     │
+  │           actores · planes    │   │  retro/ · hw/ · cpu/ · parallel/ · task/    │
   └───────────────▲───────────────┘   └───────────────────────────▲──────────────┘
   ┌───────────────┴───────────────┐   ┌───────────────────────────┴──────────────┐
   │  field/   playfield · scroll  │   │  audio/  (mixer, música, streaming)        │
@@ -50,6 +50,7 @@ El engine son **23 módulos** bajo `engine/include/eng/`. Cada uno agrupa una re
 | `os/` | **Mini-SO**: puertos/mensajes, timers, E/S, VFS, tareas. | 19 |
 | `res/` | Recursos: caché de assets, `.engz`, HUNK, ZX0, `DynLoader`. | 14 |
 | `ui/` | Widgets, compositor, layout. | 24 |
+| `hud/` | HUD de juego: modelo (medidores/contadores/rejillas/slots/arrastre), regiones y presentador de franja. | 5 |
 | `ai/` | Steering, navegación, planificación (GOAP), decisión, percepción. | 15 |
 | `sim/` | Simulación y generación. | 45 |
 | `board/` | IA de **tablero** (reglas, búsqueda, evaluación, conocimiento). | 37 |
@@ -60,7 +61,7 @@ El engine son **23 módulos** bajo `engine/include/eng/`. Cada uno agrupa una re
 | `platform/` | Backend Amiga (`AmigaBackend`) y perfil de memoria. | 14 |
 | `input/`, `parallel/`, `task/`, `assets/`, `retro/` | Módulos pequeños de propósito único. | 1–7 |
 
-> Cab. = nº de cabeceras a la fecha (total **459**). La referencia del manual cubre **cada** módulo;
-> ver el [checklist de cobertura](../README.md#5-cobertura-los-23-módulos--checklist-de-referencia).
+> Cab. = nº de cabeceras a la fecha (total **464**). La referencia del manual cubre **cada** módulo;
+> ver el [checklist de cobertura](../README.md#5-cobertura-los-24-módulos--checklist-de-referencia).
 
 Volver al [índice de introducción](README.md) · [índice del manual](../README.md).

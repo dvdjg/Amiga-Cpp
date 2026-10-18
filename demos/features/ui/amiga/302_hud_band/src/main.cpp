@@ -10,9 +10,7 @@
 //   bash ./tools/build/build-demo.sh demos/features/ui/amiga/302_hud_band --debug
 //   bash ./tools/run/run-demo.sh demos/features/ui/amiga/302_hud_band --keep-running
 
-#include <eng/api/api.hpp>
-#include <eng/debug/version.hpp>
-#include <eng/hud/hud.hpp>
+#include <eng/api/api.hpp> // incluye eng::hud (fachada estable desde H1)
 #include <eng/platform/amiga/entry.hpp>
 #include <eng/scene/display.hpp>
 

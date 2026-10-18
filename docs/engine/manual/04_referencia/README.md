@@ -30,6 +30,7 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | [`res/`](res/README.md) | Caché de assets, `DynLoader`, `.engz`, HUNK, ZX0, decode, load, presupuesto, carga asíncrona. |
 | [`audio/`](audio/README.md) | Mixer, modos de canal, música (Pt/P61), codecs y streaming. |
 | [`ui/`](ui/README.md) | Widgets, contexto, compositor con backing store, ventanas, controles. |
+| [`hud/`](hud/README.md) | HUD de juego (`eng::hud`): modelo (medidores/contadores/rejillas/slots/arrastre), contrato de región y presentador de franja. |
 | `hw/` | Inventario de hardware, presupuesto de bus. |
 | `debug/` | `RunStatus`, periférico de depuración, sonda de memoria, telemetría. |
 | `cpu/` | Utilidades/emulación `m68k`. |

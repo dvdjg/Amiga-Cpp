@@ -40,7 +40,7 @@ docs/engine/manual/
 ├── 00_introduccion/
 │   ├── 01_que_es_el_engine.md
 │   ├── 02_filosofia_y_reglas.md            # zero-cost, "la app pide / el engine dispone", sin heap/RTTI
-│   ├── 03_mapa_de_modulos.md               # ASCII: los 23 módulos + dependencias
+│   ├── 03_mapa_de_modulos.md               # ASCII: los 24 módulos + dependencias
 │   ├── 04_arquitectura_de_capas.md         # ASCII: core → memory/graphics → field/scene → api → platform
 │   └── 05_glosario.md
 ├── 01_tutoriales/                          # guiados, progresivos; código funcional
@@ -94,6 +94,7 @@ docs/engine/manual/
 │   ├── res/                                # asset_cache, dynloader, engz, hunk, zx0, decode, load, budget
 │   ├── audio/                              # mixer, mode, music, p61, pt, stream, paula…
 │   ├── ui/                                 # widgets, compositor, layout, text…
+│   ├── hud/                                # modelo de HUD, regiones y presentador de franja
 │   ├── hw/                                 # info (inventario de hardware), bus_budget
 │   ├── debug/                              # run_status, peripheral, mem_probe, telemetry
 │   ├── cpu/                                # m68k (utilidades/emulación)
@@ -140,19 +141,19 @@ docs/engine/manual/
 6. **Citas de fuentes**: hardware/registros → `docs/reference/ahrm/` y las fichas de emulador
    (`docs/reference/emulators/`), no se reescriben.
 
-## 5. Cobertura (los 23 módulos) — checklist de referencia
+## 5. Cobertura (los 24 módulos) — checklist de referencia
 
 `04_referencia/` debe cubrir **todo** el engine. Estado de la cobertura (a completar por pasadas):
 
 - [ ] `api` (13) · [ ] `core/types` · [ ] `core/math` · [ ] `core/data` · [ ] `core/util`
 - [ ] `memory` · [ ] `graphics/planar` · [ ] `graphics/copper` · [ ] `graphics/blitter`
 - [ ] `graphics/composition` · [ ] `graphics/tilemap` · [ ] `graphics/effects` · [ ] `graphics/drivers`
-- [ ] `field` · [ ] `scene` · [ ] `input` · [ ] `os` · [ ] `res` · [ ] `audio` · [ ] `ui`
+- [ ] `field` · [ ] `scene` · [ ] `input` · [ ] `os` · [ ] `res` · [ ] `audio` · [ ] `ui` · [ ] `hud`
 - [ ] `hw` · [ ] `debug` · [ ] `cpu` · [ ] `parallel` · [ ] `task` · [ ] `assets` · [ ] `retro`
 - [ ] `platform/amiga` · [ ] `ai` (steering/navigation/planning/decision/perception)
 - [ ] `sim` · [ ] `board` · [ ] `cards`
 
-> **Alcance**: 459 cabeceras en 23 módulos (conteo a la fecha). El manual es **exhaustivo en
+> **Alcance**: 542 cabeceras en 24 módulos (conteo a la fecha). El manual es **exhaustivo en
 > intención**: ninguna clase ni plantilla del engine queda sin entrada en `04_referencia/`.
 
 ## 6. La escalera de aprendizaje (resumen)
