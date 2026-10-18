@@ -318,6 +318,9 @@ fi
 # bug de codegen de gcc 15 m68k a `-O1`; la 119 usa `DEMO_FLAGS` para subir los limites
 # de evaluacion `constexpr` (la generacion procedural del mundo se evalua al compilar).
 if [ -f "$DEMO_PATH/build.args" ]; then
+	# El BOM UTF-8 de un editor descuidado rompia la primera clave EN SILENCIO (p. ej.
+	# `DEMO_FLAGS` ignorado): se elimina antes de parsear (norma del repo: sin BOM).
+	sed -i '1s/^\xEF\xBB\xBF//' "$DEMO_PATH/build.args" 2>/dev/null || true
 	while IFS='=' read -r _k _v || [ -n "$_k" ]; do
 		_k="${_k%%[[:space:]]*}"
 		case "$_k" in
