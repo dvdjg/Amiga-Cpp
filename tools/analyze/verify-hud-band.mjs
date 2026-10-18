@@ -83,6 +83,32 @@ function bandDiff(a, b) {
 	return { n, w: maxx - minx + 1, h: maxy - miny + 1 };
 }
 
+// --- Cookie-cut del actor (defecto reportado y corregido) -----------------------------
+// Bloque estatico (40,150,24,24) y actor 16x16 en y=150: cuando el actor lo cruza, DENTRO
+// del bloque solo puede haber color del bloque (51,51,102) o del actor (136,170,204);
+// cualquier NEGRO = banda/guarda pintada (el dibujo opaco de 2 palabras pintaba la guarda).
+const BLOCK = { x: 40, y: 150, w: 24, h: 24 };
+const isActor = (r, g, b) => r === 136 && g === 170 && b === 204;
+const isBlock = (r, g, b) => r === 51 && g === 51 && b === 102;
+
+/// Estado del bloque en un frame: pixeles intactos, cubiertos por el actor y negros.
+function blockStats(imagePath) {
+	const img = readPng(imagePath);
+	const W = img.width;
+	let intact = 0;
+	let covered = 0;
+	let black = 0;
+	for (let ay = BLOCK.y; ay < BLOCK.y + BLOCK.h; ay++) {
+		for (let ax = BLOCK.x; ax < BLOCK.x + BLOCK.w; ax++) {
+			const [r, g, b] = pixel(img, origin[0] + ax * scale, origin[1] + ay * scale);
+			if (isBlock(r, g, b)) intact++;
+			else if (isActor(r, g, b)) covered++;
+			else if (r === 0 && g === 0 && b === 0) black++;
+		}
+	}
+	return { intact, covered, black, total: BLOCK.w * BLOCK.h };
+}
+
 let failures = 0;
 const check = (ok, msg) => {
 	console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${msg}`);
@@ -120,6 +146,32 @@ if (image) {
 		if (d.n >= 32) animated++;
 	}
 	check(animated >= 2, `la franja anima entre frames consecutivos (${animated} pares con cambio)`);
+	// Cookie-cut: si la captura incluye el cruce del actor por el bloque, dentro del bloque
+	// no puede haber negro (banda/guarda) y el bloque queda intacto cuando el actor se va.
+	const blocks = frames.map((f) => blockStats(path.join(seqDir, f)));
+	let crossed = 0;
+	let blackFrames = 0;
+	for (let i = 0; i < frames.length; ++i) {
+		const b = blocks[i];
+		if (b.covered > 0) {
+			crossed++;
+			if (b.black > 0) {
+				blackFrames++;
+				console.log(`    ${frames[i]}: bloque con NEGRO=${b.black} (intacto=${b.intact}, ` +
+					`actor=${b.covered})`);
+			}
+		}
+	}
+	if (crossed > 0) {
+		check(blackFrames === 0, `sin banda negra en el bloque durante el cruce ` +
+			`(${crossed} frames con el actor encima)`);
+		const last = blocks[blocks.length - 1];
+		check(last.intact === last.total || last.covered > 0,
+			`bloque intacto al final de la secuencia (${last.intact}/${last.total})`);
+	} else {
+		console.log('    (el actor no cruza el bloque en esta captura: ' +
+			'usa --settle-ms 150 para incluir el cruce)');
+	}
 } else {
 	console.error('Uso: verify-hud-band.mjs --image <png> | --sequence-dir <dir> [--origin 76,36] [--scale 2]');
 	process.exit(2);

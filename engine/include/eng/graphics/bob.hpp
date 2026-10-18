@@ -58,6 +58,13 @@ enum class BobDraw : u8 {
 	/// objeto dejan el fondo. Camino de `bobs3d.c`.
 	Or,
 	/// `D = A` (minterm `$F0`): **opaco**, sin máscara; sobrescribe el fondo.
+	///
+	/// ⚠️ Con `x` **no alineada a 16** y una hoja de 2+ palabras por fila, el blit escribe
+	/// la ventana completa: la **guarda** (ceros) se pinta como **banda** del color 0 a la
+	/// derecha del objeto (invisible sobre fondo negro, visible sobre fondos con color —
+	/// defecto real de la demo 302: el actor "mordía" los bloques estáticos al pasar). Para
+	/// objetos que se mueven sobre fondos no lisos usar **`CookieCut`** con hoja par
+	/// (`BobMaskPack::InterleavedPair`): el minterm `$CA` preserva el fondo fuera del arte.
 	Opaque,
 	/// `D = A & D` (minterm `$C0`, `B = D`): **sombra**/sustractivo, sin máscara; los
 	/// unos del objeto oscurecen el fondo.

@@ -65,13 +65,18 @@ constexpr u16 kActorSize = 16u;
 constexpr u16 kActorY = 150u;
 constexpr u16 kActorTravel = kWidth - 2u * kActorSize;
 constexpr u8 kActorPlanes = 4u; // planos del campo de juego (color 15 = los cuatro)
-// Hoja planar del actor: por fila, una palabra de objeto + una de guarda (el Blitter lee la
-// palabra extra cuando `x` no esta alineada a 16; contrato de `bob.hpp`, `box_words`).
-constexpr u16 kActorSheetRowBytes = 4u; // 2 palabras
+// Hoja **par** de cookie-cut (`BobMaskPack::InterleavedPair`): por cada fila fisica (fila de
+// arte x plano), `[imagen k][guarda k][mascara k][guarda k]` con `k = 1` palabra (arte de
+// 16 px); 4 palabras = 8 bytes por fila. La ventana del Bob (`bob.width`) incluye la guarda:
+// 32 px. El dibujo opaco anterior (2 palabras con la guarda a cero, `D = A`) pintaba la
+// guarda como **banda negra** de 16 px a la derecha del actor: invisible sobre fondo negro,
+// visible al cruzar los bloques de color (defecto reportado). El cookie-cut `$CA`
+// (`D = (A & B) | (~A & C)`) preserva el fondo fuera del objeto por construccion.
+constexpr u16 kActorSheetRowBytes = 8u; // 4 palabras (imagen, guarda, mascara, guarda)
 constexpr u32 kActorSheetBytes =
 	static_cast<u32>(kActorSheetRowBytes) * kActorSize * kActorPlanes;
 // Save-under: por plano, `kActorSaveWords` palabras de guardado x `kActorSize` filas.
-constexpr u16 kActorSaveWords = 2u; // (16+15)/16 + guarda del shift = 2
+constexpr u16 kActorSaveWords = 2u; // la caja de la hoja par procesa width/16 = 2 palabras
 constexpr u32 kActorSaveBytes = static_cast<u32>(kActorSaveWords) * kActorSize * kActorPlanes * 2u;
 
 // Geometria del medidor de energia: marco {72,16,128,8}; relleno interior de 6 filas.
@@ -250,35 +255,49 @@ private:
 		if (!m_actor_sheet.valid() || !m_actor_save.valid()) {
 			return false;
 		}
-		// Contenido de la hoja por la vista tipada del bloque (sin `view.data()`): planar,
-		// un plano por bloque, filas de [0xFFFF, 0x0000].
+		// Contenido de la hoja par por la vista tipada del bloque (sin `view.data()`):
+		// por cada fila de arte y plano, [imagen=0xFFFF][guarda=0][mascara=0xFFFF][guarda=0].
 		eng::Words<eng::BobTag> sheet = m_actor_sheet.view.as_words();
 		for (eng::u8 p = 0u; p < kActorPlanes; ++p) {
 			for (eng::u16 r = 0u; r < kActorSize; ++r) {
-				const eng::u32 base = (static_cast<eng::u32>(p) * kActorSize + r) * 2u;
-				sheet[base] = 0xffffu;      // palabra del objeto (16 px, MSB = pixel 0)
+				const eng::u32 base = (static_cast<eng::u32>(r) * kActorPlanes + p) * 4u;
+				sheet[base] = 0xffffu;      // imagen (16 px, MSB = pixel 0)
 				sheet[base + 1u] = 0x0000u; // guarda del barrel shifter
+				sheet[base + 2u] = 0xffffu; // mascara de cookie-cut (1 = objeto)
+				sheet[base + 3u] = 0x0000u; // guarda de la mascara
 			}
 		}
 		eng::graphics::Bob bob {};
 		bob.sheet = m_actor_sheet.mem_view();
-		bob.width = kActorSize;
+		bob.width = static_cast<u16>(2u * kActorSize); // ventana = arte + guarda (hoja par)
 		bob.height = kActorSize;
 		bob.planes = kActorPlanes;
-		bob.layout = eng::graphics::BobLayout::Planar;
+		bob.layout = eng::graphics::BobLayout::Interleaved;
 		bob.sheet_row_bytes = kActorSheetRowBytes;
-		bob.draw = eng::graphics::BobDraw::Opaque;
+		bob.draw = eng::graphics::BobDraw::CookieCut;
+		bob.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
 		bob.frame_count = 1u;
 		m_actor_sprite = eng::graphics::Sprite {bob, kActorSheetBytes, 0u};
 		app.world().reset_actors(0u, 60000u, 0u);
 		eng::scene::ActorDesc d = eng::scene::actor_desc_from_sprite(
 			m_actor_sprite, static_cast<s16>(m_actor_x), kActorY, 10u, 0u,
-			eng::scene::TransparencyMode::Opaque, eng::scene::BackgroundPolicy::SaveUnder);
+			eng::scene::TransparencyMode::Mask1Bit, eng::scene::BackgroundPolicy::SaveUnder);
 		d.save[0u] = m_actor_save.mem_view();
 		d.save_words_per_row = kActorSaveWords;
 		d.save_height = kActorSize;
 		m_actor = app.world().add_actor(d);
-		return m_actor.valid();
+		if (!m_actor.valid()) {
+			return false;
+		}
+		// **El Bob del actor se fija explicito** (patron de la 121): `add_actor` reconstruye
+		// el Bob desde el `Visual` (`bob_from_visual`) y ese camino **no puede expresar la
+		// hoja par**: dejaria `SeparatePlane` sin mascara y el cookie-cut interleaved se
+		// rechaza en silencio (el actor no se dibuja). Se copia el Bob configurado (hoja
+		// par con la mascara dentro de la hoja).
+		if (auto a = app.world().actor(m_actor)) {
+			a->bob = bob;
+		}
+		return true;
 	}
 
 	/// Prefijo fijo de la linea de depuracion (AGENTS §0): `HUD BAND vX.Y.BBBB F` en x=0 con el

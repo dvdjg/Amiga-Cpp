@@ -13,10 +13,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 DEMO="demos/features/ui/amiga/302_hud_band"
 
-# Captura **frame a frame** (1 frame por captura): la secuencia es determinista y el
+# Captura **frame a frame** (1 frame por captura) con asentamiento corto: la ventana
+# incluye el CRUCE del actor por el bloque de color (f~12..24), donde se verifica el
+# cookie-cut (sin banda negra dentro del bloque). La secuencia es determinista y el
 # detector de flicker ve movimiento pequeno y coherente (con capturas separadas 200 ms,
 # el actor y la barra parecen "parpadeo").
-RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-step-frames 12)
+RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-step-frames 20 --settle-ms 150)
 for a in "$@"; do
 	[ "$a" = "--warp" ] && RUN_ARGS+=("--warp")
 done
