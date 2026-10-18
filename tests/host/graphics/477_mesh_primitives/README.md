@@ -1,4 +1,4 @@
-# HOST-472: primitivas 3D generadas en compilacion (`eng::retro::mesh_primitives`)
+# HOST-477: primitivas 3D generadas en compilacion (`eng::retro::mesh_primitives`)
 
 Test host de los generadores **constexpr** de mallas de `engine/include/eng/retro/mesh_primitives.hpp`: caja, prisma regular, tubo abierto, cono/pirámide, esfera UV, cápsula y sólidos platónicos (tetraedro, cubo, octaedro, dodecaedro, icosaedro). Las mallas usan el formato del engine (`math3d::PolyMeshViewT`: vértices compartidos + índices concatenados por cara con `FaceSpan`, caras n-gon convexas) y quedan materializadas como datos en el binario (cero coste de runtime).
 
@@ -20,7 +20,7 @@ OK: primitivas 3D (caja, prisma, tubo, cono, esfera, capsula y platonicos) en co
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/graphics/472_mesh_primitives
+bash tools/run-host-tests.sh tests/host/graphics/477_mesh_primitives
 ```
 
 ## Notas

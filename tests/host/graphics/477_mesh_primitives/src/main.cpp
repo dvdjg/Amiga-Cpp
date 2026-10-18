@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-472: primitivas 3D generadas en compilacion
+// Test HOST-477: primitivas 3D generadas en compilacion
 // (engine/include/eng/retro/mesh_primitives.hpp)
 // ============================================================================
 //
@@ -18,7 +18,7 @@
 //   6) Dos escalares (`coord` s16 y `float`): la cabecera no impone el escalar.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/graphics/472_mesh_primitives
+//   bash tools/run-host-tests.sh tests/host/graphics/477_mesh_primitives
 
 #define ENG_SCALAR_RETRO16 // host: eng::coord = q0 (s16), como el resto de tests 3D
 #include <eng/retro/mesh_primitives.hpp>
