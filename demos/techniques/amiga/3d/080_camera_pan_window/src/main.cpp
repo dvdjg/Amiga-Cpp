@@ -538,6 +538,33 @@ private:
 		eng::math3d::load_rotate(view.m, eng::retro::turns(0u),
 					 eng::retro::turns(static_cast<u16>(yaw_steps)),
 					 eng::retro::turns(0u));
+#if !defined(K080_NO_CULL)
+		// --- Culling de entrada (3D_GAME_ARCHITECTURE §Visibilidad) -------------------------
+		// Mismas formulas que `eng::math3d::aabb_visible` (frustum.hpp): AABB de la cara
+		// contra la cuna yaw + franja + profundidad. Aqui el escalar partido de la demo
+		// (ratio q12 de la MISMA matriz `view` x longitud entera) se resuelve con
+		// `mul_wide` (muls.w): la via generica usa un unico escalar; promover al engine
+		// como vista `ratio/longitud` cuando haya un segundo consumidor (deuda anotada).
+		// Conservador: centro y semiextensiones DOBLADOS (2c = min+max, 2h = max-min) para
+		// no dividir a 2; margen de 3 unidades de mundo absorbe la cuantizacion.
+		const s16 sin_yaw = view.m.m[2][0].v; // q12: sin(yaw) del propio view
+		const s16 cos_yaw = view.m.m[0][0].v; // q12
+		constexpr s32 kHalfWQ12 =
+			(static_cast<s32>(kViewportW / 2u) << 12) / static_cast<s32>(kFocal); // 0.625
+		const auto mul_q12 = [](s16 a, s16 b) -> s16 {
+			return static_cast<s16>(eng::math::mul_wide(a, b) >> 12);
+		};
+		const s32 lx = cos_yaw + mul_q12(static_cast<s16>(kHalfWQ12), sin_yaw);
+		const s32 lz = mul_q12(static_cast<s16>(kHalfWQ12), cos_yaw) - sin_yaw;
+		const s32 rx = mul_q12(static_cast<s16>(kHalfWQ12), sin_yaw) - cos_yaw;
+		const s32 rz = mul_q12(static_cast<s16>(kHalfWQ12), cos_yaw) + sin_yaw;
+		constexpr s32 kMarginQ2 = 3 * 8192;  // 2 x 3 unidades de mundo en q12
+		constexpr s32 kMarginY2 = 3 * 2;     // 2 x 3 unidades de mundo (franja, crudo)
+		constexpr s32 kNearQ13 = 4 * 8192;   // 2 x near(4) x 2^12
+		constexpr s32 kFarQ13 = 1536 * 8192; // 2 x far(1536) x 2^12
+		constexpr s32 kYB2 =
+			(static_cast<s32>(kFbH / 2u) * 1536 / static_cast<s32>(kFocal)) * 2;
+#endif
 
 		// Proyeccion + recorte 2D. El recorte de Sutherland-Hodgman (4 pasadas) solo se
 		// paga cuando la cara CRUZA el borde: si su AABB esta dentro se envia tal cual y
@@ -582,6 +609,50 @@ private:
 
 		ENG_PROF_BEGIN(kProfClip);
 		for (u32 i = 0u; i < kFaceCount; ++i) {
+#if !defined(K080_NO_CULL)
+			{
+				// AABB crudo de la cara; centro/extension DOBLADOS (2c = min+max,
+				// 2h = max-min) para no dividir a 2. Test conservador (cruzar = visible).
+				const s16 x0 = eng::math3d::coord_at(kFaces[i].v[0], 0);
+				const s16 x1 = eng::math3d::coord_at(kFaces[i].v[1], 0);
+				const s16 x2 = eng::math3d::coord_at(kFaces[i].v[2], 0);
+				const s16 x3 = eng::math3d::coord_at(kFaces[i].v[3], 0);
+				const s16 y0 = eng::math3d::coord_at(kFaces[i].v[0], 1);
+				const s16 y1 = eng::math3d::coord_at(kFaces[i].v[1], 1);
+				const s16 y2 = eng::math3d::coord_at(kFaces[i].v[2], 1);
+				const s16 y3 = eng::math3d::coord_at(kFaces[i].v[3], 1);
+				const s16 z0 = eng::math3d::coord_at(kFaces[i].v[0], 2);
+				const s16 z1 = eng::math3d::coord_at(kFaces[i].v[1], 2);
+				const s16 z2v = eng::math3d::coord_at(kFaces[i].v[2], 2);
+				const s16 z3 = eng::math3d::coord_at(kFaces[i].v[3], 2);
+				const auto mn = [](s16 a, s16 b) { return a < b ? a : b; };
+				const auto mx = [](s16 a, s16 b) { return a > b ? a : b; };
+				const s32 c2x = mn(mn(x0, x1), mn(x2, x3)) + mx(mx(x0, x1), mx(x2, x3));
+				const s32 e2x = mx(mx(x0, x1), mx(x2, x3)) - mn(mn(x0, x1), mn(x2, x3));
+				const s32 c2y = mn(mn(y0, y1), mn(y2, y3)) + mx(mx(y0, y1), mx(y2, y3));
+				const s32 e2y = mx(mx(y0, y1), mx(y2, y3)) - mn(mn(y0, y1), mn(y2, y3));
+				const s32 c2z = mn(mn(z0, z1), mn(z2v, z3)) + mx(mx(z0, z1), mx(z2v, z3));
+				const s32 e2z = mx(mx(z0, z1), mx(z2v, z3)) - mn(mn(z0, z1), mn(z2v, z3));
+				const auto mw = [](s32 a, s32 b) -> s32 {
+					return eng::math::mul_wide(static_cast<s16>(a), static_cast<s16>(b));
+				};
+				const auto mabs = [](s32 v) -> s32 { return v < 0 ? -v : v; };
+				const s32 l2 = mw(c2x, lx) + mw(c2z, lz);
+				const s32 le2 = mw(e2x, mabs(lx)) + mw(e2z, mabs(lz));
+				const s32 r2 = mw(c2x, rx) + mw(c2z, rz);
+				const s32 re2 = mw(e2x, mabs(rx)) + mw(e2z, mabs(rz));
+				const s32 zq2 = mw(c2x, sin_yaw) + mw(c2z, cos_yaw);
+				const s32 zeq2 = mw(e2x, mabs(sin_yaw)) + mw(e2z, mabs(cos_yaw));
+				if (l2 + le2 + kMarginQ2 < 0 || r2 + re2 + kMarginQ2 < 0 ||
+				    c2y + e2y + kMarginY2 < -kYB2 ||
+				    c2y - e2y - kMarginY2 > kYB2 ||
+				    zq2 + zeq2 + kMarginQ2 < kNearQ13 ||
+				    zq2 - zeq2 - kMarginQ2 > kFarQ13) {
+					m_fn[i] = 0u; // cull: la cara no se transforma/proyecta/recorta/rellena
+					continue;
+				}
+			}
+#endif
 			eng::math3d::Vec3 cam[4];
 			eng::math3d::mesh_transform(eng::Span<const eng::math3d::Vec3>(kFaces[i].v, 4),
 						    view, eng::Span<eng::math3d::Vec3>(cam, 4));
