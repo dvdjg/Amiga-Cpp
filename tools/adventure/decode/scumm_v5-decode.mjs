@@ -7,12 +7,14 @@
 // Entrada: `raw/rooms/room_N/blocks.json` + los `.bin` (payloads sin cabecera) y
 // `raw/index/rooms.json` (nombres). Decodificadores puros en `decoders.mjs` (citados al oráculo).
 //
-// Uso: node tools/adventure/decode/scumm_v5-decode.mjs <juego|dir> [--out <sim.json>]
+// Uso: node tools/adventure/decode/scumm_v5-decode.mjs <juego|dir> [--out <sim.json>] [--no-png]
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decodeWalkboxes, decodeObject, decodeObjectImage, decodePalette, decodeRoomHeader } from './decoders.mjs';
+import { decodeWalkboxes, decodeObject, decodeObjectImage, decodePalette, decodeRoomHeader, findImageEntry } from './decoders.mjs';
+import { decodeSmappedImage } from './image.mjs';
+import { encodeIndexedPng, paletteTo8Bit } from '../lib/png.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../../..');
@@ -44,6 +46,13 @@ const names = new Map(Object.entries(inventory.roomNames ?? {}).map(([k, v]) => 
 
 const roomsOut = [];
 const stats = { rooms: 0, walkboxes: 0, objects: 0, palettes: 0 };
+const png = !args['no-png'];
+const pngDir = path.join(WS, 'decoded', 'png');
+const imageManifest = { format: 'adv-images/1', game: GAME, rooms: [], objects: [], errors: [] };
+if (png) {
+	fs.mkdirSync(path.join(pngDir, 'rooms'), { recursive: true });
+	fs.mkdirSync(path.join(pngDir, 'objects'), { recursive: true });
+}
 
 for (const r of inventory.rooms ?? []) {
 	const roomDir = path.join(WS, 'raw', 'rooms', `room_${r.room}`);
@@ -74,6 +83,38 @@ for (const r of inventory.rooms ?? []) {
 		if (!obj) continue;
 		if (images.has(obj.id)) obj.image = images.get(obj.id);
 		objects.push(obj);
+	}
+
+	// Normalización a PNG (sin pérdidas): fondo de sala (RMIM) y primeros planos de objeto (IMxx).
+	if (png && palette && palette.kind === 'clut' && header) {
+		const pal8 = paletteTo8Bit(palette.colors);
+		const rmim = loadOne('RMIM');
+		if (rmim && header.width % 8 === 0) {
+			try {
+				const img = decodeSmappedImage(rmim, header.width, header.height);
+				const file = `rooms/room_${r.room}.png`;
+				fs.writeFileSync(path.join(pngDir, file), encodeIndexedPng(img.width, img.height, img.indices, pal8));
+				imageManifest.rooms.push({ room: r.room, file, width: img.width, height: img.height, strips: img.strips, codes: [...new Set(img.codes)] });
+			} catch (err) {
+				imageManifest.errors.push({ kind: 'room', room: r.room, message: err.message });
+			}
+		}
+		for (const e of entryOf('OBIM')) {
+			const mimg = decodeObjectImage(load(e));
+			if (!mimg) continue;
+			const obj = objects.find((o) => o.id === mimg.id);
+			if (!obj || obj.width % 8 !== 0 || obj.width === 0 || obj.height === 0) continue;
+			const entry = findImageEntry(load(e), 1);
+			if (!entry) continue;
+			try {
+				const img = decodeSmappedImage(entry, obj.width, obj.height, { transparentColor: 0 });
+				const file = `objects/room_${r.room}_obj${obj.id}.png`;
+				fs.writeFileSync(path.join(pngDir, file), encodeIndexedPng(img.width, img.height, img.indices, pal8, { transparentIndex: 0 }));
+				imageManifest.objects.push({ room: r.room, obj: obj.id, file, width: img.width, height: img.height, strips: img.strips, codes: [...new Set(img.codes)] });
+			} catch (err) {
+				imageManifest.errors.push({ kind: 'object', room: r.room, obj: obj.id, message: err.message });
+			}
+		}
 	}
 
 	const scripts = manifest.blocks
@@ -112,4 +153,10 @@ const sim = {
 const outFile = args.out ? String(args.out) : path.join(WS, 'decoded', 'sim.json');
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, JSON.stringify(sim, null, 2) + '\n');
-console.log(`[decode] ${GAME}: ${stats.rooms} salas, ${stats.walkboxes} walkboxes, ${stats.objects} objetos, ${stats.palettes} paletas -> ${outFile}`);
+let pngNote = '';
+if (png) {
+	const imgFile = path.join(WS, 'decoded', 'images.json');
+	fs.writeFileSync(imgFile, JSON.stringify(imageManifest, null, 2) + '\n');
+	pngNote = `, PNG: ${imageManifest.rooms.length} salas + ${imageManifest.objects.length} objetos (${imageManifest.errors.length} avisos)`;
+}
+console.log(`[decode] ${GAME}: ${stats.rooms} salas, ${stats.walkboxes} walkboxes, ${stats.objects} objetos, ${stats.palettes} paletas${pngNote} -> ${outFile}`);

@@ -52,7 +52,7 @@
         },
         {
           "tag": "OBIM",
-          "size": 94
+          "size": 32
         }
       ],
       "lflfBlocks": [
@@ -68,12 +68,12 @@
       "scripts": [
         {
           "tag": "SCRP",
-          "off": 1001,
+          "off": 939,
           "size": 10
         },
         {
           "tag": "EXCD",
-          "off": 1011,
+          "off": 949,
           "size": 10
         }
       ]

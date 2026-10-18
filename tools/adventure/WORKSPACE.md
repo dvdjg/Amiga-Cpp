@@ -16,7 +16,9 @@ out/adventure/<juego>/
 │                    (.bin = bloque íntegro con cabecera, lo que consume descumm; .txt = descompilado)
 ├── decoded/         decodificación SEMÁNTICA de raw (la escriben los decodificadores)
 │   ├── sim.json     SIM v2: salas con tamaño, walkboxes, paleta, objetos y guiones
-│   └── walkboxes/   room_<N>.json (BOXD+BOXM decodificados) + index.json
+│   ├── walkboxes/   room_<N>.json (BOXD+BOXM decodificados) + index.json
+│   ├── png/         rooms/room_<N>.png y objects/room_<N>_obj<M>.png (indexados, sin pérdidas) + ../images.json
+│   └── audio/       00005.flac… (pistas del .sof sin recodificar) + manifest.json (adv-sof/1)
 ├── edited/          FUENTE editable del port: SIM editado y añadidos Amiga (capas/parallax, transparencias, cues)
 ├── cook/            salida COCINADA para el engine — regenerable desde decoded/edited
 │   └── cpp/         <juego>_content.hpp: tablas constexpr de eng::adv (codegen/emit-content.mjs)
@@ -38,7 +40,8 @@ out/adventure/<juego>/
 | Scaffold + descriptor | `node tools/adventure/workspace.mjs init <juego> --source <ruta>` | `game.json`, carpetas |
 | Extracción (V5) | `node tools/adventure/frontends/scumm_v5/extract.mjs dump-game <juego.000> --out out/adventure/<juego>` | `raw/` |
 | Walkboxes | `... extract.mjs decode-boxes <juego.000> --out out/adventure/<juego>` | `decoded/walkboxes/` |
-| SIM v2 semántico | `node tools/adventure/decode/scumm_v5-decode.mjs <juego>` | `decoded/sim.json` |
+| SIM v2 semántico | `node tools/adventure/decode/scumm_v5-decode.mjs <juego>` | `decoded/sim.json` + `decoded/png/` + `decoded/images.json` |
+| Audio (`.sof`) | `node tools/adventure/decode/sof-extract.mjs <juego>` | `decoded/audio/` (+`manifest.json`) |
 | Contenido C++ | `node tools/adventure/codegen/emit-content.mjs <juego>` | `cook/cpp/<juego>_content.hpp` |
 | Informes | `node tools/adventure/analyze/opcode-usage.mjs <juego>` | `reports/` |
 | Estado | `node tools/adventure/workspace.mjs status` | — (stdout) |

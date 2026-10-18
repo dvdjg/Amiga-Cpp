@@ -1356,14 +1356,7 @@
           "image": {
             "id": 1,
             "imageCount": 1,
-            "width": 16,
-            "height": 16,
-            "hotspots": [
-              {
-                "x": 1,
-                "y": 2
-              }
-            ]
+            "hotspots": []
           }
         }
       ],
@@ -1371,12 +1364,12 @@
         {
           "tag": "SCRP",
           "size": 10,
-          "file": "raw/scripts/room_1/SCRP_1001.bin"
+          "file": "raw/scripts/room_1/SCRP_939.bin"
         },
         {
           "tag": "EXCD",
           "size": 10,
-          "file": "raw/scripts/room_1/EXCD_1011.bin"
+          "file": "raw/scripts/room_1/EXCD_949.bin"
         }
       ]
     }

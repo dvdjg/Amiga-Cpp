@@ -52,15 +52,10 @@ const clut = Buffer.from(Array.from({ length: 768 }, (_, i) => (i % 3 === 0 ? i 
 const cdhd = Buffer.from([0x01, 0x00, 0x05, 0x06, 0x02, 0x02, 0x00, 0x00, 0x28, 0x00, 0x30, 0x00, 0x02]);
 const verb = Buffer.from([0x80, 0xa0]);
 const obcd = block('OBCD', Buffer.concat([block('CDHD', cdhd), block('VERB', verb)]));
-// Imagen del objeto 1: IMHD (78 B): id, image_count=1, width=height=16, 1 hotspot en (1,2).
-const imhd = Buffer.alloc(78);
+// Imagen del objeto 1: IMHD de V5 PC (16 B): obj_id=1, image_count=1 (sin lista de hotspots).
+const imhd = Buffer.alloc(16);
 imhd.writeUInt16LE(1, 0);
 imhd.writeUInt16LE(1, 2);
-imhd.writeUInt16LE(16, 12);
-imhd.writeUInt16LE(16, 14);
-imhd.writeUInt16LE(1, 16);
-imhd.writeInt16LE(1, 18);
-imhd.writeInt16LE(2, 20);
 const obim = block('OBIM', block('IMHD', imhd));
 const scrpOps = Buffer.from([0x80, 0xa0]); // breakHere(); stopObjectCode();
 const excdOps = Buffer.from([0x80, 0xa0]);

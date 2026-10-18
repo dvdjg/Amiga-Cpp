@@ -13,8 +13,11 @@ export const BOX_SIZE_V5 = 20;
 
 /** Cabecera CDHD v5 (`object.h:107`): obj_id u16 + x,y,w,h,flags,parent (6 B) + walk_x/y s16 + actordir. */
 export const CDHD_V5_SIZE = 13;
-/** Cabecera IMHD (`ImageHeader.old`, `object.h:139`): 78 bytes (incluye 15 puntos de hotspot). */
-export const IMHD_SIZE = 78;
+/** Cabecera IMHD de V5 PC: 16 bytes (obj_id u16, image_count u16 + 12 B); las variantes con
+ * lista de hotspots (`ImageHeader.old`, 78 B) solo aparecen en otras plataformas. */
+export const IMHD_V5_SIZE = 16;
+/** Tamaño de `ImageHeader.old` con hotspots (FMTowns y variantes). */
+export const IMHD_OLD_SIZE = 78;
 
 /**
  * Decodifica `BOXD` (cajas) y opcionalmente `BOXM` (adyacencia) de una sala.
@@ -97,25 +100,48 @@ export function decodeObject(obcd) {
 }
 
 /**
- * Decodifica la cabecera `IMHD` de un payload `OBIM` (id, número de imágenes y hotspots).
+ * Decodifica la cabecera `IMHD` de un payload `OBIM` (id, número de imágenes y, en las
+ * variantes de 78 B, la lista de hotspots).
  * \param obim payload del bloque OBIM.
- * \return { id, imageCount, width, height, hotspots:[{x,y}] } o null.
+ * \return { id, imageCount, hotspots } o null. `hotspots` va vacío en V5 PC (16 B sin lista).
  */
 export function decodeObjectImage(obim) {
 	const imhd = findBlock(obim, 'IMHD');
-	if (!imhd || imhd.length < IMHD_SIZE) return null;
+	if (!imhd || imhd.length < IMHD_V5_SIZE) return null;
 	const hotspots = [];
-	const n = Math.min(imhd.readUInt16LE(16), 15);
-	for (let i = 0; i < n; i++) {
-		hotspots.push({ x: imhd.readInt16LE(18 + i * 4), y: imhd.readInt16LE(20 + i * 4) });
+	if (imhd.length >= IMHD_OLD_SIZE) {
+		const n = Math.min(imhd.readUInt16LE(16), 15);
+		for (let i = 0; i < n; i++) {
+			hotspots.push({ x: imhd.readInt16LE(18 + i * 4), y: imhd.readInt16LE(20 + i * 4) });
+		}
 	}
 	return {
 		id: imhd.readUInt16LE(0),
 		imageCount: imhd.readUInt16LE(2),
-		width: imhd.readUInt16LE(12),
-		height: imhd.readUInt16LE(14),
 		hotspots,
 	};
+}
+
+/**
+ * Busca el sub-bloque de imagen de un objeto (`IMxx`, xx = estado en hex) dentro de su OBIM.
+ * \param obim payload del bloque OBIM.
+ * \param state estado pedido (por defecto 1; el dibujo por defecto de los objetos V5).
+ * \return payload del sub-bloque de imagen o null (probando `IMxx`, `IM00` y el primer `IMxx`).
+ */
+export function findImageEntry(obim, state = 1) {
+	if (!obim) return null;
+	const wanted = `IM${state.toString(16).toUpperCase().padStart(2, '0')}`;
+	let first = null;
+	let off = 0;
+	while (off + 8 <= obim.length) {
+		const t = obim.toString('latin1', off, off + 4);
+		const size = obim.readUInt32BE(off + 4);
+		if (size < 8 || off + size > obim.length) break;
+		if (t === wanted) return obim.subarray(off + 8, off + size);
+		if (first === null && /^IM[0-9A-F]{2}$/.test(t) && t !== 'IMHD') first = obim.subarray(off + 8, off + size);
+		off += size;
+	}
+	return first;
 }
 
 /**

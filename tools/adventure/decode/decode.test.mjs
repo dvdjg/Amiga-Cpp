@@ -44,8 +44,8 @@ test('fixture: el decodificador produce un SIM v2 válido y estable (golden)', (
 	assert.equal(room.objects[0].id, 1);
 	assert.equal(room.objects[0].x, 40);
 	assert.equal(room.objects[0].y, 48);
-	assert.equal(room.objects[0].image.width, 16);
-	assert.deepEqual(room.objects[0].image.hotspots, [{ x: 1, y: 2 }]);
+	assert.equal(room.objects[0].image.imageCount, 1);
+	assert.deepEqual(room.objects[0].image.hotspots, []);
 	assert.equal(room.scripts.length, 2);
 
 	if (process.env.SIM_UPDATE_GOLDEN) {

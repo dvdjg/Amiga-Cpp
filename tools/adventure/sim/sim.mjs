@@ -108,8 +108,10 @@ export function validateSim2(sim) {
 				req(Number.isInteger(o[k]), `${at}.objects[] ${k} entero`);
 			}
 			if (o.image !== undefined) {
-				req(Number.isInteger(o.image.width) && Number.isInteger(o.image.height), `${at}.objects[].image width/height`);
+				req(Number.isInteger(o.image.imageCount), `${at}.objects[].image.imageCount entero`);
 				req(Array.isArray(o.image.hotspots), `${at}.objects[].image.hotspots requerido`);
+				req(o.image.width === undefined || Number.isInteger(o.image.width), `${at}.objects[].image.width entero si existe`);
+				req(o.image.height === undefined || Number.isInteger(o.image.height), `${at}.objects[].image.height entero si existe`);
 			}
 		}
 		req(Array.isArray(r.scripts), `${at}.scripts requerido`);
