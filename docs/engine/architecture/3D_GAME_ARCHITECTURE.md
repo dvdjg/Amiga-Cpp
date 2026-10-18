@@ -165,6 +165,23 @@ Render LOD, animación LOD y simulación LOD son políticas separadas:
 
 El LOD de agentes de `eng::sim` es de simulación de criaturas y no reemplaza un selector de mallas 3D.
 
+## Visibilidad por capas (culling de entrada)
+
+**Métrica de éxito**: *objetos que nunca llaman a `transform_vertices`*. Transformar 60 vértices cuesta ≈57k ciclos medidos (`lib3d`, 4.12); un test de culling cuesta 50-80 ciclos: el culling de entrada es el multiplicador de frame más barato del sistema. **BSP estilo Quake (con PVS y split de caras) es overkill** para este género en 68000: el cuello no es el orden de caras (back-face + painter ya están) sino transformar/rellenar lo invisible; con 12-20 salas el flood de portales basta. Propuesta externa de partida (Grok, archivada en [`consulta-culling-sectores-portales-grok.md`](../../debugging/investigaciones/consultas/consulta-culling-sectores-portales-grok.md)) y su aterrizaje:
+
+```text
+1. Sector / habitación (dónde está la cámara)      ← grafo de salas, NO BSP
+2. Portales → sectores potencialmente visibles     ← flood con presupuesto (max_rooms/profundidad)
+3. Entidades de esos sectores: esfera/AABB vs volumen visible   ← ANTES de transformar
+4. Por malla visible: back-face + painter (mesh3d) → far/tamaño → pipeline actual
+```
+
+- **Capas** (de más barato a más fino): sector (flood por portales con rect de pantalla + clip; los portales `closed` no se atraviesan) → entidad (esfera vs volumen visible; far por distancia² sin `sqrt`; descarte por tamaño proyectado `radio·focal/z < 1-2 px`) → malla (back-face/luz/painter, ya en `mesh3d`). **No hacer**: occlusion queries, Hi-Z, BSP con split, PVS por leaf, octrees dinámicos profundos — todo fuera del presupuesto de la máquina.
+- **Culling de entrada implementado** (`eng/core/math/frustum.hpp`, HOST-478): vía **yaw-only** (`YawView`: cuña 2D + franja + rango Z; sin planos normalizados ni `sqrt`, rechazos conservadores con la cota `sqrt(1+W²) ≤ 1+W`) y **frustum general de 6 planos** para pitch/roll (cuña pre-escalada por `1/(1+W)`; requiere escalar fraccionario, no q0). Convenio de borde: **un objeto que cruza el plano cercano es visible** (cero falsos negativos; el recorte fino lo hacen los clippings existentes).
+- **Datos** (`Sector`, `Portal`, entidades con `sector_id` + esfera): arrays de capacidad fija, sin heap; PVS de sectores (bitset `visible[from][to]`) **solo si el flood se vuelve caro**.
+- **Encaje con la presentación**: el culling corre en el **Full** (los Fakes solo desplazan ventana: no se recalcula visibilidad); el cielo/outdoor va al Copper (PF2), no a geometría.
+- **Estado**: capa 3 (esfera vs volumen, HOST-478) **hecha**; sectores/portales (capas 1-2) y su integración en el juego 3D (F5/`082`) **pendientes** — orden pragmático: esfera sobre lista plana → sectores/pertenencia → portales/flood → far/tamaño → grid outdoor → PVS.
+
 ## Optimización por invariantes verificadas
 
 El pipeline no debe ejecutar siempre todas las fases. Cada fast path debe seleccionarse con flags o
