@@ -28,6 +28,7 @@
 #include <eng/core/math/linalg.hpp>
 #include <eng/core/math/scalar.hpp>
 #include <eng/core/math/scalar_fwd.hpp>
+#include <eng/core/math/scalar_ops.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::math3d {
@@ -111,6 +112,75 @@ template <class S>
 	return true;
 }
 
+/// **Caja (AABB) contra la vista yaw-only** (conservador): centro `c` y medias extensiones
+/// `h` en el mismo espacio que la vista. Cada semiplano se escribe como forma lineal sobre
+/// (x, z); la caja se rechaza solo si su EXTREMO más favorable queda fuera. Sin `sqrt` ni
+/// divisiones (4 términos de la cuña + franja + profundidad).
+///
+/// `margin` = holgura de seguridad en unidades del escalar: con escalares enteros
+/// (`Fixed<s16,0>`) `mul_norm` trunca hacia cero y los extremos pueden subestimar/sobreestimar
+/// por algunas unidades; pasar 2–4 garantiza conservadurismo estricto en esa cuantización
+/// (con `float` el margen 0 es exacto). Un objeto que CRUZA una frontera se conserva siempre.
+template <class S>
+[[nodiscard]] constexpr bool aabb_visible(const YawView<S>& v, const eng::math::Vec<3, S>& c,
+					  const eng::math::Vec<3, S>& h,
+					  S margin = eng::math::scalar_traits<S>::zero()) {
+	using T = eng::math::scalar_traits<S>;
+	const S ws = eng::math::mul_norm(v.half_w, v.sin_yaw);
+	const S wc = eng::math::mul_norm(v.half_w, v.cos_yaw);
+	// Izquierda: L(x,z) = x·(W·sin + cos) + z·(W·cos − sin) >= 0 dentro.
+	const S lx = v.cos_yaw + ws;
+	const S lz = wc - v.sin_yaw;
+	const S l = eng::math::mul_norm(lx, c.v[0]) + eng::math::mul_norm(lz, c.v[2]);
+	const S l_ext = eng::math::mul_norm(eng::math::abs(lx), h.v[0]) +
+			eng::math::mul_norm(eng::math::abs(lz), h.v[2]);
+	if (l + l_ext + margin < T::zero()) {
+		return false;
+	}
+	// Derecha: R(x,z) = x·(W·sin − cos) + z·(W·cos + sin) >= 0 dentro.
+	const S rx = ws - v.cos_yaw;
+	const S rz = wc + v.sin_yaw;
+	const S r = eng::math::mul_norm(rx, c.v[0]) + eng::math::mul_norm(rz, c.v[2]);
+	const S r_ext = eng::math::mul_norm(eng::math::abs(rx), h.v[0]) +
+			eng::math::mul_norm(eng::math::abs(rz), h.v[2]);
+	if (r + r_ext + margin < T::zero()) {
+		return false;
+	}
+	// Franja vertical: rechaza solo si la caja entera queda fuera.
+	if (c.v[1] + h.v[1] + margin < v.y_min || c.v[1] - h.v[1] - margin > v.y_max) {
+		return false;
+	}
+	// Profundidad (zc): extremos más cercano y más lejano de la caja.
+	const S zc = eng::math::mul_norm(v.sin_yaw, c.v[0]) + eng::math::mul_norm(v.cos_yaw, c.v[2]);
+	const S z_ext = eng::math::mul_norm(eng::math::abs(v.sin_yaw), h.v[0]) +
+			eng::math::mul_norm(eng::math::abs(v.cos_yaw), h.v[2]);
+	if (zc + z_ext + margin < v.z_near || zc - z_ext - margin > v.z_far) {
+		return false;
+	}
+	return true;
+}
+
+/// **Caja contra frustum por planos** (caso general): rechaza si algún plano deja la caja
+/// ENTERA fuera (`s + ext < 0`), con el mismo criterio conservador y el mismo `margin`.
+template <class S>
+[[nodiscard]] constexpr bool aabb_visible(const Frustum<S>& f, const eng::math::Vec<3, S>& c,
+					  const eng::math::Vec<3, S>& h,
+					  S margin = eng::math::scalar_traits<S>::zero()) {
+	using T = eng::math::scalar_traits<S>;
+	for (eng::u8 i = 0u; i < f.count; ++i) {
+		const Plane<S>& p = f.planes[i];
+		const S s = eng::math::mul_norm(p.nx, c.v[0]) + eng::math::mul_norm(p.ny, c.v[1]) +
+			    eng::math::mul_norm(p.nz, c.v[2]) + p.d;
+		const S ext = eng::math::mul_norm(eng::math::abs(p.nx), h.v[0]) +
+			      eng::math::mul_norm(eng::math::abs(p.ny), h.v[1]) +
+			      eng::math::mul_norm(eng::math::abs(p.nz), h.v[2]);
+		if (s + ext + margin < T::zero()) {
+			return false;
+		}
+	}
+	return true;
+}
+
 /// **Descarte por tamaño en pantalla**: `false` = subpíxel (radio proyectado < `min_px`) a esa
 /// profundidad. Algebra sin división: `radio·focal >= min_px·z`.
 template <class S>
@@ -142,10 +212,11 @@ template <class S>
 	// Franja vertical.
 	f.planes[2] = Plane<S> {T::zero(), T::one(), T::zero(), -v.y_min};
 	f.planes[3] = Plane<S> {T::zero(), -T::one(), T::zero(), v.y_max};
-	// Cerca (visible si delante): z - z_near >= 0.
-	f.planes[4] = Plane<S> {T::zero(), T::zero(), T::one(), -v.z_near};
-	// Lejos: z_far - z >= 0.
-	f.planes[5] = Plane<S> {T::zero(), T::zero(), -T::one(), v.z_far};
+	// Cerca: la profundidad es la de CAMARA `zc = x·sin + z·cos` (normal (sin,0,cos));
+	// con yaw=0 degenera en (0,0,1) pero con yaw arbitrario el plano de mundo no vale.
+	f.planes[4] = Plane<S> {v.sin_yaw, T::zero(), v.cos_yaw, -v.z_near};
+	// Lejos: z_far - zc >= 0.
+	f.planes[5] = Plane<S> {-v.sin_yaw, T::zero(), -v.cos_yaw, v.z_far};
 	f.count = 6u;
 	return f;
 }
