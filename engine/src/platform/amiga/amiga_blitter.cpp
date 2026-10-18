@@ -783,7 +783,7 @@ bool AmigaBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::Pl
 bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
 					    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
 					    u8 planes, u16 width, u16 height,
-					    eng::MaskBytes pattern) {
+					    eng::MaskBytes pattern, u8 pattern_period) {
 	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
 	    row_bytes == 0u || plane_bytes == 0u) {
 		return false;
@@ -823,11 +823,18 @@ bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u
 		//    (pensado para el bitmap multicapa contiguo de 116) y desbordaria el plano.
 		blitter_area_fill_rect(plane, row_bytes, 0, 0, static_cast<u16>(width / 16u), height,
 				       true);
-		// 4) patrón opcional: `D = A & B` con `B = D` sobre la misma caja que el fill
-		//    (un blit por plano; el plano de patrón se reutiliza entre frames).
+		// 4) patrón opcional: `D = A & B` con `B = D` sobre la misma caja que el fill. Con
+		//    `pattern_period` (filas uniformes del catálogo) se abarata por fases: los
+		//    pases de filas a 0 caen a clear (2 c/palabra) y el resto a 4 c/palabra.
 		if (has_pattern) {
-			blit_apply_pattern(plane.data(), pattern.data(), row_bytes,
-					   static_cast<u16>(width / 16u), height);
+			if (pattern_period != 0u) {
+				blit_apply_pattern_phased(plane.data(), pattern.data(), row_bytes,
+							  static_cast<u16>(width / 16u), height,
+							  pattern_period);
+			} else {
+				blit_apply_pattern(plane.data(), pattern.data(), row_bytes,
+						   static_cast<u16>(width / 16u), height);
+			}
 		}
 	}
 	return true;

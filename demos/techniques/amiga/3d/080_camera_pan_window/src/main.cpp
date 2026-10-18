@@ -337,6 +337,11 @@ struct PanWindowDemo {
 		// cada desplazamiento pedido debe producir EXACTAMENTE ese desplazamiento.
 		m_pan = -128;
 #endif
+#if defined(K080_PAN_FREEZE)
+		// Vista estática para verificación de geometría (captura sin tearing): camara
+		// congelada en el paneo dado (p. ej. 0 = vista simétrica del túnel).
+		m_pan = static_cast<s16>(K080_PAN_FREEZE);
+#endif
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfFrame);
 		eng::graphics::PanWindowStep step =
@@ -616,7 +621,8 @@ private:
 			(void)backend.fill_polygons_by_plane(
 				walls_fb.faces().data(), walls_fb.count(),
 				buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes), kRowBytes,
-				kSceneBytes, 2u, kFbW, kRoomBoxH, room_pattern);
+				kSceneBytes, 2u, kFbW, kRoomBoxH, room_pattern,
+				eng::graphics::fill_pattern_period(kRoomPattern));
 			ENG_PROF_END(kProfFill);
 		} else {
 			(void)backend.blitter_clear(buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes),

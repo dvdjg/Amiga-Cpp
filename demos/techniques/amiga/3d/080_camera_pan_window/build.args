@@ -1,5 +1,3 @@
-# `-O3` en la TU de la demo (mismo criterio que la 116): el trabajo CPU por Full
-# (transform+proyeccion+recorte+pacing) domina el margen; con -O3 el bucle baja.
-# `K080_NO_PATTERN`: desactiva el tablero de la sala (A/B del coste del blit de
-# aplicacion de patron: ~50-80k ciclos por Full medidos con `profile.mjs`).
+# -O3 como la 116; K080_NO_PATTERN deja la sala solida (A/B del coste del patron);
+# K080_PAN_FREEZE=<pan> congela la camara (captura estatica de geometria).
 DEMO_OPT=-O3

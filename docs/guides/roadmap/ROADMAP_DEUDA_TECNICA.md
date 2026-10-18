@@ -463,3 +463,26 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 - El repro host (`out/tmp/dt035/repro2.cpp`: secuencia real + `prev` encadenada + `finalize` + bounds) tambien pasaba limpio: coherente con que el emit/validacion son correctos.
 
 **Leccion / acciones:** (a) para verificar render NO basta el PNG de la captura por paso en este entorno: usar tambien evidencia de MEMORIA (self-check del framebuffer via contadores, como el que se hizo) o la ventana visible; (b) los tramos "congelados" de las capturas no son del demo (anotado junto a DT-023(d)); (c) los contadores acumulados del plan (plan no-ok / ejecucion fallida) son una telemetria barata que conviene dejar disponible.
+
+## DT-036 - Demo 303 (H2): cadencia 41,9 fps con la CPU muy holgada - ABIERTA
+
+**Sintoma:** `fps10` (contador del periferico; medida diferencial fiable, no depende del video) = **419 (41,9 fps)** frente a **499 (49,9)** de la 302 en el mismo entorno; el frame pierde VBlanks (~1,19 campos/frame).
+
+**Evidencia (hasta ahora):**
+- Secciones `ENG_PROF`: update 2,7k + present 5,3k + deltas 5,7k + apply ~20k de media; solo 14-15 frames dirty de ~270 y **9 ops max por apply** -> el coste del apply no explica el total.
+- **Ablacion del sondeo de entrada** (poll_mouse/poll_input fuera): el fps NO cambia.
+- El trabajo medido (~34k) + el resto del engine (~55k) queda muy por debajo del campo (142k): **no es coste, es sincronia** (falta medir el periodo TOTAL del frame desde el demo: el intento de contador se perdio entre re-instrumentaciones).
+- La 302, con MAS trabajo medido (~79k), sincroniza a 49,9.
+
+**Plan:** (a) medir el periodo total del frame desde el demo (delta de `prof_clock()` por frame, contador dedicado) y contrastarlo con la suma de secciones; (b) comparar la fase del bucle con la 302 (update/render/present/espera) y el camino `run_frames` + mini-SO con frames cortos; (c) revisar si el orden/tamano de los `HudInput`/`Hud<>` o los eventos del guion alteran el latido del VBlank.
+
+## DT-037 - Demo 080: el render de la sala sale roto (contorno EOR + area fill) - ABIERTA
+
+**Sintoma:** con la camara congelada en pan=0 (-DK080_PAN_FREEZE=0; captura estatica sin tearing) el frame muestra triangulos/diagonales a medio rellenar y regiones invertidas (patron en X): no es el tunel simetrico esperado (techo arriba, suelo abajo, paredes en cuna, pared del fondo centrada). El sintoma arrastraba desde las primeras descripciones de vision («un triangulo verde (pared izquierda)») sin tratarse como defecto: las validaciones de la demo comprueban el *mecanismo* (contrato de desplazamiento de ventana, §1-§2 de su VALIDATION) y no la correccion de la escena.
+
+**Evidencia (acotado):**
+- **Referencia CPU limpia**: el repro host de la misma escena (mismas caras/colores, mismo project_perspective + clip_polygon, ill_polygons_by_plane_cpu) produce el tunel correcto -> geometria, proyeccion, recorte y paridad por plano estan bien; la divergencia esta en el **camino Blitter** (contorno EOR ONEDOT + area fill FILL_XOR) con esta configuracion de caras.
+- Primer experimento (sesgo de z en esquinas compartidas del tubo, como el de los paneles, +-4): **sin cambio** (el sesgo del extremo lejano es sub-pixel: +-4 unidades a z≈1024 ≈ 0,1 px).
+- La ficha de la tecnica documenta que las aristas EXACTAMENTE horizontales en pantalla las descarta el trazador EOR (line_prepare_impl); las caras del tubo (suelo/techo/fondo y los bordes near/far) las tienen de forma estructural, ademas de aristas compartidas entre caras de planos distintos.
+
+**Plan:** aislamiento por cara (una cara por plano a la vez) volcando el plano del emulador (via canal lateral/GDB) contra la referencia CPU, para localizar la fila/arista donde la paridad diverge; con el caso minimo reproducible, corregir en el engine (contorno/fill) o en la escena (sesgo efectivo >=1 px por arista, no sub-pixel) y anadir el caso al self-test de ill_polygons_by_plane. Mientras: la demo 080 queda ABIERTA tambien por esto.

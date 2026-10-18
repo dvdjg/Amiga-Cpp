@@ -451,6 +451,57 @@ inline void blit_apply_pattern(eng::u8* dst, const eng::u8* pattern, eng::u16 ro
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
+/// **Aplica un patrón de filas uniformes por FASES** (`period` = periodo vertical): con un
+/// patrón cuya fila es una única palabra repetida (el catálogo de `fill_pattern.hpp`), en vez
+/// de leer un plano de patrón palabra a palabra (canales A+B+D = 6 ciclos/palabra) se agrupan
+/// las filas por su fase `y mod period` y se hace UN blit por fase con `D` avanzando `period`
+/// filas por paso (`DMOD = period·row_bytes − 2·words`) y A **deshabilitado** (constante
+/// `BLTADAT` = palabra de la fase, que no consume canal):
+///   - palabra `0xFFFF` → nada (el relleno sólido ya vale);
+///   - palabra `0x0000` → clear D-only (minterm `0`, **2 ciclos/palabra**);
+///   - otra → `D = A & B` con `B = D` (**4 ciclos/palabra**: solo B leído + D escrito).
+/// Con Checker4 (`period` 2, palabras `0xCCCC`/`0x3333`) son 2 blits a 4 c/palabra (8,5k
+/// palabras → ~34k) en vez de un pase a 6 (~51k); con HLines4, 3 de las 4 fases caen en el
+/// clear (1,5 c/palabra de media). Requiere filas uniformes: el llamador lo declara pasando
+/// `period` (0 = usar el pase genérico `blit_apply_pattern`).
+inline void blit_apply_pattern_phased(eng::u8* dst, const eng::u8* pattern, eng::u16 row_bytes,
+				      eng::u16 words, eng::u16 h, eng::u8 period) {
+	if (period == 0u || period > 16u) {
+		blit_apply_pattern(dst, pattern, row_bytes, words, h);
+		return;
+	}
+	const eng::u16 dmod = static_cast<eng::u16>(static_cast<u32>(period) * row_bytes - words * 2u);
+	custom_base[custom_dmacon_offset] = static_cast<eng::u16>(dma_setclr | dma_master | dma_blitter);
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	for (eng::u8 phase = 0u; phase < period && phase < h; ++phase) {
+		const eng::u16 word = *reinterpret_cast<const eng::u16*>(
+			pattern + static_cast<eng::u32>(phase) * row_bytes);
+		const eng::u16 rows = static_cast<eng::u16>((h - phase + period - 1u) / period);
+		if (rows == 0u || word == 0xffffu) {
+			continue; // sin filas o relleno sólido que pasa tal cual
+		}
+		eng::u8* d = dst + row_offset(static_cast<eng::s16>(phase), row_bytes);
+		wait_blitter();
+		if (word == 0x0000u) {
+			custom_base[custom_bltcon0_offset] = blt_use_d; // D = 0
+			custom_base[custom_bltcon1_offset] = 0;
+			custom_base[custom_bltdmod_offset] = dmod;
+			write_custom_pointer(custom_bltdpt_offset, d);
+		} else {
+			custom_base[custom_bltcon0_offset] =
+				static_cast<eng::u16>(blt_use_b | blt_use_d | 0x00c0u); // D = A & B
+			custom_base[custom_bltcon1_offset] = 0;
+			custom_base[custom_bltadat_offset] = word; // A deshabilitado -> constante
+			custom_base[custom_bltbmod_offset] = dmod;
+			custom_base[custom_bltdmod_offset] = dmod;
+			write_custom_pointer(custom_bltbpt_offset, d);
+			write_custom_pointer(custom_bltdpt_offset, d);
+		}
+		custom_base[custom_bltsize_offset] = static_cast<eng::u16>((rows << 6) | words);
+	}
+}
+
 /// **Fill strided de palabras**: escribe `value` en `rows` palabras separadas `dmod` bytes
 /// (D = A con A deshabilitado -> `BLTADAT` constante; 1 palabra por fila). Sirve para parchear
 /// la copperlist (p. ej. `SPRxPOS`, constante por columna) sin tocar la CPU. `d` alineada a word.

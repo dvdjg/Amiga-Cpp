@@ -508,12 +508,15 @@ public:
 	/// opcional (plano 1-bit en Chip, `row_bytes` × `height`, patrón de
 	/// `graphics::fill_pattern_plane_cpu`): tras el fill de cada plano se aplica con un
 	/// blit `D = A & B` (`B = D`), convirtiendo el relleno sólido en tablero/punteado/
-	/// líneas sin tocar el contorno. Referencia CPU: `graphics::fill_polygons_by_plane_cpu`
-	/// (mismo parámetro `pattern`). Verificada por el self-test de 077.
+	/// líneas sin tocar el contorno. `pattern_period` (>0, filas uniformes del catálogo)
+	/// abarata la aplicación por fases de fila (clear 2 c/palabra en las fases vacías y
+	/// 4 c/palabra en el resto, en vez de 6). Referencia CPU:
+	/// `graphics::fill_polygons_by_plane_cpu` (mismo parámetro `pattern`). Verificada por
+	/// el self-test de 077.
 	bool fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
 				    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
 				    u8 planes, u16 width, u16 height,
-				    eng::MaskBytes pattern = {});
+				    eng::MaskBytes pattern = {}, u8 pattern_period = 0u);
 
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
