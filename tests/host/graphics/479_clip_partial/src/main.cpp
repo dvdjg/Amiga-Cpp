@@ -7,6 +7,11 @@
 // poligono con el primer vertice FUERA perdia el cruce de cierre y devolvia
 // poligonos incompletos o < 3 vertices teniendo parte visible dentro.
 //
+// REGRESION de la aritmetica de cruce (DT-041): un tramo de arista > s16 (una
+// cara proyectada con un vertice detras de la camara dista mas de 32767) envolvia
+// en 16 bits y el cruce salia basura lejos de la interseccion real (la 080 se
+// quedaba clavada). `clip_interp` usa camino ancho para ese caso.
+//
 // Comprueba, por caso:
 //   1) El recorte devuelve >= 3 vertices si el poligono tiene area visible.
 //   2) El relleno CPU del recortado coincide con el del original en el INTERIOR
@@ -15,6 +20,8 @@
 //   3) Un poligono enteramente fuera -> 0 vertices.
 //   4) El numero de vertices de salida nunca crece mas alla de n+1 por pasada
 //      (cota de los buffers del llamador).
+//   5) Hull: todo vertice de salida cae dentro del rango de la entrada (+-1 px);
+//      un tramo > s16 mal calculado lo viola con vertices basura.
 //
 // Ejecucion:
 //   bash tools/run-host-tests.sh tests/host/graphics/479_clip_partial
@@ -132,9 +139,20 @@ void case_partial(const char* name, const s16* xs, const s16* ys, u8 n, bool exp
 	}
 	s16 cx[16];
 	s16 cy[16];
+	s16 xmin = xs[0], xmax = xs[0], ymin = ys[0], ymax = ys[0];
+	for (u8 i = 1u; i < n; ++i) {
+		if (xs[i] < xmin) xmin = xs[i];
+		if (xs[i] > xmax) xmax = xs[i];
+		if (ys[i] < ymin) ymin = ys[i];
+		if (ys[i] > ymax) ymax = ys[i];
+	}
 	for (u32 i = 0u; i < m; ++i) {
 		cx[i] = in[i].x().v;
 		cy[i] = in[i].y().v;
+		// Hull: el recorte solo elimina y sustituye por puntos de cruce SOBRE las
+		// aristas, asi que ningun vertice puede salirse del rango de la entrada.
+		check(cx[i] >= xmin - 1 && cx[i] <= xmax + 1 && cy[i] >= ymin - 1 && cy[i] <= ymax + 1,
+		      "vertice de salida fuera del hull de la entrada");
 	}
 	std::vector<u8> got(kPlaneBytes, 0u);
 	fill(got, cx, cy, static_cast<u8>(m));
@@ -181,6 +199,21 @@ int main() {
 		const s16 xs[4] = {-10, 110, 50, 20};
 		const s16 ys[4] = {30, 20, -10, 80};
 		case_partial("cuadrilatero cruzando 3 lados", xs, ys, 4u, true);
+	}
+	// Arista de CIERRE con tramo > s16 (dy = 60000 entre v3 y v0): el cruce real
+	// con el borde superior queda en x=40.5; con el tramo envuelto en 16 bits el
+	// vertice de salida se iba a x<0 (lo caza la comprobacion de hull).
+	{
+		const s16 xs[4] = {51, 70, 60, 30};
+		const s16 ys[4] = {30000, 25, 35, -30000};
+		case_partial("cierre con span>s16", xs, ys, 4u, true);
+	}
+	// Arista NO de cierre con tramo > s16 (dy = 60000 entre v1 y v2); cruce con el
+	// borde superior en x=31.5 (no entero, para que el ±1 px del fill no ambigue).
+	{
+		const s16 xs[4] = {30, 10, 53, 40};
+		const s16 ys[4] = {20, -30000, 30000, 30};
+		case_partial("span>s16 no de cierre", xs, ys, 4u, true);
 	}
 	if (g_fail == 0) {
 		std::printf("OK: recorte 2D parcial (interior identico, sin perder vertices visibles)\n");

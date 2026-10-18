@@ -6,7 +6,8 @@ Test host de regresión del bug de `clip_polygon_pass`: recorría **n−1 arista
 
 1. **Salida válida**: ≥ 3 vértices si el polígono tiene área visible; 0 si está enteramente fuera; nunca más de n+4 (cota multi-pasada de los buffers del llamador).
 2. **Relleno equivalente**: el relleno CPU del recortado contra el del original (∩ caja) con **tolerancia ±1 px en ambas direcciones** — `got ⊆ dilata(ref)` (nada inventado) y `ref ⊆ dilata(got)` (nada perdido más allá del redondeo entero del punto de corte).
-3. **Casos**: triángulo mitad fuera por la derecha (regresión exacta: primer vértice fuera de la arista derecha), por la izquierda, pentágono cruzando la esquina, cuadrilátero mayor que la caja (4 bordes), enteramente fuera y uno cruzando 3 lados.
+3. **Hull**: todo vértice de salida cae dentro del rango de la entrada (±1 px) — el recorte solo elimina vértices o los sustituye por puntos de cruce **sobre las aristas**. Un tramo de arista > s16 calculado en 16 bits envuelve y produce vértices basura fuera de ese rango (regresión DT-041; caso real de la 080: `dy=60000` daba x=222 donde el cruce real era ~340).
+4. **Casos**: triángulo mitad fuera por la derecha (regresión exacta: primer vértice fuera de la arista derecha), por la izquierda, pentágono cruzando la esquina, cuadrilátero mayor que la caja (4 bordes), enteramente fuera, uno cruzando 3 lados y dos con **span > s16** (arista de cierre y arista normal) que fallan con la versión intermedia del fix de HOST-479.
 
 ## Salida de referencia
 

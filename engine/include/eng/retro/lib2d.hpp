@@ -152,27 +152,58 @@ constexpr bool clip_inside(const Vec2& p, const Rect& win, u16 plane) {
 	return false;
 }
 
+/// Coordenada de la intersección `e + (d·n)/k` de `clip_edge`: el desplazamiento
+/// sobre la arista hasta el semiplano, con el mismo truncado que la versión clásica.
+/// Vía rápida en aritmética de 16 bits mientras `d`, `n` y `k` caben en s16 (el punto
+/// de cruce cae dentro del segmento, así que el cociente tampoco se sale). Si alguno
+/// excede s16 —una cara proyectada con un vértice detrás de la cámara dista más de
+/// 32767— el tramo calculado en 16 bits envolvería (p. ej. `dy=60000` → −5536) y la
+/// intersección saldría basura lejos del cruce real; el camino ancho calcula el ratio
+/// `|n/k|` en 16.16 con una división u32 y satura el resultado (sin rutinas de 64
+/// bits, que `-nostdlib` no aporta; DT-039). Caso real: en la 080 el cruce de la
+/// arista de cierre con el tramo envuelto clavaba el relleno (DT-041).
+[[nodiscard]] inline s16 clip_interp(s32 e, s32 d, s32 n, s32 k) {
+	if (k == 0) {
+		return static_cast<s16>(e); // arista paralela al semiplano: no lo cruza
+	}
+	if (d >= -32768 && d <= 32767 && n >= -32768 && n <= 32767 && k >= -32768 && k <= 32767) {
+		return static_cast<s16>(e + eng::math::div_wide(eng::math::mul_wide(static_cast<s16>(d), static_cast<s16>(n)), static_cast<s16>(k)));
+	}
+	// `|n| <= 32768 + columna_maxima` (33120 con la caja de la 080), así que `|n| << 16`
+	// cabe en u32; el ratio se acota a 16.16 y el producto `|d|·ratio` también
+	// (65535·65536 < 2^32). Truncar ratio y producto subestima `|q|` < 2 unidades.
+	const u32 nu = static_cast<u32>(n < 0 ? -n : n);
+	const u32 ku = static_cast<u32>(k < 0 ? -k : k);
+	const u32 ratio = (nu << 16) / ku;
+	const u32 r16 = ratio > 65536u ? 65536u : ratio; // defensivo: |n/k| <= 1 en cruces reales
+	const u32 du = static_cast<u32>(d < 0 ? -d : d);
+	const u32 mag = (du * r16) >> 16;
+	const bool neg = ((d < 0) != (n < 0)) != (k < 0);
+	const s32 r = e + (neg ? -static_cast<s32>(mag) : static_cast<s32>(mag));
+	return static_cast<s16>(r < -32768 ? -32768 : (r > 32767 ? 32767 : r));
+}
+
 /// Intersección de la arista `s`–`e` con el semi-plano `plane` (`ClipEdge`).
 inline void clip_edge(const Rect& win, Vec2& o, const Vec2& s, const Vec2& e, u16 plane) {
-	const s16 sx = s.x().v, sy = s.y().v;
-	const s16 ex = e.x().v, ey = e.y().v;
-	const s16 dx = static_cast<s16>(sx - ex);
-	const s16 dy = static_cast<s16>(sy - ey);
+	const s32 sx = s.x().v, sy = s.y().v;
+	const s32 ex = e.x().v, ey = e.y().v;
+	const s32 dx = sx - ex;
+	const s32 dy = sy - ey;
 	if (plane & PF_LEFT) {
-		const s16 n = static_cast<s16>(win.minX.v - ex);
+		const s32 n = win.minX.v - ex;
 		o.x().v = win.minX.v;
-		o.y().v = static_cast<s16>(ey + eng::math::div_wide(eng::math::mul_wide(dy, n), dx));
+		o.y().v = clip_interp(ey, dy, n, dx);
 	} else if (plane & PF_RIGHT) {
-		const s16 n = static_cast<s16>(win.maxX.v - ex);
+		const s32 n = win.maxX.v - ex;
 		o.x().v = win.maxX.v;
-		o.y().v = static_cast<s16>(ey + eng::math::div_wide(eng::math::mul_wide(dy, n), dx));
+		o.y().v = clip_interp(ey, dy, n, dx);
 	} else if (plane & PF_TOP) {
-		const s16 n = static_cast<s16>(win.minY.v - ey);
-		o.x().v = static_cast<s16>(ex + eng::math::div_wide(eng::math::mul_wide(dx, n), dy));
+		const s32 n = win.minY.v - ey;
+		o.x().v = clip_interp(ex, dx, n, dy);
 		o.y().v = win.minY.v;
 	} else if (plane & PF_BOTTOM) {
-		const s16 n = static_cast<s16>(win.maxY.v - ey);
-		o.x().v = static_cast<s16>(ex + eng::math::div_wide(eng::math::mul_wide(dx, n), dy));
+		const s32 n = win.maxY.v - ey;
+		o.x().v = clip_interp(ex, dx, n, dy);
 		o.y().v = win.maxY.v;
 	}
 }
