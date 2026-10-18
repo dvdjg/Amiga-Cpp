@@ -171,6 +171,75 @@ void test_solid_matches_polygon() {
 	test_compose(FillPattern::Solid, "Solid");
 }
 
+void test_dither_planes() {
+	// Damero 1x1 entre los indices (1,2): plano 0 = damero (A en pares), plano 1 = inverso
+	// (B en pares); indices con bits iguales -> plano solido.
+	u8 mem[4u * 4u] = {}; // 2 planos x 2 filas x 4 bytes
+	eng::MaskBuffer planes {mem};
+	check(eng::graphics::fill_dither_plane_cpu(planes, 4u, 1u, 2u, 0u), "dither plano 0 ok");
+	check(eng::graphics::fill_dither_plane_cpu(planes.subspan(8u, 8u), 4u, 1u, 2u, 1u),
+	      "dither plano 1 ok");
+	const u16* w = reinterpret_cast<const u16*>(mem);
+	check(w[0] == 0xaaaau && w[1] == 0xaaaau, "dither A/B: plano 0 fila 0 = 0xAAAA");
+	check(w[2] == 0x5555u && w[3] == 0x5555u, "dither A/B: plano 0 fila 1 = 0x5555");
+	check(w[4] == 0x5555u && w[5] == 0x5555u, "dither A/B: plano 1 fila 0 = 0x5555 (inverso)");
+	check(w[6] == 0xaaaau && w[7] == 0xaaaau, "dither A/B: plano 1 fila 1 = 0xAAAA");
+	// Par con bits iguales en ese plano (0,1): plano 0 solido por el bit 0 de B; plano 2
+	// solido a 0.
+	u8 mem2[4u * 3u] = {};
+	eng::MaskBuffer p2 {mem2};
+	check(eng::graphics::fill_dither_plane_cpu(p2, 4u, 0u, 1u, 0u), "dither (0,1) plano 0 ok");
+	const u16* w2 = reinterpret_cast<const u16*>(mem2);
+	check(w2[0] == 0x5555u && w2[1] == 0x5555u, "dither (0,1): plano 0 fila 0 = 0x5555");
+	check(w2[2] == 0xaaaau, "dither (0,1): plano 0 fila 1 = 0xAAAA");
+	// Buffer corto (1 fila) -> rechazo.
+	u8 mem3[4u] = {};
+	eng::MaskBuffer p3 {mem3};
+	check(!eng::graphics::fill_dither_plane_cpu(p3, 4u, 1u, 2u, 0u), "dither rechaza buffer corto");
+	// Periodo del inverso y del damero.
+	check(eng::graphics::fill_pattern_period(FillPattern::Checker2Inv) == 2u, "periodo Checker2Inv");
+	check(eng::graphics::fill_pattern_word(FillPattern::Checker2Inv, 0) == 0x5555u,
+	      "Checker2Inv y=0");
+	check(eng::graphics::fill_pattern_word(FillPattern::Checker2Inv, 1) == 0xaaaau,
+	      "Checker2Inv y=1");
+}
+
+void test_compose_dither() {
+	// Composicion CPU con patron POR PLANO: rectangulo de color 3 sobre 2 planos con
+	// {Checker2, Checker2Inv} = mezcla de los indices (1,2): pixel (x+y) par -> 1, impar -> 2.
+	constexpr u32 kRowBytes = 8u;
+	constexpr u32 kRows = 12u;
+	constexpr u32 kPlaneBytes = kRowBytes * kRows;
+	u8 fb[2u * kPlaneBytes] = {};
+	eng::PlaneBytes dest {fb};
+	const eng::s16 xs16[4] = {4, 36, 36, 4};
+	const eng::s16 ys16[4] = {2, 2, 10, 10};
+	const eng::graphics::PlanePolygon face {xs16, ys16, 4u, 3u};
+	const eng::Span<const eng::graphics::PlanePolygon> faces {&face, 1u};
+	const FillPattern pats[2] = {FillPattern::Checker2, FillPattern::Checker2Inv};
+	const u32 spans = eng::graphics::fill_polygons_by_plane_patterns_cpu(
+		faces, dest, kRowBytes, kPlaneBytes, 2u, 64u, kRows,
+		eng::Span<const FillPattern>(pats, 2u));
+	check(spans > 0u, "composicion dither produce spans");
+	bool ok = true;
+	for (u32 y = 0; y < kRows; ++y) {
+		for (u32 x = 0; x < 64u; ++x) {
+			const bool inside = (x >= 4u && x < 36u && y >= 2u && y < 10u);
+			const u8 want = !inside ? 0u : (((x + y) & 1u) == 0u ? 1u : 2u);
+			u8 got = 0u;
+			for (u32 p = 0; p < 2u; ++p) {
+				const u8 byte = fb[p * kPlaneBytes + y * kRowBytes + (x >> 3u)];
+				got = static_cast<u8>(got |
+						      (((byte >> (7u - (x & 7u))) & 1u) << p));
+			}
+			if (got != want) {
+				ok = false;
+			}
+		}
+	}
+	check(ok, "dither (1,2): par -> indice 1, impar -> indice 2, bit a bit");
+}
+
 } // namespace
 
 int main() {

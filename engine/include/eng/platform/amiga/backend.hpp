@@ -518,6 +518,18 @@ public:
 				    u8 planes, u16 width, u16 height,
 				    eng::MaskBytes pattern = {}, u8 pattern_period = 0u);
 
+	/// **Relleno por plano con patrón POR PLANO** (`patterns[p]`; entrada vacía = sólido):
+	/// es la forma que pide la **mezcla de dos índices con damero de 1 píxel** — el damero y
+	/// su inverso repartidos por plano según los bits de los dos colores
+	/// (`graphics::fill_dither_plane_cpu`). Con `pattern_period > 0` cada plano de patrón
+	/// solo necesita `row_bytes · period` bytes (2 filas para el damero); con 0, la caja
+	/// completa (`row_bytes · height`). `patterns` debe tener al menos `planes` entradas.
+	bool fill_polygons_by_plane_patterns(const graphics::PlanePolygon* faces, u32 n_faces,
+					     eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+					     u8 planes, u16 width, u16 height,
+					     eng::Span<const eng::MaskBytes> patterns,
+					     u8 pattern_period);
+
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
 	/// contorno de polígonos (un píxel por fila) que luego rellena

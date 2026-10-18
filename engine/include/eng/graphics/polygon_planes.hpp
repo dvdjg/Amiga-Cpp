@@ -95,7 +95,16 @@ inline eng::u32 fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> faces,
 					   eng::PlaneBytes dest, eng::u16 row_bytes,
 					   eng::u32 plane_bytes, eng::u8 planes,
 					   eng::u16 width, eng::u16 height,
-					   FillPattern pattern = FillPattern::Solid) {
+					   FillPattern pattern = FillPattern::Solid);
+
+/// Variante con **patrón por plano** (`patterns[p]`, `planes` entradas): la forma que pide
+/// la **mezcla de dos índices con damero a nivel de píxel** (el damero y su inverso
+/// repartidos por plano según los bits de los dos colores). Mismos planos OR-eados.
+inline eng::u32 fill_polygons_by_plane_patterns_cpu(eng::Span<const PlanePolygon> faces,
+						    eng::PlaneBytes dest, eng::u16 row_bytes,
+						    eng::u32 plane_bytes, eng::u8 planes,
+						    eng::u16 width, eng::u16 height,
+						    eng::Span<const FillPattern> patterns) {
 	if (faces.empty() || dest.empty() || planes == 0u || row_bytes == 0u || plane_bytes == 0u) {
 		return 0u;
 	}
@@ -147,12 +156,34 @@ inline eng::u32 fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> faces,
 					continue;
 				}
 				detail::plane_or_span(plane, row_bytes, y, xl, xr,
-						      fill_pattern_word(pattern, static_cast<eng::u32>(y)));
+						      fill_pattern_word(
+							      p < patterns.size()
+								      ? patterns[p]
+								      : FillPattern::Solid,
+							      static_cast<eng::u32>(y)));
 				++spans;
 			}
 		}
 	}
 	return spans;
+}
+
+/// Definición de la variante de un solo patrón (mismo patrón en todos los planos): delega
+/// en la de patrones por plano.
+inline eng::u32 fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> faces,
+					   eng::PlaneBytes dest, eng::u16 row_bytes,
+					   eng::u32 plane_bytes, eng::u8 planes,
+					   eng::u16 width, eng::u16 height, FillPattern pattern) {
+	if (planes == 0u || planes > 8u) {
+		return 0u;
+	}
+	FillPattern arr[8] = {};
+	for (eng::u8 p = 0u; p < planes; ++p) {
+		arr[p] = pattern;
+	}
+	return fill_polygons_by_plane_patterns_cpu(
+		faces, dest, row_bytes, plane_bytes, planes, width, height,
+		eng::Span<const FillPattern>(arr, planes));
 }
 
 /// **Acumulador de caras** para el relleno por bitplane (patrón `SubmitPoly`/`EndFrame`):

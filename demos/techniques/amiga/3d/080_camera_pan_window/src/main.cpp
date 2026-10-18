@@ -146,17 +146,19 @@ enum : eng::u8 {
 	kProfClip = 9,     ///< transform+proyeccion+recorte+submit de las caras
 };
 
-// Patrón de relleno de la SALA (plano de patrón 1-bit en Chip, construido UNA vez): el
-// relleno por plano lo aplica con un blit por plano (`D = A & B`, B = D) sobre la misma
-// caja del fill — ver `eng/graphics/fill_pattern.hpp`. Los paneles quedan SÓLIDOS (su
-// llamada no lleva patrón): el marcador naranja conserva su color único.
-// `K080_NO_PATTERN`: sala sólida (A/B de medida: el patrón añade ~50-80k al Full, el blit
-// de aplicación por plano sobre la caja de la sala).
+// Patrón de relleno de la SALA: **mezcla de dos índices con damero a nivel de PÍXEL** (el
+// uso principal del catálogo: crear colores extra fundiendo dos base). Los planos 0 y 1 de
+// la sala llevan el damero y su inverso construidos con `fill_dither_plane_cpu` (2 filas
+// por plano, periodo 2), y el backend los aplica por fases (`D = A & B`) tras el fill.
+// Los paneles quedan SÓLIDOS (el marcador naranja conserva su color único).
+// `K080_NO_PATTERN`: sala sólida (A/B de medida del coste del paso de patrón).
 #if defined(K080_NO_PATTERN)
-constexpr eng::graphics::FillPattern kRoomPattern = eng::graphics::FillPattern::Solid;
+constexpr bool kRoomDither = false;
 #else
-constexpr eng::graphics::FillPattern kRoomPattern = eng::graphics::FillPattern::Checker4;
+constexpr bool kRoomDither = true;
 #endif
+constexpr eng::u8 kRoomDitherA = 1u; // índice base A (marrón) de la mezcla
+constexpr eng::u8 kRoomDitherB = 2u; // índice base B (verde)
 
 // Margen 15 px por lado (ventana centrada en S=16; el FB admite S en [1..31]) y racha
 // ADAPTATIVA: el numero de Fakes entre Fulls lo fija `RenderPacing` a partir del coste
@@ -284,16 +286,24 @@ struct PanWindowDemo {
 		(void)m_hud_pf.bind_raw(m_hud.view.data() + 2u, kHudBytes, kFbW, kHudLines, 1u,
 					kHudBytes);
 
-		// Plano de patrón de la sala (1 bit, caja de la sala): lo lee el Blitter por el
-		// canal A del blit de aplicación; se construye AQUÍ una sola vez (CPU).
+		// Planos de patrón de la sala (1 bit): el damero de mezcla A/B de cada plano ocupa
+		// 2 filas (periodo 2) — 88 B por plano, 4 filas en total; los lee el Blitter por el
+		// canal A de la aplicación por fases. Se construyen AQUÍ una sola vez (CPU).
 		m_pattern = backend.memory_manager().chip().reserve<eng::MaskTag>(
-			static_cast<eng::u32>(kRowBytes) * kRoomBoxH, 16);
+			4u * static_cast<eng::u32>(kRowBytes), 16);
 		if (!m_pattern.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008005u);
 			return;
 		}
-		eng::graphics::fill_pattern_plane_cpu(m_pattern.view, kRowBytes, kRoomBoxH,
-						      kRoomPattern);
+		const bool d0 = eng::graphics::fill_dither_plane_cpu(
+			m_pattern.view.first(2u * kRowBytes), kRowBytes, kRoomDitherA, kRoomDitherB, 0u);
+		const bool d1 = eng::graphics::fill_dither_plane_cpu(
+			m_pattern.view.subspan(2u * kRowBytes, 2u * kRowBytes), kRowBytes,
+			kRoomDitherA, kRoomDitherB, 1u);
+		if (!d0 || !d1) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008006u);
+			return;
+		}
 
 		scene::SceneResources res {};
 		res.width = kFbW;
@@ -611,18 +621,22 @@ private:
 		(void)panels_fb;
 #else
 		if (walls_fb.count() != 0u) {
-			// Con patrón `Solid` no se pasa plano: el fill queda igual que sin patrón
-			// (sin el blit de aplicación por plano).
-			const eng::MaskBytes room_pattern =
-				kRoomPattern == eng::graphics::FillPattern::Solid
-					? eng::MaskBytes {}
-					: m_pattern.view.as_const();
+			// Mezcla A/B de la sala: el patrón del plano 0 y su inverso en el plano 1
+			// (damero 1×1; `kRoomDither=false` deja ambos vacíos = sólido, A/B).
+			const eng::MaskBytes room_patterns[2] = {
+				kRoomDither
+					? m_pattern.view.first(2u * kRowBytes).as_const()
+					: eng::MaskBytes {},
+				kRoomDither
+					? m_pattern.view.subspan(2u * kRowBytes, 2u * kRowBytes)
+						  .as_const()
+					: eng::MaskBytes {}};
 			ENG_PROF_BEGIN(kProfFill);
-			(void)backend.fill_polygons_by_plane(
+			(void)backend.fill_polygons_by_plane_patterns(
 				walls_fb.faces().data(), walls_fb.count(),
 				buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes), kRowBytes,
-				kSceneBytes, 2u, kFbW, kRoomBoxH, room_pattern,
-				eng::graphics::fill_pattern_period(kRoomPattern));
+				kSceneBytes, 2u, kFbW, kRoomBoxH,
+				eng::Span<const eng::MaskBytes>(room_patterns, 2u), 2u);
 			ENG_PROF_END(kProfFill);
 		} else {
 			(void)backend.blitter_clear(buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes),

@@ -784,15 +784,44 @@ bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u
 					    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
 					    u8 planes, u16 width, u16 height,
 					    eng::MaskBytes pattern, u8 pattern_period) {
-	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
-	    row_bytes == 0u || plane_bytes == 0u) {
+	if (planes == 0u || planes > 8u) {
 		return false;
 	}
-	// Patrón opcional: si viene, debe cubrir la caja del fill (se lee con el MISMO
-	// `row_bytes`, anclado a la fila 0 del destino) — mejor rechazar que corromper.
-	const bool has_pattern = pattern.data() != nullptr;
-	if (has_pattern && pattern.size() < static_cast<u32>(row_bytes) * height) {
+	// El camino de un solo patrón es el caso "mismo patrón en todos los planos" de la
+	// variante por plano.
+	eng::MaskBytes arr[8] = {};
+	for (u8 p = 0u; p < planes; ++p) {
+		arr[p] = pattern;
+	}
+	return fill_polygons_by_plane_patterns(faces, n_faces, dest, row_bytes, plane_bytes, planes,
+					       width, height,
+					       eng::Span<const eng::MaskBytes>(arr, planes),
+					       pattern_period);
+}
+
+bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon* faces, u32 n_faces,
+						   eng::PlaneBytes dest, u16 row_bytes,
+						   u32 plane_bytes, u8 planes, u16 width,
+						   u16 height,
+						   eng::Span<const eng::MaskBytes> patterns,
+						   u8 pattern_period) {
+	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
+	    row_bytes == 0u || plane_bytes == 0u || patterns.size() < planes) {
 		return false;
+	}
+	// Patrones opcionales: con `pattern_period` (filas uniformes) basta `row_bytes · periodo`
+	// por plano; sin él, el pase genérico lee la caja completa. Mejor rechazar que corromper.
+	for (u8 p = 0u; p < planes; ++p) {
+		const eng::MaskBytes& pat = patterns[p];
+		if (pat.data() == nullptr) {
+			continue;
+		}
+		const u32 need = pattern_period != 0u
+					 ? static_cast<u32>(row_bytes) * pattern_period
+					 : static_cast<u32>(row_bytes) * height;
+		if (pat.size() < need) {
+			return false;
+		}
 	}
 	for (u8 p = 0; p < planes; ++p) {
 		eng::PlaneBytes plane =
@@ -823,16 +852,16 @@ bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u
 		//    (pensado para el bitmap multicapa contiguo de 116) y desbordaria el plano.
 		blitter_area_fill_rect(plane, row_bytes, 0, 0, static_cast<u16>(width / 16u), height,
 				       true);
-		// 4) patrón opcional: `D = A & B` con `B = D` sobre la misma caja que el fill. Con
-		//    `pattern_period` (filas uniformes del catálogo) se abarata por fases: los
-		//    pases de filas a 0 caen a clear (2 c/palabra) y el resto a 4 c/palabra.
-		if (has_pattern) {
+		// 4) patrón del plano: por fases (filas uniformes del catálogo / damero de mezcla)
+		//    o en un pase genérico `D = A & B` con el plano de patrón completo.
+		const eng::MaskBytes& pat = patterns[p];
+		if (pat.data() != nullptr) {
 			if (pattern_period != 0u) {
-				blit_apply_pattern_phased(plane.data(), pattern.data(), row_bytes,
+				blit_apply_pattern_phased(plane.data(), pat.data(), row_bytes,
 							  static_cast<u16>(width / 16u), height,
 							  pattern_period);
 			} else {
-				blit_apply_pattern(plane.data(), pattern.data(), row_bytes,
+				blit_apply_pattern(plane.data(), pat.data(), row_bytes,
 						   static_cast<u16>(width / 16u), height);
 			}
 		}

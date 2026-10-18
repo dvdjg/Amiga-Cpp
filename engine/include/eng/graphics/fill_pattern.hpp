@@ -30,10 +30,18 @@
 namespace eng::graphics {
 
 /// Catálogo de patrones. `Solid` (todo 1s) equivale a no aplicar patrón.
+///
+/// El más importante en la práctica es `Checker2` (**damero a nivel de PÍXEL**, alterna
+/// cada píxel): es el patrón clásico para **crear colores adicionales mezclando dos índices
+/// base** (en pantallas no interleaved: píxeles pares con el índice A y píxeles impares con
+/// el B, con la paleta escogida para que fundan). Para esa mezcla hacen falta **patrones POR
+/// PLANO** (el damero en unos y su inverso en otros, según los dos índices) — ver
+/// `fill_dither_planes_cpu` y la variante por plano de `fill_polygons_by_plane`.
 enum class FillPattern : eng::u8 {
 	Solid = 0,
-	Checker2,   ///< tablero 2×2 (píxel alterno)
-	Checker4,   ///< tablero 4×4
+	Checker2,   ///< damero de **1 píxel** (periodo vertical 2); el par A/B de la mezcla
+	Checker2Inv, ///< el damero 1×1 **invertido** (fase opuesta); para el otro plano de la mezcla
+	Checker4,   ///< damero de **bloques 2×2** (periodo vertical 4)
 	Dots2,      ///< punteado: 1 píxel cada 2 filas y 4 columnas
 	VLines4,    ///< líneas verticales de 1 px cada 4 columnas
 	HLines4,    ///< líneas horizontales de 1 fila cada 4
@@ -49,6 +57,8 @@ enum class FillPattern : eng::u8 {
 		return 0xffffu;
 	case FillPattern::Checker2:
 		return (y & 1u) != 0u ? 0x5555u : 0xaaaau;
+	case FillPattern::Checker2Inv:
+		return (y & 1u) != 0u ? 0xaaaau : 0x5555u;
 	case FillPattern::Checker4:
 		return (y & 2u) != 0u ? 0x3333u : 0xccccu;
 	case FillPattern::Dots2:
@@ -72,6 +82,7 @@ enum class FillPattern : eng::u8 {
 	case FillPattern::VLines4:
 		return 1u;
 	case FillPattern::Checker2:
+	case FillPattern::Checker2Inv:
 	case FillPattern::Dots2:
 		return 2u;
 	case FillPattern::Checker4:
@@ -103,6 +114,43 @@ inline void fill_pattern_plane_cpu(eng::MaskBuffer plane, eng::u16 row_bytes, en
 			row[i] = w;
 		}
 	}
+}
+
+/// **Mezcla de dos índices con damero a nivel de píxel** (crear colores adicionales):
+/// construye el plano de patrón del plano `p` (0..planes-1) para un damero 1×1 entre los
+/// índices `color_a` y `color_b` — píxeles `(x+y)` par muestran `color_a` y los impares
+/// `color_b`. La palabra de la fila `y` del plano `p` es:
+///   - bit `p` de AMBOS índices igual → sólida (`0xFFFF` si es 1, `0` si es 0);
+///   - distinto → el damero (fila par: `0xAAAA`) o su inverso (fila par: `0x5555`), según
+///     qué índice tiene el bit a 1.
+/// Solo se necesitan **2 filas** por plano (periodo 2): con la aplicación por fases del
+/// backend basta un buffer de `2 · row_bytes` por plano en Chip (p. ej. 88 B), no el plano
+/// completo. Devuelve `false` si algún buffer es nulo o corto.
+inline bool fill_dither_plane_cpu(eng::MaskBuffer plane, eng::u16 row_bytes, eng::u8 color_a,
+				  eng::u8 color_b, eng::u8 p) {
+	if (plane.data() == nullptr || row_bytes < 2u || p > 7u || plane.size() < 2u * row_bytes) {
+		return false;
+	}
+	const bool ba = ((color_a >> p) & 1u) != 0u;
+	const bool bb = ((color_b >> p) & 1u) != 0u;
+	eng::u16 row0 = 0x0000u;
+	eng::u16 row1 = 0x0000u;
+	if (ba == bb) {
+		row0 = row1 = ba ? 0xffffu : 0x0000u;
+	} else if (ba) { // A en los píxeles (x+y) pares
+		row0 = 0xaaaau; // fila par: x par
+		row1 = 0x5555u; // fila impar: x impar
+	} else { // B en los pares
+		row0 = 0x5555u;
+		row1 = 0xaaaau;
+	}
+	eng::u16* base = reinterpret_cast<eng::u16*>(plane.data());
+	const eng::u32 words = static_cast<eng::u32>(row_bytes) / 2u;
+	for (eng::u32 i = 0; i < words; ++i) {
+		base[i] = row0;
+		base[words + i] = row1;
+	}
+	return true;
 }
 
 } // namespace eng::graphics

@@ -21,6 +21,10 @@ OK: patrones de relleno (checker, punteado, líneas v/h y oblicuas)
 bash tools/run-host-tests.sh tests/host/graphics/474_fill_patterns
 ```
 
+## Mezcla de dos índices (damero a nivel de píxel)
+
+El uso principal del catálogo es **crear colores adicionales fundiendo dos índices base**: píxeles `(x+y)` pares con el índice A y los impares con el B. Para eso hacen falta **patrones por plano** (el damero en unos y su inverso en otros según los bits de A y B), que se generan con `fill_dither_plane_cpu` (2 filas por plano, periodo 2) y se aplican con la variante por plano del relleno (`fill_polygons_by_plane_patterns`, o la referencia CPU `fill_polygons_by_plane_patterns_cpu`). El test verifica los goldens del damero y su inverso, los planos sólidos cuando los bits de A y B coinciden, el rechazo de buffers cortos y la composición bit a bit del par (1,2) — incluso→1, impar→2.
+
 ## Notas
 
 - El catálogo genera palabras de 16 px (MSB = píxel izquierdo) con periodo horizontal de 16 px; es el formato que encaja con el Blitter del backend, que aplica el patrón con un blit `D = A & B` (`B = D`) por plano tras el area fill (mismo minterm/coste en la demo 080, que texturiza la sala con `Checker4`).
