@@ -321,7 +321,19 @@ El HUD no elige Copper para pintar un medidor salvo que el estilo sea explícita
 - El Copper solo publica paleta, punteros, split y doble buffer; opcionalmente, una barra raster de un color con un `MOVE` por frontera. Cada movimiento cuenta en `max_copper_moves_per_line`.
 - La lista de Copper se valida con `eng::setup::check_copper_list` antes de publicar.
 
-### 6.6 Degradación determinista
+### 6.6 Umbrales medidos (A500)
+
+Con el perfilador por frame (`tools/debug/winuae-profile.mjs` + `tools/analyze/profile-samples.mjs --per-frame`, campo = 142.102 ciclos) sobre la demo `306_hud_crpg` (banda 2 planos con rejilla + verbos + tooltip + overlay + tema):
+
+| Escenario | CPU por campo | DMA de planos | Lectura |
+|---|---|---|---|
+| Régimen (deltas + tooltip + fps) | ~1-2k ciclos del HUD; **81% del campo en el `Wait()` de Exec** | ~5,2k slots (banda incluida) | el HUD por deltas es prácticamente gratis |
+| Repintado **completo** de la banda (cambio de tema) | **~6 campos al 100%** (libre = 0) | ~28-30k slots (×5 el régimen) | los repintados completos deben ser raros o por región |
+| Pico puntual (una celda con icono + texto) | dentro del margen del régimen | +Δ pequeño | el coste va con el área, no con el número de ops |
+
+Regla práctica: el presupuesto del HUD se gasta en **repintados**, no en frames — diseñar por deltas (solo lo que cambia) y reservar los repintados completos (tema, cambio de escena) para transiciones.
+
+### 6.7 Degradación determinista
 
 Si una región supera su presupuesto, se aplica esta escalera en orden, sin cambiar el modelo:
 
