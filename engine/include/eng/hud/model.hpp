@@ -291,11 +291,15 @@ struct HudDrawOp {
 	}
 };
 
-/// Entrada de *hit-test* rectangular de una región (rectángulos ordenados por capa).
+/// Entrada de *hit-test* rectangular de una región (rectángulos ordenados por capa). `region`
+/// etiqueta la región a la que pertenece (opcional; vacío = vale para cualquiera): con varias
+/// regiones simultáneas, `hud_hit_test_region` filtra por ella y el juego despacha en orden
+/// de delante hacia atrás (Screen → overlays → Band; `HUD_SYSTEM.md` §7.1).
 struct HudHitRect {
 	eng::Box box {};      ///< zona interactiva
 	eng::u16 id = 0u;     ///< id lógico del objetivo (slot, botón…)
 	eng::u8 layer = 0u;   ///< orden dentro de la región; mayor = delante
+	RegionHandle region {}; ///< región de la entrada (vacío = cualquiera)
 };
 
 /// Entrada de *hit-test* de una rejilla: la celda se calcula por fórmula al recibir el evento
@@ -309,6 +313,7 @@ struct HudGridHit {
 	eng::u8 pitch_y = 16u;   ///< paso vertical
 	eng::u16 first_id = 0u;  ///< id del primer slot
 	GridHandle grid {};      ///< rejilla del modelo (opcional; vacío = solo id lógico)
+	RegionHandle region {};  ///< región de la entrada (vacío = cualquiera)
 };
 
 /// Fase de la sesión de arrastre (máquina de puntero de `HUD_SYSTEM.md` §7.2).

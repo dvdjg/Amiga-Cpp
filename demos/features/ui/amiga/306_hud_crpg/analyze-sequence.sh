@@ -25,17 +25,21 @@ COUNTERS_OUT="$(bash "$ROOT/tools/run/run-demo.sh" "$DEMO" --settle-ms 8000 \
 echo "$COUNTERS_OUT" | grep -E 'name="(fps10|aframe|state)"' || true
 FPS10="$(echo "$COUNTERS_OUT" | grep 'name="fps10"' | grep -o 'value=[0-9]*' | cut -d= -f2)"
 AFRAME="$(echo "$COUNTERS_OUT" | grep 'name="aframe"' | grep -o 'value=[0-9]*' | cut -d= -f2)"
+STATE="$(echo "$COUNTERS_OUT" | grep 'name="state"' | grep -o 'value=[0-9]*' | cut -d= -f2)"
 FPS10="${FPS10:-0}"
 AFRAME="${AFRAME:-0}"
+STATE="${STATE:-0}"
 if [ "$FPS10" -lt 400 ]; then
 	echo "FAIL: cadencia baja (fps10=$FPS10 < 400)" >&2
 	exit 1
 fi
-if [ "$AFRAME" -lt 50 ]; then
-	echo "FAIL: el guion no avanzo (aframe=$AFRAME < 50)" >&2
+# El guion avanza (aframe) o la entrada real movio el estado (verb*100+sel != inicial):
+# cualquiera de los dos prueba la via de interaccion (el raton puede resetear aframe).
+if [ "$AFRAME" -lt 50 ] && [ "$STATE" -eq 0 ]; then
+	echo "FAIL: sin interaccion (aframe=$AFRAME, state=$STATE)" >&2
 	exit 1
 fi
-echo "[analyze] memoria OK: fps10=$FPS10, aframe=$AFRAME (guion activo)"
+echo "[analyze] memoria OK: fps10=$FPS10, aframe=$AFRAME, state=$STATE"
 
 # --- 2) Evidencia visual: secuencia por INTERVALOS --------------------------
 # El modo `--sequence-step-frames` (probe + CPU parada por frame) sirve video

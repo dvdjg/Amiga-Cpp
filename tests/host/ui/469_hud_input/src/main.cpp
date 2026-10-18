@@ -57,13 +57,14 @@ eng::ui::UiEvent action(eng::ui::UiAction a) {
 } // namespace
 
 int main() {
-	eng::hud::Hud<> hud {};
+	eng::hud::Hud<3u> hud {};
 
 	// Region valida (Band canonica): el modelo la exige para la composicion, no para el hit.
 	eng::hud::HudRegionSpec spec {};
 	spec.placement = eng::hud::HudPlacement::Band;
 	spec.band = eng::hud::HudBand {208u, 48u, 2u, true};
-	CHECK(hud.add_region(spec).valid());
+	const eng::hud::RegionHandle band_region = hud.add_region(spec);
+	CHECK(band_region.valid());
 
 	// --- Rejilla 3x5 con pitch 10x12 (NO multiplo de 16), 15 slots -------------------------
 	const eng::hud::GridHandle grid = hud.add_grid(3u, 5u, 10u, 12u);
@@ -301,6 +302,35 @@ int main() {
 		CHECK(hud.button(hud.verb_button(bar, 1u)).hover);
 		CHECK(!hud.button(hud.verb_button(bar, 0u)).hover);
 		CHECK(hud.verb_select(bar, 2u) && hud.verb_active(bar) == 2u);
+	}
+
+	// --- Hit por REGION (varias regiones simultaneas) --------------------------------------
+	// Va AL FINAL: empuja una entrada extra (el boton del overlay) que, si estuviera antes,
+	// seria vecina geometrica del anillo de foco y alteraria sus saltos (el test del anillo
+	// usa la geometria de las entradas de la banda).
+	{
+		eng::hud::HudRegionSpec ov_spec {};
+		ov_spec.placement = eng::hud::HudPlacement::Overlay;
+		const eng::hud::RegionHandle overlay = hud.add_region(ov_spec);
+		CHECK(overlay.valid());
+		eng::hud::HudHitRect rb {};
+		rb.box = eng::Box {200, 20, 24u, 12u};
+		rb.id = 200u;
+		rb.region = overlay;
+		CHECK(hud.push_hit(rb));
+		// La entrada etiquetada la ve su region...
+		const eng::hud::HudHit in_ov = eng::hud::hud_hit_test_region(hud, overlay, 210, 25);
+		CHECK(in_ov.hit && in_ov.id == 200u);
+		// ...y NO la ve la region de la banda (ese punto no tiene otra entrada).
+		const eng::hud::HudHit in_band =
+			eng::hud::hud_hit_test_region(hud, band_region, 210, 25);
+		CHECK(!in_band.hit);
+		// Las entradas SIN region (r1/r2/r3) valen para cualquier region.
+		const eng::hud::HudHit in_any = eng::hud::hud_hit_test_region(hud, overlay, 4, 4);
+		CHECK(in_any.hit && in_any.id == 3u);
+		// El hit sin filtro sigue viendo todo (compatibilidad).
+		const eng::hud::HudHit in_all = eng::hud::hud_hit_test(hud, 210, 25);
+		CHECK(in_all.hit && in_all.id == 200u);
 	}
 
 	if (g_fail != 0) {

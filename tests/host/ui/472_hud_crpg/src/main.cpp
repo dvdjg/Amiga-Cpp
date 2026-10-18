@@ -134,6 +134,18 @@ int main() {
 	// El icono de un tipo sin tabla queda en 0 (el HUD lo trata como sin arte).
 	CHECK(eng::rpg::hud_icon_for(eng::Span<const u16> {}, 1u) == 0u);
 
+	// --- Tema (H6): presets de roles y validacion contra la paleta -------------------------
+	{
+		const eng::hud::HudTheme classic = eng::hud::hud_theme_classic();
+		const eng::hud::HudTheme amber = eng::hud::hud_theme_amber();
+		// Los presets reparten los roles distinto (mismo modelo, otros indices pintados).
+		CHECK(classic.fg != amber.fg && classic.accent != amber.accent &&
+		      classic.warn != amber.warn);
+		CHECK(classic.fg == 1u && amber.fg == 2u && amber.accent == 3u && amber.warn == 1u);
+		CHECK(eng::hud::hud_theme_fits(classic, 4u) && eng::hud::hud_theme_fits(amber, 4u));
+		CHECK(!eng::hud::hud_theme_fits(classic, 3u)); // warn=3 no cabe en 0..2
+	}
+
 	if (g_fail != 0) {
 		std::printf("HOST-472 hud_crpg: %d fallo(s)\n", g_fail);
 		return 1;

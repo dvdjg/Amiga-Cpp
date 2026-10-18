@@ -71,4 +71,38 @@ struct HudTheme {
 	eng::u8 meter_h = 8u;              ///< alto por defecto del medidor (px)
 };
 
+/// Preset **clásico** (blanco/amarillo/rojo sobre negro): el reparto canónico (302/303/306).
+[[nodiscard]] constexpr HudTheme hud_theme_classic() noexcept {
+	HudTheme t {};
+	t.bg = 0u;
+	t.fg = 1u;
+	t.accent = 2u;
+	t.warn = 3u;
+	t.meter_fill = 2u;
+	t.meter_back = 0u;
+	t.border = 1u;
+	return t;
+}
+
+/// Preset **ámbar** (naranja/rojo/amarillo sobre negro): intercambia el reparto de roles
+/// (fg/accent/warn) para paletas cálidas; el modelo no cambia, solo los índices que pinta.
+[[nodiscard]] constexpr HudTheme hud_theme_amber() noexcept {
+	HudTheme t {};
+	t.bg = 0u;
+	t.fg = 2u;
+	t.accent = 3u;
+	t.warn = 1u;
+	t.meter_fill = 3u;
+	t.meter_back = 0u;
+	t.border = 2u;
+	return t;
+}
+
+/// ¿Los roles de color del tema caben en una paleta de `colors` entradas? (validación barata
+/// antes de aplicar un tema a una región con paleta propia).
+[[nodiscard]] constexpr bool hud_theme_fits(const HudTheme& t, eng::u8 colors) noexcept {
+	return t.bg < colors && t.fg < colors && t.accent < colors && t.warn < colors &&
+	       t.meter_fill < colors && t.meter_back < colors && t.border < colors;
+}
+
 } // namespace eng::hud

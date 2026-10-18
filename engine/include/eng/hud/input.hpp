@@ -74,6 +74,33 @@ template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
 	return out;
 }
 
+/// Igual que `hud_hit_test` pero solo sobre las entradas etiquetadas con `region` (o sin
+/// etiqueta, que valen para cualquiera): es la consulta por región del **despacho de varias
+/// regiones simultáneas** — el juego las recorre de delante hacia atrás (Screen → overlays →
+/// Band, `HUD_SYSTEM.md` §7.1) y usa la política de cada una.
+template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
+[[nodiscard]] constexpr HudHit hud_hit_test_region(const Hud<R, W, S, D, H>& model,
+						   RegionHandle region, eng::s16 x,
+						   eng::s16 y) noexcept {
+	const auto accept = [region](const auto& e) {
+		return !e.region.valid() || e.region.index == region.index;
+	};
+	const eng::ui::HitResult r =
+		eng::ui::hit_test(model.hits(), model.grid_hits(), x, y, accept);
+	HudHit out {};
+	if (!r.hit()) {
+		return out;
+	}
+	out.hit = true;
+	out.id = r.id;
+	out.layer = r.layer;
+	if (r.kind == eng::ui::HitResult::Kind::Grid) {
+		out.grid = model.grid_hits()[r.index].grid;
+		out.slot = r.slot;
+	}
+	return out;
+}
+
 /// **Consumidor de entrada del HUD** (H2): máquina de puntero mínima (*hover* implícito,
 /// *down*/*up* en el mismo objetivo = *click*), navegación de foco por rejilla con joystick
 /// (`Fire` = *click* del foco) y `UiAction` semántica. Una instancia por región de HUD.

@@ -88,6 +88,13 @@ constexpr u16 kVerbH = 11u;
 // Los hits de los verbos usan ids logicos >= 100 (las celdas usan 0..11).
 constexpr u16 kVerbIdBase = 100u;
 
+// --- Segunda region (Overlay sobre el campo): dos botones en pantalla ---------------------
+constexpr s16 kOvX = 216;
+constexpr s16 kOvY = 8;
+constexpr u16 kOvW = 96u;
+constexpr u16 kOvH = 12u;
+constexpr u16 kOvIdBase = 200u; // ids logicos de los botones del overlay (EQUIP/DROP)
+
 // Linea de estado (x alineada a 16 px para `draw_text_words`) y tooltip.
 constexpr s16 kStateX = 112;
 constexpr s16 kStateY = 17;
@@ -186,7 +193,28 @@ struct HudCrpgDemo {
 		gh.pitch_y = kCell;
 		gh.first_id = 0u;
 		gh.grid = m_grid;
+		gh.region = m_region;
 		(void)m_hud.push_grid_hit(gh);
+
+		// (4b) **Segunda region** (Overlay, coordenadas de pantalla): dos botones sobre el
+		// campo (EQUIP/DROP) con sus hits etiquetados: el juego despacha las regiones de
+		// delante hacia atras (overlay -> banda) con `hud_hit_test_region` (H5).
+		eng::hud::HudRegionSpec ov_spec {};
+		ov_spec.placement = eng::hud::HudPlacement::Overlay;
+		ov_spec.z = 1u; // delante de la banda en el despacho
+		m_region2 = m_hud.add_region(ov_spec);
+		if (!m_region2.valid()) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
+		for (u8 i = 0u; i < 2u; ++i) {
+			eng::hud::HudHitRect hr {};
+			hr.box = eng::Box {kOvX, static_cast<s16>(kOvY + i * kOvH), kOvW, kOvH};
+			hr.id = static_cast<u16>(kOvIdBase + i);
+			hr.layer = static_cast<u8>(1u + i);
+			hr.region = m_region2;
+			(void)m_hud.push_hit(hr);
+		}
 
 		// (5) Barra de verbos (H5): botones y geometria en el modelo.
 		{
@@ -210,6 +238,7 @@ struct HudCrpgDemo {
 				hr.box = b.box;
 				hr.id = static_cast<u16>(kVerbIdBase + i);
 				hr.layer = 1u; // delante de la rejilla
+				hr.region = m_region;
 				(void)m_hud.push_hit(hr);
 			}
 		}
@@ -244,6 +273,15 @@ struct HudCrpgDemo {
 		(void)screen.fill(eng::Box {40, 120, 40u, 24u}, 3u);
 		(void)screen.fill(eng::Box {200, 96, 64u, 16u}, 5u);
 		(void)screen.fill(eng::Box {120, 150, 24u, 40u}, 2u);
+		// Overlay (segunda region): panel + dos botones pintados una vez sobre el campo.
+		(void)screen.fill(eng::Box {static_cast<s16>(kOvX - 4), static_cast<s16>(kOvY - 4),
+					    static_cast<u16>(kOvW + 8u),
+					    static_cast<u16>(2u * kOvH + 8u)}, 4u);
+		for (u8 i = 0u; i < 2u; ++i) {
+			(void)screen.fill(eng::Box {kOvX, static_cast<s16>(kOvY + i * kOvH), kOvW,
+						    static_cast<u16>(kOvH - 2u)},
+					  static_cast<u8>(6u + i));
+		}
 		draw_static_hud();
 		draw_version_prefix();
 		draw_version_number(0u);
@@ -367,6 +405,16 @@ struct HudCrpgDemo {
 		if (!m_ready) {
 			return;
 		}
+		// **Cambio de tema en caliente** (H6): clasico <-> ambar cada 300 frames; el modelo
+		// no cambia, solo los indices que pinta el presentador. Al cambiar, repintado
+		// completo de la banda (clear + contenido).
+		const u8 want = static_cast<u8>((app.frame() / 300u) & 1u);
+		if (want != m_prev_theme) {
+			m_prev_theme = want;
+			m_theme = (want == 0u) ? eng::hud::hud_theme_classic()
+					       : eng::hud::hud_theme_amber();
+			repaint_all();
+		}
 		// **Orden por banda** (HUD_SYSTEM §9.3): capa viva del juego primero (aqui el
 		// campo es estatico, sin jobs), franja despues por CPU.
 		(void)app.draw_world();
@@ -459,10 +507,46 @@ struct HudCrpgDemo {
 	}
 
 private:
+	/// Repintado **completo** de la banda (cambio de tema): limpia el lienzo y vuelve a
+	/// emitir contenido estatico y dinamico con los indices del tema vigente.
+	void repaint_all() {
+		m_strip.clear();
+		draw_static_hud();
+		for (u16 i = 0u; i < kSlotCount; ++i) {
+			paint_cell(i, i == m_prev_sel, i == m_prev_foc, i == m_prev_hover);
+		}
+		for (u8 i = 0u; i < kVerbCount; ++i) {
+			paint_verb(i, i == m_prev_verb, false, false);
+		}
+		draw_state_numbers();
+		paint_tooltip_line();
+		(void)m_strip.apply(m_hud.ops());
+		m_hud.clear_ops();
+		m_hud.clear_dirty();
+	}
+
 	/// Consume un evento con `HudInput` (raton/joystick reales) y actualiza el **hover**
 	/// del demo; los verbos (id >= `kVerbIdBase`) y las celdas producen los mismos efectos
 	/// que el anillo (`verb_select` / `grid_select`).
 	void consume(auto& app, const eng::ui::UiEvent& ev) {
+		// **Despacho multi-region** (H5): las regiones se consultan de delante hacia atras
+		// (overlay -> banda, HUD_SYSTEM §7.1); el overlay resuelve sus botones con su id.
+		const eng::hud::HudHit ov =
+			eng::hud::hud_hit_test_region(m_hud, m_region2, ev.x, ev.y);
+		if (ov.hit) {
+			const s16 idx = static_cast<s16>(ov.id - kOvIdBase);
+			if (ev.kind == eng::ui::UiEventKind::MouseMove) {
+				m_ov_hover = idx;
+			} else if (ev.kind == eng::ui::UiEventKind::MouseDown ||
+				   ev.kind == eng::ui::UiEventKind::JoyButton) {
+				m_ov_hover = idx;
+				show_tooltip_raw(idx == 0 ? "ACTION:EQUIP" : "ACTION:DROP");
+			}
+			return;
+		}
+		if (ev.kind == eng::ui::UiEventKind::MouseMove) {
+			m_ov_hover = -1;
+		}
 		const eng::hud::HudInput::Result r = m_input.handle(m_hud, m_policy, ev);
 		if (ev.kind == eng::ui::UiEventKind::MouseMove ||
 		    ev.kind == eng::ui::UiEventKind::MouseDown) {
@@ -547,17 +631,28 @@ private:
 			line[n++] = static_cast<char>('0' + (sel / 10u) % 10u);
 			line[n++] = static_cast<char>('0' + sel % 10u);
 		}
+		show_tooltip_raw(line, n);
+	}
+
+	/// Muestra el tooltip con un texto crudo (p. ej. la accion del overlay).
+	void show_tooltip_raw(const char* text, u8 len = 0u) {
+		u8 n = len;
+		if (n == 0u) {
+			while (text[n] != '\0' && n < 23u) {
+				++n;
+			}
+		}
 		// TTL: 150 frames (~3 s); el presentador pinta mientras `tooltip_visible`.
-		(void)m_hud.tooltip_show(m_tooltip, eng::Span<const char> {line, n},
-					 eng::Box {kTipX, kTipY, kTipW, 8u}, kHudFg, 150u);
+		(void)m_hud.tooltip_show(m_tooltip, eng::Span<const char> {text, n},
+					 eng::Box {kTipX, kTipY, kTipW, 8u}, m_theme.fg, 150u);
 	}
 
 	/// Pinta la linea del tooltip (fondo + texto) como ops; al ocultarse, solo fondo.
 	void paint_tooltip_line() {
-		push_fill(kTipX, kTipY, kTipW, 8u, kHudBg);
+		push_fill(kTipX, kTipY, kTipW, 8u, m_theme.bg);
 		if (m_tip_visible) {
 			const eng::hud::Tooltip& t = m_hud.tooltip(m_tooltip);
-			push_text(kTipX, kTipY, t.text_view(), kHudFg);
+			push_text(kTipX, kTipY, t.text_view(), m_theme.fg);
 		}
 	}
 
@@ -569,7 +664,7 @@ private:
 		}
 		const s16 cx = static_cast<s16>(kGridX + static_cast<s16>(slot % kGridCols) * kCell);
 		const s16 cy = static_cast<s16>(kGridY + static_cast<s16>(slot / kGridCols) * kCell);
-		push_fill(cx, cy, kCell, kCell, selected ? kHudFg : kHudBg);
+		push_fill(cx, cy, kCell, kCell, selected ? m_theme.fg : m_theme.bg);
 		const eng::hud::IconGrid& grid = m_hud.grid(m_grid);
 		const eng::hud::HudSlotView* sv = nullptr;
 		if (slot < grid.slots.size()) {
@@ -580,21 +675,21 @@ private:
 			const u8 tone = static_cast<u8>(1u + ((sv->item_id - 1u) % 3u));
 			push_fill(static_cast<s16>(cx + kTileMargin),
 				  static_cast<s16>(cy + kTileMargin), kTile, kTile,
-				  selected ? kHudWarn : tone);
+				  selected ? m_theme.warn : tone);
 			// Cantidad > 1: barra de 2 px por unidad en el borde inferior de la tira.
 			if (sv->qty > 1u) {
 				const u16 wq = static_cast<u16>(sv->qty * 2u > kTile ? kTile
 										     : sv->qty * 2u);
 				push_fill(static_cast<s16>(cx + kTileMargin),
 					  static_cast<s16>(cy + kCell - kTileMargin - 1),
-					  wq, 1u, kHudAccent);
+					  wq, 1u, m_theme.accent);
 			}
 		}
 		if (hovered) {
-			push_frame(cx, cy, kCell, kCell, kHudFg);
+			push_frame(cx, cy, kCell, kCell, m_theme.fg);
 		}
 		if (focused) {
-			push_frame(cx, cy, kCell, kCell, kHudWarn);
+			push_frame(cx, cy, kCell, kCell, m_theme.warn);
 		}
 	}
 
@@ -607,18 +702,18 @@ private:
 		const s16 bx = b.box.x;
 		const s16 by = b.box.y;
 		const u16 bw = b.box.w;
-		push_fill(bx, by, bw, kVerbH, active ? kHudAccent : kHudBg);
+		push_fill(bx, by, bw, kVerbH, active ? m_theme.accent : m_theme.bg);
 		if (hovered) {
-			push_frame(bx, by, bw, kVerbH, kHudFg);
+			push_frame(bx, by, bw, kVerbH, m_theme.fg);
 		}
 		if (focused) {
-			push_frame(bx, by, bw, kVerbH, kHudWarn);
+			push_frame(bx, by, bw, kVerbH, m_theme.warn);
 		}
 		const eng::Span<const char> label = b.text_view();
 		const u16 tw = static_cast<u16>(label.size() * 8u);
 		push_text(static_cast<s16>(bx + static_cast<s16>(bw / 2u) -
 					   static_cast<s16>(tw / 2u)),
-			  static_cast<s16>(by + 2), label, active ? kHudBg : kHudFg);
+			  static_cast<s16>(by + 2), label, active ? m_theme.bg : m_theme.fg);
 	}
 
 	void push_fill(s16 x, s16 y, u16 w, u16 h, u8 color) {
@@ -652,7 +747,7 @@ private:
 		eng::hud::HudDrawOp frame {};
 		frame.kind = eng::hud::HudOpKind::Frame;
 		frame.box = eng::Box {0, 0, kWidth, kBandHeight};
-		frame.color = kHudFg;
+		frame.color = m_theme.fg;
 		(void)m_hud.push_op(frame);
 		(void)m_strip.apply(m_hud.ops());
 		m_hud.clear_ops();
@@ -684,7 +779,7 @@ private:
 		}
 		line[n++] = ' ';
 		auto surf = m_strip.surface();
-		(void)surf.draw_text_words(kStateX, kStateY, line, kHudAccent);
+		(void)surf.draw_text_words(kStateX, kStateY, line, m_theme.accent);
 	}
 
 	/// Prefijo fijo de la linea de depuracion (AGENTS §0) y etiqueta de fps.
@@ -771,6 +866,10 @@ private:
 	eng::hud::HudStrip m_strip {};
 	eng::hud::Hud<2u, 24u, 64u, 48u, 48u> m_hud {};
 	eng::hud::RegionHandle m_region {};
+	eng::hud::RegionHandle m_region2 {}; ///< overlay (segunda region: botones en pantalla)
+	eng::hud::HudTheme m_theme = eng::hud::hud_theme_classic(); ///< tema vigente (H6)
+	u8 m_prev_theme = 0u;  ///< 0 = clasico, 1 = ambar (para el cambio en caliente)
+	s16 m_ov_hover = -1;   ///< boton del overlay bajo el puntero (-1 = ninguno)
 	eng::hud::GridHandle m_grid {};
 	eng::hud::VerbBarHandle m_verbs {};
 	eng::hud::TooltipHandle m_tooltip {};

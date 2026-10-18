@@ -1,12 +1,17 @@
 # VALIDATION - 306_hud_crpg
 
-## Medidas (A500_debug, ventana de 8 s tras READY)
+## Contenido (regla 25) y H5/H6
+
+- **Dos regiones simultáneas** (cierre del H5): la banda (verbos + rejilla + tooltip) y un **overlay** en pantalla con dos botones (EQUIP/DROP) pintados sobre el campo; el juego despacha de delante hacia atrás con `hud_hit_test_region` (las entradas llevan `HudHitRect::region`; HOST-469 lo verifica). El overlay se comprueba además por conteo de píxeles en su caja (9.984 px pintados en la captura).
+- **Tema con presets y cambio en caliente** (H6): `hud_theme_classic()` ↔ `hud_theme_amber()` cada 300 frames con repintado completo de la banda; el modelo no cambia, solo los índices de color que pinta el presentador (HOST-472 verifica los presets).
+
+## Medidas (A500_debug, ventana de 8 s)
 
 | Métrica | Valor | Fuente |
 |---|---|---|
-| `fps10` | **456** (45,6 fps; 499 = 49,9 en modo warp) | contador 0 del periférico |
-| `state` | verbo*100 + selección (p. ej. 401 = verbo 4, celda 1) | contador 1 |
-| `aframe` | **276-277** frames de guion en 8 s (el anillo recorre y activa) | contador 2 |
+| `fps10` | **499** (49,9 fps) | contador 0 |
+| `state` | verbo*100 + selección (p. ej. 499 = verbo 4, sin selección) | contador 1 |
+| `aframe` | frames de guion (se **reinicia con entrada real**: ratón/joystick) | contador 2 |
 
 Sin picos medidos con la instrumentación temporal (retirada): el frame repinta solo las celdas/verbos cuyo estado cambió + la línea del tooltip al expirar. La cadencia queda por debajo de los 49,9 de la 302 (misma familia que DT-036: pérdida de latidos fuera del coste del demo); **SIN VERIFICAR** el desglose por sección (DT-036 sigue abierta).
 

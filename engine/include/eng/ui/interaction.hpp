@@ -75,11 +75,23 @@ struct HitResult {
 template <HitRectLike R, HitGridLike G>
 [[nodiscard]] constexpr HitResult hit_test(eng::Span<const R> rects, eng::Span<const G> grids,
 					   eng::s16 x, eng::s16 y) noexcept {
+	return hit_test(rects, grids, x, y, [](const auto&) { return true; });
+}
+
+/// Igual que `hit_test`, pero solo considera las entradas aceptadas por `accept(entrada)`:
+/// es lo que usa el HUD con **varias regiones simultáneas** para consultar una región
+/// concreta (el juego despacha de delante hacia atrás: Screen → overlays → Band).
+template <HitRectLike R, HitGridLike G, class Filter>
+[[nodiscard]] constexpr HitResult hit_test(eng::Span<const R> rects, eng::Span<const G> grids,
+					   eng::s16 x, eng::s16 y, Filter accept) noexcept {
 	HitResult best {};
 	bool found = false;
 	eng::u8 best_layer = 0u;
 	for (eng::usize i = 0u; i < rects.size(); ++i) {
 		const R& r = rects[i];
+		if (!accept(r)) {
+			continue;
+		}
 		if (!r.box.contains(x, y)) {
 			continue;
 		}
@@ -98,6 +110,9 @@ template <HitRectLike R, HitGridLike G>
 	}
 	for (eng::usize i = 0u; i < grids.size(); ++i) {
 		const G& g = grids[i];
+		if (!accept(g)) {
+			continue;
+		}
 		if (g.cols == 0u || g.rows == 0u || g.pitch_x == 0u || g.pitch_y == 0u) {
 			continue;
 		}

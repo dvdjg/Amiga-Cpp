@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-18T18:36:57.197Z
+- Fecha: 2026-10-18T20:12:08.254Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000_f0150.png, frame_009_f0159.png, frame_019_f0169.png, frame_028_f0178.png, frame_038_f0188.png, frame_047_f0197.png (6)
+- Frames: frame_000.png, frame_001.png, frame_003.png, frame_004.png, frame_006.png, frame_007.png (6)
 - Secuencia: `out/run/ui_amiga_306_hud_crpg/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,25 +15,28 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes son idénticas en su contenido visual y en la disposición de los elementos, excepto por un cambio en el estado de un elemento del HUD (Interfaz de Usuario) en la tercera imagen.
+Las tres imágenes son idénticas entre sí. No hay cambios en el contenido visual, la posición de los elementos ni en la calidad de la representación.
 
-**Descripción general:**
-- **Fondo:** Negro sólido.
-- **Elementos gráficos principales (en el centro de la pantalla):** Tres rectángulos de color azul oscuro, dispuestos en una formación que sugiere una estructura o escenario minimalista. Uno está en la parte superior derecha, otro a la izquierda, y el tercero en el centro inferior.
-- **HUD (Interfaz de Usuario):** Una barra horizontal en la parte inferior de la pantalla, con un borde blanco.
-  - **Izquierda:** Una fila de cinco cuadrados pequeños. En la primera imagen, el primer cuadrado es blanco con un borde rojo. En la tercera imagen, el cuarto cuadrado es amarillo con un borde rojo.
-  - **Centro:** Una fila de palabras en mayúsculas: `LOOK TAKE USE OPEN TALK`. La palabra `TALK` está resaltada en amarillo.
-  - **Debajo de las palabras:** La línea `V:4 S:--` y `VERB:LOOK ITEM:--`.
-  - **Inferior:** La línea `HUD CRPG v1.0.4832 F__00100 FPS 46.90` (en la primera imagen) y `HUD CRPG v1.0.4832 F__00100 FPS 45.50` (en la tercera imagen).
+**Descripción de los elementos observables:**
 
-**Cambios entre imágenes:**
-- **Imagen 1 y 2:** Son idénticas. No hay cambios observables.
-- **Imagen 3:** El cuadrado amarillo con borde rojo se ha desplazado desde la posición del primer cuadrado (izquierda) hasta la posición del cuarto cuadrado (derecha). Además, el valor de FPS ha cambiado de `46.90` a `45.50`.
+*   **Fondo:** Es completamente negro.
+*   **Elementos gráficos en la parte superior:**
+    *   En la esquina superior derecha, hay un rectángulo de color azul pálido con dos líneas horizontales dentro, una arriba y otra abajo.
+    *   Más abajo, centrado horizontalmente, hay un rectángulo más pequeño de color azul oscuro.
+    *   A la izquierda, hay un rectángulo de color azul oscuro.
+    *   En el centro, hay un rectángulo vertical de color azul oscuro.
+*   **Elementos gráficos en la parte inferior (HUD):**
+    *   En la parte inferior izquierda, hay una fila de cinco cuadrados: blanco, amarillo, rojo, blanco, amarillo. El cuadrado blanco de la izquierda tiene un borde rojo.
+    *   A la derecha de los cuadrados, hay una barra de texto con las palabras: `LOOK TAKE USE OPEN TALK`. La palabra `TALK` está resaltada con un fondo amarillo y un borde negro.
+    *   Debajo de esa barra, se muestra: `V:4 S:--`.
+    *   Debajo de eso, se muestra: `VERB:LOOK ITEM:--`.
+    *   En la parte inferior más baja, se muestra: `HUD CRPG v1.0.4911 F__00100 FPS 49.90`.
 
-**Elementos extraños o incoherentes:**
-- No hay artefactos visibles como bandas, halos, píxeles cortados o restos de posiciones anteriores.
-- El fondo permanece uniformemente negro y no muestra ninguna textura o patrón.
-- Los rectángulos azules no muestran bordes ni artefactos alrededor.
-- El cambio en el HUD (posición del cuadrado y FPS) es consistente y no parece un error visual.
+**Análisis de movimientos y artefactos:**
 
-**Conclusión:** Las imágenes muestran una interfaz de juego estática, con un cambio en el estado del HUD en la tercera imagen, lo que sugiere una interacción del usuario o un cambio en el estado del juego. No hay elementos que parezcan defectuosos o incoherentes en su presentación visual.
+*   **Movimiento:** No hay ningún elemento que se mueva entre las imágenes. Todo está estático.
+*   **Contornos y bordes:** Todos los rectángulos tienen bordes limpios y definidos, sin halos, bandas ni píxeles cortados. No hay artefactos visibles.
+*   **Fondo alrededor:** El fondo negro permanece uniforme y sin alteraciones alrededor de los elementos gráficos. No hay restos de posiciones anteriores ni superposiciones incompletas.
+*   **Coherencia:** La composición es consistente en todas las imágenes. No hay elementos extraños, defectuosos o incoherentes.
+
+En resumen, las tres imágenes son exactamente iguales, mostrando una interfaz de usuario estática de un juego de rol con una HUD visible.
