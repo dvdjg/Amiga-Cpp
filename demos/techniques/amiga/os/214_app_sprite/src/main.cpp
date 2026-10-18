@@ -25,6 +25,9 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
+#include <eng/debug/hud.hpp>        // HudFpsWindow (fps10)
+#include <eng/debug/peripheral.hpp> // contadores (telemetria)
+#include <eng/debug/prof.hpp>       // prof_clock
 #include <eng/graphics/c2p.hpp>         // c2p_1x1_naive: fondo indexado -> planar (una vez)
 #include <eng/platform/amiga/entry.hpp> // run_demo: plataforma/memoria/display/bucle
 
@@ -127,6 +130,12 @@ struct AppSpriteDemo {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
+		// Telemetria (regla 25): fps10 + fallos de blit del fondo (0 esperado) + fase del
+		// scroll (avanza: prueba de progreso sin depender del video).
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
+		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("copy_bad"));
+		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("scroll"));
+		m_fps_win.reset(app.frame(), eng::debug::prof_clock());
 
 		// READY se retrasa hasta que el display haya completado varios ciclos de doble buffer:
 		// el primer render puede ocurrir antes de que la primera captura vea el buffer publicado.
@@ -153,6 +162,8 @@ struct AppSpriteDemo {
 		const eng::u8 source_shift = static_cast<eng::u8>(m_scroll & 15u);
 		const bool copy_ok = s.bitmap(window, eng::Box {0, 0, kWidth, kHeight}, source_x, source_shift);
 		if (!copy_ok) {
+			++m_copy_bad;
+			eng::debug::DebugPeripheral::counter_value(1u, m_copy_bad);
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
@@ -166,6 +177,12 @@ struct AppSpriteDemo {
 		}
 		app.draw_world();
 		app.present();
+		// Telemetria: fase del scroll + fps10 (ventana de 1 s por el reloj de ciclos).
+		eng::debug::DebugPeripheral::counter_value(2u, m_scroll);
+		eng::u32 fps10 = 0u;
+		if (m_fps_win.update(app.frame(), eng::debug::prof_clock(), fps10)) {
+			eng::debug::DebugPeripheral::counter_value(0u, fps10);
+		}
 		// READY tras varios frames completos para que el runner capture un buffer ya visible.
 		if (app.frame() == 4u) {
 			eng::amiga::mark_ready();
@@ -204,6 +221,8 @@ private:
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_planar {};
 	graphics::ChipBitmapView<eng::PlaneTag> m_backdrop {};
 	eng::u16 m_scroll = 0u;
+	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps10 (telemetria)
+	eng::u32 m_copy_bad = 0u;              ///< fallos de blit del fondo (deberia ser 0)
 	graphics::Bob m_bob {};
 	graphics::Sprite m_sprite {};
 };
