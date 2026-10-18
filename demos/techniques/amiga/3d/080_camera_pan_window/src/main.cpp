@@ -41,6 +41,7 @@
 #include <eng/field/playfield.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/composition/compose.hpp>
+#include <eng/graphics/fill_pattern.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/graphics/pan_window.hpp>
 #include <eng/graphics/polygon_planes.hpp>
@@ -141,7 +142,21 @@ enum : eng::u8 {
 	kProfHudCtor = 5,  ///< construccion del Surface + formato de lineas
 	kProfHudLine1 = 6, ///< impresion de la linea 3 (FRAME/FULL/FAKE)
 	kProfHudLine2 = 7, ///< impresion de la linea 4 (OFF/FAC/VER/PAN)
+	kProfWait = 8,     ///< wait_blitter inicial del Full
+	kProfClip = 9,     ///< transform+proyeccion+recorte+submit de las caras
 };
+
+// Patrón de relleno de la SALA (plano de patrón 1-bit en Chip, construido UNA vez): el
+// relleno por plano lo aplica con un blit por plano (`D = A & B`, B = D) sobre la misma
+// caja del fill — ver `eng/graphics/fill_pattern.hpp`. Los paneles quedan SÓLIDOS (su
+// llamada no lleva patrón): el marcador naranja conserva su color único.
+// `K080_NO_PATTERN`: sala sólida (A/B de medida: el patrón añade ~50-80k al Full, el blit
+// de aplicación por plano sobre la caja de la sala).
+#if defined(K080_NO_PATTERN)
+constexpr eng::graphics::FillPattern kRoomPattern = eng::graphics::FillPattern::Solid;
+#else
+constexpr eng::graphics::FillPattern kRoomPattern = eng::graphics::FillPattern::Checker4;
+#endif
 
 // Margen 15 px por lado (ventana centrada en S=16; el FB admite S en [1..31]) y racha
 // ADAPTATIVA: el numero de Fakes entre Fulls lo fija `RenderPacing` a partir del coste
@@ -269,6 +284,17 @@ struct PanWindowDemo {
 		(void)m_hud_pf.bind_raw(m_hud.view.data() + 2u, kHudBytes, kFbW, kHudLines, 1u,
 					kHudBytes);
 
+		// Plano de patrón de la sala (1 bit, caja de la sala): lo lee el Blitter por el
+		// canal A del blit de aplicación; se construye AQUÍ una sola vez (CPU).
+		m_pattern = backend.memory_manager().chip().reserve<eng::MaskTag>(
+			static_cast<eng::u32>(kRowBytes) * kRoomBoxH, 16);
+		if (!m_pattern.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008005u);
+			return;
+		}
+		eng::graphics::fill_pattern_plane_cpu(m_pattern.view, kRowBytes, kRoomBoxH,
+						      kRoomPattern);
+
 		scene::SceneResources res {};
 		res.width = kFbW;
 		res.height = kFbH + kHudLines; // 256 lineas visibles (208 escena + 48 HUD)
@@ -295,7 +321,7 @@ struct PanWindowDemo {
 		m_scene.takeover(backend); // muestra el buffer 0; el primer Full dibuja el 1
 		m_show_buf = 0u;
 		m_draw_buf = 1u;
-		ENG_PROF_INIT(8u);
+		ENG_PROF_INIT(10u);
 		eng::debug::mark_ready(g_eng_run_status, 0u);
 	}
 
@@ -458,7 +484,9 @@ private:
 
 	// --- Render de la pasada completa -------------------------------------------------
 	void render_full(eng::amiga::AmigaBackend& backend, s32 pan) {
+		ENG_PROF_BEGIN(kProfWait);
 		backend.wait_blitter();
+		ENG_PROF_END(kProfWait);
 		// Vista mundo->camara con yaw = pan/focal: Ry(-yaw) aplica xc = x*cos - z*sin
 		// (girar a la derecha mueve los puntos +x hacia la izquierda de la pantalla).
 		// `retro::turns` usa el indice de 4096 pasos/vuelta (kAngleSteps): 1 px de imagen
@@ -510,6 +538,7 @@ private:
 			return left || right || top || bottom;
 		};
 
+		ENG_PROF_BEGIN(kProfClip);
 		for (u32 i = 0u; i < kFaceCount; ++i) {
 			eng::math3d::Vec3 cam[4];
 			eng::math3d::mesh_transform(eng::Span<const eng::math3d::Vec3>(kFaces[i].v, 4),
@@ -568,6 +597,7 @@ private:
 			}
 		}
 		m_dbg_verts = static_cast<u8>(verts > 255u ? 255u : verts);
+		ENG_PROF_END(kProfClip);
 
 		const eng::PlaneBytes buf = m_scene.buffer(m_draw_buf);
 #if defined(K080_SKIP_FILL)
@@ -576,11 +606,17 @@ private:
 		(void)panels_fb;
 #else
 		if (walls_fb.count() != 0u) {
+			// Con patrón `Solid` no se pasa plano: el fill queda igual que sin patrón
+			// (sin el blit de aplicación por plano).
+			const eng::MaskBytes room_pattern =
+				kRoomPattern == eng::graphics::FillPattern::Solid
+					? eng::MaskBytes {}
+					: m_pattern.view.as_const();
 			ENG_PROF_BEGIN(kProfFill);
 			(void)backend.fill_polygons_by_plane(
 				walls_fb.faces().data(), walls_fb.count(),
 				buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes), kRowBytes,
-				kSceneBytes, 2u, kFbW, kRoomBoxH);
+				kSceneBytes, 2u, kFbW, kRoomBoxH, room_pattern);
 			ENG_PROF_END(kProfFill);
 		} else {
 			(void)backend.blitter_clear(buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes),
@@ -701,6 +737,7 @@ private:
 	bool m_ready = false;
 	scene::Scene m_scene {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_hud {};
+	eng::Block<eng::MaskTag, eng::MemoryKind::Chip> m_pattern {}; ///< patrón 1-bit de la sala
 	playfield::ContiguousPlayfield m_hud_pf {};
 	eng::copper::MoveSlot m_bplcon1_slot {};
 	eng::copper::MoveSlot m_plane_hi[kPlanes] {};

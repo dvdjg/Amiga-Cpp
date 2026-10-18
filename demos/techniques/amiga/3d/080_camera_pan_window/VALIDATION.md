@@ -34,7 +34,7 @@ Salida (resumen del 2026-10-18): telemetría de cada frame == reloj esperado (Fu
 
 ## 3. Visión (Ollama, regla de oro)
 
-- `src/VISION.md` (prompt canónico **actual**, que mira contornos; `vision-final.mjs`, 5 frames de la captura por intervalo del build adaptativo): el modelo describe el interior de la sala como un patrón de bandas geométricas (azul/verde/marrón) y **cuatro columnas verticales moviéndose hacia la izquierda** entre imágenes (incluso la reaparición de una columna desde el margen — el desplazamiento de ventana), con HUD `FULL 12.5 + FAKE 25` y `K 2`; sobre los objetos en movimiento concluye **contornos limpios, sin halos ni restos de la posición anterior**. La reevaluación **con captura por paso** (frames nítidos, sin el banding del Full mid-render) sigue pendiente: la captura por paso está bloqueada (DT-033).
+- `src/VISION.md` (prompt canónico **actual**, que mira contornos; `vision-final.mjs`, 5 frames de la captura por intervalo del build con patrón): el modelo describe el fondo como un patrón de bandas geométricas y **barras verticales que se desplazan** entre imágenes (con la reaparición de una columna desde el margen — el desplazamiento de ventana) y el HUD `FULL 12.5 + FAKE 25` con `K 2`; concluye **contornos limpios, sin halos ni restos de la posición anterior**, con el fondo uniforme. La reevaluación **con captura por paso** (frames nítidos, sin el banding del Full mid-render) sigue pendiente: la captura por paso está bloqueada (DT-033).
 - `ollama-frames.mjs` sobre una secuencia: confirma **movimiento apreciable** ("la escena se ha movido hacia la izquierda, revelando partes nuevas") — la dinámica del paneo es observable por el modelo.
 
 ## 4. Gates técnicos
@@ -60,9 +60,11 @@ node tools/debug/profile.mjs 080_camera_pan_window A500_debug 5
 Build actual (política adaptativa, `-O3`, HUD cada 32 frames):
 
 - Display: **139–167 frames / 5–6 s ≈ 27,8 fps** (1,79–1,80 campos/frame) → **suelo de display ≥25 Hz cumplido**.
-- `full` (≈0,3 llamadas/frame): **426k–551k ciclos (≈3,0–3,9 campos)**, con `fill` de 106k–310k, proyección+clip+submit el resto y `hud` ~10–34k/frame (ya repartido por el refresh a 32 frames).
-- Base: con `full` ≈ 3,4 campos, `affordable_fakes` da **K=2** (ciclo Full + 2 Fakes ≈ 3 campos de 4 usados) → base ≈ **8–9 Hz**, por debajo de los 12,5 Hz exigidos. **Cerrar F1 exige `full` ≤ 3,0 campos** (K=1 con ciclo de 4 campos = 12,5 Hz de base / 25 Hz de display).
+- **Desglose del Full** (secciones `kProfWait`/`kProfClip` añadidas; `profile.mjs`): `wait` inicial ≈ **300 ciclos** (el Blitter está ocioso entre Fulls — los fakes no dejan trabajo pendiente); **CPU de la pasada** (transform+proyección+recorte+submit de las 9 caras) **54k–77k (~11–15 % del Full)**; y **los dos `fill_polygons_by_plane`: 117k–337k POR LLAMADA**. El Full lo domina el relleno por plano (clear 2 c/word + aristas + fill 6 c/word + patrón 6 c/word), **no el CPU** — la palanca restante es el diseño del relleno (y solapar su tiempo de Blitter con CPU/Copper, F2), no microoptimizar el recorte.
+- `full` (≈0,3 llamadas/frame): **426k–551k ciclos sin patrón / 508k–609k con patrón (≈3,5–4,3 campos)**; `hud` ~10–34k/frame (repartido por el refresh a 32 frames).
+- Base: con `full` ≈ 3,4 campos (sin patrón), `affordable_fakes` da **K=2** (ciclo Full + 2 Fakes) → base ≈ **8–9 Hz**, por debajo de los 12,5 Hz exigidos. **Cerrar F1 exige `full` ≤ 3,0 campos** (K=1 con ciclo de 4 campos = 12,5 Hz de base / 25 Hz de display).
 - Control `SKIP_FILL` (ablación): 152 frames / 4 s = **38 fps**, 1,32 campos/frame — el relleno por plano es el grueso del Full; los candidatos de optimización están ahí (ver DT-034).
+- **Patrón de sala (A/B, `profile.mjs`)**: pasada completa **426k–552k** sin patrón (`-DK080_NO_PATTERN`) vs **508k–595k** con `Checker4` (+82k/+44k; ≈ +50k teóricos del blit de aplicación `D = A & B` por plano sobre la caja de la sala + sincronización). El barrido único de planos contiguos no aplica a este layout (planos de altura completa con caja parcial); el análisis de opciones está en `blitter-line-subpixel-fill.md` §5.
 
 Objetivo: **base (Full) ≥12,5 Hz y display ≥25 Hz**. Display cumplido; base pendiente de la campaña de optimización del Full.
 

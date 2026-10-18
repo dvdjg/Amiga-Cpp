@@ -174,3 +174,20 @@ El backend ya implementa:
 **Pendiente / no portado**: el trazado **sub-píxel** (acumulador con parte fraccionaria 12.4 y la fórmula `acc = 2*((X2-x2+2)*dy - (Y2-y2+1)*dx)`) y el contorno `ONEDOT` de polígonos sub-píxel exactos. `blit_fill_region` usa `FILL_OR` (inclusivo), no `FILL_XOR`.
 
 **Usos actuales**: demos `079_wireframe` (línea OR) y `116_flatshade_convex` (contorno `ONEDOT`+EOR de las aristas visibles + un único `blitter_area_fill` `XOR`, con el truco de `BLTDPTR`). Un futuro rasterizador sub-píxel permitiría aristas y polígonos sin "snap" a píxel (p. ej. el `flatshade` y el `stencil3d` del repo de origen).
+
+## 5. Relleno multi-plano: aceleración y patrones (análisis medido)
+
+`AmigaBackend::fill_polygons_by_plane` ya aplica la optimización estructural de la técnica (bloque «por PLANO» del encabezado de `polygon_planes.hpp`): **1 clear + aristas + 1 fill por plano**, con las aristas compartidas por caras del mismo bit cancelándose por paridad. Sobre ese punto de partida, las opciones evaluadas para acelerar el relleno cuando se usan varios bitplanes (coste por palabra: A/B/C leídos = 2 ciclos cada uno, D escrito = 2; `FILL_XOR` añade 1 ciclo de espera si D va sin C — WinUAE-DBG `blitter.cpp:180-192`):
+
+| Opción | Coste / efecto | Decisión |
+|---|---|---|
+| Clear con minterm `0` (solo D) | 2 ciclos/palabra (ya implementado en `blit_clear_region`) | Ya en uso |
+| Cajas de relleno por grupo de planos (el llamador recorta filas/x) | Proporcional al área usada; la 080 ya recorta sala (filas 8..200) y paneles (52..104) | Ya en uso |
+| Barrido único de N planos contiguos (clear y fill de `N·filas` de una pasada, como `BitmapFillFast`) | Ahorra (N−1) setups+sincronizaciones; **solo aplica si `plane_stride == filas·row_bytes`** (buffers compactos) — con framebuffers de altura completa y caja parcial, NO | Descartado aquí (documentado) |
+| Fill con C = D para quitar la espera de «D sin C» | C leído cuesta 2 > 1 de espera | Descartado |
+| Dedupe de aristas de paridad par (caras del mismo bit comparten arista: 2 dibujos = 0) | Ahorra blits de línea; requiere identidad de aristas por plano | Pendiente (futuro) |
+| **Patrón de relleno** (`fill_pattern.hpp`): tras el fill, un blit `D = A & B` con `B = D` y A = plano de patrón 1-bit | +1 blit por plano (6 ciclos/palabra) sobre la misma caja; el plano de patrón se construye una vez | **Implementado** (HOST-474; demo 080) |
+
+El area fill del Blitter **no puede** producir por sí mismo un patrón (solo escribe 1s OR/XOR en el interior; semántica exacta en WinUAE-DBG `blitter.cpp:262-286` `build_blitfilltable`), así que el patrón es necesariamente un segundo paso `D = A & B` (minterm `$C0`, B realimentado con el destino), sin tocar el contorno ni la paridad. Catálogo actual: tablero 2×2/4×4, punteado, líneas verticales/horizontales y oblicuas 45°/135° (palabras de 16 px, MSB = píxel izquierdo, fase horizontal de 16 px).
+
+Medida real (demo 080, caja de sala 352×193 en 2 planos, `profile.mjs`): pasada completa 426k–552k ciclos sin patrón; 508k–595k con `Checker4` (+82k/+44k, ≈ +50k teóricos del blit de aplicación por plano más la sincronización). El coste del patrón es, por tanto, el precio del segundo paso; el ahorro multi-plano restante está en las aristas (dedupe) y en el trabajo CPU de proyección/recorte (el grueso del Full medida la sección `fill`).

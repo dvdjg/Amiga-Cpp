@@ -1,3 +1,5 @@
 # `-O3` en la TU de la demo (mismo criterio que la 116): el trabajo CPU por Full
 # (transform+proyeccion+recorte+pacing) domina el margen; con -O3 el bucle baja.
+# `K080_NO_PATTERN`: desactiva el tablero de la sala (A/B del coste del blit de
+# aplicacion de patron: ~50-80k ciclos por Full medidos con `profile.mjs`).
 DEMO_OPT=-O3

@@ -11,14 +11,15 @@ El **contrato de frames intermedios por paneo** de la técnica `docs/reference/a
 - **Full** (render real, base ≥12,5 Hz): la pasada completa transforma y proyecta la sala + los paneles y rellena el framebuffer ENTERO (márgenes incluidos) con el relleno por plano del Blitter (`fill_polygons_by_plane`). La ventana se centra (S=16) parcheando `BPLxPT`.
 - **Fake** (display ≥25 Hz): no se re-renderiza nada; solo se parchean `BPLxPT` (coarse) y `BPLCON1` (fino) con la convención de `playfield_scroll.hpp` para mover la ventana al offset del paneo, mostrando el contenido de los márgenes. El Fake es **exactamente** el Full anterior desplazado (contrato de píxel; ver `VALIDATION.md`). Entre dos Fulls caben **varios fakes** (K), decididos por el coste medido.
 - La política `eng::graphics::pan_window.hpp` (margen 15 px) produce fakes con el offset exacto en la fase lenta (1 px/frame) y fuerza Full cada frame en la fase rápida (16 px/frame: el offset supera el margen y el paneo ya no es válido); el número máximo de fakes seguidos lo fija `eng::graphics::render_pacing.hpp` (EMA del coste del Full en campos PAL, tope K≤3). El reloj es determinista por índice de frame (telemetría en `g_eng_run_status.detail`).
+- **Relleno con patrón** (`eng::graphics::fill_pattern.hpp`, HOST-474): la sala se texturiza con un tablero 4×4; el patrón es un plano 1-bit en Chip que el relleno por plano aplica con un blit por plano (`D = A & B`, `B = D`) tras el area fill. Los paneles no llevan patrón (sólidos) y el marcador naranja conserva su color único.
 
 ## Elementos en pantalla
 
 | Elemento | Color | Papel |
 |---|---|---|
-| Suelo y pared derecha | marrón (índice 1) | sala; su borde con el techo/fondo fija la referencia del paneo |
-| Pared izquierda | verde (índice 2) | sala |
-| Techo y pared del fondo | azul (índice 3) | fondo de la escena (referencia central) |
+| Suelo y pared derecha | marrón (índice 1) | sala **con tablero 4×4** (patrón de relleno); su borde con el techo/fondo fija la referencia del paneo |
+| Pared izquierda | verde (índice 2) | sala **con tablero 4×4** |
+| Techo y pared del fondo | azul (índice 3) | fondo de la escena (referencia central), **con tablero 4×4** |
 | Panel (x=-100) y (x=+60) | cian (rango 8-11) | columnas verticales |
 | Panel (x=-60) | amarillo (rango 4-7) | columna vertical |
 | **Panel (x=+100)** | **naranja único (rango 12-15)** | marcador de movimiento: color único que sigue el paneo |
