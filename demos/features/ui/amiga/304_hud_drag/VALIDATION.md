@@ -4,6 +4,8 @@
 
 Fondo del campo con bandas de color estáticas, rejilla de inventario con **iconos reales del atlas** (H6: cuadrado/cruz/círculo/rombo, incbinados con prebuild), **fantasma** del arrastre siguiendo al puntero y **marcas de origen/destino**; el guion determinista completa ciclos de arrastre (drop válido y cancelación alternados) sobre el inventario RPG real.
 
+**Política y apilado (H3):** el destino se consulta con `set_drag_target` en **cada movimiento** (`accepts(item_id, qty)` del juego: celda vacía, o pila del mismo tipo con hueco) y el realce lo refleja (amarillo = acepta, rojo = rechaza); soltar apila con `merge_stack` del kernel RPG (la pila origen se consume si queda a 0) o mueve a una celda vacía. El guion busca el primer destino aceptado (así ejercita también el apilado de monedas).
+
 ## Medidas (A500_debug, ventana de 12 s)
 
 | Métrica | Valor | Fuente |

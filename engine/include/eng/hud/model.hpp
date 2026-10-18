@@ -332,6 +332,9 @@ struct DragSession {
 	eng::u16 source_slot = kHudNoSlot; ///< slot de origen
 	eng::u16 item_id = 0u;             ///< objeto arrastrado
 	eng::u16 qty = 0u;                 ///< cantidad arrastrada
+	GridHandle target {};              ///< rejilla bajo el puntero (la fija el juego)
+	eng::u16 target_slot = kHudNoSlot; ///< celda bajo el puntero (kHudNoSlot = ninguna)
+	bool accepts = false;              ///< veredicto de la política del juego para `target`
 	eng::s16 start_x = 0;              ///< punto de pulsación (x)
 	eng::s16 start_y = 0;              ///< punto de pulsación (y)
 	eng::s16 x = 0;                    ///< posición actual del puntero (x)
@@ -945,6 +948,25 @@ public:
 		}
 		m_drag.x = x;
 		m_drag.y = y;
+		return true;
+	}
+
+	/// **Destino del arrastre bajo el puntero** (lo fija el juego en cada movimiento, tras
+	/// consultar su política): `accepts` es el veredicto de esa política (`accepts(item_id,
+	/// qty)` en la celda destino; `HUD_SYSTEM.md` §5.6). `false` si no hay sesión activa;
+	/// con cambio, marca *dirty* (el presentador realza el destino).
+	[[nodiscard]] bool set_drag_target(GridHandle target, eng::u16 slot, bool accepts) noexcept {
+		if (m_drag.phase != DragPhase::Pressed && m_drag.phase != DragPhase::Dragging) {
+			return false;
+		}
+		if (m_drag.target.index == target.index && m_drag.target_slot == slot &&
+		    m_drag.accepts == accepts) {
+			return false; // sin cambio
+		}
+		m_drag.target = target;
+		m_drag.target_slot = slot;
+		m_drag.accepts = accepts;
+		mark_dirty(m_drag);
 		return true;
 	}
 

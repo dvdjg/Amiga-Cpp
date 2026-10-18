@@ -365,12 +365,20 @@ private:
 			if (d.phase == eng::hud::DragPhase::Pressed ||
 			    d.phase == eng::hud::DragPhase::Dragging) {
 				(void)m_hud.drag_move(ev.x, ev.y, kDragStartPx);
-				// Destino bajo el puntero (para el realce y el drop).
+				// Destino bajo el puntero + veredicto de la politica (paso A: acepta
+				// siempre una celda distinta; el paso C conecta `drop_accepts`).
 				const eng::hud::HudHit h = eng::hud::hud_hit_test_region(
 					m_hud, m_region, ev.x, ev.y);
 				m_dst = (h.hit && h.grid.valid() && h.slot < kSlotCount)
 						? h.slot
 						: kNoSlot;
+				if (m_dst != kNoSlot) {
+					(void)m_hud.set_drag_target(m_grid, m_dst,
+								     drop_accepts(d.source_slot, m_dst));
+				} else {
+					(void)m_hud.set_drag_target(eng::hud::GridHandle {},
+								     kNoSlot, false);
+				}
 				return;
 			}
 		}
@@ -378,20 +386,17 @@ private:
 			if (d.phase == eng::hud::DragPhase::Pressed) {
 				(void)m_hud.drag_release(); // click (sin umbral)
 			} else if (d.phase == eng::hud::DragPhase::Dragging) {
-				const eng::hud::HudHit h = eng::hud::hud_hit_test_region(
-					m_hud, m_region, ev.x, ev.y);
-				const bool valid = h.hit && h.grid.valid() &&
-						   h.slot < kSlotCount && h.slot != d.source_slot;
+				const bool valid = d.target_slot != kNoSlot && d.accepts;
 				if (valid) {
 					(void)m_hud.drag_drop();
-					if (move_item(d.source_slot, h.slot)) {
+					if (move_or_stack(d.source_slot, d.target_slot)) {
 						++m_drag_ok;
 					} else {
 						++m_drag_bad;
 					}
 				} else {
 					(void)m_hud.drag_cancel();
-					++m_drag_ok; // cancelar fuera/sobre el origen es correcto
+					++m_drag_ok; // cancelar fuera/sobre origen/no aceptado es correcto
 				}
 				eng::debug::DebugPeripheral::counter_value(1u, m_drag_ok);
 				eng::debug::DebugPeripheral::counter_value(2u, m_drag_bad);
@@ -402,6 +407,60 @@ private:
 		}
 		(void)m_input.handle(m_hud, m_policy, ev);
 		(void)app;
+	}
+
+	/// **Política de destino** (`accepts(item_id, qty)`, HUD_SYSTEM §5.6): acepta una celda
+	/// vacía o una pila del MISMO tipo con hueco (`stack_max`); el resto se rechaza.
+	[[nodiscard]] bool drop_accepts(u16 from, u16 to) const {
+		if (from >= kSlotCount || to >= kSlotCount || from == to) {
+			return false;
+		}
+		const eng::hud::HudSlotView& dst = m_hud.grid(m_grid).slots[to];
+		if ((dst.flags & eng::hud::kHudSlotEmpty) != 0u || dst.item_id == 0u) {
+			return true; // celda vacia
+		}
+		const eng::hud::HudSlotView& src = m_hud.grid(m_grid).slots[from];
+		if (dst.item_id != src.item_id) {
+			return false; // tipos distintos
+		}
+		const eng::Ref<const eng::rpg::ItemDef> def =
+			m_catalog.at(static_cast<eng::rpg::ItemTypeId>(src.item_id - 1u));
+		if (!def.valid() || def->stack_max <= 1u) {
+			return false; // no apilable
+		}
+		return dst.qty < def->stack_max; // hueco en la pila
+	}
+
+	/// Mueve o **apila** segun la politica: mismo tipo apilable -> `merge_stack` del kernel
+	/// RPG (la pila origen se consume si queda a 0); si no, movimiento simple.
+	[[nodiscard]] bool move_or_stack(u16 from, u16 to) {
+		if (from >= kSlotCount || to >= kSlotCount || from == to) {
+			return false;
+		}
+		const eng::hud::HudSlotView& sv = m_hud.grid(m_grid).slots[from];
+		const eng::hud::HudSlotView& dv = m_hud.grid(m_grid).slots[to];
+		if (sv.item_id != 0u && sv.item_id == dv.item_id &&
+		    (dv.flags & eng::hud::kHudSlotEmpty) == 0u) {
+			const eng::Ref<const eng::rpg::ItemDef> def =
+				m_catalog.at(static_cast<eng::rpg::ItemTypeId>(sv.item_id - 1u));
+			if (def.valid() && def->stack_max > 1u && from < m_bag.size() &&
+			    to < m_bag.size()) {
+				// Las vistas siguen el orden de la bolsa (out[i] = bag.items[i]), asi que
+				// el indice de slot con contenido ES el indice de entrada en la bolsa.
+				const eng::rpg::ItemHandle hs = m_bag.at(from);
+				const eng::rpg::ItemHandle hd = m_bag.at(to);
+				auto src_inst = m_store.get(hs);
+				auto dst_inst = m_store.get(hd);
+				if (src_inst.valid() && dst_inst.valid()) {
+					(void)eng::rpg::merge_stack(*dst_inst, *src_inst, *def);
+					if (src_inst->qty == 0u) {
+						(void)m_bag.remove(hs); // pila origen consumida
+					}
+					return refresh_views();
+				}
+			}
+		}
+		return move_item(from, to); // movimiento simple (celda vacia)
 	}
 
 	/// Mueve el objeto del slot `from` al slot `to` en el inventario RPG: quita la entrada
@@ -484,13 +543,28 @@ private:
 				(void)m_hud.drag_cancel();
 				++m_drag_ok;
 			} else {
-				// Drop en una celda valida (la opuesta a la de origen).
-				const u16 dst = static_cast<u16>((m_a_src + 7u) % kSlotCount);
-				(void)m_hud.drag_move(cell_cx(dst), cell_cy(dst), kDragStartPx);
-				if (m_hud.drag_drop() && move_item(m_a_src, dst)) {
-					++m_drag_ok;
+				// Destino **segun la politica**: la primera celda que acepta (vacia o
+				// pila del mismo tipo con hueco); sin candidata, cancela.
+				u16 dst = kNoSlot;
+				for (u16 i = 0u; i < kSlotCount; ++i) {
+					if (drop_accepts(m_a_src, i)) {
+						dst = i;
+						break;
+					}
+				}
+				if (dst != kNoSlot) {
+					(void)m_hud.drag_move(cell_cx(dst), cell_cy(dst),
+							      kDragStartPx);
+					(void)m_hud.set_drag_target(m_grid, dst,
+								    drop_accepts(m_a_src, dst));
+					if (m_hud.drag_drop() && move_or_stack(m_a_src, dst)) {
+						++m_drag_ok;
+					} else {
+						++m_drag_bad;
+					}
 				} else {
-					++m_drag_bad;
+					(void)m_hud.drag_cancel();
+					++m_drag_ok;
 				}
 			}
 			eng::debug::DebugPeripheral::counter_value(1u, m_drag_ok);

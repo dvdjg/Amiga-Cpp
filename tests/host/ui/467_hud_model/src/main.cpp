@@ -180,12 +180,21 @@ void test_drag() {
 	CHECK(hud.drag().phase == eng::hud::DragPhase::Pressed);
 	CHECK(hud.drag_move(5, 0, eng::hud::kHudDragStartPx)); // supera el umbral
 	CHECK(hud.drag().phase == eng::hud::DragPhase::Dragging);
+	// Destino + politica `accepts(item_id, qty)` (H3): el juego la consulta por movimiento.
+	CHECK(hud.set_drag_target(grid, 2u, true));
+	CHECK(hud.drag().target_slot == 2u && hud.drag().accepts);
+	CHECK(!hud.set_drag_target(grid, 2u, true)); // sin cambio
+	CHECK(hud.set_drag_target(grid, 3u, false)); // destino rechazado por la politica
+	CHECK(!hud.drag().accepts && hud.drag().target_slot == 3u);
+	CHECK(!hud.set_drag_target(grid, 3u, false)); // sin cambio
 	CHECK(!hud.drag_release()); // en arrastre no es click
 	CHECK(hud.drag_drop());
 	CHECK(hud.drag().phase == eng::hud::DragPhase::Dropped);
+	CHECK(!hud.set_drag_target(grid, 2u, true)); // sin sesion activa
 	CHECK(!hud.drag_drop()); // terminal
 	CHECK(hud.drag_reset());
 	CHECK(hud.drag().phase == eng::hud::DragPhase::Idle);
+	CHECK(hud.drag().target_slot == eng::hud::kHudNoSlot); // reset limpia el destino
 	CHECK(hud.drag_begin(grid, 0u, 10u, 1u, 0, 0));
 	CHECK(hud.drag_cancel());
 	CHECK(hud.drag().phase == eng::hud::DragPhase::Cancelled);
