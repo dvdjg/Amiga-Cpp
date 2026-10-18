@@ -21,6 +21,8 @@ palabra de guarda de la hoja, y recorren **bandas disjuntas** (las políticas de
 y save-under solo son correctas si un objeto no invade la caja de otro). `g_eng_run_status.detail`
 publica `actores << 8 | jobs`.
 
+**Contenido exigente (regla 25) y telemetría de memoria:** el fondo no es liso — al init se pinta por CPU un **paisaje estructurado** (suelo, horizonte, tres montañas, sol y árboles) en los índices 5..7, que el copper no reescribe (COLOR00 y COLOR01..04 sí); los BOB llevan **ritmo por objeto** en sus lissajous (pares/impares a distinta velocidad). Por el periférico de depuración se exponen `fps10` y un **self-check de memoria** (`bob_ok`/`bob_bad`): cada frame lee el píxel central de cada BOB en los planos reales y comprueba su índice — `bob_bad = 0` prueba que los objetos están dibujados en memoria (no solo en vídeo). Ver `VALIDATION.md`.
+
 ## Copper por objeto y a nivel de escena
 
 El copper del frame lo compone `copper::Plan`:

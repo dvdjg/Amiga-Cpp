@@ -39,6 +39,8 @@
 #include <eng/api/game.hpp>         // App/Screen + servicios (Blitter/copper)
 #include <eng/core/math/sinetable.hpp>
 #include <eng/core/util/color.hpp>
+#include <eng/debug/hud.hpp>        // HudFpsWindow (fps10 por contador)
+#include <eng/debug/peripheral.hpp> // contadores (telemetria de memoria)
 #include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/intent_queue.hpp>
@@ -145,9 +147,11 @@ constexpr eng::u8 kObjPolicies = 3u;
 constexpr eng::u8 kObjCopperSteps = 4u;   // pasos de degradado de copper por objeto
 
 // Paleta base: fondo + colores de los tres objetos (COLOR01..). El cielo reescribe
-// COLOR00 por línea; cada objeto reescribe COLOR01.. con su degradado.
+// COLOR00 por línea; cada objeto reescribe COLOR01.. con su degradado. Los indices 5..7
+// son del **fondo estructurado** (suelo/montanas/sol, pintado en el bitmap al init): el
+// copper no los toca, asi que se ven estables en toda la pantalla (regla 25).
 constexpr eng::Palette32 kPalette {{
-	0x013, 0xf00, 0x0f0, 0xff0, 0x333, 0x333, 0x333, 0x333,
+	0x013, 0xf00, 0x0f0, 0xff0, 0x333, 0x140, 0x642, 0xf70,
 	0x333, 0x333, 0x333, 0x333, 0x333, 0x333, 0x333, 0x333,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
@@ -232,6 +236,7 @@ struct BobObjectsDemo {
 			return;
 		}
 		app.device().blitter_clear(m_bitmap.view, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
+		draw_background();
 		build_sheet();
 		if (!add_actors()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008603u);
@@ -264,6 +269,11 @@ struct BobObjectsDemo {
 			return;
 		}
 		app.device().takeover_copper(m_plan);
+		// Telemetria (regla 25): fps10 y self-check de MEMORIA de los BOB (contadores).
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
+		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("bob_ok"));
+		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("bob_bad"));
+		m_fps_win.reset(app.frame(), eng::debug::prof_clock());
 		eng::debug::mark_ready(g_eng_run_status,
 				       (static_cast<eng::u32>(kBobCount) << 8u) |
 					       static_cast<eng::u32>(m_plan.intent_count() & 0xffu));
@@ -325,7 +335,9 @@ struct BobObjectsDemo {
 			const eng::u16 row = static_cast<eng::u16>(i / kCols);
 			const eng::s16 cx = static_cast<eng::s16>(col * kCellW + kCellW / 2u);
 			const eng::s16 cy = static_cast<eng::s16>(row * kCellH + kCellH / 2u);
-			const eng::u8 ph = static_cast<eng::u8>((i * 7u + t) & 63u);
+			// Ritmo por objeto (i par/impar a distinta velocidad): trayectorias mas variadas.
+			const eng::u8 ph = static_cast<eng::u8>(
+				(i * 7u + t * static_cast<eng::u16>(1u + (i & 1u))) & 63u);
 			a->desc.x = static_cast<eng::s16>(cx + kSin[ph] * 18 / 64);
 			a->desc.y = static_cast<eng::s16>(cy + kSin[static_cast<eng::u8>((ph + 21u) & 63u)] * 12 / 64);
 		}
@@ -352,6 +364,26 @@ struct BobObjectsDemo {
 			return;
 		}
 		ENG_PROF_END(kProfBlits);
+		// **Self-check de memoria** (regla 25, evidencia sin depender del video): el pixel
+		// central de cada BOB debe llevar su indice de variante (o un superconjunto de bits
+		// con la politica aditiva sobre fondo claro). Acumula ok/bad por contador.
+		for (eng::u8 i = 0u; i < kBobCount; ++i) {
+			auto a = m_actors.get(m_ids[i]);
+			if (!a.valid()) {
+				continue;
+			}
+			const eng::u8 expected = static_cast<eng::u8>((i % kObjVariants) + 1u);
+			const eng::u8 c = sample_pixel(
+				static_cast<eng::u16>(a->desc.x + 16),
+				static_cast<eng::u16>(a->desc.y + 16));
+			if ((c & expected) == expected) {
+				++m_bob_ok;
+			} else {
+				++m_bob_bad;
+			}
+		}
+		eng::debug::DebugPeripheral::counter_value(1u, m_bob_ok);
+		eng::debug::DebugPeripheral::counter_value(2u, m_bob_bad);
 		ENG_PROF_BEGIN(kProfCopper);
 #if K_086_STATIC_COPPER == 0
 #if K_086_PLANNER
@@ -381,6 +413,11 @@ struct BobObjectsDemo {
 		// Publica la lista del frame (swap de COP1LC) tras VBlank, como manda el contrato.
 		app.device().commit_copper(m_plan);
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		// fps10 por contador (ventana de 1 s; medida sin depender del video).
+		eng::u32 fps10 = 0u;
+		if (m_fps_win.update(app.frame(), eng::debug::prof_clock(), fps10)) {
+			eng::debug::DebugPeripheral::counter_value(0u, fps10);
+		}
 		// `loop` mide el ciclo completo (update+wait_vblank+render) entre dos renders: la
 		// diferencia con la suma de secciones de `update` es el tiempo de `wait_vblank`.
 		ENG_PROF_END(kProfLoop);
@@ -388,6 +425,102 @@ struct BobObjectsDemo {
 	}
 
 private:
+	/// Pixel del **fondo** en el bitmap (CPU, planos contiguos): pinta `color` (índice
+	/// lógico) en (x, y). Solo se usa al init (fondo estático): no toca el coste del frame.
+	void put_bg(eng::u16 x, eng::u16 y, eng::u8 color) {
+		eng::u8* const base = m_bitmap.view.data();
+		const eng::u32 row = static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u);
+		const eng::u8 bit = static_cast<eng::u8>(0x80u >> (x & 7u));
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			eng::u8* px = base + static_cast<eng::u32>(p) * kPlaneBytes + row;
+			if ((color & (1u << p)) != 0u) {
+				*px = static_cast<eng::u8>(*px | bit);
+			} else {
+				*px = static_cast<eng::u8>(*px & static_cast<eng::u8>(~bit));
+			}
+		}
+	}
+
+	/// **Fondo estructurado** (regla 25): suelo, tres montañas, sol y árboles, en los
+	/// índices 5/6/7 (estables: el copper solo reescribe COLOR00 y COLOR01..04). Se pinta
+	/// UNA vez al init; los BOB pasan por delante y el fondo se restaura por su política.
+	void draw_background() {
+		// Suelo (índice 5) con línea de horizonte (6).
+		for (eng::u16 y = 161u; y < kHeight; ++y) {
+			for (eng::u16 x = 0u; x < kWidth; ++x) {
+				put_bg(x, y, 5u);
+			}
+		}
+		for (eng::u16 x = 0u; x < kWidth; ++x) {
+			put_bg(x, 160u, 6u);
+		}
+		// Sol: disco r=20 en (270, 46), semicuerdas resueltas en compilación.
+		struct SunHalf {
+			eng::s16 v[41] {};
+			constexpr SunHalf() {
+				for (eng::s16 dy = -20; dy <= 20; ++dy) {
+					eng::s16 hw = 0;
+					while ((hw + 1) * (hw + 1) + dy * dy <= 400) {
+						++hw;
+					}
+					v[dy + 20] = hw;
+				}
+			}
+		};
+		constexpr SunHalf kSun {};
+		for (eng::s16 dy = -20; dy <= 20; ++dy) {
+			const eng::s16 hw = kSun.v[dy + 20];
+			for (eng::s16 dx = -hw; dx <= hw; ++dx) {
+				put_bg(static_cast<eng::u16>(270 + dx),
+				       static_cast<eng::u16>(46 + dy), 7u);
+			}
+		}
+		// Tres montañas (triángulos con pendiente ~5/8).
+		const eng::s16 peaks[3][2] = {{48, 112}, {156, 92}, {266, 118}};
+		for (eng::u8 m = 0u; m < 3u; ++m) {
+			const eng::s16 px = peaks[m][0];
+			const eng::s16 py = peaks[m][1];
+			for (eng::s16 y = py; y < 161; ++y) {
+				const eng::s16 hw = static_cast<eng::s16>((y - py) * 5 / 8);
+				for (eng::s16 dx = -hw; dx <= hw; ++dx) {
+					const eng::s16 x = static_cast<eng::s16>(px + dx);
+					if (x >= 0 && x < static_cast<eng::s16>(kWidth)) {
+						put_bg(static_cast<eng::u16>(x),
+						       static_cast<eng::u16>(y), 6u);
+					}
+				}
+			}
+		}
+		// Árboles: cinco barras verticales sobre el horizonte (índice 6).
+		const eng::u16 tx[5] = {24u, 92u, 168u, 236u, 296u};
+		for (eng::u8 i = 0u; i < 5u; ++i) {
+			for (eng::u16 y = 146u; y < 176u; ++y) {
+				for (eng::u16 x = tx[i]; x < static_cast<eng::u16>(tx[i] + 6u);
+				     ++x) {
+					put_bg(x, y, 6u);
+				}
+			}
+		}
+	}
+
+	/// Índice de color del píxel `(x, y)` del bitmap (planos contiguos, big-endian).
+	[[nodiscard]] eng::u8 sample_pixel(eng::u16 x, eng::u16 y) const {
+		const eng::u8* const base = m_bitmap.view.data();
+		const eng::u32 row = static_cast<eng::u32>(y) * kBytesPerRow + (x >> 4u) * 2u;
+		const eng::u16 bit = static_cast<eng::u16>(0x8000u >> (x & 15u));
+		eng::u8 c = 0u;
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			const eng::u8* const pw =
+				base + static_cast<eng::u32>(p) * kPlaneBytes + row;
+			const eng::u16 w = static_cast<eng::u16>(
+				(static_cast<eng::u16>(pw[0]) << 8u) | pw[1]);
+			if ((w & bit) != 0u) {
+				c = static_cast<eng::u8>(c | (1u << p));
+			}
+		}
+		return c;
+	}
+
 	void build_sheet() {
 		eng::u8* sheet = m_sheet.view.data();
 		for (eng::u32 i = 0; i < kSheetBytes; ++i) {
@@ -553,6 +686,9 @@ private:
 	eng::Block<eng::PlaneTag> m_bitmap {};
 	eng::Block<eng::BobTag> m_sheet {};
 	eng::Block<eng::BobTag> m_save {};
+	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps10 (telemetria)
+	eng::u32 m_bob_ok = 0u;                ///< self-check: BOB presentes en memoria
+	eng::u32 m_bob_bad = 0u;               ///< self-check: BOB ausentes (deberia ser 0)
 	graphics::FramePlan m_blits {};
 	graphics::BobTarget m_target {};
 	eng::copper::Plan m_plan {};
