@@ -230,6 +230,8 @@ Decisión (usuario): la familia de scroll es **XYLimited** con **modo por eje** 
 
 Pendiente: una demo que ejercite el relleno poligonal por frame exige **abaratarla** (menos blits por cara) y **doble buffer del lienzo FG** (`DoubleBufferScrollPlayfield` es la base para scroll; falta el equivalente para el FG del DPF). Hasta entonces el sink y la ruta Amiga quedan respaldados solo por **HOST-062** (NO VERIFICADA por hardware) e importar `flatshade`/`stencil3d` sobre él no es prioritario. Nota: el Blitter de `amiga` cobra ~57 ciclos por escritura a registro custom y cada blit espera al anterior, así que el número de blits por cara domina el coste.
 
+**Presentación (25→50 Hz) y horizonte Copper**: plan propio en [ROADMAP_3D_PRESENTACION.md](ROADMAP_3D_PRESENTACION.md) — fotogramas intermedios por paneo de cámara sobre framebuffer sobredimensionado (técnica: `camera-pan-fake-frames.md`) y cielo/tierra por offset de scanline en DPF 2+3 con el driver por-línea compartido con la carretera por raster (técnica: `copper-horizon-dpf.md`).
+
 **Capa de bobs/personajes**: ver opción A del roadmap general (capa de objetos en el FG lineal DPF, 110/111 ya a medio pulir).
 
 ## Rasterizado acelerado (seam `Surface`/`Rasterizer`) — próximas mejoras (2026-09)
