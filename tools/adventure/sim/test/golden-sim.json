@@ -36,7 +36,23 @@
         },
         {
           "tag": "BOXD",
-          "size": 19
+          "size": 30
+        },
+        {
+          "tag": "BOXM",
+          "size": 10
+        },
+        {
+          "tag": "CLUT",
+          "size": 776
+        },
+        {
+          "tag": "OBCD",
+          "size": 39
+        },
+        {
+          "tag": "OBIM",
+          "size": 94
         }
       ],
       "lflfBlocks": [
@@ -52,12 +68,12 @@
       "scripts": [
         {
           "tag": "SCRP",
-          "off": 71,
+          "off": 1001,
           "size": 10
         },
         {
           "tag": "EXCD",
-          "off": 81,
+          "off": 1011,
           "size": 10
         }
       ]

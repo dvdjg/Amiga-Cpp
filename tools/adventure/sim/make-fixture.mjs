@@ -37,11 +37,35 @@ fs.mkdirSync(dir, { recursive: true });
 // --- datos (fixture.001) ---------------------------------------------------------------
 
 const rmhd = Buffer.from([0x40, 0x01, 0xc8, 0x00, 0x00, 0x00]); // 320 px / 200 líneas (LE)
-const boxd = Buffer.from([0x01, 0x00, 0x00, 0x40, 0x00, 0x00, 0x40, 0x40, 0x40, 0x0f, 0x00]); // 1 caja
+// BOXD: 1 caja completa V5 (20 B): ul(0,0) ur(64,0) lr(64,64) ll(0,64) + mask/flags/scale(255).
+const boxd = Buffer.from([
+	0x01, 0x00, // numBoxes (u16 LE)
+	0x00, 0x00, 0x00, 0x00, // ul
+	0x40, 0x00, 0x00, 0x00, // ur
+	0x40, 0x00, 0x40, 0x00, // lr
+	0x00, 0x00, 0x40, 0x00, // ll
+	0x0f, 0x00, 0xff, 0x00, // mask, flags, scale (u16 LE, 255 = 100 %)
+]);
+const boxm = Buffer.from([0x00, 0xff]); // adyacencia de la caja 0: [0]
+const clut = Buffer.from(Array.from({ length: 768 }, (_, i) => (i % 3 === 0 ? i / 3 : i % 3 === 1 ? (i * 2) & 0xff : 255 - (i / 3) | 0)));
+// Objeto 1: CDHD v5 (obj_id=1, x=5,y=6 → ×8, w=h=2 → 16 px, walk 40,48, dir 2) + VERB mínimo.
+const cdhd = Buffer.from([0x01, 0x00, 0x05, 0x06, 0x02, 0x02, 0x00, 0x00, 0x28, 0x00, 0x30, 0x00, 0x02]);
+const verb = Buffer.from([0x80, 0xa0]);
+const obcd = block('OBCD', Buffer.concat([block('CDHD', cdhd), block('VERB', verb)]));
+// Imagen del objeto 1: IMHD (78 B): id, image_count=1, width=height=16, 1 hotspot en (1,2).
+const imhd = Buffer.alloc(78);
+imhd.writeUInt16LE(1, 0);
+imhd.writeUInt16LE(1, 2);
+imhd.writeUInt16LE(16, 12);
+imhd.writeUInt16LE(16, 14);
+imhd.writeUInt16LE(1, 16);
+imhd.writeInt16LE(1, 18);
+imhd.writeInt16LE(2, 20);
+const obim = block('OBIM', block('IMHD', imhd));
 const scrpOps = Buffer.from([0x80, 0xa0]); // breakHere(); stopObjectCode();
 const excdOps = Buffer.from([0x80, 0xa0]);
 
-const room = block('ROOM', Buffer.concat([block('RMHD', rmhd), block('BOXD', boxd)]));
+const room = block('ROOM', Buffer.concat([block('RMHD', rmhd), block('BOXD', boxd), block('BOXM', boxm), block('CLUT', clut), obcd, obim]));
 const scrp = block('SCRP', scrpOps);
 const excd = block('EXCD', excdOps);
 const lflf = block('LFLF', Buffer.concat([room, scrp, excd]));

@@ -7,12 +7,14 @@ Infraestructura **host** (PC) del pipeline de conversión de aventuras clásicas
 - **Hecho**:
   - Oráculo compilado en local (`build-scummvm-tools.sh`: `descumm`) y toolchain de discos Amiga verificado (§Herramientas de disco).
   - **Workspace por juego** ([`WORKSPACE.md`](WORKSPACE.md) + `workspace.mjs`): estructura canónica en `out/adventure/<juego>/` (raw/decoded/edited/cook/preview/reports) con descriptor `game.json`.
-  - **Frontend SCUMM V5** (`frontends/scumm_v5/extract.mjs`, con su [README](frontends/scumm_v5/README.md)): índice, digest de salas, `dump-game`, `decode-boxes` (walkboxes BOXD/BOXM) y descompilado de guiones. Verificado sobre **MI1 Ultimate Talkie Edition** (86 salas, **748/748 guiones**, 150 costumes, 179 sonidos, 7 charsets, 1000 objetos, 86 salas con walkboxes) y MI2 UE (110 salas, **1006/1006 guiones**).
-  - **SIM v1** ([`sim/SCHEMA.md`](sim/SCHEMA.md) + validador `sim/sim.mjs`) con **fixture sintético** (`sim/make-fixture.mjs`) y golden test: `node --test tools/adventure/sim/sim.test.mjs`.
-  - **Análisis**: `analyze/opcode-usage.mjs` → informe de uso de opcodes con nombres del oráculo (`out/adventure/<juego>/reports/opcode-usage.json`).
-- **Planificado (I0–I5)**: decodificación semántica de objetos/costumes/imagen (I0/I2), frontend V3/V4 `.LFL` (copias Amiga), traductor de guiones (`translate/`, I1) y validador de presupuesto (`report/`, I4).
-- **Juego piloto**: **MI1** *Ultimate Talkie Edition* (V5) es el primer objetivo completo (ya extraído en `out/adventure/mi1/`); MI2 UE segundo; Fate of Atlantis CD tercero (ver «Fuentes locales» del roadmap).
-- **Referencia**: la VM del motor original está descrita en [`docs/reference/scumm/vm-v5.md`](../../docs/reference/scumm/vm-v5.md).
+  - **Frontend SCUMM V5** (`frontends/scumm_v5/extract.mjs`, con su [README](frontends/scumm_v5/README.md)): índice, digest de salas, `dump-game`, `decode-boxes` (walkboxes BOXD/BOXM) y descompilado de guiones. Verificado sobre **MI1 Ultimate Talkie Edition** (86 salas, **748/748 guiones**, 150 costumes, 179 sonidos, 7 charsets, 1000 objetos) y MI2 UE (110 salas, **1006/1006 guiones**).
+  - **Decodificador** (`decode/scumm_v5-decode.mjs` + `decode/decoders.mjs`): construye el **SIM v2** semántico (`decoded/sim.json`) — tamaño de sala, walkboxes con adyacencia, paleta (CLUT/EPAL), objetos (CDHD/IMHD con hotspots) y guiones por sala. MI1: 792 walkboxes y 1027 objetos; MI2: 966 walkboxes y 1145 objetos.
+  - **Generador de contenido** (`codegen/emit-content.mjs`): SIM v2 → header C++ `constexpr` para el engine (`cook/cpp/<juego>_content.hpp`) con `eng::adv::RoomContent`/`find_room`. Verificado end-to-end compilando el header de MI1 contra el engine host (hit-test y walkbox reales de la sala 4).
+  - **SIM** ([`sim/SCHEMA.md`](sim/SCHEMA.md), validador `sim/sim.mjs`): v1 (inventario) y v2 (semántico) con fixture sintético propio y **golden tests** (`sim/`, `decode/` y `codegen/`).
+  - **Análisis**: `analyze/opcode-usage.mjs` → informe de uso de opcodes con nombres del oráculo (`reports/opcode-usage.json`).
+- **Planificado (I0–I5)**: decodificación de imagen (`RMIM`) y costumes (`COST`) para la cocina de assets (I2), frontend V3/V4 `.LFL` (copias Amiga), traductor de guiones (`translate/`, I1) y validador de presupuesto (`report/`, I4).
+- **Juego piloto**: **MI1** *Ultimate Talkie Edition* (V5) es el primer objetivo completo (workspace `out/adventure/mi1/`); MI2 UE segundo; Fate of Atlantis CD tercero (ver «Fuentes locales» del roadmap).
+- **Referencia**: la VM del motor original está descrita en [`docs/reference/scumm/vm-v5.md`](../../docs/reference/scumm/vm-v5.md); la capa de aventura del engine, en [`docs/engine/architecture/ADVENTURE_LAYER.md`](../../docs/engine/architecture/ADVENTURE_LAYER.md).
 
 ## `build-scummvm-tools.sh`
 

@@ -43,7 +43,7 @@ test('fixture: el extractor produce un SIM v1 estable (golden)', () => {
 
 test('validator: detecta un SIM corrupto', () => {
 	const broken = {
-		format: 'sim/2',
+		format: 'sim/9',
 		game: { id: '', source: { type: 'scumm-v5', data: 'no-array', enc: 'x' }, counts: {} },
 		roomNames: null,
 		rooms: [{ room: 0, name: 3, file: '', off: -1, blocks: [{ tag: 'TOOLONG', size: 1 }], lflfBlocks: [], scripts: [{}] }],

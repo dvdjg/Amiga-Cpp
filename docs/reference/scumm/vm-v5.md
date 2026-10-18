@@ -67,6 +67,6 @@ Consecuencia práctica: **implementar el top-30 cubre ~84 %** de la ejecución; 
 
 ## 6. Herramientas y verificaciones
 
-- Extracción y decodificación: `tools/adventure/frontends/scumm_v5/extract.mjs` (`dump-game`, `decode-boxes`), con el workspace canónico en `out/adventure/<juego>/` ([`WORKSPACE.md`](../../../tools/adventure/WORKSPACE.md)).
+- Extracción y decodificación: `tools/adventure/frontends/scumm_v5/extract.mjs` (`dump-game`, `decode-boxes`), `tools/adventure/decode/scumm_v5-decode.mjs` (**SIM v2**) y `tools/adventure/codegen/emit-content.mjs` (SIM v2 → tablas C++ de `eng::adv`), con el workspace canónico en `out/adventure/<juego>/` ([`WORKSPACE.md`](../../../tools/adventure/WORKSPACE.md)).
 - Uso de opcodes: `node tools/adventure/analyze/opcode-usage.mjs <juego>` → `reports/opcode-usage.json` (el oráculo aporta los nombres de handler parseando `script_v5.cpp`).
 - Oráculo de comportamiento: ejecutar el juego original en ScummVM y contrastar (salas, textos, transiciones) contra la extracción — criterio de aceptación de I0/I1.

@@ -32,6 +32,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { decodeWalkboxes } from '../../decode/decoders.mjs';
 
 const ENC_KEYS = [0x69, 0x00]; // clave de cifrado probable primero (V5 con GF_USE_KEY = 0x69)
 const INDEX_TAGS = new Set(['RNAM', 'MAXS', 'DROO', 'DSCR', 'DCOS', 'DSOU', 'DCHR', 'DOBJ', 'DIRF', 'DIRR', 'DIRS', 'DIRC', 'DIRN']);
@@ -347,47 +348,7 @@ function cmdDumpGame(args) {
 }
 
 // Decodifica las walkboxes (BOXD + BOXM) a JSON semántico en decoded/walkboxes/.
-// Formato V5 (boxes.cpp: `old` struct): u16 LE numBoxes, 20 B/caja:
-// 8×s16 LE (ulx,uly,urx,ury,lrx,lry,llx,lly) + mask u8 + flags u8 + scale u16 LE.
-// BOXM = listas de adyacencia por caja terminadas en 0xFF (`getBoxMatrixBaseAddr`, boxes.cpp:702).
-const BOX_SIZE_V5 = 20;
-function decodeRoomBoxes(data, room) {
-	const all = [...room.blocks, ...room.lflf_blocks];
-	const boxd = all.find((b) => b.tag === 'BOXD');
-	const boxm = all.find((b) => b.tag === 'BOXM');
-	if (!boxd) return null;
-	const p = data.buf.subarray(boxd.off + 8, boxd.off + boxd.size);
-	const count = p.readUInt16LE(0);
-	const boxes = [];
-	for (let i = 0; i < count && 2 + (i + 1) * BOX_SIZE_V5 <= p.length; i++) {
-		const o = 2 + i * BOX_SIZE_V5;
-		const g = (k) => p.readInt16LE(o + k * 2);
-		boxes.push({
-			id: i,
-			ul: [g(0), g(1)],
-			ur: [g(2), g(3)],
-			lr: [g(4), g(5)],
-			ll: [g(6), g(7)],
-			mask: p[o + 16],
-			flags: p[o + 17],
-			scale: p.readUInt16LE(o + 18),
-		});
-	}
-	let adjacency = null;
-	if (boxm) {
-		const m = data.buf.subarray(boxm.off + 8, boxm.off + boxm.size);
-		adjacency = [];
-		let q = m.length > 0 && m[0] === 0xff ? 1 : 0; // prefijo 0xFF opcional
-		for (let i = 0; i < count && q < m.length; i++) {
-			const ids = [];
-			while (q < m.length && m[q] !== 0xff) ids.push(m[q++]);
-			q++;
-			adjacency.push(ids);
-		}
-	}
-	return { room: room.room, numBoxes: count, boxes, adjacency, source: { file: path.basename(data.file), boxdOff: boxd.off, boxmOff: boxm ? boxm.off : -1 } };
-}
-
+// El formato y los citados viven en `../decode/decoders.mjs` (única implementación).
 function cmdDecodeBoxes(args) {
 	const g = loadGame(args._[1]);
 	const base = path.basename(args._[1]).replace(/\.[^.]*$/, '');
@@ -398,9 +359,23 @@ function cmdDecodeBoxes(args) {
 	for (const d of g.data) {
 		const list = args.room ? d.rooms.filter((r) => r.room === Number(args.room)) : d.rooms;
 		for (const r of list) {
-			const decoded = decodeRoomBoxes(d, r);
+			const all = [...r.blocks, ...r.lflf_blocks];
+			const boxd = all.find((b) => b.tag === 'BOXD');
+			const boxm = all.find((b) => b.tag === 'BOXM');
+			if (!boxd) continue;
+			const decoded = decodeWalkboxes(
+				d.buf.subarray(boxd.off + 8, boxd.off + boxd.size),
+				boxm ? d.buf.subarray(boxm.off + 8, boxm.off + boxm.size) : null,
+			);
 			if (!decoded) continue;
-			fs.writeFileSync(path.join(dir, `room_${r.room}.json`), JSON.stringify(decoded, null, 2) + '\n');
+			const json = {
+				room: r.room,
+				numBoxes: decoded.numBoxes,
+				boxes: decoded.boxes,
+				adjacency: decoded.adjacency,
+				source: { file: path.basename(d.file), boxdOff: boxd.off, boxmOff: boxm ? boxm.off : -1 },
+			};
+			fs.writeFileSync(path.join(dir, `room_${r.room}.json`), JSON.stringify(json, null, 2) + '\n');
 			index.push({ room: r.room, boxes: decoded.numBoxes, adjacency: decoded.adjacency ? decoded.adjacency.length : 0 });
 		}
 	}
