@@ -468,17 +468,30 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Leccion / acciones:** (a) para verificar render NO basta el PNG de la captura por paso en este entorno: usar tambien evidencia de MEMORIA (self-check del framebuffer via contadores, como el que se hizo) o la ventana visible; (b) los tramos "congelados" de las capturas no son del demo (anotado junto a DT-023(d)); (c) los contadores acumulados del plan (plan no-ok / ejecucion fallida) son una telemetria barata que conviene dejar disponible.
 
-## DT-036 - Demo 303 (H2): cadencia 41,9 fps con la CPU muy holgada - ABIERTA
+## DT-036 - Demo 303 (H2): cadencia ~44 fps reales con la CPU muy holgada - ABIERTA (mecanismo acotado)
 
-**Sintoma:** `fps10` (contador del periferico; medida diferencial fiable, no depende del video) = **419 (41,9 fps)** frente a **499 (49,9)** de la 302 en el mismo entorno; el frame pierde VBlanks (~1,19 campos/frame).
+**Sintoma:** `fps10` (contador del periferico) = **419-424 (41,9-42,4 fps)** frente a **499 (49,9)** de la 302 en el mismo entorno; el frame pierde VBlanks.
 
-**Evidencia (hasta ahora):**
-- Secciones `ENG_PROF`: update 2,7k + present 5,3k + deltas 5,7k + apply ~20k de media; solo 14-15 frames dirty de ~270 y **9 ops max por apply** -> el coste del apply no explica el total.
-- **Ablacion del sondeo de entrada** (poll_mouse/poll_input fuera): el fps NO cambia.
-- El trabajo medido (~34k) + el resto del engine (~55k) queda muy por debajo del campo (142k): **no es coste, es sincronia** (falta medir el periodo TOTAL del frame desde el demo: el intento de contador se perdio entre re-instrumentaciones).
-- La 302, con MAS trabajo medido (~79k), sincroniza a 49,9.
+**Evidencia consolidada (2026-10-18, instrumentacion temporal en motor y demo, contadores del periferico):**
+- **Medida honesta con reloj de VBlank** (`os::frame_count`, 50 Hz exactos; contador `fps10_vb`): **444 (44,4 fps)** — la perdida es REAL (~11% de latidos) pero el reloj del periferico la exagera (incluye tiempo con la CPU fuera del hilo: es un reloj de pared, no de instrucciones). El balance exacto en 15 s: **659 frames / 747 VBlanks** (l_done vs vb_seq, ambos 1:1 con el IRQ) = 88 latidos absorbidos en 47 lotes multi-latido (frames de 2-5 campos; 25 de ellos de 3+).
+- **NO es el coste del demo**: secciones medidas con picos — update <=9k, draw_world <=3,2k, present <=2,2k, consume <=1,3k ciclos. El bloque deltas+apply muestra tiempos de PARED enormes (hasta ~700k) pero sus operaciones son baratas por inspeccion (rellenos CPU de <=16x16; **`hw_calls=0`: nunca va por Blitter**) -> **el tiempo de pared de las secciones bajo AmigaDOS vivo no es coste de CPU: esta contaminado por hilos/preempcion** (hallazgo de metodo: los cronometros por seccion con `prof_clock` solo son validos sin otros hilos del SO despertando; los maximos no son atribuibles al codigo).
+- **NO es (principalmente) el camino de espera de VBlank**: en modo **polling** (`run_frames_polling`) la cadencia medida es igual o PEOR (389-462 con el mismo reloj; medido en ventana larga de 15 s). El A/B fino por `App::run` no es viable hoy: el parche directo dispara una **fragilidad de codegen del toolchain** (ver DT-040).
+- El IRQ de VBlank esta sano: `isr_avg` ~4,9k ciclos, `vb_seq == l_beats` (1:1 con el latido del motor), sin IRQs perdidos.
+- La CPU esta holgada (trabajo << campo): la perdida viene de que el bucle principal **no esta listo para consumir el latido** en ~7% de los campos (queda "fuera" 2-5 campos), no de que el trabajo no quepa.
 
-**Plan:** (a) medir el periodo total del frame desde el demo (delta de `prof_clock()` por frame, contador dedicado) y contrastarlo con la suma de secciones; (b) comparar la fase del bucle con la 302 (update/render/present/espera) y el camino `run_frames` + mini-SO con frames cortos; (c) revisar si el orden/tamano de los `HudInput`/`Hud<>` o los eventos del guion alteran el latido del VBlank.
+**Plan (siguiente paso):** (a) perfilador por frame (`.amigaprofile` + IA local, `tools/debug/winuae-profile.mjs`) sobre la 303 en una ventana donde la perdida ocurre, con los puertos propios (el hilo paralelo ocupa 2345/2346) y la build de la extension (la de `WinUAE-DBG/` no lee `WINUAE_GDB_PORT`); (b) si el perfil confirma tiempo fuera del hilo, medir que tareas del SO despiertan (input.device/CLI) y decidir politica (prioridad del proceso, `SetTaskPri`, o reducir despertares); (c) contrastar con la 302 con el MISMO reloj de VBlank (su `fps10=499` es del reloj del periferico: medir `fps10_vb` antes de dar por buena la comparacion); (d) cerrar la 303 con el resultado.
+
+## DT-039 - `bus_budget.hpp`: division u64 -> `__udivdi3` (landmine de enlace con `-nostdlib`) - RESUELTA (fix directo)
+
+**Sintoma:** el enlace de cualquier demo que instancie `eng::hw::amiga500_bus_budget` falla con `undefined reference to __udivdi3` cuando el compilador NO elimina el calculo muerto de `remaining_pct10` (p. ej. al cambiar el inlining de `App::run`): el enlace de demos usa `-nostdlib` y `support/gcc8_a_support.s` solo aporta las rutinas de 32 bits.
+
+**Fix:** division en **u32** (el cociente cabe: peor caso `remaining <= 227x312x50` y `x1000 < 2^32`), documentado en el propio codigo. Si algun dia hiciera falta u64, habria que aportar `__udivdi3` en `support/`.
+
+## DT-040 - Fragilidad de codegen del toolchain m68k: `arith.hpp` "asm operand requires impossible reload" y sensibilidad de inlining - ABIERTA (familia DT-038)
+
+**Sintoma:** con un cambio de inlining en el TU de la demo (`App::run` llamando directo a `run_frames_polling`, un solo parche de una linea), gcc 15.1 m68k falla al compilar `eng::math::arith<short>::mulu` (`engine/include/eng/cpu/m68k/arith.hpp:42`): `'asm' operand requires impossible reload`. Con el codigo anterior compila; es presion de registros/decisiones de inlining, no un error del codigo fuente. Segunda instancia de la familia DT-038 (miscompilacion/fallo de codegen por flags/contexto del TU de la demo).
+
+**Plan:** (a) reproducir minimo (TU + flags) y reportar upstream; (b) mientras, evitar `DEMO_OPT` agresivo y cambios de inlining gratuitos en TUs de demo; (c) si reaparece, probar `-O2` (ya por defecto) y `-fno-*` del barrido DT-038.
 
 ## DT-037 - Demo 080: el render de la sala salio roto durante la sesion 2026-10-18 - RESUELTA (era miscompilacion -O3, DT-038)
 

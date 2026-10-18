@@ -54,7 +54,7 @@ Plan de implementación del diseño canónico [`HUD_SYSTEM.md`](../../engine/arc
 - **Entregable**: `HudPanel` (fila/columna/rejilla), `HudVerbBar` (botones + verbo activo), `Tooltip`/`Toast` con TTL por `Tick`, varias regiones simultáneas y `HudPlacement::Screen` para inventario modal; adaptador opcional `eng/rpg/hud_bridge.hpp` que convierte `Inventory`/`ItemInstance` en `HudSlotView` sin invertir dependencias.
 - **Detalle**: el panel modal decide pausa en el juego, no en el HUD; los paneles complejos pueden apoyarse en `eng::ui` para ventanas de aplicación, pero los componentes de juego no dependen de `UiContext`. La barra de verbos no incorpora *scripting*: solo presentación y selección.
 - **Verificación**: **HOST-472** — layout de panel, TTL de *tooltip*, múltiples regiones con *hit-test* correcto y adaptador RPG (icono, cantidad, equipo, vacío) contra un inventario de juguete. **Demo `306_hud_crpg`** con barra de verbos, inventario y *tooltip*; integración con la demo RPG existente como referencia de datos.
-- **Estado**: **parcial (2026-10-18)** — núcleo entregado y verificado por **HOST-472**: `VerbBar` (verbos con activo y foco), `Tooltip`/`Toast` con TTL por `Tick`, `Panel` + `panel_cell` (layout por columnas) y el **puente `eng/rpg/hud_bridge.hpp`** (`hud_slots_from_bag`: inventario + equipo → `HudSlotView`, sin invertir dependencias; es lo que consumen las aventuras de `ADVENTURE_LAYER.md` §3 y los CRPG). Documentado en `HUD_SYSTEM.md` §5.7. Pendiente: demo `306_hud_crpg` (barra de verbos + inventario + tooltip con visión y medidas) y las múltiples regiones simultáneas con *hit-test*.
+- **Estado**: **casi completo (2026-10-18)** — núcleo entregado y verificado por **HOST-472** (`VerbBar` con activo y foco, `Tooltip`/`Toast` con TTL, `Panel` + `panel_cell`, puente `eng/rpg/hud_bridge.hpp`) y **demo `306_hud_crpg` entregada**: barra de verbos (LOOK/TAKE/USE/OPEN/TALK), inventario alimentado por el puente (`ItemBag`/`ItemStore`/`Equipment` → `HudSlotView`), tooltip con TTL, entrada por `HudInput` (ratón/joystick) **y** `HudFocus` (anillo geométrico sobre el núcleo `eng/ui/interaction.hpp`) con los mismos efectos, guion determinista, gate de memoria (`fps10`/`aframe`) + verificación visual y de visión (`VALIDATION.md`; 45,6-49,9 fps). Pendiente: múltiples regiones simultáneas con *hit-test* en una demo (el resto del H5 está cerrado).
 
 ### H6 — Temas, atlas, fachada y cierre de rendimiento
 
@@ -77,10 +77,10 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 | HOST-472 | test | Paneles, barra de verbos, *tooltips*, múltiples regiones y puente RPG. |
 | HOST-473 | test | Tema, atlas de iconos, *skins*, cambio en caliente y fachada. |
 | `302_hud_band` | demo | HUD de acción en franja propia: contador, medidor y vidas. **Entregada y verificada** (H1). |
-| `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. |
+| `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. **WIP** (funcional; cierre pendiente de DT-036). |
 | `304_hud_drag` | demo | Inventario con arrastre, *ghost*, *drop* válido/inválido y cancelación. |
 | `305_hud_overlay` | demo | Overlay sobre juego en movimiento, sprites y presupuesto. |
-| `306_hud_crpg` | demo | Panel/verbos/inventario modal y puente con `eng::rpg`. |
+| `306_hud_crpg` | demo | Panel/verbos/inventario y puente con `eng::rpg`. **Entregada y verificada** (H5; `VALIDATION.md`). |
 
 ## Riesgos y decisiones abiertas
 

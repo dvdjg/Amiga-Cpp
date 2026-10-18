@@ -164,6 +164,30 @@ int main() {
 	check(clicks_a == 1, "Activate dispara on_click del foco");
 	check(!ctx.dispatch(action(eng::ui::UiAction::Cancel)), "Cancel sin dialogo no consume");
 
+	// --- foco geometrico (nucleo de interaccion: FocusRing) ------------------------------
+	// Tres botones en L (C a la izquierda, D a la derecha, E debajo de D): las flechas, si el
+	// widget no las consume, saltan al candidato mas cercano en esa direccion (centro a centro).
+	eng::ui::Button c;
+	c.bounds = eng::ui::Rect {0, 40, 20u, 12u};
+	c.text = "C";
+	eng::ui::Button d;
+	d.bounds = eng::ui::Rect {40, 40, 20u, 12u};
+	d.text = "D";
+	eng::ui::Button e;
+	e.bounds = eng::ui::Rect {40, 80, 20u, 12u};
+	e.text = "E";
+	root.add_child(&c);
+	root.add_child(&d);
+	root.add_child(&e);
+	ctx.set_focus(&c);
+	check(ctx.dispatch(action(eng::ui::UiAction::MoveRight)), "MoveRight consume con candidato");
+	check(ctx.focus == &d, "foco geometrico: C -> D (derecha)");
+	check(ctx.dispatch(action(eng::ui::UiAction::MoveDown)), "MoveDown consume con candidato");
+	check(ctx.focus == &e, "foco geometrico: D -> E (abajo)");
+	check(!ctx.dispatch(action(eng::ui::UiAction::MoveRight)),
+	      "sin candidato a la derecha no consume");
+	check(ctx.focus == &e, "el foco no cambia sin candidato");
+
 	// --- dibujo del boton (bisel segun WfPressed) ---
 	alignas(2) eng::u8 planes[kPlaneStride * kPlanes] {};
 	g_planes = planes;

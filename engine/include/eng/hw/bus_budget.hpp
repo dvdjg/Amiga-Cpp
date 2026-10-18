@@ -250,9 +250,14 @@ struct BusBudgetResult {
 	r.used_slots = display + copper + blitter + cpu;
 	r.remaining_slots = static_cast<s32>(r.total_slots) - static_cast<s32>(r.used_slots);
 
-	// Porcentaje restante en décimas (0 si negativo o >1000 %).
+	// Porcentaje restante en décimas (0 si negativo o >1000 %). División en **u32**: el
+	// cociente cabe (`remaining ≤ total = 227×312×vblanks`; el peor caso, fps=1 → 50
+	// vblanks → 3,54e9 < 2^32) y la variante u64 arrastraría `__udivdi3`, que el enlace
+	// de las demos (`-nostdlib`; `support/gcc8_a_support.s` solo aporta las rutinas de
+	// 32 bits) no resuelve: el link dependía de que el compilador eliminase este cálculo
+	// muerto, y cualquier cambio de inlining lo rompía (landmine DT-039).
 	if (r.total_slots != 0u && r.remaining_slots > 0) {
-		const u64 pct10 = (static_cast<u64>(r.remaining_slots) * 1000u) / r.total_slots;
+		const u32 pct10 = (static_cast<u32>(r.remaining_slots) * 1000u) / r.total_slots;
 		r.remaining_pct10 = pct10 > 1000u ? 1000u : static_cast<u16>(pct10);
 	}
 

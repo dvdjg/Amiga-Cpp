@@ -15,6 +15,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/ui/event.hpp>
+#include <eng/ui/interaction.hpp> // FocusRing (navegación geométrica de foco)
 #include <eng/ui/keymap.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/widget.hpp>
@@ -323,7 +324,96 @@ private:
 		if (action_widget(*focus, ev.action)) {
 			return true;
 		}
-		return event_widget(*focus, ev);
+		if (event_widget(*focus, ev)) {
+			return true;
+		}
+		// Navegación **geométrica** con las flechas cuando el widget con foco no las consume
+		// (p. ej. un botón): el anillo del núcleo de interacción (`eng::ui::FocusRing`) salta
+		// al widget aceptable más cercano en esa dirección (centro contra centro). Es la
+		// misma primitiva que usa el HUD de juego (`HUD_SYSTEM.md` §5.8).
+		switch (ev.action) {
+		case UiAction::MoveLeft:
+			return focus_move(-1, 0);
+		case UiAction::MoveRight:
+			return focus_move(1, 0);
+		case UiAction::MoveUp:
+			return focus_move(0, -1);
+		case UiAction::MoveDown:
+			return focus_move(0, 1);
+		default:
+			return false;
+		}
+	}
+
+	/// **Foco geométrico** (`FocusRing` del núcleo): mueve el foco al widget `WfAcceptsFocus`
+	/// visible y habilitado más cercano en la dirección `(dx, dy)`, dentro del modal superior
+	/// (o del escritorio). `false` si no hay candidato. La lista de candidatos está acotada
+	/// (`kMaxFocusWidgets`): con más widgets enfocables que el tope, participan los primeros
+	/// en orden de árbol (suficiente para diálogos/paneles del A500).
+	[[nodiscard]] bool focus_move(eng::s8 dx, eng::s8 dy) noexcept {
+		Widget* list[kMaxFocusWidgets] {};
+		FocusEntry entries[kMaxFocusWidgets] {};
+		eng::usize n = 0u;
+		Widget* basis = top_modal();
+		if (basis == nullptr) {
+			basis = root;
+		}
+		collect_focusable(basis, list, entries, n);
+		if (n < 2u) {
+			return false;
+		}
+		eng::u16 cur = 0xffffu;
+		for (eng::usize i = 0u; i < n; ++i) {
+			if (list[i] == focus) {
+				cur = static_cast<eng::u16>(i);
+				break;
+			}
+		}
+		if (cur == 0xffffu) {
+			return false;
+		}
+		FocusRing ring {};
+		ring.focus_rect(cur);
+		const FocusRing::Result r = ring.move(eng::Span<const FocusEntry> {entries, n}, dx, dy);
+		if (!r.moved || r.index >= n) {
+			return false;
+		}
+		set_focus(list[r.index]);
+		return true;
+	}
+
+	/// Entrada de foco geométrico: adapta un `Widget` a los conceptos de *hit* del núcleo
+	/// (`HitRectLike`); `id` es el índice en la lista de candidatos.
+	struct FocusEntry {
+		eng::Box box {};
+		eng::u16 id = 0u;
+		eng::u8 layer = 0u;
+	};
+
+	/// Tope de widgets enfocables que participan en una navegación geométrica (orden de
+	/// árbol; suficiente para diálogos/paneles del A500).
+	static constexpr eng::usize kMaxFocusWidgets = 32u;
+
+	/// Recoge en orden de árbol los widgets enfocables (visibles, habilitados, con
+	/// `WfAcceptsFocus`) con su caja para el anillo geométrico.
+	static void collect_focusable(Widget* n, Widget* (&list)[kMaxFocusWidgets],
+				      FocusEntry (&entries)[kMaxFocusWidgets],
+				      eng::usize& used) noexcept {
+		if (n == nullptr || !n->has(WfVisible)) {
+			return;
+		}
+		if (n->has(WfAcceptsFocus) && n->has(WfEnabled)) {
+			if (used < kMaxFocusWidgets) {
+				list[used] = n;
+				entries[used].box = eng::Box {n->bounds.x, n->bounds.y, n->bounds.w,
+							      n->bounds.h};
+				entries[used].id = static_cast<eng::u16>(used);
+				++used;
+			}
+		}
+		for (Widget* c = n->first_child; c != nullptr; c = c->next) {
+			collect_focusable(c, list, entries, used);
+		}
 	}
 
 	eng::Ref<Widget> m_pressed {};

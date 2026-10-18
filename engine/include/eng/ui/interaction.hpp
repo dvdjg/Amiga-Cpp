@@ -266,6 +266,20 @@ public:
 		return out;
 	}
 
+	/// Variante **sin rejillas** (anillo solo sobre rects: diálogos y paneles de la GUI).
+	template <HitRectLike R>
+	[[nodiscard]] Result move(eng::Span<const R> rects, eng::s8 dx, eng::s8 dy) noexcept {
+		struct NoGrid {
+			eng::Box area {};
+			eng::u8 cols = 0u;
+			eng::u8 rows = 0u;
+			eng::u8 pitch_x = 1u;
+			eng::u8 pitch_y = 1u;
+			eng::u16 first_id = 0u;
+		};
+		return move(rects, eng::Span<const NoGrid> {}, dx, dy);
+	}
+
 	/// Recorre el anillo en orden de empuje (rects y luego rejillas; circular).
 	template <HitRectLike R, HitGridLike G>
 	[[nodiscard]] Result next(eng::Span<const R> rects, eng::Span<const G> grids,
