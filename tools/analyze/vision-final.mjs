@@ -97,6 +97,39 @@ const res = await fetch(`${BASE}/api/chat`, {
 if (!res.ok) { console.error(`[vision-final] HTTP ${res.status}`); process.exit(2); }
 const answer = (await res.json())?.message?.content?.trim() ?? '';
 
+// Une el hard-wrap del modelo (párrafos partidos a ~72 columnas) en UNA línea lógica por
+// párrafo/ítem, como exige el gate `md-wrap` (AGENTS §1.2): se encadena una línea con la
+// siguiente mientras no sea estructural (lista/heading/tabla/cita) y la actual no acabe en
+// puntuación terminal ni la siguiente empiece un ítem nuevo.
+function joinWrappedLines(text) {
+	const lines = text.split(/\r?\n/);
+	const out = [];
+	const isStructural = (l) =>
+		/^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|\||>|```)/.test(l);
+	const isIndentedCont = (l) => /^\s{2,}\S/.test(l);
+	const endsTerminal = (l) => /[.:;!?…)"]$/.test(l.trim());
+	for (const raw of lines) {
+		if (raw.trim() === '') {
+			out.push(raw);
+			continue;
+		}
+		const prev = out.length > 0 ? out[out.length - 1] : '';
+		const canJoin =
+			prev !== '' &&
+			prev.trim() !== '' &&
+			!isStructural(raw) &&
+			!(isStructural(prev) && !isIndentedCont(raw)) &&
+			!endsTerminal(prev);
+		if (canJoin) {
+			out[out.length - 1] = prev.trimEnd() + ' ' + raw.trim();
+		} else {
+			out.push(raw);
+		}
+	}
+	return out.join('\n');
+}
+const answerJoined = joinWrappedLines(answer);
+
 const out = [
 	`# EVALUACIÓN DE VISIÓN — ${demoId}`,
 	'',
@@ -115,7 +148,7 @@ const out = [
 	'',
 	'## Respuesta (cruda)',
 	'',
-	answer,
+	answerJoined,
 	'',
 ].join('\n');
 

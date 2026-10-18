@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-18T16:45:33.314Z
+- Fecha: 2026-10-18T17:16:56.501Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png (5)
+- Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,36 +15,23 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Observación de las imágenes en orden temporal:**
+Las tres imágenes son idénticas entre sí. No hay cambio alguno en la composición visual ni en los datos de texto mostrados.
 
-**Imagen 1:**
-- **Elementos gráficos:** Una ventana de visualización con un fondo azul oscuro y un patrón de malla de puntos. Dentro de la ventana, hay cinco barras verticales de colores: dos cian, una amarilla, una cian y una naranja, dispuestas en fila horizontal. A ambos lados de las barras, hay dos grandes triángulos que parecen paredes o planos inclinados, uno verde oscuro a la izquierda y uno marrón a la derecha. El fondo de la ventana tiene un patrón de malla de puntos azul oscuro.
-- **Texto en la parte inferior:** "080 CAMERA PAN WINDOW", "FULL 12.5 + FAKE 25", "FRAME 0 FULL 1 FAKE 0", "FULL OFF 0 FAC 7 VER 28 PAN -128 K 2".
-- **Estado de los objetos:** Las barras están completamente visibles dentro del marco de la ventana. No hay artefactos visibles en los bordes de los objetos ni en el fondo.
+**Descripción de lo observable:**
 
-**Imagen 2:**
-- **Cambios observables:**
-  - Las barras se han desplazado ligeramente hacia la derecha.
-  - El texto en la parte inferior ha cambiado: "FRAME 62 FULL 28 FAKE 20", "FAKE OFF 2 FAC 9 VER 39 PAN -51 K 2".
-  - El valor de "PAN" ha cambiado de -128 a -51, lo que indica un movimiento de la cámara hacia la derecha.
-  - El valor de "FAKE OFF" ha cambiado de 0 a 2.
-  - El valor de "VER" ha cambiado de 28 a 39.
-  - El valor de "FAC" ha cambiado de 7 a 9.
-- **Estado de los objetos:** Las barras están completamente visibles dentro del marco de la ventana. No hay artefactos visibles en los bordes de los objetos ni en el fondo.
+*   **Elementos gráficos principales:**
+    *   Una ventana rectangular en el centro de la pantalla, con un fondo oscuro azul marino.
+    *   Dentro de esta ventana, se muestra una escena tridimensional simplificada, con un suelo gris y paredes de color verde oliva.
+    *   En el interior de la escena, hay cuatro barras verticales: dos a la izquierda (una cian y una amarilla) y dos a la derecha (una cian y una naranja).
+    *   La escena tiene un efecto de pixelación o malla visible en los planos.
 
-**Imagen 3:**
-- **Cambios observables:**
-  - Las barras se han desplazado aún más hacia la derecha.
-  - El texto en la parte inferior ha cambiado: "FRAME 64 FULL 24 FAKE 41", "FAKE OFF 1 FAC 9 VER 39 PAN -19 K 2".
-  - El valor de "PAN" ha cambiado de -51 a -19, lo que indica un movimiento de la cámara hacia la derecha.
-  - El valor de "FAKE OFF" ha cambiado de 2 a 1.
-  - El valor de "FULL" ha cambiado de 1 a 24.
-  - El valor de "FAKE" ha cambiado de 20 a 41.
-- **Estado de los objetos:** Las barras están completamente visibles dentro del marco de la ventana. No hay artefactos visibles en los bordes de los objetos ni en el fondo.
+*   **Texto en la parte inferior:**
+    *   Una línea de texto en blanco sobre fondo negro que permanece exactamente igual en todas las imágenes.
+    *   El texto es: `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 0 FULL 1 FAKE 0`, `FULL OFF 0 FAC 7 VER 28 PAN -128 K 2`.
 
-**Conclusión:**
-- Las imágenes muestran una secuencia de movimiento de la cámara (pan) hacia la derecha, lo que se refleja en el cambio de los valores de "PAN" y "FAKE OFF" en el texto de la parte inferior.
-- Los objetos (barras) se desplazan de manera coherente con el movimiento de la cámara.
-- No hay artefactos visibles en los bordes de los objetos ni en el fondo.
-- El fondo de la ventana tiene un patrón de malla de puntos azul oscuro, que permanece constante en todas las imágenes.
-- El texto en la parte inferior cambia en cada imagen, reflejando los parámetros de la cámara y el estado de los objetos.
+*   **Estado de los elementos:**
+    *   Todos los elementos gráficos y el texto están completamente visibles, sin recortes, sin artefactos, sin parpadeos ni movimientos.
+    *   El contorno de los objetos es limpio y no presenta halos ni píxeles cortados.
+    *   El fondo inmediato alrededor de los objetos es uniforme y no muestra restos de posiciones anteriores.
+
+**Conclusión:** No hay ninguna variación temporal entre las imágenes. Todas muestran exactamente la misma escena y los mismos datos.
