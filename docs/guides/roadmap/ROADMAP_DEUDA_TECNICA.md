@@ -489,15 +489,18 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Cierre:** biseccion por commits con git worktree: el commit original (1b32ab92) renderiza limpio y 45a056e9 rompe; la variable es -O3 en el TU de la demo (mismo codigo a -O2 limpio) -> **miscompilacion** (DT-038), no logica. Arreglo: DEMO_OPT=-O2, verificado por captura estatica y por el pase C de vision contra el INTENT (VALIDATION 9). Leccion de metodo (que la vision no cazo el sintoma): DEMO_VISUAL_DEBUG 5.1 y el pase C obligatorio en 6.4.
 
-## DT-038 - -O3 en el TU de la 080 rompe el render (miscompilacion del compilador m68k) - ABIERTA
+## DT-038 - -O3 en el TU de la 080 rompe el render (vectorizador de bucles de gcc 15 m68k) - RESUELTA (workaround; bug upstream pendiente)
 
 **Sintoma:** con DEMO_OPT=-O3 (en la TU de la demo; el engine queda en su optimizacion por defecto) el render de la sala 3D sale partido (triangulos/patron en X) en todos los paneos; con -O2 el mismo codigo renderiza el tunel correcto. No es un problema del fill ni de la geometria: la referencia CPU de la misma escena (host) es correcta y la biseccion por commits lo aisla al cambio de bandera.
 
 **Evidencia:**
 - Biseccion con git worktree (arbol aparte): 1b32ab92 limpio; 45a056e9 (que anade -O3) roto; 45a056e9 con DEMO_OPT=-O2 limpio. Capturas en la sesion (sequence de cada build).
 - El sintoma afectaba a las salas (planos 0-1) y no a los paneles (planos 2-3) en el build roto; en una variante (caja de sala desactivada a -O2) aparecieron rayas en los paneles: la firma es de **parametros de Blitter erroneos generados por codegen**, no de logica (los valores dependen del codigo compilado).
+- **Metodo del barrido**: paneo congelado (frame determinista) + md5 del PNG de la secuencia por variante de flags; el "correcto" se ancla contra `-O2`.
 - Coherente con la nota del toolchain: el codigo de la demo usa aritmetica Fixed/s16 intensiva y helpers inline del engine; -O3 (mas agresivo con alias/orden) sobre el TU de la demo es el sospechoso.
 
-**Workaround aplicado:** DEMO_OPT=-O2 en uild.args de la 080 (comentado).
+**Causa raiz (2026-10-18, barrido de flags con captura congelada determinista)**: el **vectorizador de bucles** de gcc. Con la camara congelada en pan=0 (`-DK080_PAN_FREEZE=0`) el render es determinista (md5 del PNG fijo): correcto a `-O2` (`9da58872...`), roto a `-O3` (`789708e7...`); `-O3 -fno-tree-vectorize` vuelve al md5 CORRECTO, mientras que `-fno-tree-slp-vectorize`, `-fno-gcse`, `-fno-tree-pre`, `-fno-tree-dominator-opts` y `-fno-web` siguen rotos (algunos con firma distinta, `222b70b2...`). En m68000 no hay SIMD: la vectorizacion no aporta y puede miscompilar.
+
+**Workaround aplicado:** `DEMO_OPT=-O2` en `build.args` de la 080 (medido: `-O3 -fno-tree-vectorize` no mejora a `-O2` en esta demo). Aviso preventivo en el comentario de flags de `tools/build/build-demo.sh` (DT-038): cualquier `DEMO_OPT=-O3` sospecha del vectorizador y prueba `-fno-tree-vectorize`. Bug de gcc pendiente de reporte upstream.
 
 **Plan:** (a) comparar el asm de -O2 vs -O3 de las funciones calientes del TU (bucle de caras, litter_line_eor_prepare inline y los helpers de fill) para localizar el punto; (b) si es un bug del compilador, registrar la bandera/version y evitarla en los uild.args de demos (documentar la comprobacion visual obligatoria cuando se active -O3 en un TU); (c) revisar las demas demos con DEMO_OPT=-O3 (p. ej. 116) con el pase C de vision.

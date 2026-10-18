@@ -259,6 +259,12 @@ COMMON=(
 	# `Address`/vistas desde almacenamiento). Con aliasing estricto el optimizador reordena/
 	# asume no-alias y el render se corrompe a `-O2` (demo 213). Es la opción recomendada de
 	# GCC para código de bajo nivel que reinterpreta memoria.
+	#
+	# AVISO `-O3`: el **vectorizador de bucles** de gcc 15 m68k miscompila a `-O3` (DT-038:
+	# la TU de la 080 generaba parámetros de Blitter erróneos y el render salía partido;
+	# `-fno-tree-vectorize` lo arregla). En m68000 no hay SIMD, así que si un `DEMO_OPT=-O3`
+	# cambia algo visible, sospechar del vectorizador: probar `-O3 -fno-tree-vectorize` o
+	# quedarse en `-O2` (opción verificada de la 080).
 	"-fomit-frame-pointer" "-fno-exceptions" "-fno-strict-aliasing"
 	"-ffunction-sections" "-fdata-sections"
 	"-DENG_AMIGA=1"
