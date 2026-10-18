@@ -152,6 +152,52 @@ if (!fs.existsSync(MAP)) {
   process.exit(1);
 }
 const resolve = makeResolver(parsed.sectionBases);
+
+/// Agrega las muestras de un frame por rutina (ciclos y nº de muestras).
+function frameRoutines(f) {
+  const m = new Map();
+  let total = 0;
+  for (const s of decodeSamples(f.samples)) {
+    const name = resolve(s.pc);
+    const acc = m.get(name) || { samples: 0, cycles: 0 };
+    acc.samples += 1;
+    acc.cycles += s.cycles;
+    m.set(name, acc);
+    total += s.cycles;
+  }
+  return { m, total };
+}
+
+// --- modo por frame (`--per-frame [top]` o `--frame N`): atribuye frames lentos --------
+const PER_FRAME = args.includes('--per-frame');
+const FRAME_ARG = args.indexOf('--frame');
+if (PER_FRAME) {
+  const topN = flag('--per-frame', 2) || 2;
+  console.log(`[samples] ${path.basename(BIN)} | por frame (top ${topN} rutinas) | ciclo muestreado = CPU ocupada`);
+  for (let i = 0; i < parsed.frames.length; ++i) {
+    const f = parsed.frames[i];
+    const { m, total: t } = frameRoutines(f);
+    const top = [...m.entries()].sort((a, b) => b[1].cycles - a[1].cycles).slice(0, topN);
+    const list = top.map(([n, v]) => `${n}:${v.cycles}`).join(' ');
+    console.log(`  f${String(i).padStart(3)}: ocupada=${String(f.profileCycles).padStart(7)} libre=${String(f.idleCycles).padStart(7)} muestreo=${String(t).padStart(7)} | ${list}`);
+  }
+  process.exit(0);
+}
+if (FRAME_ARG >= 0) {
+  const idx = parseInt(args[FRAME_ARG + 1] || '0', 10);
+  const f = parsed.frames[idx];
+  if (!f) {
+    console.error(`[samples] frame ${idx} fuera de rango (0..${parsed.frames.length - 1})`);
+    process.exit(1);
+  }
+  const { m, total: t } = frameRoutines(f);
+  console.log(`[samples] frame ${idx}: ocupada=${f.profileCycles} libre=${f.idleCycles} muestreo=${t}`);
+  for (const [n, v] of [...m.entries()].sort((a, b) => b[1].cycles - a[1].cycles).slice(0, TOP)) {
+    console.log(`  ${String(v.cycles).padStart(8)}  ${(100 * v.cycles / (t || 1)).toFixed(1).padStart(5)}%  ${n}  (${v.samples} muestras)`);
+  }
+  process.exit(0);
+}
+
 const byRoutine = new Map();
 let total = 0, busy = 0, idle = 0;
 for (const f of parsed.frames) {
