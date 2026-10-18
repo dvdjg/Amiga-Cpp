@@ -56,7 +56,8 @@ raw/{index,rooms,scripts} ──decode──► decoded/{sim.json, walkboxes/, p
 | `decoded/sim.json` | `raw/rooms` (RMHD, BOXD/BOXM, CLUT, CDHD/IMHD) | `codegen/`, previewer (I3) | `room` (id) y `objects[].id` |
 | `decoded/png/rooms/room_<N>.png` | bloque `RMIM` + paleta del SIM | cocina, visión, previewer | `sim.rooms[N]` (width/height/paleta) |
 | `decoded/png/objects/room_<N>_obj<M>.png` | entrada `IMxx` del `OBIM` + paleta | cocina (BOBs/sprites), visión | `sim.rooms[N].objects` con `id=M` (x,y) |
-| `decoded/audio/NNNNN.flac` | contenedor `.sof` | cocina de audio (I2) | `manifest.json` (`org`/`off`) |
+| `decoded/png/costumes/costume_<id>.png` | bloque `COST` (`DCOS`) | cocina de actores (I2), visión | `costumes.json` (limbs/cels/paleta) |
+| `decoded/audio/NNNNN.flac` | contenedor `.sof` | cocina de audio (I2), `analyze/audio-map.mjs` | `manifest.json` (`org`/`off`) |
 | `decoded/ast/room_<N>/*.ast.json` | `.txt` de descumm | traductor I1, revisión | basename del guion |
 | `edited/stages/room_<N>.stage.json` | andamio desde `decoded/sim.json` + edición humana | compositor A3, validador I4 | `room` y `layers[].content.ref` |
 | `cook/cpp/scripts/room_<N>_scripts.hpp` | `decoded/ast` (traductor) | juego en el engine (`W` de `script_hooks.hpp`) | nombre `scrp_<sala>_<guion>` |
@@ -73,11 +74,13 @@ raw/{index,rooms,scripts} ──decode──► decoded/{sim.json, walkboxes/, p
 | Extracción (V5) | `node tools/adventure/frontends/scumm_v5/extract.mjs dump-game <juego.000> --out out/adventure/<juego>` | `raw/` |
 | Walkboxes | `... extract.mjs decode-boxes <juego.000> --out out/adventure/<juego>` | `decoded/walkboxes/` |
 | SIM v2 semántico | `node tools/adventure/decode/scumm_v5-decode.mjs <juego>` | `decoded/sim.json` + `decoded/png/` + `decoded/images.json` |
+| Costumes (hojas PNG) | `node tools/adventure/decode/costume.mjs <juego>` | `decoded/png/costumes/` + `costumes.json` |
 | Audio (`.sof`) | `node tools/adventure/decode/sof-extract.mjs <juego>` | `decoded/audio/` (+`manifest.json`) |
 | AST de guiones (I1) | `node tools/adventure/translate/parse.mjs <juego>` | `decoded/ast/` + `reports/parse-coverage.json` |
 | Guiones C++ (I1) | `node tools/adventure/translate/emit.mjs <juego>` | `cook/cpp/scripts/` + `reports/translate-report.json` |
 | Formato Amiga por sala | `node tools/adventure/formats/scaffold-stages.mjs <juego>` | `edited/stages/` |
 | Cues de audio | `node tools/adventure/analyze/audio-cues.mjs <juego>` | `reports/audio-cues.json` |
+| Mapa de audio (ids/habla → pistas) | `node tools/adventure/analyze/audio-map.mjs <juego>` | `reports/audio-map.json` |
 | Contenido C++ | `node tools/adventure/codegen/emit-content.mjs <juego>` | `cook/cpp/<juego>_content.hpp` |
 | Informes | `node tools/adventure/analyze/opcode-usage.mjs <juego>` | `reports/` |
 | Estado | `node tools/adventure/workspace.mjs status` | — (stdout) |

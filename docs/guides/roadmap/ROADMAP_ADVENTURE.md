@@ -8,7 +8,7 @@ Principio rector: un **vertical slice** (un muelle con parallax + caminar + usar
 
 | Hito | Contenido | Estado |
 |---|---|---|
-| **A0 — Núcleo de sala** | Sala, walkboxes, cámara de mundo, actor que camina | **EN CURSO** — navegación por walkboxes (`eng/adv/navigation.hpp`) y cámara (`eng/adv/camera.hpp`) con **HOST-475**; falta la demo `001_adv_walk` que los ejerza |
+| **A0 — Núcleo de sala** | Sala, walkboxes, cámara de mundo, actor que camina | **EN CURSO** — navegación por walkboxes (`eng/adv/navigation.hpp`) y cámara (`eng/adv/camera.hpp`) con **HOST-475**; demo `001_adv_walk` creada y funcional (ruta+cámara+HUD+click, visión OK) pero **NO VERIFICADA por presupuesto** (~16,6 fps con bug de cadencia abierto: `docs/debugging/investigaciones/001-adv-walk-pacing.md`) |
 | **A1 — Verbos e interacción** | Verbos (dato), hotspots, hit-test, say, inventario | Pendiente |
 | **A2 — Diálogo y Director** | Árboles de diálogo con hechos + cutscenes | Pendiente |
 | **A3 — Stage Composer** | Capas, parallax, Copper Score, presupuesto y degradación | **EN CURSO** — formato **`adv-stage/1`** definido y validado ([`STAGE_FORMAT.md`](../../../tools/adventure/formats/STAGE_FORMAT.md)) con andamios generados desde el SIM; falta el compositor y las demos |
