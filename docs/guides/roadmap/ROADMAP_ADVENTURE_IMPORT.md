@@ -1,0 +1,115 @@
+# Roadmap: importación de aventuras clásicas y previewer (pipeline host)
+
+Plan del **pipeline de PC** que convierte juegos de aventura clásicos (SCUMM V5/V6 —Monkey Island 1/2, Indy, DOTT—, y después AGI/SCI) en **proyectos nativos del engine**: código C++ de `eng::adv` + datos cocinados + assets, compilables con el toolchain normal. El diseño de la capa destino está en [`ADVENTURE_LAYER.md`](../../engine/architecture/ADVENTURE_LAYER.md) y el plan de la capa en [`ROADMAP_ADVENTURE.md`](ROADMAP_ADVENTURE.md).
+
+**Estrategia**: ScummVM y sus herramientas se usan como **oráculo de formato y comportamiento en el host**, no como runtime que se porta; el formato canónico propio es el **SIM** (Semantic Intermediate Model — la idea «AIR» de la consulta externa), independiente del motor original y **ampliable con información Amiga** (capas de scroll, transparencias por color, cues de Copper, preferencia de materialización). La traducción de guiones es **semiautomática**: reglas deterministas para los patrones comunes + IA local **opcional y offline** (solo produce propuestas revisables), nunca un paso del build.
+
+## Decisiones fijadas
+
+- **Sin VM ni bytecode en el Amiga**: la salida del pipeline es C++ compilado + tablas ROM/UAF (misma decisión que `RPG_LAYER.md` §5.7). El SIM existe solo en el host; un intérprete del SIM (si se implementa) es la herramienta de *preview*/oráculo del PC, no un componente del juego.
+- **Builds deterministas**: el traductor por defecto es de reglas (golden files); la IA es un modo `--ai` off-line cuyas propuestas se revisan y se commitean como código, de forma que el build **no depende** de un modelo ni de la red.
+- **Higiene de licencias**: ScummVM/GPL y las herramientas de extracción se usan como **proceso externo** o como referencia para reimplementar parsers pequeños en `tools/`; nada de código GPL se enlaza en `engine/` ni en el binario Amiga. Las atribuciones se anotan en la sección *Créditos* de `docs/README.md` al incorporar cada pieza.
+- **Herramientas host, código objetivo freestanding**: el pipeline (TypeScript/C++ de PC) puede usar STL/Node; lo **generado** para el Amiga respeta las reglas del engine (capacidades fijas, `Span`, cero heap, sin `malloc`, sin 68020).
+- **SIM versionado** (esquema con número de versión) y validado contra un esquema; fixtures de test **sintéticos y propios** (nada de datos de juegos comerciales versionados en el repo; las ejecuciones locales reales no se commitean).
+- **Enriquecimiento Amiga con revisión humana**: separar fondos en capas de parallax, marcar máscaras de color y proponer cues de Copper son **sugerencias asistidas** que se editan y versionan en el SIM, con **modo diff** contra la versión importada.
+
+## Estado
+
+| Hito | Contenido | Estado |
+|---|---|---|
+| **I0 — SIM y extracción** | Esquema SIM + extractor SCUMM V5/V6 (salas, walkboxes, objetos, costumes, textos) | Pendiente |
+| **I1 — Traducción de guiones** | Descompilado → AST semántico → C++ de `eng::adv` (reglas; IA opcional con revisión) | Pendiente |
+| **I2 — Cocina de assets** | Fondos a planar/tiles/EHB, costumes a animaciones del engine, audio al pipeline | Pendiente |
+| **I3 — Previewer Amiga-aware** | Visor/editor de PC que reutiliza la lógica pura del engine y muestra presupuesto | Pendiente |
+| **I4 — Enriquecimiento y presupuesto** | Capas/transparencias/cues asistidos + informe de presupuesto + modo diff | Pendiente |
+| **I5 — Segundo motor y segundo juego** | AGI/SCI sobre el mismo SIM; validación de genericidad | Pendiente |
+
+---
+
+## I0 — SIM y extracción (SCUMM V5/V6 primero)
+
+**Objetivo**: extraer un juego completo a un modelo semántico limpio, sin ejecutar nada del motor original.
+
+**Entregables**:
+
+1. `tools/adventure/sim/`: tipos del SIM + esquema versionado + validador (`node --test`) — salas (fondo, walkboxes, depth zones, hotspots, scripts por objeto), actores/costumes, textos, verbos, diálogos y metadatos de juego. Salida en JSON legible (`sim.json`) para editar y versionar.
+2. `tools/adventure/frontends/scumm_v5/` (y `scumm_v6/`): extractores de rooms/objects/costumes/BOXD-BOXM/textos; la referencia de formato es el código de ScummVM y las herramientas `descumm`/`scummrp`/NUTCracker se invocan como **procesos externos** (ruta configurable) o se reimplementan los parsers mínimos.
+3. **Informe de extracción**: por juego, cobertura (número de salas/objetos/costumes/textos extraídos vs. esperados) y lista de elementos marcados `needs_review`; se guarda como texto canónico en `docs/` al cerrar cada juego (la media va a `out/adventure/<juego>/`, gitignored).
+4. Fixtures sintéticos propios (un «mini-juego» SCUMM-like generado por nuestras herramientas) para golden tests deterministas.
+
+**Verificación**: suite `node --test` del SIM (esquema, casos límite) + golden del fixture + una extracción real local completa de un juego V5/V6 como prueba de aceptación (no versionada).
+
+## I1 — Traducción de guiones a C++
+
+**Objetivo**: `descumm`/NUTCracker → AST semántico → funciones C++ registradas contra `eng::adv`, con trazabilidad de lo no traducido.
+
+**Entregables**:
+
+1. `tools/adventure/translate/`: parser de la salida descompilada → AST propio; **reglas deterministas** para los patrones núcleo (`walkActorTo`/`putActor` → `actor.walk_to`/`set_position`; `startScript`/`stopScript` → llamadas a guiones; `setState`/`getState` → estado de objeto; `sayLine`/`printEgo` → `say`; `loadRoom` → `change_room`; condiciones/variables → hechos/`CondKind`), emitiendo C++ con la API de la capa.
+2. **Modo `--ai` (opcional, offline)**: fragmentos no cubiertos por reglas se envían al modelo local con el contexto del objeto/sala y la API de `eng::adv`; la respuesta se guarda como propuesta con nivel de confianza y **requiere revisión humana** antes de commitearse (los `.cpp` revisados son la fuente, no el modelo).
+3. **Marcas de revisión**: opcode raro o condición ambigua → `// REVISAR:<motivo>` + entrada en el `report.md`; métrica de cobertura (% de guiones traducidos sin marca; objetivo 80–90 % de lo jugable en V5/V6, el resto explícito).
+4. **Gates de codegen**: el C++ generado se compila con el toolchain y pasa `asm-audit.mjs`/`codegen-report.mjs` (sin 68020/FPU, sin libcalls nuevas no justificadas), como cualquier código del engine.
+
+**Verificación**: golden de traducción del fixture (entrada descompilada → C++ esperado) + compilación m68k del proyecto generado + una sala real jugable (local) como aceptación.
+
+## I2 — Cocina de assets
+
+**Objetivo**: convertir el material extraído al pipeline del engine, con round-trip verificado.
+
+**Entregables**:
+
+1. **Fondos**: imagen de sala → paleta del engine (mediancut/dither del pipeline de tiles), bitmap planar a pantalla completa o tiles interleaved según la clase de la sala (decisión del usuario en el SIM: full-bitmap para salas «de aventura», tilemap cuando convenga scroll infinito).
+2. **Costumes → animaciones**: frames por dirección/acción a `ActorDesc`/animaciones de `scene::Actor` (BOB/sprite) con anclas y máscaras; respeta el par *attached* de sprites cuando aplique (derivado del arte, como ya hace el engine).
+3. **Objetos/props** → BOBs/sprites cocinados; **textos** → tabla de strings del juego (con acentos/LATIN-1) y fuentes bitmap → `Font8`/glifos.
+4. **Audio**: SFX → `tools/audio/prep-sample.ts` (formato del mixer); música: SCUMM usa iMUSE/MIDI — **no se emula**: el informe marca cada tema como `needs_music` y el juego aporta módulos P61/pt propios o transcripciones (decisión explícita, no un fallo del pipeline).
+5. **Empaquetado**: chunks UAF-R para todo lo nuevo (bitmaps, sprites, walkboxes/hotspots como chunk de aventura); el formato se documenta en la sección de aventura de [`UAF_PACK.md`](../../tools/UAF_PACK.md) al implementarlo.
+
+**Verificación**: round-trip al 100 % para imágenes (regla del pipeline de tiles: cuantizar antes de extraer, comparar al 100 %, [`REGLAS_PIPELINE_TILES.md`](REGLAS_PIPELINE_TILES.md)) + goldens de tamaños + vision check de una sala cocinada en el previewer.
+
+## I3 — Previewer Amiga-aware (PC)
+
+**Objetivo**: ver y editar la aventura **antes** de pasarla al Amiga, reutilizando la lógica real del engine (no un simulador aparte).
+
+**Entregables**:
+
+1. `host-tools/adv-preview/` (C++23 + SDL3, como `host-tools/audio-compressor`): carga SIM + datos cocinados y dibuja la sala con el software rasterizador (`CanvasPlayfield`-style) usando el **código puro del engine compilado en host**: `scene::LayerPlan`/`SceneStrategy`, `adv::composer` y `adv::camera`, walkboxes/hit-test — la misma planificación que correrá en Amiga.
+2. **Overlays de autoría**: walkboxes, hotspots, depth zones, bordes de banda y toggles por capa/efecto; panel de **presupuesto** (bytes Chip, palabras de Copper/línea, palabras de Blitter/frame estimadas, canales de sprite) con semáforo por perfil A500/A1200.
+3. **Límites declarados**: el previewer muestra el *plan* y su coste, no el timing real del chipset; la verdad de hardware sigue siendo WinUAE (build→run→analyze) y las demos del roadmap de la capa.
+4. Edición mínima: mover walkboxes/hotspots y anotar cues en el SIM, guardando el JSON versionable.
+
+**Verificación**: checklist de fidelidad contra la demo 004 (misma sala/capas reproducen la misma composición en WinUAE) + tests del panel de presupuesto contra el informe de I4.
+
+## I4 — Enriquecimiento Amiga, presupuesto y diff
+
+**Objetivo**: añadir lo que hace única la versión Amiga (multi-plano real, transparencias por color, Copper) con presupuesto **validado en el build**.
+
+**Entregables**:
+
+1. **Asistente de capas**: heurísticas que proponen separar el fondo importado en planos (cielo/mar/lejanos/figura), marcar máscaras de color clave y sugerir cues de Copper (salvo slots del HUD); las sugerencias se puntúan, se editan en el SIM y se versionan.
+2. **Informe de presupuesto** `tools/adventure/report/`: por sala, calcula bitplanes + buffers de scroll + sprites + copperlist + HUD con las constantes del engine (`RegionCost`, `eng/hw/bus_budget.hpp`) y **falla con mensaje claro** si la sala no cabe en el perfil elegido; salida `budget.json` + `report.md` consumibles por las demos y el slice de A5.
+3. **Modo diff** SIM vs SIM (importado vs editado): secciones y entradas cambiadas, para revisar el enriquecimiento sin perder el original.
+4. Segundo juego de prueba con el mismo pipeline (p. ej. otro título V5/V6) para validar que el SIM no quedó atado a un título.
+
+**Verificación**: informe validado contra dos salas contrastadas a mano (una dentro y una fuera de presupuesto) + el vertical slice A5 lo consume como gate de contenido.
+
+## I5 — Segundo motor y segundo juego
+
+**Objetivo**: generalizar el SIM y el traductor a más familias (AGI primero, luego SCI0/1) y demostrar la genericidad con un segundo juego.
+
+**Entregables**: frontend AGI (simple, bueno para fijar el SIM), frontend SCI (o V4 SCUMM —Loom/KQ— como paso intermedio), y una sala jugable de cada familia con el mismo backend de generación; actualización del informe de cobertura.
+
+**Verificación**: sala jugable por familia + golden tests por frontend; si un concepto del SIM no cubre una familia sin parches, se corrige el esquema (con versión nueva), no se abren caminos paralelos.
+
+---
+
+## Dependencias y riesgos
+
+- **Capa destino**: todo el pipeline depende de `eng::adv` (roadmap A0–A4); I0–I2 pueden avanzar en paralelo a A0–A1 porque solo necesitan el SIM y las convenciones de assets.
+- **Licencias**: la decisión de proceso externo/reimplementación se aplica por herramienta; nunca se enlaza GPL en el binario.
+- **iMUSE/música**: no se emula; cada tema queda marcado y se resuelve con módulos propios (el coste se declara por juego).
+- **Fidelidad de comportamiento**: el oráculo es ScummVM corriendo el juego original en PC; cuando un guion traducido difiera, la referencia es la ejecución del original (no la intuición), y el caso se documenta en `docs/debugging/` si revela una rareza de formato.
+- **Ruido de artefactos**: las extracciones reales van a `out/adventure/` (gitignored); al repo solo entran informes, esquemas, herramientas y fixtures sintéticos.
+
+## Próximo paso verificable
+
+I0 con el esquema del SIM + extractor de salas (fondo, walkboxes, objetos, textos) sobre el fixture sintético y una extracción real local de un juego V5/V6: sin un SIM validado, ni el traductor ni el previewer tienen contrato estable.

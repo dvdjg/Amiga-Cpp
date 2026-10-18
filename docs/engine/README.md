@@ -87,7 +87,7 @@ Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el m
 
 ### IA y simulación
 
-- [GAME_AI_LIBRARY.md](architecture/GAME_AI_LIBRARY.md) · [SIM_ECOSYSTEM.md](architecture/SIM_ECOSYSTEM.md) · [NPC_PSYCHOLOGY.md](architecture/NPC_PSYCHOLOGY.md) · [RPG_LAYER.md](architecture/RPG_LAYER.md) · [GOAP_EXTENDED.md](architecture/GOAP_EXTENDED.md) · [BOARD_GAME_AI.md](architecture/BOARD_GAME_AI.md) · [CARD_GAME_AI.md](architecture/CARD_GAME_AI.md).
+- [GAME_AI_LIBRARY.md](architecture/GAME_AI_LIBRARY.md) · [SIM_ECOSYSTEM.md](architecture/SIM_ECOSYSTEM.md) · [NPC_PSYCHOLOGY.md](architecture/NPC_PSYCHOLOGY.md) · [RPG_LAYER.md](architecture/RPG_LAYER.md) · [ADVENTURE_LAYER.md](architecture/ADVENTURE_LAYER.md) · [GOAP_EXTENDED.md](architecture/GOAP_EXTENDED.md) · [BOARD_GAME_AI.md](architecture/BOARD_GAME_AI.md) · [CARD_GAME_AI.md](architecture/CARD_GAME_AI.md).
 
 ### Estilo, hardware y concurrencia
 
@@ -113,4 +113,4 @@ Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el m
 
 - [ROADMAP_API_COHERENCE.md](../guides/roadmap/ROADMAP_API_COHERENCE.md) (coherencia de la API, F1–F7).
 - [ROADMAP_ENGINE_CPP_AMIGA500.md](../guides/roadmap/ROADMAP_ENGINE_CPP_AMIGA500.md) (fases iniciales del engine; histórico).
-- Roadmaps por dominio en [docs/guides/roadmap/](../guides/roadmap/): `ROADMAP_UNIFICADO.md`, `ROADMAP_MINI_OS.md`, `ROADMAP_RESOURCES.md`, `ROADMAP_AUDIO.md`, `ROADMAP_GUI.md`, `ROADMAP_BOARD_GAMES.md`, `ROADMAP_BLITTER_COPPER.md`.
+- Roadmaps por dominio en [docs/guides/roadmap/](../guides/roadmap/): `ROADMAP_UNIFICADO.md`, `ROADMAP_MINI_OS.md`, `ROADMAP_RESOURCES.md`, `ROADMAP_AUDIO.md`, `ROADMAP_GUI.md`, `ROADMAP_BOARD_GAMES.md`, `ROADMAP_BLITTER_COPPER.md`, `ROADMAP_ADVENTURE.md`, `ROADMAP_ADVENTURE_IMPORT.md`.

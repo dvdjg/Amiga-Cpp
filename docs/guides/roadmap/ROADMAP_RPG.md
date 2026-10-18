@@ -99,7 +99,7 @@ Principio rector: un solo juego vertical (aldea + bosque + una mazmorra + 2–3 
 
 1. `QuestDef`/`QuestRuntime`: stages con `when: Condition` y `then: Action[]` (mínimo DSL de condiciones/acciones de `RPG_LAYER.md` §5.5); suscripción por hecho (`FactId` → bitset de quests) + salida rápida por `epoch()`; `on_complete`/`on_fail`.
 2. Dos o tres quests **cruzadas en hechos** (la demo las exige: matar al lobo abre el comercio y cierra la caza).
-3. **Diálogo**: nodos con `when` sobre hechos, opciones con acciones; el mismo reproductor sirve la tienda y las amenazas. Texto en fichero de contenido.
+3. **Diálogo**: nodos con `when` sobre hechos, opciones con acciones; el mismo reproductor sirve la tienda y las amenazas. Texto en fichero de contenido. **Decisión**: el primer reproductor de diálogo nace en `eng::adv` (`eng/adv/dialogue.hpp`; ver [`ADVENTURE_LAYER.md`](../../engine/architecture/ADVENTURE_LAYER.md) §3) porque el género lo necesita antes; M5 lo reutiliza en vez de implementar un segundo.
 4. `Journal` (solo lectura del estado para el HUD) y serialización del `QuestRuntime` como bloque del save (versión propia).
 5. Puente de recompensas: las quests emiten `RewardGrant` (mismo embudo que M3).
 
