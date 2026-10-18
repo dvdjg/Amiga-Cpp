@@ -6,7 +6,8 @@
 /// de H1 (`ROADMAP_HUD.md`): el compositor de escena publica la banda (split de `ModeSwitchZone`);
 /// este presentador no toca registros ni conoce el chipset. Diseño: `HUD_SYSTEM.md` §6.3.
 ///
-/// Verificación: **HOST-468**. La demo `302_hud_band` ejercita la banda en hardware.
+/// Verificación: **HOST-468**. La demo `302_hud_band` ejercita la banda en hardware (franja de
+/// 2 planos con paleta propia, deltas y presupuesto de 1 campo).
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/span.hpp>
@@ -64,7 +65,13 @@ struct HudStripConfig {
 			for (eng::usize c = 0u; c < n; ++c) {
 				buf[c] = op.text[c];
 			}
-			if (surface.draw_text(op.box.x, op.box.y, buf, op.color)) {
+			// Texto por **palabras** cuando la celda esta alineada a 16 px (2 glifos de
+			// Font8 por word): una escritura por fila y plano en vez de un tramo por
+			// glifo. Es la ruta barata para contadores sobre fondo ya limpio.
+			const bool word_path = (op.box.x & 15) == 0;
+			const bool ok = word_path ? surface.draw_text_words(op.box.x, op.box.y, buf, op.color)
+						  : surface.draw_text(op.box.x, op.box.y, buf, op.color);
+			if (ok) {
 				++applied;
 			}
 			break;

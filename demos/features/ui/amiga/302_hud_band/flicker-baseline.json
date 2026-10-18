@@ -1,0 +1,5 @@
+{
+  "max_candidates": 1,
+  "max_blocks_low": 11,
+  "note": "HUD por deltas (barra de energia, digitos cada 10 frames, pips por cambio) y actor por Blitter (2 FillRect por frame). El unico candidato determinista es el movimiento del actor entre capturas frame a frame (SSIM 0.996+, bbox en la zona del actor), no un glitch de la franja; el modelo de vision no ve anomalia."
+}

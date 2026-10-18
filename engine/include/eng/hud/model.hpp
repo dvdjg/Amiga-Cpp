@@ -8,7 +8,7 @@
 /// única fuente de verdad y el HUD refleja valores o **vistas** (`HudSlotView`). Diseño:
 /// `docs/engine/architecture/HUD_SYSTEM.md` §5 y §7.
 ///
-/// Verificación: **HOST-467**. **NO VERIFICADA** por demo (H1 `302_hud_band`, `ROADMAP_HUD.md`).
+/// Verificación: **HOST-467**; demo `302_hud_band` (contador, medidor y pips en hardware).
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/span.hpp>

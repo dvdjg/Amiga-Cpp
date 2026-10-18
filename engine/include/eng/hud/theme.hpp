@@ -6,8 +6,8 @@
 /// métricas). El tema enlaza el tipo lógico con la presentación; el modelo no cambia al cambiar de
 /// tema. Diseño: `docs/engine/architecture/HUD_SYSTEM.md` §8.
 ///
-/// Verificación: tipos cubiertos por **HOST-467**. **NO VERIFICADA** por demo (H1 `302_hud_band`,
-/// `ROADMAP_HUD.md`).
+/// Verificación: tipos cubiertos por **HOST-467**; paleta de banda en hardware con la demo
+/// `302_hud_band` (blanco/amarillo/rojo propios de la franja).
 
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/typed.hpp>

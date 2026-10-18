@@ -150,6 +150,32 @@ void test_apply(eng::MemoryManager& mem) {
 	}
 	CHECK(painted > 0u);
 
+	// Texto en celda alineada a 16 px: ruta `draw_text_words` (palabra completa por fila).
+	char msg2[3] = {'A', 'B', '\0'};
+	eng::hud::HudDrawOp textw {};
+	textw.kind = eng::hud::HudOpKind::Text;
+	textw.box = eng::Box {96, 20, 16u, 8u};
+	textw.color = 2u;
+	textw.text = eng::Span<const char> {msg2, 2u};
+	const eng::hud::HudDrawOp bgfill = fill_op(96, 20, 16u, 8u, 3u);
+	CHECK(strip.apply(eng::Span<const eng::hud::HudDrawOp> {&bgfill, 1u}) == 1u);
+	CHECK(strip.apply(eng::Span<const eng::hud::HudDrawOp> {&textw, 1u}) == 1u);
+	eng::u16 glyph_px = 0u;
+	eng::u16 clear_px = 0u;
+	for (eng::s16 x = 96; x < 112; ++x) {
+		for (eng::s16 y = 20; y < 28; ++y) {
+			const eng::u8 c = pixel(block.data(), x, y);
+			if (c == 2u) {
+				++glyph_px;
+			} else if (c == 0u) {
+				++clear_px;
+			}
+		}
+	}
+	CHECK(glyph_px > 0u); // texto por palabras: glifos pintados
+	CHECK(clear_px > 0u); // texto por palabras: la palabra sustituye el fondo de la celda
+	CHECK(pixel(block.data(), 95, 24) == 0u && pixel(block.data(), 112, 24) == 0u); // no toca fuera
+
 	// Blit/Sprite/Palette se omiten en H1 (no cuentan).
 	eng::hud::HudDrawOp sprite {};
 	sprite.kind = eng::hud::HudOpKind::Sprite;

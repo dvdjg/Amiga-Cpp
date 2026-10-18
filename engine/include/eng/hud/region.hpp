@@ -6,8 +6,8 @@
 /// la materializa con `scene::LayerPlan` + `CanvasPlayfield` + `ModeSwitchZone` (diseño
 /// `docs/engine/architecture/HUD_SYSTEM.md` §4). El HUD nunca escribe registros del chipset.
 ///
-/// Verificación: validadores cubiertos por **HOST-467**. **NO VERIFICADA** por demo (H1
-/// `302_hud_band`, `ROADMAP_HUD.md`).
+/// Verificación: validadores cubiertos por **HOST-467**; región `Band` en hardware con la demo
+/// `302_hud_band` (franja de 2 planos con paleta propia en la línea 208).
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>

@@ -5,8 +5,8 @@
 /// tema y el presentador de franja. Diseño canónico en
 /// `docs/engine/architecture/HUD_SYSTEM.md`; plan en `docs/guides/roadmap/ROADMAP_HUD.md`.
 ///
-/// Verificación: **HOST-467** (modelo y validadores) y **HOST-468** (franja y operaciones).
-/// **NO VERIFICADA** por demo: la primera demo del HUD (`302_hud_band`) llega en la fase H1.
+/// Verificación: **HOST-467** (modelo y validadores) y **HOST-468** (franja y operaciones);
+/// demo `302_hud_band` (franja con paleta propia, deltas y presupuesto de 1 campo).
 
 #include <eng/hud/model.hpp>
 #include <eng/hud/region.hpp>

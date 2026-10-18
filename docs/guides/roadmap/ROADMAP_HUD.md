@@ -25,7 +25,7 @@ Plan de implementación del diseño canónico [`HUD_SYSTEM.md`](../../engine/arc
 - **Entregable**: `HudStrip` sobre `CanvasPlayfield` con `Surface`, `DirtyList` y operaciones de dibujo; `Meter` lineal y segmentado; `Counter` con `Font8`/`Font5x7`; *pips* de vidas por *tiles* (la ruta sprite llega en H4); tema por defecto con paleta de banda; compilación a `LayerPlan` con `LayerRole::Overlay` y `ModeSwitchZone` cuando los planos difieren.
 - **Detalle**: franja canónica inferior `top = 208`, `height = 48` en 320×256; la franja no resta altura al anillo de scroll; el split y la paleta se validan con `eng::setup`. **Decisión de doble buffer medida aquí**: comparar la reemisión de la zona de conmutación con la base del lienzo trasero (`Scheduler::emit_mode_switch_zone` en la copperlist trasera) frente a la actualización in-place en VBlank, con coste por frame (movimientos de Copper), ausencia de *tearing* y fps; evidencia previa del repo: DT-001 (FG de la demo 110) documenta *tearing* con buffer único actualizado durante el barrido y prescribe doble buffer con flip en la copperlist. La opción elegida se documenta en `HUD_SYSTEM.md` §6.3. El HUD de depuración de la demo se mantiene en una línea de 1 bpp o en la ventana de WinUAE.
 - **Verificación**: **HOST-468** — equivalencia de operaciones contra un `Surface` de referencia, *dirty* que no repinta lo estático, medidor con `value`/`max` en los extremos y paleta de banda correcta. **Demo `302_hud_band`** con `INTENT.md`, `VALIDATION.md` y visión por secuencia; fps/cadencia y *flicker* dentro de presupuesto.
-- **Estado**: **pendiente**.
+- **Estado**: **HECHO (2026-10)** — `eng/hud/strip.hpp` (`HudStrip` + `apply_hud_ops`, con ruta de texto por palabras para celdas alineadas) verificado por **HOST-468**; demo **`302_hud_band`** entregada y verificada (franja 2 planos con paleta propia en la línea 208, contador/medidor/pips por deltas, actor por Blitter): **49,7 fps / 1,005 campos**, *flicker* con 1 candidato (movimiento del actor) declarado en `flicker-baseline.json`, visión A/B/C y canónica en `VALIDATION.md`/`src/VISION.md`. **Decisión de doble buffer medida**: la escritura en la ventana de VBlank basta para una franja inferior (sin *tearing*); la vía de reemisión de la zona con la base del lienzo trasero queda documentada en `HUD_SYSTEM.md` §6.3 para contenido que la requiera.
 
 ### H2 — *Hit-test*, selección y foco de joystick
 
@@ -70,13 +70,13 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 | ID | Tipo | Contenido |
 |---|---|---|
 | HOST-467 | test | Modelo, *handles*, capacidad, *dirty*, contadores, `DragSession` y contrato de región. **HECHO** (H0). |
-| HOST-468 | test | Franja, operaciones de dibujo, `Meter`/`Counter`/`pips` y equivalencia contra `Surface`. |
+| HOST-468 | test | Franja, operaciones de dibujo, `Meter`/`Counter`/`pips` y equivalencia contra `Surface`. **HECHO** (H1). |
 | HOST-469 | test | *Hit map*, prioridad de regiones, rejilla, selección, foco y consumo de entrada. |
 | HOST-470 | test | *Drag & drop*: umbral, captura, destino, cancelación y cantidades. |
 | HOST-471 | test | Overlay con *backing*, canales de sprite, Copper y degradación por presupuesto. |
 | HOST-472 | test | Paneles, barra de verbos, *tooltips*, múltiples regiones y puente RPG. |
 | HOST-473 | test | Tema, atlas de iconos, *skins*, cambio en caliente y fachada. |
-| `302_hud_band` | demo | HUD de acción en franja propia: contador, medidor y vidas. |
+| `302_hud_band` | demo | HUD de acción en franja propia: contador, medidor y vidas. **Entregada y verificada** (H1). |
 | `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. |
 | `304_hud_drag` | demo | Inventario con arrastre, *ghost*, *drop* válido/inválido y cancelación. |
 | `305_hud_overlay` | demo | Overlay sobre juego en movimiento, sprites y presupuesto. |
@@ -96,4 +96,4 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 
 ## Estado
 
-**H0 HECHO (2026-10).** `engine/include/eng/hud/` contiene el modelo (`Hud<...>` con *handles*, componentes y `DragSession`), el contrato de región con validadores y el tema/atlas; verificado por **HOST-467** (`tests/host/ui/467_hud_model`, catálogo `ui`) e instanciado con dos configuraciones de capacidad. Las cabeceras quedan **NO VERIFICADAS por demo** hasta que exista `302_hud_band`. El siguiente paso verificable es **H1**: franja `CanvasPlayfield` con `Counter`/`Meter`/`pips`, decisión de doble buffer medida y demo con visión, fps y *flicker*.
+**H0 y H1 HECHOS (2026-10).** `engine/include/eng/hud/` contiene el modelo (`Hud<...>` con *handles*, componentes y `DragSession`), el contrato de región con validadores, el tema/atlas y el presentador de franja (`HudStrip` + `apply_hud_ops`); verificado por **HOST-467** y **HOST-468** (catálogo `ui`) e instanciado con dos configuraciones de capacidad. La demo **`302_hud_band`** valida la fase H1 en hardware: franja de 2 planos con paleta propia en la línea 208, HUD por deltas, **49,7 fps (1,005 campos)**, *flicker* declarado, visión A/B/C + canónica y `VALIDATION.md` con la decisión de doble buffer medida. El siguiente paso verificable es **H2**: *hit-test*, selección y foco de joystick (HOST-469) con la demo `303_hud_icons`.
