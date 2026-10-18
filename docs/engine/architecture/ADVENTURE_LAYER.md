@@ -95,6 +95,8 @@ StageDesc {
 }
 ```
 
+La descripción **declarativa de sala orientada al hardware** que consume el compositor es el formato **`adv-stage/1`** ([`STAGE_FORMAT.md`](../../../tools/adventure/formats/STAGE_FORMAT.md)): display single/DPF/EHB/HAM, capas con scroll por hardware, parallax 8.8, transparencias por truco de color, Copper Score (cues y disparadores), canales de sprite, BOBs, HUD, streaming y presupuesto A500. El andamio se genera del SIM v2 (`tools/adventure/formats/scaffold-stages.mjs` → `edited/stages/`).
+
 Tipos de capa (campo de la tabla de capas) y su materialización real:
 
 | Tipo de capa | Materialización en el engine | Uso típico en la aventura |
@@ -184,6 +186,8 @@ El engine **no** define «la aventura de piratas»: define verbos, cámara, walk
 
 ## 12. Verificación y estado
 
-- **Contenido del engine hecho** (capa de datos): `eng/adv/{types,walkbox,hotspot,room}.hpp` (walkbox convexa con `contains`/`closest_point`, hotspots con `hit_test`, `RoomContent` como vista), verificada por **HOST-473** (dos escalares) y alimentada por el pipeline (`decode` produce el SIM v2 y `codegen/emit-content.mjs` genera las tablas `constexpr`; ciclo probado end-to-end con MI1). El **runtime** de la capa (A0–A6) no está implementado: plan en [`ROADMAP_ADVENTURE.md`](../../guides/roadmap/ROADMAP_ADVENTURE.md); la importación de clásicos, en [`ROADMAP_ADVENTURE_IMPORT.md`](../../guides/roadmap/ROADMAP_ADVENTURE_IMPORT.md).
+- **Contenido del engine hecho** (capa de datos): `eng/adv/{types,walkbox,hotspot,room}.hpp` (walkbox convexa con `contains`/`closest_point`, hotspots con `hit_test`, `RoomContent` como vista), verificada por **HOST-473** (dos escalares) y alimentada por el pipeline (`decode` produce el SIM v2 y `codegen/emit-content.mjs` genera las tablas `constexpr`; ciclo probado end-to-end con MI1).
+- **Núcleo de navegación y cámara hecho (A0)**: `eng/adv/navigation.hpp` (ruta por walkboxes con adyacencia derivada de la geometría + suavizado por visibilidad) y `eng/adv/camera.hpp` (bounds, dead-zone, seguimiento y paneo con easing), verificados por **HOST-475** (`s16`/`float`/`Fixed`). Falta la **demo** que los ejerza (A0 del roadmap).
+- **Guiones y formato Amiga**: parser descumm→AST y **traductor AST→C++** (`cook/cpp/scripts/`, contrato `eng/adv/script_hooks.hpp`; 748/748 guiones MI1, 1004/1006 MI2) y formato **`adv-stage/1`** con validador para las salas del port. El **runtime** de la capa (A0–A6) no está completo: plan en [`ROADMAP_ADVENTURE.md`](../../guides/roadmap/ROADMAP_ADVENTURE.md); la importación de clásicos, en [`ROADMAP_ADVENTURE_IMPORT.md`](../../guides/roadmap/ROADMAP_ADVENTURE_IMPORT.md).
 - Cada hito exige **tests host** (walkboxes/cámara/diálogo/compositor son lógica pura host-testable) y **una demo que lo ejerza** con visión Ollama, fps y flicker según las reglas del repositorio ([`PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`](../../guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md)).
 - La capa se declara **VERIFICADA** cuando el vertical slice A5 (el muelle: parallax + walk + use con ítem + atardecer por copper + close-up EHB + barra de verbos estable + cambio de sala desde «disco» + presupuesto A500 declarado) pasa el pipeline completo; hasta entonces, toda cabecera de `eng/adv/` lleva la marca **NO VERIFICADA**.

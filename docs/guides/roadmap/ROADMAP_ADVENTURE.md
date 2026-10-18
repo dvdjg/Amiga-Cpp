@@ -8,10 +8,10 @@ Principio rector: un **vertical slice** (un muelle con parallax + caminar + usar
 
 | Hito | Contenido | Estado |
 |---|---|---|
-| **A0 — Núcleo de sala** | Sala, walkboxes, cámara de mundo, actor que camina | Pendiente |
+| **A0 — Núcleo de sala** | Sala, walkboxes, cámara de mundo, actor que camina | **EN CURSO** — navegación por walkboxes (`eng/adv/navigation.hpp`) y cámara (`eng/adv/camera.hpp`) con **HOST-475**; falta la demo `001_adv_walk` que los ejerza |
 | **A1 — Verbos e interacción** | Verbos (dato), hotspots, hit-test, say, inventario | Pendiente |
 | **A2 — Diálogo y Director** | Árboles de diálogo con hechos + cutscenes | Pendiente |
-| **A3 — Stage Composer** | Capas, parallax, Copper Score, presupuesto y degradación | Pendiente |
+| **A3 — Stage Composer** | Capas, parallax, Copper Score, presupuesto y degradación | **EN CURSO** — formato **`adv-stage/1`** definido y validado ([`STAGE_FORMAT.md`](../../../tools/adventure/formats/STAGE_FORMAT.md)) con andamios generados desde el SIM; falta el compositor y las demos |
 | **A4 — Salas y streaming** | Manifiestos de sala, transiciones, carga desde disco | Pendiente |
 | **A5 — Vertical slice** | Juego piloto «muelle» en `games/` que cierra la verificación | Pendiente |
 | **A6 — Pulido** | Perfil contextual, texto avanzado, journal y guardado | Pendiente |
