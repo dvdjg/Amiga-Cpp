@@ -37,10 +37,14 @@ if [ "$AFRAME" -lt 50 ]; then
 fi
 echo "[analyze] memoria OK: fps10=$FPS10, aframe=$AFRAME (guion activo)"
 
-# --- 2) Evidencia visual: secuencia por paso --------------------------------
-# El guion mueve el foco cada 16 frames (con un paso muerto por ciclo) y activa cada 48;
-# 48 frames garantizan >=2 movimientos visibles si el video se refresca.
-RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-step-frames 48 --settle-ms 3000)
+# --- 2) Evidencia visual: secuencia por INTERVALOS --------------------------
+# El modo `--sequence-step-frames` (probe + CPU parada por frame) sirve video
+# CONGELADO en este entorno (familia DT-023/035): la captura por intervalos corre
+# con la CPU viva y el video se refresca (verificado: cada par difiere y la linea
+# de estado cambia). 12 frames cada 700 ms cubren varios movimientos del guion
+# (16 frames de cadencia) y varios disparos (48).
+RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-frames 12 --sequence-interval-ms 700 \
+	--settle-ms 3000)
 for a in "$@"; do
 	[ "$a" = "--warp" ] && RUN_ARGS+=("--warp")
 done

@@ -13,7 +13,7 @@ Sin picos medidos con la instrumentación temporal (retirada): el frame repinta 
 ## Evidencia de memoria (gate `analyze-sequence.sh`)
 
 - `fps10 >= 400` y `aframe >= 50` tras la ventana: el guion **avanza** (recorre el perímetro de la rejilla, salta a los verbos y activa) — prueba de interacción **sin depender del vídeo** (lección DT-035).
-- La captura por paso de este entorno puede servir vídeo congelado (DT-023/035): los chequeos de animación del verificador son **informativos** (WARN), no gate.
+- **Fix de captura (DT-035)**: el modo `--sequence-step-frames` (probe + CPU parada por frame) sirve **vídeo congelado** en este entorno; el gate usa **`--sequence-frames` por intervalos** (CPU viva): cada par de frames difiere (480-4700 px), hay 5 firmas distintas de la línea de estado y el foco (rojo) aparece en todos los frames.
 
 ## Visión (prompt canónico, `tools/analyze/vision-prompt.txt`; modelo `qwen3-vl:8b-instruct-q8_0`)
 

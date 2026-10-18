@@ -378,6 +378,14 @@ struct HudCrpgDemo {
 		const bool sel_changed = grid.selection != m_prev_sel;
 		const bool foc_changed = grid.focus != m_prev_foc;
 		const bool verb_changed = bar.active != m_prev_verb;
+		// Foco del anillo sobre la barra de verbos (rect con id >= kVerbIdBase): se pinta el
+		// marco rojo del verbo enfocado (el anillo puede estar en la rejilla o en los verbos).
+		const eng::hud::HudFocusTarget& ft = m_focus.target();
+		const s16 vfoc = (ft.kind == eng::hud::HudFocusTarget::Kind::Rect &&
+				  ft.id >= kVerbIdBase && ft.id < kVerbIdBase + kVerbCount)
+					 ? static_cast<s16>(ft.id - kVerbIdBase)
+					 : -1;
+		const bool vfoc_changed = vfoc != m_prev_vfoc;
 		if (sel_changed) {
 			paint_cell(m_prev_sel, false, m_prev_sel == m_prev_foc,
 				   m_prev_hover == m_prev_sel);
@@ -397,7 +405,18 @@ struct HudCrpgDemo {
 			paint_verb(bar.active, true, false, false);
 			m_prev_verb = bar.active;
 		}
-		if (sel_changed || foc_changed || verb_changed) {
+		if (vfoc_changed) {
+			if (m_prev_vfoc >= 0) {
+				paint_verb(static_cast<u8>(m_prev_vfoc),
+					   static_cast<u8>(m_prev_vfoc) == bar.active, false, false);
+			}
+			if (vfoc >= 0) {
+				paint_verb(static_cast<u8>(vfoc), static_cast<u8>(vfoc) == bar.active,
+					   true, false);
+			}
+			m_prev_vfoc = vfoc;
+		}
+		if (sel_changed || foc_changed || verb_changed || vfoc_changed) {
 			draw_state_numbers();
 			show_tooltip_for_state();
 		}
@@ -781,6 +800,7 @@ private:
 	u16 m_prev_sel = 0u;
 	u16 m_prev_foc = 0u;
 	u8 m_prev_verb = 0u;
+	s16 m_prev_vfoc = -1; ///< verbo con foco del anillo en el frame anterior (-1 = ninguno)
 	bool m_tip_visible = false;
 	u32 m_hud_second = ~0u;
 	eng::debug::HudFpsWindow m_fps_win {};
