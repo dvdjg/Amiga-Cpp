@@ -41,8 +41,32 @@ if (!BIN || !DEMO) {
 const MAP = `${ROOT}/out/demos/${DEMO}/${CONFIG_NAME}/${DEMO}.${CONFIG_NAME}.map`;
 
 // --- parser del perfil binario --------------------------------------------------------
-// Unico cambio respecto al parser del plugin/MCP: `profileArray` con los PCs de las
-// muestras (el MCP lo descartaba con `o += profileCount * 4`); hoy el MCP tambien lo lee.
+// Unico cambio respecto al parser del plugin/MCP: `profileArray` con las muestras (el MCP
+// lo descartaba con `o += profileCount * 4`; hoy el MCP tambien lo lee).
+//
+// **Formato de las muestras (RLE, descifrado del plugin `debugAdapter`/`extension.js`):**
+// el array NO es una lista de PCs: es un stream `[pc..., 0xFFFFFFFF-ciclos, r0..r16, ...]`
+// — una muestra es el PRIMER valor desde el delimitador anterior (el PC), un delimitador
+// que codifica los CICLOS gastados en ese PC (`0xFFFFFFFF - v`) y 17 registros
+// (`Register._count` = D0-D7, A0-A7, SR). Leerlo como PCs daba basura (PCs 0x7fffffff…).
+function decodeSamples(profileArray) {
+	const out = [];
+	let pc;
+	for (let i = 0; i < profileArray.length; ++i) {
+		const v = profileArray[i];
+		if (v < 0xfff00000) {
+			if (pc === undefined) pc = v;
+			continue;
+		}
+		const cycles = (0xffffffff - v) >>> 0;
+		if (pc === undefined) pc = 0xffffffff;
+		i += 17; // registros de la muestra (Register._count)
+		out.push({ pc, cycles });
+		pc = undefined;
+	}
+	return out;
+}
+
 function parseProfileWithSamples(buf) {
   let o = 0;
   const numFrames = buf.readUInt32LE(o); o += 4;
@@ -131,27 +155,30 @@ const resolve = makeResolver(parsed.sectionBases);
 const byRoutine = new Map();
 let total = 0, busy = 0, idle = 0;
 for (const f of parsed.frames) {
-  busy += f.profileCycles || 0;
-  idle += f.idleCycles || 0;
-  for (const pc of f.samples) {
-    const name = resolve(pc);
-    byRoutine.set(name, (byRoutine.get(name) || 0) + 1);
-    ++total;
-  }
+	busy += f.profileCycles || 0;
+	idle += f.idleCycles || 0;
+	for (const s of decodeSamples(f.samples)) {
+		const name = resolve(s.pc);
+		const acc = byRoutine.get(name) || { samples: 0, cycles: 0 };
+		acc.samples += 1;
+		acc.cycles += s.cycles;
+		byRoutine.set(name, acc);
+		total += s.cycles;
+	}
 }
 const pct = (v) => (total ? (100 * v / total).toFixed(1) : '0.0');
-const top = [...byRoutine.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP);
+const top = [...byRoutine.entries()].sort((a, b) => b[1].cycles - a[1].cycles).slice(0, TOP);
 if (AS_JSON) {
-  console.log(JSON.stringify({
-    frames: parsed.frames.length,
-    samples: total,
-    cpuBusyCycles: busy,
-    cpuIdleCycles: idle,
-    top: top.map(([routine, samples]) => ({ routine, samples, pct: Number(pct(samples)) })),
-  }, null, 1));
+	console.log(JSON.stringify({
+		frames: parsed.frames.length,
+		sampledCycles: total,
+		cpuBusyCycles: busy,
+		cpuIdleCycles: idle,
+		top: top.map(([routine, v]) => ({ routine, samples: v.samples, cycles: v.cycles, pct: Number(pct(v.cycles)) })),
+	}, null, 1));
 } else {
-  console.log(`[samples] ${path.basename(BIN)} | ${parsed.frames.length} frame(s) | ${total} muestras | CPU ocupada ${busy} ciclos, libre ${idle}`);
-  for (const [name, n] of top) {
-    console.log(`  ${String(n).padStart(6)}  ${pct(n).padStart(5)}%  ${name}`);
-  }
+	console.log(`[samples] ${path.basename(BIN)} | ${parsed.frames.length} frame(s) | ${total} ciclos muestreados | CPU ocupada ${busy} ciclos, libre ${idle}`);
+	for (const [name, v] of top) {
+		console.log(`  ${String(v.cycles).padStart(8)}  ${pct(v.cycles).padStart(5)}%  ${name}  (${v.samples} muestras)`);
+	}
 }
