@@ -1,3 +1,3 @@
-# -O3 como la 116; K080_NO_PATTERN deja la sala solida (A/B del coste del patron);
-# K080_PAN_FREEZE=<pan> congela la camara (captura estatica de geometria).
+# -O3 en la TU de la demo (mismo criterio que la 116); K080_NO_PATTERN deja la sala solida
+# (A/B del coste del patron) y K080_PAN_FREEZE=<pan> congela la camara (captura estatica).
 DEMO_OPT=-O3
