@@ -87,9 +87,11 @@ function bandDiff(a, b) {
 // Bloque estatico (40,150,24,24) y actor 16x16 en y=150: cuando el actor lo cruza, DENTRO
 // del bloque solo puede haber color del bloque (51,51,102) o del actor (136,170,204);
 // cualquier NEGRO = banda/guarda pintada (el dibujo opaco de 2 palabras pintaba la guarda).
-const BLOCK = { x: 40, y: 150, w: 24, h: 24 };
-const isActor = (r, g, b) => r === 136 && g === 170 && b === 204;
-const isBlock = (r, g, b) => r === 51 && g === 51 && b === 102;
+// Prop estatico ALCANZABLE por la trayectoria (lissajous x 64..256, y 110..190).
+const BLOCK = { x: 120, y: 168, w: 40, h: 12 };
+// Sprite del blob procedural (nucleo 0xfed + borde 0xf0a de la paleta nueva).
+const isActor = (r, g, b) => (r === 255 && g === 238 && b === 221) || (r === 255 && g === 0 && b === 170);
+const isBlock = (r, g, b) => r === 221 && g === 68 && b === 0; // props (0xd40)
 
 /// Estado del bloque en un frame: pixeles intactos, cubiertos por el actor y negros.
 function blockStats(imagePath) {

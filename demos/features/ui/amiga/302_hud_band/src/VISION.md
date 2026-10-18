@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-18T12:04:49.268Z
+- Fecha: 2026-10-18T13:41:09.663Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000_f0010.png, frame_004_f0014.png, frame_008_f0018.png, frame_011_f0021.png, frame_015_f0025.png, frame_019_f0029.png (6)
+- Frames: frame_000_f0042.png, frame_002_f0044.png, frame_004_f0046.png, frame_007_f0049.png, frame_009_f0051.png, frame_011_f0053.png (6)
 - Secuencia: `out/run/ui_amiga_302_hud_band/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,38 +15,32 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Análisis de las imágenes en orden temporal:**
+**Descripción de las imágenes (en orden temporal):**
 
-**Imagen 1:**
-- **Fondo:** Negro.
-- **Elementos gráficos:**
-  - En la parte inferior, una barra de interfaz de usuario (HUD) con borde blanco.
-  - Dentro de la barra HUD:
-    - A la izquierda: Etiquetas "SCORE" y "ENERGY". Debajo de "ENERGY", una barra de progreso amarilla con una pequeña sección negra a la derecha.
-    - A la derecha: Etiqueta "LIVES" y cuatro cuadrados amarillos.
-    - En la parte inferior de la barra: texto "HUD BAND v1.0.4702 F 00000 FPS 00.0".
-  - En la parte superior izquierda: Un objeto compuesto de dos bloques azules oscuros y un bloque azul claro más pequeño, que parece estar en movimiento hacia la derecha.
-  - En la parte superior derecha: Dos bloques azules oscuros, uno horizontal y otro más pequeño y cuadrado.
-- **Estado:** El objeto en movimiento está parcialmente sobre el bloque azul claro de su base. La barra de energía está casi llena. El score no es visible.
+**Elementos gráficos fijos:**
+*   **Fondo:** Un fondo de capas horizontales en tonos de azul oscuro y verde oliva.
+*   **Objetos estáticos:** Dos estructuras piramidales invertidas (una verde oscuro, otra marrón) con bloques rojos en su base y en la parte superior. Un bloque rojo horizontal en el suelo entre ellas. Un objeto circular verde brillante en la parte superior izquierda.
+*   **HUD inferior:** Una barra negra con texto y barras de estado.
+    *   `SCORE 000002`
+    *   `ENERGY` con una barra de progreso.
+    *   `LIVES` con cuatro cuadrados amarillos.
+    *   `HUD BAND v1.0.4734 F 00000 FPS 40.6`
 
-**Imagen 2:**
-- **Fondo:** Negro.
-- **Cambios respecto a la imagen 1:**
-  - El objeto en movimiento ha avanzado hacia la derecha, ahora está completamente sobre el bloque azul claro de su base.
-  - El texto "SCORE" ha aparecido, mostrando el valor "000001".
-  - El resto de la interfaz (barra de energía, vidas, texto de versión) permanece igual.
+**Elementos gráficos móviles:**
+*   **Objeto rosa brillante (en la parte inferior izquierda):** Un objeto rosa con un contorno blanco, que se mueve hacia la derecha.
+*   **Objeto rojo (en la parte inferior derecha):** Un objeto rojo con forma de corazón o estrella, que permanece en la misma posición.
 
-**Imagen 3:**
-- **Fondo:** Negro.
-- **Cambios respecto a la imagen 2:**
-  - El objeto en movimiento ha avanzado aún más hacia la derecha, ahora está completamente sobre el bloque azul oscuro de su base.
-  - El texto "SCORE" sigue mostrando "000001".
-  - El resto de la interfaz permanece igual.
+**Cambios entre imágenes:**
+
+*   **Imagen 1:** El objeto rosa está en la posición más a la izquierda.
+*   **Imagen 2:** El objeto rosa se ha desplazado hacia la derecha, aproximadamente un tercio de su trayectoria.
+*   **Imagen 3:** El objeto rosa se ha desplazado aún más hacia la derecha, casi completando su movimiento.
 
 **Observaciones:**
-- El objeto en movimiento tiene un contorno limpio, sin halos ni artefactos visibles.
-- El fondo permanece negro y uniforme en todas las imágenes.
-- No hay elementos superpuestos ni recortes visibles.
-- El objeto se mueve de izquierda a derecha, avanzando sobre los bloques de su base.
-- El score se activa en la imagen 2 y permanece constante en la imagen 3.
-- La barra de energía y las vidas no cambian entre las imágenes.
+
+*   **Contorno del objeto rosa:** En todas las imágenes, el objeto rosa tiene un contorno blanco limpio y definido. No hay bandas, halos ni píxeles cortados. El fondo inmediatamente alrededor del objeto es el mismo color que el fondo, sin artefactos visibles.
+*   **Estado de la energía:** En la imagen 1, la barra de energía está en amarillo. En la imagen 2, la barra de energía se ha vuelto roja, indicando una pérdida de energía. En la imagen 3, la barra de energía permanece roja.
+*   **Estado de las vidas:** En la imagen 1, todas las vidas son amarillas. En la imagen 3, la última vida (la cuarta desde la izquierda) se ha vuelto roja, indicando una pérdida de vida.
+*   **Posición del objeto rojo:** El objeto rojo permanece en la misma posición en todas las imágenes.
+*   **Posición del objeto verde:** El objeto verde permanece en la misma posición en todas las imágenes.
+*   **FPS y Score:** El FPS (40.6) y el score (000002) permanecen constantes en todas las imágenes.

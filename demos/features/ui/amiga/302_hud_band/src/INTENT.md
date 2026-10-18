@@ -13,7 +13,7 @@ Demo de **HUD de juego en franja propia** sobre Amiga 500: un campo de juego a 4
 
 ## Elementos en pantalla
 
-- **Campo de juego (líneas 0–207)**: fondo negro; suelo azul oscuro en la base; bloques estáticos de colores y un **actor cuadrado claro** (16×16) que rebota horizontalmente.
+- **Campo de juego (líneas 0–207)**: fondo **procedural** con estructura y color (cielo por bandas, montañas escalonadas, sol por anillos y río diagonal) y props estáticos naranjas (zonas de prueba del cookie-cut); un **sprite con forma de blob** (dos tonos: borde magenta + núcleo claro, con máscara de cookie-cut real) recorre una **lissajous 3:1** (x 64..256, y 110..190).
 - **Franja HUD (líneas 208–255)**: marco blanco de 1 px; etiquetas `SCORE`, `ENERGY`, `LIVES`; contador de 6 dígitos en amarillo (cuenta los frames); barra de energía amarilla que se vacía y llena (diente de sierra de 120 frames; pasa a rojo por debajo del 25 %); 4 pips de vidas (amarillo = viva, rojo = perdida; pierde una cada 50 frames y las recupera en el ciclo); línea de depuración `HUD BAND vX.Y.build F <frames> FPS <fps>` en blanco.
 
 ## Evolución temporal
@@ -21,5 +21,5 @@ Demo de **HUD de juego en franja propia** sobre Amiga 500: un campo de juego a 4
 - El **contador** avanza cada 10 frames (5 Hz; el repintado de dígitos es el pico más caro del HUD y el texto se formatea solo al cambiar el valor).
 - La **energía** baja de 60 a 0 y vuelve a subir en ciclos de 120 frames; el ancho de la barra es `valor × 2` píxeles (sin multiplicaciones ni divisiones). El presentador pinta **por deltas**: solo el tramo que cambia; al cruzar el 25 % repinta la barra completa para cambiar a rojo sin dejar dos tonos.
 - Las **vidas** cambian cada 50 frames (4 → 3 → 2 → 1 → 0 → 4); el pip que cambia se repinta solo.
-- El **actor** recorre el ancho de ida y vuelta (2 px por frame) por el **sistema de objetos** del engine con `BackgroundPolicy::SaveUnder`: el Blitter restaura el fondo que tapa, guarda el nuevo y dibuja (los bloques estáticos quedan intactos). El render pinta primero la capa viva (blits) y después la franja (CPU).
+- El **sprite** recorre una **lissajous** (x e y variando, tabla de seno precalculada en compilación) por el **sistema de objetos** del engine con `BackgroundPolicy::SaveUnder`: el Blitter restaura el fondo que tapa, guarda el nuevo y dibuja (los bloques estáticos quedan intactos). El render pinta primero la capa viva (blits) y después la franja (CPU).
 - La línea de depuración `HUD BAND vX.Y.BBBB F NNNNN FPS NN.N` es de **longitud fija** (5 dígitos de frames, 4 de fps) y se repinta sin borrar la fila (sobrescribe las mismas celdas): frames cada 100, fps al cerrar cada ventana de 1 s.

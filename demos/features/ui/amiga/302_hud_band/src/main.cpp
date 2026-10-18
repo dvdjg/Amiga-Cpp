@@ -11,6 +11,10 @@
 //   bash ./tools/run/run-demo.sh demos/features/ui/amiga/302_hud_band --keep-running
 
 #include <eng/api/api.hpp> // incluye eng::hud (fachada estable desde H1)
+#include <eng/debug/peripheral.hpp> // self-check del framebuffer (telemetria)
+#include <eng/core/math/minifloat.hpp>        // escalar de las texturas/mascaras procedurales
+#include <eng/core/math/sinetable.hpp>        // trayectoria en curva (lissajous)
+#include <eng/graphics/proc/shapes.hpp>       // SoftCircleMask (forma del sprite)
 #include <eng/platform/amiga/entry.hpp>
 #include <eng/scene/display.hpp>
 
@@ -24,6 +28,30 @@ using eng::u8;
 
 constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
+
+// --- Trayectoria del sprite: lissajous 3:1 precalculada EN COMPILACION -------------
+// La tabla de seno (`SineTable`) se evalua en `constexpr`: su `sine_sample<s32>` usa
+// `double` internamente, asi que llamarla por frame serian libcalls (`__muldf3`, ...).
+// El frame solo **indexa** la tabla: cero libcalls, cero divisiones (disciplina de coste).
+constexpr eng::SineTable<64, 64> kSin {};
+constexpr eng::s16 kPathCx = 160; ///< centro x de la curva
+constexpr eng::s16 kPathCy = 150; ///< centro y de la curva
+constexpr eng::s16 kPathAx = 96;  ///< amplitud x (±96: [64, 256])
+constexpr eng::s16 kPathAy = 40;  ///< amplitud y (±40: [110, 190])
+struct SpritePath {
+	eng::s16 x[64] {};
+	eng::s16 y[64] {};
+};
+constexpr SpritePath make_sprite_path() {
+	SpritePath p {};
+	for (eng::u32 i = 0u; i < 64u; ++i) {
+		p.x[i] = static_cast<eng::s16>(kPathCx + ((kSin.sample(i) * kPathAx) >> 6));
+		p.y[i] = static_cast<eng::s16>(
+			kPathCy + ((kSin.sample((i * 3u) & 63u) * kPathAy) >> 6));
+	}
+	return p;
+}
+constexpr SpritePath kPath = make_sprite_path();
 
 // --- Franja del HUD: lineas 208..255 (48 lineas), 2 planos, paleta propia ---------
 // `Band::top` es linea de RASTER (el `WAIT` del Copper compara VPOS): la linea de display
@@ -42,18 +70,34 @@ constexpr u8 kHudFg = 1u;
 constexpr u8 kHudAccent = 2u;
 constexpr u8 kHudWarn = 3u;
 
-// Paleta del campo de juego (4 planos, 16 colores) y de la franja (2 planos, 4 colores).
-// Los colores de la franja (blanco/amarillo/rojo) NO se repiten en la de juego: el gate
-// visual los usa para localizar la banda.
+// Paleta del campo de juego (4 planos, 16 colores): los indices 0..11 son una rampa
+// amanecer (azules -> verdes -> arenas) que usa el **fondo procedural** (marble + dither);
+// 12 = props estaticos (naranja), 13/15 = sprite (borde/nucleo), 14 libre. Los colores de
+// la franja (blanco/amarillo/rojo) NO se repiten: el gate visual localiza la banda por ellos.
 constexpr eng::Palette32 kGamePalette {{
-	0x000, 0x112, 0x224, 0x336, 0x448, 0x55a, 0x66c, 0x77e,
-	0x135, 0x246, 0x357, 0x468, 0x579, 0x68a, 0x79b, 0x8ac,
+	0x001, 0x013, 0x025, 0x036, 0x048, 0x15a, 0x26b, 0x37c,
+	0x450, 0x761, 0x872, 0x983, 0xd40, 0xf0a, 0x0f6, 0xfed,
 }};
+// Niveles de la rampa del fondo (0..11): el sprite/props usan 12..15.
+constexpr eng::u8 kTexLevels = 12u;
+// Colores semanticos del campo.
+constexpr eng::u8 kPropColor = 12u;  ///< props estaticos (zonas de prueba del cookie-cut)
+constexpr eng::u8 kSpriteRim = 13u;  ///< borde del sprite
+constexpr eng::u8 kSpriteCore = 15u; ///< nucleo del sprite
+// Prop de prueba del cookie-cut: la trayectoria lo cruza (x 64..256, y 110..190).
+constexpr eng::s16 kTestPropX = 120;
+constexpr eng::s16 kTestPropY = 168;
+constexpr eng::u16 kTestPropW = 40u;
+constexpr eng::u16 kTestPropH = 12u;
 constexpr eng::Palette32 kHudPalette {{
 	0x000, 0xfff, 0xff0, 0xf00,
 }};
 
 constexpr eng::debug::Version kVersion {1u, 0u};
+
+// Telemetria del self-check del cookie-cut (pixeles ajenos en el cruce; debe quedar en 0).
+const char kCntCutBad[] = "cut_bad";
+const char kCntFps10[] = "fps10";
 
 // Actividad del "juego" (el HUD es lo que se demuestra): un actor que rebota.
 // El actor se dibuja con el **sistema de objetos del engine** (`World::add_actor` con
@@ -62,8 +106,6 @@ constexpr eng::debug::Version kVersion {1u, 0u};
 // hay ventana de "actor ausente" entre borrado y pintado (el motor encadena
 // restaurar->guardar->dibujar en el plan, ejecutado tras el VBlank).
 constexpr u16 kActorSize = 16u;
-constexpr u16 kActorY = 150u;
-constexpr u16 kActorTravel = kWidth - 2u * kActorSize;
 constexpr u8 kActorPlanes = 4u; // planos del campo de juego (color 15 = los cuatro)
 // Hoja **par** de cookie-cut (`BobMaskPack::InterleavedPair`): por cada fila fisica (fila de
 // arte x plano), `[imagen k][guarda k][mascara k][guarda k]` con `k = 1` palabra (arte de
@@ -144,16 +186,18 @@ struct HudBandDemo {
 			return;
 		}
 
-		// (4) Fondo estatico del juego y parte estatica del HUD (etiquetas, marcos y fondo
-		// del medidor). Lo dinamico se repinta por deltas cuando el valor visible cambia.
+		// (4) Contenido: **fondo procedural** con estructura y color + props estaticos (zonas
+		// de prueba del cookie-cut/save-under) + parte estatica del HUD. Un fondo negro liso
+		// esconde los defectos que la demo debe cazar (cookie-cut, guardas, restauracion):
+		// el fondo con textura hace visible cualquier pixel ajeno.
 		eng::Screen screen = app.screen();
-		screen.clear(0u);
-		(void)screen.fill(eng::Box {0, 180, kWidth, 28u}, 1u);
-		(void)screen.fill(eng::Box {40, 150, 24u, 24u}, 3u);
-		(void)screen.fill(eng::Box {120, 168, 40u, 12u}, 2u);
-		(void)screen.fill(eng::Box {240, 140, 32u, 16u}, 6u);
-		(void)screen.fill(eng::Box {180, 60, 48u, 8u}, 5u);
-		(void)screen.fill(eng::Box {60, 90, 8u, 60u}, 4u);
+		draw_procedural_background(screen);
+		(void)screen.fill(eng::Box {0, 180, kWidth, 28u}, 8u);
+		(void)screen.fill(eng::Box {40, 150, 24u, 24u}, kPropColor);
+		(void)screen.fill(eng::Box {120, 168, 40u, 12u}, kPropColor);
+		(void)screen.fill(eng::Box {240, 140, 32u, 16u}, kPropColor);
+		(void)screen.fill(eng::Box {180, 60, 48u, 8u}, kPropColor);
+		(void)screen.fill(eng::Box {60, 90, 8u, 60u}, kPropColor);
 		draw_static_hud();
 		draw_version_prefix();
 		draw_version_number(0u);
@@ -168,6 +212,8 @@ struct HudBandDemo {
 		}
 
 		m_ready = true;
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>(kCntCutBad));
+		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>(kCntFps10));
 		eng::amiga::mark_ready();
 	}
 
@@ -196,18 +242,19 @@ struct HudBandDemo {
 
 		// Actor: el **sistema de objetos** del engine mueve el BOB (restaurar fondo ->
 		// guardar fondo nuevo -> dibujar, encolado en el plan y ejecutado en `present`).
-		// El recorrido (ida y vuelta) se calcula con desplazamientos, sin `*` ni `/`.
-		const u32 half = kActorTravel >> 1u;
-		const u32 px = f % kActorTravel;
-		const s16 x = static_cast<s16>(px < half ? kActorSize + (px << 1u)
-							 : kActorSize + ((kActorTravel - px) << 1u));
-		if (x != m_actor_x) {
-			if (auto a = app.world().actor(m_actor)) {
+		// **Trayectoria en curva** (lissajous 3:1, tabla precalculada en compilacion):
+		// x e y varian a la vez y el subpixel recorre todas las fases.
+		const u32 t = f & 63u;
+		const s16 x = kPath.x[t];
+		const s16 y = kPath.y[t];
+		if (auto a = app.world().actor(m_actor)) {
+			if (a->desc.x != x || a->desc.y != y) {
 				a->desc.x = x;
-				a->desc.y = kActorY;
+				a->desc.y = y;
 			}
-			m_actor_x = x;
 		}
+		m_dbg_ax = x; // telemetria del self-check
+		m_dbg_ay = y;
 	}
 
 	void render(auto& app) {
@@ -222,6 +269,7 @@ struct HudBandDemo {
 		// campo, justo cuando el haz pasaba por y=150: carrera visible (parpadeo).
 		(void)app.draw_world();
 		app.present();
+		self_check_cookie_cut(app);
 		if (m_hud.any_dirty()) {
 			build_dynamic_ops();
 			(void)m_strip.apply(m_hud.ops());
@@ -240,10 +288,52 @@ struct HudBandDemo {
 		eng::u32 fps10 = 0u;
 		if (m_fps_win.update(app.frame(), eng::debug::prof_clock(), fps10)) {
 			draw_fps(fps10);
+			// Telemetria: el mismo fps al periferico (medida fiable sin depender del video).
+			eng::debug::DebugPeripheral::counter_value(1u, fps10);
 		}
 	}
 
 private:
+	/// **Self-check del cookie-cut** (telemetria, no video): cuando la caja del actor pisa el
+	/// prop de prueba, cuenta los pixeles AJENOS dentro del solape (ni sprite ni prop): una
+	/// guarda o banda pintada daria >0. Lee los bitplanes reales (interleaved, 4 planos), asi
+	/// que no depende del refresco de video (DT-035). Expone el acumulado por contador.
+	void self_check_cookie_cut(auto& app) {
+		const eng::s16 l = m_dbg_ax;
+		const eng::s16 t0 = m_dbg_ay;
+		if (l + 32 <= kTestPropX || l >= kTestPropX + static_cast<eng::s16>(kTestPropW) ||
+		    t0 + 16 <= kTestPropY || t0 >= kTestPropY + static_cast<eng::s16>(kTestPropH)) {
+			return; // sin solape: nada que comprobar
+		}
+		const auto hv = app.device().scene().playfield().hardware_view();
+		const eng::u8* base = hv.bitplanes.ptr();
+		const eng::u16 row = hv.bitmap_bytes_per_row;
+		const eng::u8 planes = hv.planes;
+		for (eng::u16 dy = 0u; dy < 16u; dy += 2u) {
+			for (eng::u16 dx = 0u; dx < 32u; dx += 2u) {
+				const eng::s16 px = static_cast<eng::s16>(l + dx);
+				const eng::s16 py = static_cast<eng::s16>(t0 + dy);
+				if (px < kTestPropX || px >= kTestPropX + static_cast<eng::s16>(kTestPropW) ||
+				    py < kTestPropY || py >= kTestPropY + static_cast<eng::s16>(kTestPropH)) {
+					continue; // fuera del prop: el fondo es libre
+				}
+				eng::u8 c = 0u;
+				for (eng::u8 p = 0u; p < planes; ++p) {
+					const eng::u16* w = reinterpret_cast<const eng::u16*>(
+						base + (static_cast<eng::u32>(py) * planes + p) * row +
+						(static_cast<eng::u32>(px) / 16u) * 2u);
+					const eng::u8 bit = static_cast<eng::u8>(
+						(*w >> (15u - (static_cast<eng::u16>(px) & 15u))) & 1u);
+					c = static_cast<eng::u8>(c | static_cast<eng::u8>(bit << p));
+				}
+				if (c != kPropColor && c != kSpriteRim && c != kSpriteCore) {
+					++m_dbg_cut_bad;
+				}
+			}
+		}
+		eng::debug::DebugPeripheral::counter_value(0u, m_dbg_cut_bad);
+	}
+
 	/// Da de alta el actor del juego por el **sistema de objetos** del engine: hoja planar en
 	/// Chip (cuadrado solido de color 15; por fila, palabra de objeto + guarda del *barrel
 	/// shifter*) y save-under por buffer de display (`BackgroundPolicy::SaveUnder`). El motor
@@ -255,16 +345,41 @@ private:
 		if (!m_actor_sheet.valid() || !m_actor_save.valid()) {
 			return false;
 		}
-		// Contenido de la hoja par por la vista tipada del bloque (sin `view.data()`):
-		// por cada fila de arte y plano, [imagen=0xFFFF][guarda=0][mascara=0xFFFF][guarda=0].
+		// Arte del sprite: **blob organico** con `proc::shapes::SoftCircleMask` (borde
+		// deshilachado por ruido). La MISMA forma es la mascara del cookie-cut: los bordes
+		// se recortan de verdad (transparencia) y el fondo se ve por las esquinas — un
+		// cuadrado macizo no probaria ni el recorte ni la restauracion del fondo con
+		// textura. Nucleo = color `kSpriteCore`, borde = `kSpriteRim` (dos tonos por plano).
+		using S = eng::math::MiniFloat16;
+		eng::gfx::proc::SoftCircleMask<S> blob {};
+		blob.cx = static_cast<eng::u16>(kActorSize / 2u);
+		blob.cy = static_cast<eng::u16>(kActorSize / 2u);
+		blob.r2_min = 20u; // d^2 <= 20: interior siempre opaco (~4,5 px de radio)
+		blob.r2_max = 58u; // d^2 >= 58: exterior siempre transparente (~7,6 px)
+		blob.seed = 3u;
 		eng::Words<eng::BobTag> sheet = m_actor_sheet.view.as_words();
-		for (eng::u8 p = 0u; p < kActorPlanes; ++p) {
-			for (eng::u16 r = 0u; r < kActorSize; ++r) {
+		for (eng::u16 r = 0u; r < kActorSize; ++r) {
+			for (eng::u8 p = 0u; p < kActorPlanes; ++p) {
+				eng::u16 img = 0u;
+				eng::u16 mask = 0u;
+				for (eng::u16 x = 0u; x < kActorSize; ++x) {
+					if (blob(x, r) == 0u) {
+						continue;
+					}
+					mask = static_cast<eng::u16>(mask | (0x8000u >> x));
+					const eng::s32 dx = static_cast<eng::s32>(x) - 8;
+					const eng::s32 dy = static_cast<eng::s32>(r) - 8;
+					const bool core = (dx * dx + dy * dy) <= 12;
+					// Nucleo = 15 (todos los planos), borde = 13 (sin el plano 1).
+					if (core || p != 1u) {
+						img = static_cast<eng::u16>(img | (0x8000u >> x));
+					}
+				}
 				const eng::u32 base = (static_cast<eng::u32>(r) * kActorPlanes + p) * 4u;
-				sheet[base] = 0xffffu;      // imagen (16 px, MSB = pixel 0)
-				sheet[base + 1u] = 0x0000u; // guarda del barrel shifter
-				sheet[base + 2u] = 0xffffu; // mascara de cookie-cut (1 = objeto)
-				sheet[base + 3u] = 0x0000u; // guarda de la mascara
+				sheet[base] = img;      // imagen del plano (arte)
+				sheet[base + 1u] = 0u;  // guarda del barrel shifter
+				sheet[base + 2u] = mask; // mascara de cookie-cut (la forma; 1 = objeto)
+				sheet[base + 3u] = 0u;  // guarda de la mascara
 			}
 		}
 		eng::graphics::Bob bob {};
@@ -280,7 +395,7 @@ private:
 		m_actor_sprite = eng::graphics::Sprite {bob, kActorSheetBytes, 0u};
 		app.world().reset_actors(0u, 60000u, 0u);
 		eng::scene::ActorDesc d = eng::scene::actor_desc_from_sprite(
-			m_actor_sprite, static_cast<s16>(m_actor_x), kActorY, 10u, 0u,
+			m_actor_sprite, kPathCx, kPathCy, 10u, 0u,
 			eng::scene::TransparencyMode::Mask1Bit, eng::scene::BackgroundPolicy::SaveUnder);
 		d.save[0u] = m_actor_save.mem_view();
 		d.save_words_per_row = kActorSaveWords;
@@ -362,6 +477,41 @@ private:
 		digits[5] = ' ';
 		auto surf = m_strip.surface();
 		(void)surf.draw_text_words(256, 40, digits, kHudFg);
+	}
+
+	/// **Fondo procedural** con estructura y color, por **geometria barata** (bandas,
+	/// montanas y sol con `fill`/`fill_run`/`circle`): ~300 llamadas, coste de carga
+	/// despreciable. La via del ruido (`proc::tex`) NO cabe aqui: un fBm por pixel cuesta
+	/// ~10-15k ciclos en el 68000 (medido: la textura 160x128 no llegaba a READY en 40 s);
+	/// para texturas organicas se precocinan en host (demo 119). Lo que importa para
+	/// detectar defectos es que el fondo tenga **estructura y color** (un negro liso
+	/// esconde guardas, halos y danos de restauracion) y que el sprite tenga forma real.
+	void draw_procedural_background(eng::Screen& screen) {
+		// Cielo: 26 bandas de 8 px con rampa (indices 1..7).
+		for (eng::u16 band = 0u; band < 26u; ++band) {
+			(void)screen.fill(eng::Box {0, static_cast<s16>(band * 8u), kWidth, 8u},
+					  static_cast<eng::u8>(1u + (band >> 2u)));
+		}
+		// Sol con anillos (el circulo de la fachada; 8 anillos = disco solido).
+		for (eng::u8 ring = 8u; ring > 0u; --ring) {
+			(void)screen.circle(72, 52, ring, 14u);
+		}
+		// Montanas: piramides escalonadas por filas (dos cordilleras con color distinto).
+		for (eng::u16 row = 0u; row < 64u; ++row) {
+			const eng::s16 y = static_cast<eng::s16>(88u + row);
+			const eng::u16 half1 = static_cast<eng::u16>(64u - (row >> 1u));
+			(void)screen.fill_run(eng::Box {static_cast<s16>(80u - half1), y,
+							static_cast<eng::u16>(half1 * 2u), 1u}, 8u);
+			const eng::u16 half2 = static_cast<eng::u16>(48u - (row / 3u));
+			(void)screen.fill_run(eng::Box {static_cast<s16>(240u - half2), y,
+							static_cast<eng::u16>(half2 * 2u), 1u}, 10u);
+		}
+		// Valle y rio: bandas horizontales + un cauce diagonal por filas.
+		(void)screen.fill(eng::Box {0, 152, kWidth, 56u}, 9u);
+		for (eng::u16 row = 0u; row < 56u; ++row) {
+			const eng::s16 x = static_cast<eng::s16>(24u + row);
+			(void)screen.fill_run(eng::Box {x, static_cast<s16>(152u + row), 20u, 1u}, 6u);
+		}
 	}
 
 	/// Parte estatica del HUD: etiquetas, marco de la franja y marco del medidor (una vez).
@@ -492,8 +642,10 @@ private:
 	u16 m_energy_w = 0u;
 	u8 m_energy_color = 0xffu;
 	u8 m_pip_color[4] = {0xffu, 0xffu, 0xffu, 0xffu};
-	u16 m_actor_x = kActorSize;
 	u32 m_hud_second = ~0u;
+	eng::s16 m_dbg_ax = 0; // self-check (posicion del actor)
+	eng::s16 m_dbg_ay = 0;
+	eng::u16 m_dbg_cut_bad = 0u; // pixeles ajenos vistos en el cruce
 	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps de la franja de depuracion
 	bool m_ready = false;
 };
