@@ -183,7 +183,8 @@ class Hud { /* ... */ };
 | `Button` | Etiqueta, `enabled`, `pressed` | *Press*/*release*, acción al soltar dentro. |
 | `Panel` | Hijos y layout simple (fila/columna/rejilla) | Agrupa y recorta; no es una ventana. |
 | `Cursor` | Posición y forma | Lo dibuja `HardwareCursor` o el presentador de overlay. |
-| `Tooltip`/`Toast` | Texto + `ttl_frames` | Se muestra sobre la región; expira por `Tick`. |
+| `Tooltip`/`Toast` | Texto **por valor** + `ttl_frames` + `box`/`color` | Se muestra con `tooltip_show`; `tooltip_tick` descuenta el TTL y marca *dirty* al ocultarse. |
+| `VerbBar` | Verbos (etiquetas) con uno **activo** y foco de navegación | Alta con `add_verb_bar` (crea los `Button`); `verb_select`/`verb_move_focus` con *dirty*. |
 
 ### 5.3 Propiedad del estado
 
@@ -237,6 +238,16 @@ Hay **una sola sesión de arrastre global**. Estados: `Idle → Pressed → Drag
 - El destino consulta `accepts(item_id, qty)` solo al entrar en la celda y al soltar, no en cada píxel.
 - Cancelar (`Esc`, botón secundario del joystick o salida del panel) restaura el estado sin llamar a la política de *drop*.
 - El *ghost* visual es un sprite de hardware si hay canal; si no, un BOB de overlay con presupuesto; si no, se ilumina el slot de origen y se omite el *ghost*.
+
+### 5.7 Aventura y CRPG (verbos, tooltips, puente RPG)
+
+Las **aventuras gráficas** y los **CRPG** son los consumidores naturales del HUD con interfaz avanzada (`ADVENTURE_LAYER.md` §3: «barra de verbos, inventario, subtítulos → reutilizar `eng::hud`»):
+
+- **Barra de verbos**: `add_verb_bar(Span<const char* const>)` crea un `Button` por verbo (etiquetas por valor) y guarda el **activo** y el **foco**; `verb_select`/`verb_move_focus` (con recorte) marcan *dirty*. El presentador pinta los botones como ops de la región (franja o panel).
+- **Inventario/equipo**: un `IconGrid` con vistas `HudSlotView`; el **puente** `eng/rpg/hud_bridge.hpp` (`hud_slots_from_bag`) convierte `ItemBag`/`ItemStore`/`Equipment` en vistas (id lógico `type+1`, icono por tabla del juego, cantidad, vacío/equipado) **sin invertir dependencias**: `eng::hud` no conoce `eng::rpg`. El juego refresca la rejilla al cambiar el inventario, no por frame.
+- **Subtítulos y avisos**: `Tooltip`/`Toast` con TTL por `Tick` (también sirven de subtítulo corto con `ttl` largo).
+- **Inventario modal**: región `Screen` (el compositor compone su lienzo a pantalla completa); el panel es layout puro (`panel_cell` da la celda por fórmula), no una ventana de `eng::ui`.
+- **Entrada**: la barra y la rejilla se manejan con `HudInput` (sin máquina propia): direcciones = foco, `Fire`/`Accept` = activar; el verbo activo lo consulta el juego al resolver el click de un hotspot.
 
 ## 6. Presentación y presupuesto
 

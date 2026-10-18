@@ -65,7 +65,7 @@ Antes de crear cada pieza se busca su equivalente en el engine (regla §1.7 de `
 | Navegación por polígonos convexos | `eng::ai::NavMesh` (`eng/ai/navigation/navmesh_lite.hpp`, HOST-118) + `eng::util::graph`/`pathfinding` | **Reutilizar**: las walkboxes son polígonos convexos con portales; el grafo se deriva de la adyacencia |
 | Cámara de mundo (follow/pan/dead-zone) | No existe fachada (`scene::RouteCamera` es de demos) | **Nuevo** `eng/adv/camera.hpp`, puro y host-testable |
 | Copper por línea y doble buffer | `eng::Copper` (`eng/api/copper.hpp`), `copper::{Scheduler,ListBuilder,Plan,DoubleBuffer}`, validadores `eng::setup` | **Reutilizar**: el *copper score* es una capa de datos encima |
-| HUD (barra de verbos, inventario, subtítulos) | `eng::hud` (regiones `Band`/`Overlay`/`Screen`) | **Reutilizar** como vistas del estado; no duplicar modelo |
+| HUD (barra de verbos, inventario, subtítulos) | `eng::hud` (regiones `Band`/`Overlay`/`Screen`; `VerbBar`/`Tooltip` y el puente `eng/rpg/hud_bridge.hpp`, `HUD_SYSTEM.md` §5.7) | **Reutilizar** como vistas del estado; no duplicar modelo |
 | Ventanas (menús, guardar, journal) | `eng::ui` (compositor, widgets, texto) | **Reutilizar** |
 | Texto y fuentes | `Surface::draw_text`, `Font8`, `eng/ui/text.hpp` | **Reutilizar** |
 | Secuencias temporizadas (cutscenes) | `eng::util::sequence`, `state_machine` | **Componer** en el director |

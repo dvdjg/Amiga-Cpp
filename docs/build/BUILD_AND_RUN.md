@@ -309,6 +309,8 @@ demos/<demo>/analyze-screenshot.sh
 que demos close-to-the-metal, como una prueba de Copper a pantalla completa, validen
 la imagen por criterios propios.
 
+**Aviso (2026-10, DT-023/DT-035): en este entorno el refresco de vídeo se congela a tramos.** Las capturas (`--screenshot` y la secuencia por paso) pueden devolver **frames viejos** (un objeto "ausente" o una pantalla "congelada" con el framebuffer correcto). Consecuencias prácticas: (a) para **medir** fps usar la **telemetría por contador** (`--read-debugperiph counters` con el `fps10` de la demo), no el número leído de un PNG; (b) para **verificar render** añadir un **auto-chequeo de memoria** en la demo (leer los bitplanes y exponer un contador, patrón `cut_bad` de la 302 — regla 25 del procedimiento) o mirar la ventana visible; (c) el `measure-fps.mjs` (que arranca su propia instancia) es **poco fiable** aquí: reintenta o usa la vía del contador.
+
 ## Regresion completa
 
 ```bash

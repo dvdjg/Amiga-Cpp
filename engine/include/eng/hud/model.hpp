@@ -187,6 +187,72 @@ struct Panel {
 	bool dirty = true;      ///< true si cambió desde el último `clear_dirty`
 };
 
+/// **Celda `index` de un panel** (layout por columnas, H5): posición por fórmula desde
+/// `bounds`; `false` si la celda no cabe en el panel. Se llama al refrescar la rejilla o al
+/// montar el layout (no por píxel); `columns` potencia de dos permite sustituir el `%`/`/`
+/// por máscara/desplazamiento.
+[[nodiscard]] constexpr bool panel_cell(const Panel& p, eng::u16 cell_w, eng::u16 cell_h,
+					eng::u16 index, eng::Box& out) noexcept {
+	if (p.columns == 0u || cell_w == 0u || cell_h == 0u) {
+		return false;
+	}
+	const eng::u16 col = static_cast<eng::u16>(index % p.columns);
+	const eng::u16 row = static_cast<eng::u16>(index / p.columns);
+	const eng::s16 x = static_cast<eng::s16>(p.bounds.x + col * cell_w);
+	const eng::s16 y = static_cast<eng::s16>(p.bounds.y + row * cell_h);
+	if (static_cast<eng::s32>(x) + cell_w > static_cast<eng::s32>(p.bounds.x) + p.bounds.w ||
+	    static_cast<eng::s32>(y) + cell_h > static_cast<eng::s32>(p.bounds.y) + p.bounds.h) {
+		return false;
+	}
+	out = eng::Box {x, y, cell_w, cell_h};
+	return true;
+}
+
+/// Etiqueta de tipo de tooltip/toast.
+struct TooltipTag {};
+/// Handle de tooltip/toast.
+using TooltipHandle = HudHandle<TooltipTag>;
+
+/// **Tooltip/toast**: aviso de texto con TTL por `Tick` (tooltip de hover, toast de evento,
+/// subtítulo corto). El juego lo muestra con `tooltip_show` y lo mantiene con `tooltip_tick`
+/// (una vez por frame); mientras `ttl_frames > 0` el presentador lo pinta en `box`. Texto
+/// **por valor** como el resto del modelo.
+struct Tooltip {
+	eng::Box box {};           ///< posición/tamaño en la región (lo fija el juego)
+	eng::u8 color = 0u;        ///< índice lógico de color
+	eng::u16 ttl_frames = 0u;  ///< frames restantes (0 = oculto)
+	eng::u8 text_len = 0u;     ///< longitud válida de `text`
+	char text[kHudTextMax] {}; ///< texto por valor (sin heap)
+	bool dirty = true;         ///< true si cambió desde el último `clear_dirty`
+	/// Copia el texto; `false` si no cabe (rechazo controlado).
+	[[nodiscard]] bool set_text(eng::Span<const char> t) noexcept {
+		return hud_detail::copy_text(text, text_len, t);
+	}
+	/// Texto vigente (observador al propio tooltip).
+	[[nodiscard]] eng::Span<const char> text_view() const noexcept {
+		return eng::Span<const char> {text, text_len};
+	}
+};
+
+/// Etiqueta de tipo de la barra de verbos.
+struct VerbBarTag {};
+/// Handle de la barra de verbos.
+using VerbBarHandle = HudHandle<VerbBarTag>;
+
+/// **Barra de verbos** (aventura gráfica, `ADVENTURE_LAYER.md`): una fila de verbos con uno
+/// **activo** y foco de navegación independiente. El modelo guarda los botones (`Button` con
+/// su etiqueta) y los índices; el presentador los pinta (los botones se emiten como ops del
+/// panel/franja). `verb_select`/`verb_move_focus` marcan *dirty* solo al cambiar.
+struct VerbBar {
+	/// Verbos máximos de una barra (fila de una franja de 320 px a 8 px/verbo y holgura).
+	static constexpr eng::u8 MaxVerbs = 12u;
+	eng::u8 count = 0u;   ///< verbos registrados
+	eng::u8 active = 0u;  ///< verbo seleccionado (índice)
+	eng::u8 focus = 0u;   ///< foco de navegación (joystick/teclado)
+	eng::util::Array<ButtonHandle, MaxVerbs> buttons {}; ///< botón de cada verbo
+	bool dirty = true;    ///< true si cambió desde el último `clear_dirty`
+};
+
 /// Tipo de operación de dibujo del HUD.
 enum class HudOpKind : eng::u8 {
 	Fill = 0, ///< relleno de un rectángulo con un índice de color
@@ -593,6 +659,142 @@ public:
 		return m_panels[handle.index];
 	}
 
+	// --- Tooltips/toasts y barra de verbos (H5: aventura/CRPG) ------------------------------
+
+	/// Añade un tooltip/toast (oculto hasta `tooltip_show`); handle inválido si no cabe.
+	[[nodiscard]] TooltipHandle add_tooltip() noexcept {
+		if (m_widgets_used >= MaxWidgets) {
+			return {};
+		}
+		Tooltip& t = m_tooltips[m_tooltips_used];
+		t = Tooltip {};
+		t.dirty = false; // nace oculto: no hay nada que repintar
+		++m_widgets_used;
+		return TooltipHandle {static_cast<eng::u8>(m_tooltips_used++)};
+	}
+
+	/// Tooltip por handle.
+	[[nodiscard]] const Tooltip& tooltip(TooltipHandle handle) const noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_tooltips_used);
+		return m_tooltips[handle.index];
+	}
+
+	/// Muestra un tooltip/toast con TTL (frames): copia el texto y marca *dirty*. El juego
+	/// lo refresca llamando otra vez (reinicia el TTL). `false` si el texto no cabe.
+	[[nodiscard]] bool tooltip_show(TooltipHandle handle, eng::Span<const char> text, eng::Box box,
+					eng::u8 color, eng::u16 ttl_frames) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_tooltips_used);
+		Tooltip& t = m_tooltips[handle.index];
+		if (!t.set_text(text)) {
+			return false;
+		}
+		t.box = box;
+		t.color = color;
+		t.ttl_frames = ttl_frames;
+		mark_dirty(t);
+		return true;
+	}
+
+	/// Avanza los TTLs **un frame** (llamar una vez por frame, tras `Tick`): decrementa y
+	/// oculta los vencidos, marcando *dirty* al cambiar la visibilidad. Devuelve cuántos
+	/// siguen visibles.
+	[[nodiscard]] eng::u8 tooltip_tick() noexcept {
+		eng::u8 visibles = 0u;
+		for (eng::u8 i = 0u; i < m_tooltips_used; ++i) {
+			Tooltip& t = m_tooltips[i];
+			if (t.ttl_frames == 0u) {
+				continue;
+			}
+			--t.ttl_frames;
+			if (t.ttl_frames == 0u) {
+				mark_dirty(t); // se oculta: el presentador debe borrarlo
+			}
+			++visibles;
+		}
+		return visibles;
+	}
+
+	/// ¿El tooltip está visible (TTL > 0)?
+	[[nodiscard]] bool tooltip_visible(TooltipHandle handle) const noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_tooltips_used);
+		return m_tooltips[handle.index].ttl_frames != 0u;
+	}
+
+	/// Añade una **barra de verbos**: crea un `Button` por etiqueta (capacidad
+	/// `VerbBar::MaxVerbs`) y devuelve el handle de la barra; inválido si no caben (widgets o
+	/// verbos). Las etiquetas se copian por valor en cada botón.
+	[[nodiscard]] VerbBarHandle add_verb_bar(eng::Span<const char* const> labels) noexcept {
+		if (labels.empty() || labels.size() > VerbBar::MaxVerbs ||
+		    m_widgets_used + labels.size() > MaxWidgets) {
+			return {};
+		}
+		VerbBar& bar = m_verb_bars[m_verb_bars_used];
+		bar = VerbBar {};
+		for (eng::usize i = 0u; i < labels.size(); ++i) {
+			const char* label = labels[i];
+			eng::usize n = 0u;
+			while (label != nullptr && label[n] != '\0' && n < kHudTextMax) {
+				++n;
+			}
+			Button& b = m_buttons[m_buttons_used];
+			b = Button {};
+			if (label == nullptr ||
+			    !b.set_text(eng::Span<const char> {label, static_cast<eng::usize>(n)})) {
+				return {};
+			}
+			bar.buttons[i] = ButtonHandle {static_cast<eng::u8>(m_buttons_used++)};
+			++m_widgets_used;
+		}
+		bar.count = static_cast<eng::u8>(labels.size());
+		++m_widgets_used; // la barra ocupa un widget
+		return VerbBarHandle {static_cast<eng::u8>(m_verb_bars_used++)};
+	}
+
+	/// Barra de verbos por handle.
+	[[nodiscard]] const VerbBar& verb_bar(VerbBarHandle handle) const noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_verb_bars_used);
+		return m_verb_bars[handle.index];
+	}
+
+	/// Botón del verbo `index` de la barra (para pintarlo o consultar su etiqueta).
+	[[nodiscard]] ButtonHandle verb_button(VerbBarHandle handle, eng::u8 index) const noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_verb_bars_used);
+		const VerbBar& bar = m_verb_bars[handle.index];
+		return index < bar.count ? bar.buttons[index] : ButtonHandle {};
+	}
+
+	/// Selecciona el verbo activo; `true` si cambió (marca *dirty*).
+	[[nodiscard]] bool verb_select(VerbBarHandle handle, eng::u8 index) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_verb_bars_used);
+		VerbBar& bar = m_verb_bars[handle.index];
+		if (index >= bar.count || bar.active == index) {
+			return false;
+		}
+		bar.active = index;
+		bar.focus = index;
+		mark_dirty(bar);
+		return true;
+	}
+
+	/// Mueve el foco de la barra con recorte a los extremos; `true` si cambió.
+	[[nodiscard]] bool verb_move_focus(VerbBarHandle handle, eng::s8 dx) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_verb_bars_used);
+		VerbBar& bar = m_verb_bars[handle.index];
+		const eng::s16 next = static_cast<eng::s16>(bar.focus) + dx;
+		if (next < 0 || next >= static_cast<eng::s16>(bar.count)) {
+			return false;
+		}
+		bar.focus = static_cast<eng::u8>(next);
+		mark_dirty(bar);
+		return true;
+	}
+
+	/// Verbo activo de la barra.
+	[[nodiscard]] eng::u8 verb_active(VerbBarHandle handle) const noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_verb_bars_used);
+		return m_verb_bars[handle.index].active;
+	}
+
 	// --- Arrastre ---------------------------------------------------------------------------
 
 	/// Inicia una sesión de arrastre desde un slot (solo desde `Idle`). Pasa a `Pressed`;
@@ -775,6 +977,16 @@ public:
 				return true;
 			}
 		}
+		for (eng::u8 i = 0u; i < m_tooltips_used; ++i) {
+			if (m_tooltips[i].dirty) {
+				return true;
+			}
+		}
+		for (eng::u8 i = 0u; i < m_verb_bars_used; ++i) {
+			if (m_verb_bars[i].dirty) {
+				return true;
+			}
+		}
 		return m_drag.dirty;
 	}
 
@@ -799,6 +1011,12 @@ public:
 		for (eng::u8 i = 0u; i < m_panels_used; ++i) {
 			m_panels[i].dirty = false;
 		}
+		for (eng::u8 i = 0u; i < m_tooltips_used; ++i) {
+			m_tooltips[i].dirty = false;
+		}
+		for (eng::u8 i = 0u; i < m_verb_bars_used; ++i) {
+			m_verb_bars[i].dirty = false;
+		}
 		m_drag.dirty = false;
 	}
 
@@ -820,12 +1038,16 @@ private:
 	eng::util::Array<Label, MaxWidgets> m_labels {};
 	eng::util::Array<Button, MaxWidgets> m_buttons {};
 	eng::util::Array<Panel, MaxWidgets> m_panels {};
+	eng::util::Array<Tooltip, MaxWidgets> m_tooltips {};
+	eng::util::Array<VerbBar, MaxWidgets> m_verb_bars {};
 	eng::u8 m_meters_used = 0u;
 	eng::u8 m_counters_used = 0u;
 	eng::u8 m_grids_used = 0u;
 	eng::u8 m_labels_used = 0u;
 	eng::u8 m_buttons_used = 0u;
 	eng::u8 m_panels_used = 0u;
+	eng::u8 m_tooltips_used = 0u;
+	eng::u8 m_verb_bars_used = 0u;
 	eng::u16 m_widgets_used = 0u;
 	eng::u16 m_slots_used = 0u;
 

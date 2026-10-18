@@ -34,6 +34,7 @@ El **HUD de juego** del engine (`eng::hud`): modelo portable de componentes (med
 
 - **HOST-467** (`tests/host/ui/467_hud_model`): modelo, handles, capacidad, *dirty*, contadores (bases 10/16/2, ceros, negativos, `s32` mínimo), rejilla y `DragSession`; dos configuraciones de capacidad.
 - **HOST-468** (`tests/host/ui/468_hud_strip`): `HudStrip` (bind/validación/limpieza) y `apply_hud_ops` (`Fill`/`Frame`/`Text` con recorte; ruta de palabra completa).
+- **HOST-472** (`tests/host/ui/472_hud_crpg`): `VerbBar` (alta/activo/foco), `Tooltip`/`Toast` (TTL y *dirty* al ocultarse), `Panel`+`panel_cell` y el **puente RPG → HUD** (`eng/rpg/hud_bridge.hpp`: inventario + equipo → `HudSlotView`, sin invertir dependencias).
 - **HOST-469** (`tests/host/ui/469_hud_input`): hit-test por capa y por fórmula (pitch no múltiplo de 16), *click* dentro/fuera, selección y foco con bordes de rejilla, joystick (`Fire` = *click* del foco), `UiAction` y consumo según `capture_input` derivado del contrato de región.
 - **Demo `302_hud_band`** (`demos/features/ui/amiga/302_hud_band`): franja de 2 planos con paleta propia en la línea 208, HUD por deltas, **49,9 fps / 1 campo** (A500_debug; orden de pintado por banda + rellenos del HUD por CPU), *flicker* con gate OK y visión A/B/C + canónica (`VALIDATION.md`).
 - Pendiente (H2–H6): demo `303_hud_icons` (selección por ratón y joystick con el núcleo de entrada ya entregado), arrastre, overlay/sprites, paneles y atlas (plan en `docs/guides/roadmap/ROADMAP_HUD.md`).
