@@ -142,6 +142,7 @@ struct IconGrid {
 	eng::u8 pitch_y = 16u;           ///< paso vertical entre celdas (px)
 	eng::u16 selection = kHudNoSlot; ///< slot seleccionado (0xffff = ninguno)
 	eng::u16 focus = 0u;             ///< slot con foco de joystick/teclado
+	eng::u16 hover = kHudNoSlot;     ///< slot bajo el puntero (0xffff = ninguno)
 	eng::u8 scroll_row = 0u;         ///< primera fila visible
 	eng::Span<const HudSlotView> slots {}; ///< vistas enlazadas por el juego (observador)
 	bool dirty = true;               ///< true si cambió desde el último `clear_dirty`
@@ -150,6 +151,7 @@ struct IconGrid {
 /// Etiqueta de texto estático (o refrescado por el juego); el texto se copia **por valor**
 /// al añadirla (el juego puede reutilizar su buffer sin cambiar lo pintado).
 struct Label {
+	eng::Box box {};                   ///< posición en la región (la fija el juego; hit-test y pintado)
 	eng::u8 text_len = 0u;             ///< longitud válida de `text`
 	char text[kHudTextMax] {};         ///< texto por valor (sin heap)
 	bool dirty = true;                 ///< true si cambió desde el último `clear_dirty`
@@ -163,12 +165,15 @@ struct Label {
 	}
 };
 
-/// Botón de HUD (barra de verbos, menú de acción): etiqueta, habilitado y pulsado.
+/// Botón de HUD (barra de verbos, menú de acción): etiqueta, habilitado, pulsado y **hover**.
+/// `box` es la geometría (la comparten el pintado y el *hit-test*/foco, `HUD_SYSTEM.md` §7.4).
 struct Button {
+	eng::Box box {};                   ///< posición/tamaño en la región
 	eng::u8 text_len = 0u;             ///< longitud válida de `text`
 	char text[kHudTextMax] {};         ///< etiqueta por valor (sin heap)
 	bool enabled = true;               ///< false = no interactivo
 	bool pressed = false;              ///< true mientras está pulsado
+	bool hover = false;                ///< true mientras el puntero está encima
 	bool dirty = true;                 ///< true si cambió desde el último `clear_dirty`
 	/// Copia la etiqueta al botón; `false` si no cabe en `kHudTextMax` (rechazo controlado).
 	[[nodiscard]] bool set_text(eng::Span<const char> t) noexcept {
@@ -563,6 +568,19 @@ public:
 		return true;
 	}
 
+	/// Fija el foco de la rejilla en `slot` (dentro de las vistas): `true` si cambió. Lo usa
+	/// el anillo de foco (`focus.hpp`) al entrar/saltar entre rejillas.
+	[[nodiscard]] bool grid_move_focus_to(GridHandle handle, eng::u16 slot) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_grids_used);
+		IconGrid& g = m_grids[handle.index];
+		if (slot >= g.slots.size() || g.focus == slot) {
+			return false;
+		}
+		g.focus = slot;
+		mark_dirty(g);
+		return true;
+	}
+
 	/// Mueve el foco por filas/columnas con recorte a la rejilla (sin división: el recorrido se
 	/// hace por sustracción repetida). `true` si el foco cambió.
 	[[nodiscard]] bool grid_move_focus(GridHandle handle, eng::s8 dx, eng::s8 dy) noexcept {
@@ -600,13 +618,15 @@ public:
 	// --- Etiquetas, botones y paneles -------------------------------------------------------
 
 	/// Añade una etiqueta; handle inválido si no cabe (`MaxWidgets`) o el texto excede
-	/// `kHudTextMax`.
-	[[nodiscard]] LabelHandle add_label(eng::Span<const char> text) noexcept {
+	/// `kHudTextMax`. `box` es su geometría en la región (pintado y *hit-test* comparten).
+	[[nodiscard]] LabelHandle add_label(eng::Span<const char> text,
+					    eng::Box box = {}) noexcept {
 		if (m_widgets_used >= MaxWidgets) {
 			return {};
 		}
 		Label& l = m_labels[m_labels_used];
 		l = Label {};
+		l.box = box;
 		if (!l.set_text(text)) {
 			return {};
 		}
@@ -621,13 +641,15 @@ public:
 	}
 
 	/// Añade un botón; handle inválido si no cabe (`MaxWidgets`) o la etiqueta excede
-	/// `kHudTextMax`.
-	[[nodiscard]] ButtonHandle add_button(eng::Span<const char> text) noexcept {
+	/// `kHudTextMax`. `box` es su geometría en la región (pintado y *hit-test* comparten).
+	[[nodiscard]] ButtonHandle add_button(eng::Span<const char> text,
+					      eng::Box box = {}) noexcept {
 		if (m_widgets_used >= MaxWidgets) {
 			return {};
 		}
 		Button& b = m_buttons[m_buttons_used];
 		b = Button {};
+		b.box = box;
 		if (!b.set_text(text)) {
 			return {};
 		}
@@ -722,12 +744,18 @@ public:
 
 	/// Añade una **barra de verbos**: crea un `Button` por etiqueta (capacidad
 	/// `VerbBar::MaxVerbs`) y devuelve el handle de la barra; inválido si no caben (widgets o
-	/// verbos). Las etiquetas se copian por valor en cada botón.
-	[[nodiscard]] VerbBarHandle add_verb_bar(eng::Span<const char* const> labels) noexcept {
+	/// verbos). Las etiquetas se copian por valor en cada botón. `box` es el área de la barra
+	/// y `cell_w` el ancho de cada verbo (0 = reparte `box.w` entre los verbos): la geometría
+	/// de cada botón queda en el modelo (pintado, *hit-test* y **foco** comparten).
+	[[nodiscard]] VerbBarHandle add_verb_bar(eng::Span<const char* const> labels,
+						 eng::Box box = {}, eng::u16 cell_w = 0u) noexcept {
 		if (labels.empty() || labels.size() > VerbBar::MaxVerbs ||
 		    m_widgets_used + labels.size() > MaxWidgets) {
 			return {};
 		}
+		const eng::u16 cell = cell_w != 0u
+					      ? cell_w
+					      : static_cast<eng::u16>(box.w / labels.size());
 		VerbBar& bar = m_verb_bars[m_verb_bars_used];
 		bar = VerbBar {};
 		for (eng::usize i = 0u; i < labels.size(); ++i) {
@@ -738,6 +766,9 @@ public:
 			}
 			Button& b = m_buttons[m_buttons_used];
 			b = Button {};
+			b.box = eng::Box {static_cast<eng::s16>(box.x + static_cast<eng::s16>(i) *
+									       static_cast<eng::s16>(cell)),
+					  box.y, cell, box.h};
 			if (label == nullptr ||
 			    !b.set_text(eng::Span<const char> {label, static_cast<eng::usize>(n)})) {
 				return {};
@@ -793,6 +824,47 @@ public:
 	[[nodiscard]] eng::u8 verb_active(VerbBarHandle handle) const noexcept {
 		ENG_ASSERT(handle.valid() && handle.index < m_verb_bars_used);
 		return m_verb_bars[handle.index].active;
+	}
+
+	/// **Hover** de un botón (el puntero encima): marca *dirty* solo al cambiar.
+	[[nodiscard]] bool button_hover(ButtonHandle handle, bool on) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_buttons_used);
+		Button& b = m_buttons[handle.index];
+		if (b.hover == on) {
+			return false;
+		}
+		b.hover = on;
+		mark_dirty(b);
+		return true;
+	}
+
+	/// **Hover** de una celda de rejilla (`kHudNoSlot` = ninguna): marca *dirty* al cambiar.
+	[[nodiscard]] bool grid_hover(GridHandle handle, eng::u16 slot) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_grids_used);
+		IconGrid& g = m_grids[handle.index];
+		if (g.hover == slot) {
+			return false;
+		}
+		g.hover = slot;
+		mark_dirty(g);
+		return true;
+	}
+
+	/// **Hover** del verbo `index` de la barra (y limpia el resto): *dirty* al cambiar.
+	[[nodiscard]] bool verb_hover(VerbBarHandle handle, eng::u8 index) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_verb_bars_used);
+		const VerbBar& bar = m_verb_bars[handle.index];
+		bool changed = false;
+		for (eng::u8 i = 0u; i < bar.count; ++i) {
+			Button& b = m_buttons[bar.buttons[i].index];
+			const bool on = (i == index);
+			if (b.hover != on) {
+				b.hover = on;
+				mark_dirty(b);
+				changed = true;
+			}
+		}
+		return changed;
 	}
 
 	// --- Arrastre ---------------------------------------------------------------------------

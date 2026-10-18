@@ -11,6 +11,7 @@
 
 #include <cstdio>
 
+#include <eng/hud/focus.hpp>
 #include <eng/hud/input.hpp>
 
 namespace {
@@ -231,6 +232,75 @@ int main() {
 		tick.kind = eng::ui::UiEventKind::Tick;
 		const eng::hud::HudInput::Result t = in.handle(hud, open, tick);
 		CHECK(!k.consumed && !t.consumed);
+	}
+
+	// --- Anillo de foco (`HudFocus`): navegacion geometrica, activacion, Tab y hover -------
+	// Setup: la rejilla (3x5 en (10,10), pitch 10x12) + los rects r1/r2/r3 en (0,0,...).
+	{
+		eng::hud::HudFocus ring {};
+		CHECK(ring.focus_first(hud)); // el primer rect empujado (r1, id 1)
+		CHECK(ring.target().kind == eng::hud::HudFocusTarget::Kind::Rect &&
+		      ring.target().id == 1u);
+		// Activar un rect devuelve su id (el juego lo resuelve, como el click).
+		const eng::hud::HudFocusResult act = ring.activate(hud);
+		CHECK(act.activated && act.id == 1u && act.grid.index == 0xffu);
+		// Movimiento geometrico: desde (0,0)-ish a la derecha -> la rejilla (centro (35,28)).
+		const eng::hud::HudFocusResult mv = ring.move(hud, 1, 0);
+		CHECK(mv.moved && mv.grid.valid());
+		CHECK(ring.target().kind == eng::hud::HudFocusTarget::Kind::Grid);
+		// Dentro de la rejilla: derecha mueve la celda (la celda de entrada + 1).
+		const eng::u16 entrada = hud.grid(grid).focus;
+		const eng::hud::HudFocusResult in = ring.move(hud, 1, 0);
+		CHECK(in.moved && hud.grid(grid).focus == entrada + 1u);
+		// En el borde derecho de la fila: el salto al vecino (ninguno a la derecha -> sin
+		// movimiento) o el recorte de la rejilla (grid_move_focus falla y no hay candidato).
+		(void)ring.move(hud, 1, 0);
+		(void)ring.move(hud, 1, 0);
+		(void)ring.move(hud, 1, 0);
+		(void)ring.move(hud, 1, 0);
+		const eng::u16 borde = hud.grid(grid).focus;
+		const eng::hud::HudFocusResult b1 = ring.move(hud, 1, 0);
+		CHECK(!b1.moved && hud.grid(grid).focus == borde); // borde: no sale de la rejilla
+		// Activar en la rejilla selecciona la celda con foco.
+		const eng::hud::HudFocusResult ga = ring.activate(hud);
+		CHECK(ga.activated && ga.slot == borde && hud.grid(grid).selection == borde);
+		// Tab: recorre el anillo (rects primero, luego rejillas) y vuelve.
+		eng::hud::HudFocusResult t = ring.next(hud, true);
+		CHECK(t.moved);
+		for (eng::u8 i = 0u; i < 6u; ++i) {
+			t = ring.next(hud, true);
+		}
+		CHECK(t.moved); // el anillo es circular (no se queda atascado)
+		// Hover -> foco: el hit de una celda sincroniza el foco del anillo.
+		const eng::hud::HudHit hit_cell = eng::hud::hud_hit_test(hud, 45, 40); // celda (13)
+		CHECK(hit_cell.hit && hit_cell.grid.valid());
+		CHECK(ring.focus_from_hit(hud, hit_cell));
+		CHECK(ring.target().kind == eng::hud::HudFocusTarget::Kind::Grid &&
+		      hud.grid(grid).focus == 13u);
+		// Hover del modelo (lo pinta el presentador): rejilla y botones, con dirty al cambiar.
+		hud.clear_dirty();
+		CHECK(hud.grid_hover(grid, 13u) && hud.any_dirty());
+		CHECK(!hud.grid_hover(grid, 13u));
+		CHECK(hud.grid_hover(grid, eng::hud::kHudNoSlot));
+	}
+
+	// --- Barra de verbos + foco (aventura: la barra entra en el anillo) --------------------
+	{
+		const char* const verbs[] = {"OPEN", "CLOSE", "LOOK"};
+		const eng::hud::VerbBarHandle bar =
+			hud.add_verb_bar(eng::Span<const char* const> {verbs, 3u},
+					 eng::Box {100, 8, 48u, 8u});
+		CHECK(bar.valid());
+		// La geometria de cada verbo queda en el modelo (box de su boton).
+		CHECK(hud.button(hud.verb_button(bar, 0u)).box.x == 100);
+		CHECK(hud.button(hud.verb_button(bar, 1u)).box.x == 116);
+		CHECK(hud.button(hud.verb_button(bar, 2u)).box.x == 132);
+		// Hover del verbo (solo uno encendido) y activacion por el modelo.
+		hud.clear_dirty();
+		CHECK(hud.verb_hover(bar, 1u) && hud.any_dirty());
+		CHECK(hud.button(hud.verb_button(bar, 1u)).hover);
+		CHECK(!hud.button(hud.verb_button(bar, 0u)).hover);
+		CHECK(hud.verb_select(bar, 2u) && hud.verb_active(bar) == 2u);
 	}
 
 	if (g_fail != 0) {

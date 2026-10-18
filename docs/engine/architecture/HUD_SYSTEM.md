@@ -239,15 +239,35 @@ Hay **una sola sesión de arrastre global**. Estados: `Idle → Pressed → Drag
 - Cancelar (`Esc`, botón secundario del joystick o salida del panel) restaura el estado sin llamar a la política de *drop*.
 - El *ghost* visual es un sprite de hardware si hay canal; si no, un BOB de overlay con presupuesto; si no, se ilumina el slot de origen y se omite el *ghost*.
 
-### 5.7 Aventura y CRPG (verbos, tooltips, puente RPG)
+### 5.7 Aventura y CRPG (verbos, tooltips, puente RPG) y **modularidad**
 
-Las **aventuras gráficas** y los **CRPG** son los consumidores naturales del HUD con interfaz avanzada (`ADVENTURE_LAYER.md` §3: «barra de verbos, inventario, subtítulos → reutilizar `eng::hud`»):
+Las **aventuras gráficas** y los **CRPG** son consumidores naturales del HUD con interfaz avanzada (`ADVENTURE_LAYER.md` §3: «barra de verbos, inventario, subtítulos → reutilizar `eng::hud`»), pero el HUD **no impone una interfaz**: es un conjunto de capas independientes que cualquier juego compone a su medida — desde un arcade con una franja de estado hasta un **Castle Master**/**3D Construction Kit** (vista 3D a pantalla completa + barra de estado + paneles de editor + *crosshair*): la vista no usa el HUD, y el HUD aporta solo las regiones y widgets que el juego declare.
 
-- **Barra de verbos**: `add_verb_bar(Span<const char* const>)` crea un `Button` por verbo (etiquetas por valor) y guarda el **activo** y el **foco**; `verb_select`/`verb_move_focus` (con recorte) marcan *dirty*. El presentador pinta los botones como ops de la región (franja o panel).
+- **Barra de verbos**: `add_verb_bar(Span<const char* const>, box, cell_w)` crea un `Button` por verbo (etiquetas por valor) con su **geometría**, y guarda el **activo** y el **foco**; `verb_select`/`verb_move_focus` (con recorte) marcan *dirty*. El presentador pinta los botones como ops de la región (franja o panel).
 - **Inventario/equipo**: un `IconGrid` con vistas `HudSlotView`; el **puente** `eng/rpg/hud_bridge.hpp` (`hud_slots_from_bag`) convierte `ItemBag`/`ItemStore`/`Equipment` en vistas (id lógico `type+1`, icono por tabla del juego, cantidad, vacío/equipado) **sin invertir dependencias**: `eng::hud` no conoce `eng::rpg`. El juego refresca la rejilla al cambiar el inventario, no por frame.
 - **Subtítulos y avisos**: `Tooltip`/`Toast` con TTL por `Tick` (también sirven de subtítulo corto con `ttl` largo).
 - **Inventario modal**: región `Screen` (el compositor compone su lienzo a pantalla completa); el panel es layout puro (`panel_cell` da la celda por fórmula), no una ventana de `eng::ui`.
-- **Entrada**: la barra y la rejilla se manejan con `HudInput` (sin máquina propia): direcciones = foco, `Fire`/`Accept` = activar; el verbo activo lo consulta el juego al resolver el click de un hotspot.
+- **Nada es obligatorio**: los widgets se añaden solo si se usan; el presentador es por región (`HudStrip` para franja; el compositor para overlay/screen); la entrada (`HudInput`) y el foco (`HudFocus`) son capas opcionales que solo leen la geometría que el juego declaró. Un juego sin HUD interactivo no paga nada.
+
+### 5.8 Entrada y foco por capas (ratón, teclado, joystick)
+
+El HUD es **una pantalla donde funciona el sistema de GUI**: sus capas de entrada están separadas y comparten **una sola fuente de verdad** (la geometría del modelo):
+
+```text
+  modelo (model.hpp)      estado + GEOMETRIA: Button/Label.box, HudHitRect.box, HudGridHit.area/pitch
+       │  push_hit / push_grid_hit        (el juego declara los mismos mapas para raton y foco)
+       ▼
+  hit-test (input.hpp)    hud_hit_test: punto -> elemento (rect por capa; celda por formula)
+       ▼
+  entrada (input.hpp)     HudInput: eventos -> hover/click/seleccion (raton), pasos y captura
+       ▼
+  foco (focus.hpp)        HudFocus: anillo navegable por geometria + activacion + Tab + hover->foco
+```
+
+- **Ratón**: `HudInput` resuelve *hover* (`MouseMove` -> `grid_hover`/`button_hover`), *click* (`down`+`up` mismo objetivo) y *click* de rejilla (`grid_select`). El *hover* vive en el modelo (`IconGrid::hover`, `Button::hover`) y lo pinta el presentador.
+- **Teclado/joystick**: `HudFocus` navega **por geometría** (el elemento más cercano en la dirección; dentro de una rejilla mueve su celda y en el borde salta al vecino) y `Tab`/`Shift+Tab` recorren el anillo en orden; `Fire`/`Enter`/`Espacio` (`UiAction::Accept`/`Activate`) **activan** (seleccionan la celda o devuelven el `id` del rect para que el juego lo resuelva, el mismo camino del click).
+- **Una sola fuente**: el anillo usa los **mismos** `hits()`/`grid_hits()` que el ratón; no hay dos mapas que se desincronicen (§7.1). La transformación de coordenadas es la del pintado (§7.4).
+- **Coherencia de acciones**: `HudInput` (el ratón) y `HudFocus` (el teclado/joystick) producen los **mismos** efectos en el modelo (`grid_select`/`grid_hover`) y los mismos `id` hacia el juego; el juego no distingue el dispositivo.
 
 ## 6. Presentación y presupuesto
 
