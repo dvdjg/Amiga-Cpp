@@ -1,6 +1,6 @@
 # Roadmap: importación de aventuras clásicas y previewer (pipeline host)
 
-Plan del **pipeline de PC** que convierte juegos de aventura clásicos (SCUMM V5/V6 —Monkey Island 1/2, Indy, DOTT—, y después AGI/SCI) en **proyectos nativos del engine**: código C++ de `eng::adv` + datos cocinados + assets, compilables con el toolchain normal. El diseño de la capa destino está en [`ADVENTURE_LAYER.md`](../../engine/architecture/ADVENTURE_LAYER.md) y el plan de la capa en [`ROADMAP_ADVENTURE.md`](ROADMAP_ADVENTURE.md).
+Plan del **pipeline de PC** que convierte juegos de aventura clásicos (SCUMM, empezando por **V5** —Monkey Island 2, Fate of Atlantis— y **V4** —Monkey Island 1 floppy/Amiga—; y después V6/DOTT, AGI, SCI y Cinématique) en **proyectos nativos del engine**: código C++ de `eng::adv` + datos cocinados + assets, compilables con el toolchain normal. El diseño de la capa destino está en [`ADVENTURE_LAYER.md`](../../engine/architecture/ADVENTURE_LAYER.md) y el plan de la capa en [`ROADMAP_ADVENTURE.md`](ROADMAP_ADVENTURE.md).
 
 **Estrategia**: ScummVM y sus herramientas se usan como **oráculo de formato y comportamiento en el host**, no como runtime que se porta; el formato canónico propio es el **SIM** (Semantic Intermediate Model — la idea «AIR» de la consulta externa), independiente del motor original y **ampliable con información Amiga** (capas de scroll, transparencias por color, cues de Copper, preferencia de materialización). La traducción de guiones es **semiautomática**: reglas deterministas para los patrones comunes + IA local **opcional y offline** (solo produce propuestas revisables), nunca un paso del build.
 
@@ -13,31 +13,68 @@ Plan del **pipeline de PC** que convierte juegos de aventura clásicos (SCUMM V5
 - **SIM versionado** (esquema con número de versión) y validado contra un esquema; fixtures de test **sintéticos y propios** (nada de datos de juegos comerciales versionados en el repo; las ejecuciones locales reales no se commitean).
 - **Enriquecimiento Amiga con revisión humana**: separar fondos en capas de parallax, marcar máscaras de color y proponer cues de Copper son **sugerencias asistidas** que se editan y versionan en el SIM, con **modo diff** contra la versión importada.
 
+## Fuentes locales del oráculo (host)
+
+Referencias locales de trabajo (fuera del repositorio; rutas relativas a la raíz de `Amiga-Cpp/`):
+
+```text
+../SCUMM/
+├── scummvm-2026.4.0/           código completo de ScummVM: oráculo de formato y comportamiento
+│   └── engines/
+│       ├── scumm/              familia SCUMM (V0–V8 + HE; aquí interesan V3/V4/V5)
+│       ├── agi/                familia AGI (I5)
+│       ├── sci/                familia SCI (I5)
+│       └── cine/               familia Cinématique (Operation Stealth, Future Wars)
+└── scummvm-tools-2.9.0/        herramientas host (proceso externo o referencia)
+    ├── engines/scumm/          descumm (descumm.cpp, descumm6.cpp) y extractores (extract_*)
+    └── decompiler/             framework de descompilado compartido
+```
+
+Mapa rápido «qué leer para qué» en I0/I1 — salvo indicación, bajo `../SCUMM/scummvm-2026.4.0/engines/scumm/`:
+
+| Necesito… | Fichero |
+|---|---|
+| Confirmar edición y versión de cada copia por md5 | `scumm-md5.h` (+ `detection_tables.h`; la tabla incluye entradas ES para Amiga) |
+| Carga de sala (fondos, z-planes, objetos, escalado) | `room.cpp` |
+| Walkboxes (BOXD/BOXM) y navegación | `boxes.cpp` |
+| Opcodes por versión | `script_v3.cpp`, `script_v4.cpp`, `script_v5.cpp`, `script_v6.cpp` (+ defines `scumm_v3.h`…`scumm_v6.h`) |
+| Actores, costumes y animación | `actor.cpp`, `costume.cpp` |
+| Estados de objeto | `object.cpp` |
+| Texto y charsets | `charset.cpp`, `string.cpp` |
+| Verbos y diálogos | `verbs.cpp`, `dialogs.cpp` |
+| iMUSE (música) y reproductores | `imuse/`, `players/` |
+| Modelo de estado del original (referencia del SIM) | `saveload.cpp`, `serializer.h` |
+| Rutinas Amiga del motor original | `m68k/` |
+| Descompilado legible (salida de descumm) | `../scummvm-tools-2.9.0/engines/scumm/{descumm,descumm6,descumm-common}.cpp` + `../scummvm-tools-2.9.0/decompiler/` |
+| AGI / SCI / Cinématique (I5) | `../scummvm-2026.4.0/engines/{agi,sci,cine}/` |
+
+Ediciones de las copias locales (verificado en `scumm-md5.h`/`detection_tables.h` de la fuente local): **Monkey Island 2 Amiga y Fate of Atlantis Amiga son SCUMM V5**; Monkey Island 1 es **V4** (floppy Amiga/PC; el CD/SE es V5); **Indy3 y Loom son V3** (Loom VGA/CD, V4); **Operation Stealth y Future Wars son Cinématique** (`cine`). No hay binarios precompilados (los oficiales de Windows dan falsos positivos de antivirus): `descumm` se compila en local con la receta del repositorio `tools/adventure/build-scummvm-tools.sh` (solo sus fuentes + `common/`, sin el árbol completo de configure+make) o se sustituye por un extractor propio (licencia: ver «Decisiones fijadas»). Las copias de trabajo del usuario están en ADF/WHDLoad: el volcado a un directorio de ficheros del juego (herramienta externa o propia) es el paso de entrada de I0.
+
 ## Estado
 
 | Hito | Contenido | Estado |
 |---|---|---|
-| **I0 — SIM y extracción** | Esquema SIM + extractor SCUMM V5/V6 (salas, walkboxes, objetos, costumes, textos) | Pendiente |
+| **I0 — SIM y extracción** | Esquema SIM + extractor SCUMM (V5 primero —MI2/FoA—, luego V4/V3): salas, walkboxes, objetos, costumes, textos | Pendiente |
 | **I1 — Traducción de guiones** | Descompilado → AST semántico → C++ de `eng::adv` (reglas; IA opcional con revisión) | Pendiente |
 | **I2 — Cocina de assets** | Fondos a planar/tiles/EHB, costumes a animaciones del engine, audio al pipeline | Pendiente |
 | **I3 — Previewer Amiga-aware** | Visor/editor de PC que reutiliza la lógica pura del engine y muestra presupuesto | Pendiente |
 | **I4 — Enriquecimiento y presupuesto** | Capas/transparencias/cues asistidos + informe de presupuesto + modo diff | Pendiente |
-| **I5 — Segundo motor y segundo juego** | AGI/SCI sobre el mismo SIM; validación de genericidad | Pendiente |
+| **I5 — Segundo motor y segundo juego** | AGI/SCI/Cinématique sobre el mismo SIM; validación de genericidad | Pendiente |
 
 ---
 
-## I0 — SIM y extracción (SCUMM V5/V6 primero)
+## I0 — SIM y extracción (SCUMM V5 primero, luego V4/V3)
 
 **Objetivo**: extraer un juego completo a un modelo semántico limpio, sin ejecutar nada del motor original.
 
 **Entregables**:
 
-1. `tools/adventure/sim/`: tipos del SIM + esquema versionado + validador (`node --test`) — salas (fondo, walkboxes, depth zones, hotspots, scripts por objeto), actores/costumes, textos, verbos, diálogos y metadatos de juego. Salida en JSON legible (`sim.json`) para editar y versionar.
-2. `tools/adventure/frontends/scumm_v5/` (y `scumm_v6/`): extractores de rooms/objects/costumes/BOXD-BOXM/textos; la referencia de formato es el código de ScummVM y las herramientas `descumm`/`scummrp`/NUTCracker se invocan como **procesos externos** (ruta configurable) o se reimplementan los parsers mínimos.
+1. `tools/adventure/sim/`: tipos del SIM + esquema versionado + validador (`node --test`) — salas (fondo, walkboxes, depth zones, hotspots, scripts por objeto), actores/costumes, textos, verbos, diálogos y metadatos de juego. Salida en JSON legible (`sim.json`) para editar y versionar **en local** (`out/adventure/`); al repositorio solo entran esquema, herramientas e informes (nada de contenido de juegos con derechos; ver «Decisiones fijadas»).
+2. `tools/adventure/frontends/scumm_v5/` (y después `scumm_v4/`, `scumm_v3/`): extractores de rooms/objects/costumes/BOXD-BOXM/textos; la referencia de formato es el código de ScummVM (`../SCUMM/`, ver «Fuentes locales») y el descompilador `descumm` (compilado en local con `tools/adventure/build-scummvm-tools.sh`) o equivalentes externos (NUTCracker) se invocan como **procesos externos** (ruta configurable) o se reimplementan los parsers mínimos.
 3. **Informe de extracción**: por juego, cobertura (número de salas/objetos/costumes/textos extraídos vs. esperados) y lista de elementos marcados `needs_review`; se guarda como texto canónico en `docs/` al cerrar cada juego (la media va a `out/adventure/<juego>/`, gitignored).
 4. Fixtures sintéticos propios (un «mini-juego» SCUMM-like generado por nuestras herramientas) para golden tests deterministas.
 
-**Verificación**: suite `node --test` del SIM (esquema, casos límite) + golden del fixture + una extracción real local completa de un juego V5/V6 como prueba de aceptación (no versionada).
+**Verificación**: suite `node --test` del SIM (esquema, casos límite) + golden del fixture + una extracción real local completa de un juego V5 (p. ej. MI2 o FoA Amiga) como prueba de aceptación (no versionada).
 
 ## I1 — Traducción de guiones a C++
 
@@ -47,7 +84,7 @@ Plan del **pipeline de PC** que convierte juegos de aventura clásicos (SCUMM V5
 
 1. `tools/adventure/translate/`: parser de la salida descompilada → AST propio; **reglas deterministas** para los patrones núcleo (`walkActorTo`/`putActor` → `actor.walk_to`/`set_position`; `startScript`/`stopScript` → llamadas a guiones; `setState`/`getState` → estado de objeto; `sayLine`/`printEgo` → `say`; `loadRoom` → `change_room`; condiciones/variables → hechos/`CondKind`), emitiendo C++ con la API de la capa.
 2. **Modo `--ai` (opcional, offline)**: fragmentos no cubiertos por reglas se envían al modelo local con el contexto del objeto/sala y la API de `eng::adv`; la respuesta se guarda como propuesta con nivel de confianza y **requiere revisión humana** antes de commitearse (los `.cpp` revisados son la fuente, no el modelo).
-3. **Marcas de revisión**: opcode raro o condición ambigua → `// REVISAR:<motivo>` + entrada en el `report.md`; métrica de cobertura (% de guiones traducidos sin marca; objetivo 80–90 % de lo jugable en V5/V6, el resto explícito).
+3. **Marcas de revisión**: opcode raro o condición ambigua → `// REVISAR:<motivo>` + entrada en el `report.md`; métrica de cobertura (% de guiones traducidos sin marca; objetivo 80–90 % de lo jugable en V3–V5, el resto explícito).
 4. **Gates de codegen**: el C++ generado se compila con el toolchain y pasa `asm-audit.mjs`/`codegen-report.mjs` (sin 68020/FPU, sin libcalls nuevas no justificadas), como cualquier código del engine.
 
 **Verificación**: golden de traducción del fixture (entrada descompilada → C++ esperado) + compilación m68k del proyecto generado + una sala real jugable (local) como aceptación.
@@ -94,9 +131,9 @@ Plan del **pipeline de PC** que convierte juegos de aventura clásicos (SCUMM V5
 
 ## I5 — Segundo motor y segundo juego
 
-**Objetivo**: generalizar el SIM y el traductor a más familias (AGI primero, luego SCI0/1) y demostrar la genericidad con un segundo juego.
+**Objetivo**: generalizar el SIM y el traductor a más familias (AGI primero; después SCI y Cinématique) y demostrar la genericidad con un segundo juego.
 
-**Entregables**: frontend AGI (simple, bueno para fijar el SIM), frontend SCI (o V4 SCUMM —Loom/KQ— como paso intermedio), y una sala jugable de cada familia con el mismo backend de generación; actualización del informe de cobertura.
+**Entregables**: frontend AGI (simple, bueno para fijar el SIM), frontend SCI y/o Cinématique (`cine`: Operation Stealth, Future Wars), y una sala jugable de cada familia con el mismo backend de generación; el camino V3 lo ejercen ya Indy3/Loom dentro de I0/I1, sin frontend aparte; actualización del informe de cobertura.
 
 **Verificación**: sala jugable por familia + golden tests por frontend; si un concepto del SIM no cubre una familia sin parches, se corrige el esquema (con versión nueva), no se abren caminos paralelos.
 
