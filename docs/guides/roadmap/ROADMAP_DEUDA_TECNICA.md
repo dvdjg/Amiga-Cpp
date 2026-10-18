@@ -452,3 +452,17 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 **Evidencia:** `demos/techniques/amiga/3d/080_camera_pan_window/VALIDATION.md` §2 (contrato en secuencia) y §5 (perfil por secciones con `profile.mjs`; control `SKIP_FILL` = 38 fps / 1,32 campos/frame).
 
 **Plan (siguiente paso del `ROADMAP_3D_PRESENTACION.md`, F1):** campaña de optimización del Full con el método del repo (presupuesto de bus y mapa de contención, A/B con hot-patch): reparto del relleno de paredes (aristas EOR compartidas entre caras), dedupe de aristas, caja de sala/paneles más ajustada por fase, menos lanzamientos de Blitter por plano o rediseño de la pasada (p. ej. sala en un solo plano con patrones, o fondo por bandas de color de Copper en lugar de geometría). Ya aplicados en el build actual: fast-path de recorte (dentro/fuera sin Sutherland-Hodgman), caja de sala 8..200, caja de panel 52/104, HUD cada 32 frames y `-O3`.
+
+## DT-035 - Actor con `SaveUnder`: el plan se salta EN SILENCIO en ciertas posiciones y el sprite desaparece - ABIERTA
+
+**Síntoma (demo 302, contenido enriquecido):** con el actor moviendose por una lissajous (x e y variando), en las posiciones y≈110-119 / x≈107-133 (frames f58-f61 de la captura) **el sprite no se dibuja** (0 px de sus colores) y la pantalla queda **congelada** (0-4 px de cambio por frame, solo el HUD): el plan del frame se **salta entero** (`present_sync` no ejecuta si `m_plan.ok()==false`) sin telemetria ni aviso. En frames vecinos (mismas x con y≈150, o mismas y con x≈80) el dibujo es correcto.
+
+**Evidencia del bisect (una variable):**
+- Con `BackgroundPolicy::SaveUnder` (restore+save+draw): desaparece en esas posiciones.
+- Con `BackgroundPolicy::None` (solo draw): el sprite se dibuja SIEMPRE (rastro por falta de restauracion).
+- `draw_world()` devuelve **1** en los frames que fallan (contador del periferico de depuracion): el emit ocurre; el fallo esta en la validacion/ejecucion del plan.
+- Con `ClearRect` no se pudo medir (el build quedo bloqueado por edicion en vuelo de `polygon_planes.hpp`/`blitter_state.hpp` de otro hilo).
+
+**Sospecha:** uno de los jobs del save-under (restore/save) no pasa `finish_blit_job`/`blit_job_within` en esas posiciones (geometria de la caja de guardado o de la restauracion) y deja el plan no-ok; el efecto "desaparece" es el plan saltado.
+
+**Plan:** (a) repro en test host con la matriz de posiciones del save-under (extender HOST-072/453 con el barrido de y no alineada) y localizar el job que falla; (b) arreglar la validacion/geometria; (c) que un plan no-ok **avise** (telemetria/`detail`) en vez de saltarse en silencio (hoy la unica pista es el sprite ausente).
