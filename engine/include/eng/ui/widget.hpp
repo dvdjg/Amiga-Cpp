@@ -36,6 +36,7 @@ enum WidgetFlags : eng::u16 {
 	WfModal = 1u << 5,
 	WfAcceptsFocus = 1u << 6,
 	WfNoInput = 1u << 7, ///< no capta input (p. ej. un Toast): el hit-test lo salta
+	WfHover = 1u << 8,   ///< el puntero está encima (lo mantiene `UiContext`; el widget lo pinta)
 };
 
 /// Nodo del árbol de widgets. Los datos concretos de cada tipo van en los structs derivados

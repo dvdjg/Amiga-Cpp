@@ -3,9 +3,11 @@
 /// \file focus.hpp
 /// **Foco del HUD** (`eng::hud`): navegación por **todos** los elementos interactivos de una
 /// región (botones/rects, celdas de rejilla, verbos) con teclado/joystick, activación y
-/// *hover*. Es la capa que convierte el HUD en «una pantalla donde funciona el sistema de
-/// GUI» (`HUD_SYSTEM.md` §7), **sin atar la interfaz**: no impone layout — cualquier
-/// combinación de widgets con geometría participa, y el juego decide qué pinta.
+/// *hover*. El anillo (navegación geométrica, `Tab`, activación) es **genérico de interfaz**
+/// y vive en `eng::ui::FocusRing` (`eng/ui/interaction.hpp`); este fichero es el **adaptador
+/// fino** al modelo del HUD: mapea el objetivo (índice de lista → `GridHandle`/id lógico) y
+/// sincroniza el modelo (`grid_move_focus_to`/`grid_select`). El HUD **se construye sobre la
+/// GUI**, no al contrario (`HUD_SYSTEM.md` §7.1).
 ///
 /// ## Capas (una sola fuente de verdad por nivel)
 ///
@@ -13,11 +15,11 @@
 ///   modelo (model.hpp)      estado + GEOMETRIA (box, area/pitch de rejillas)
 ///        │  hits()/grid_hits()  (lo que empuja el juego: el mismo mapa del raton)
 ///        ▼
-///   hit-test (input.hpp)    punto -> elemento (rect por capa, celda por formula)
+///   hit-test (input.hpp)    punto -> elemento (eng::ui::hit_test + mapeo a GridHandle)
 ///        ▼
 ///   entrada (HudInput)      eventos -> click/seleccion (raton) y pasos (joystick/accion)
 ///        ▼
-///   foco (HudFocus)         anillo navegable por geometria + activacion + hover
+///   foco (HudFocus)         adaptador de eng::ui::FocusRing + sincronizacion del modelo
 /// ```
 ///
 /// El **mismo** `push_hit`/`push_grid_hit` sirve al ratón y al anillo: no hay dos mapas que
@@ -38,6 +40,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/hud/input.hpp> // HudHit (el hit-test del que parte el foco)
 #include <eng/hud/model.hpp>
+#include <eng/ui/interaction.hpp> // eng::ui::FocusRing (el anillo genérico)
 
 namespace eng::hud {
 
@@ -59,36 +62,38 @@ struct HudFocusResult {
 	eng::u16 slot = kHudNoSlot; ///< celda afectada
 };
 
-/// **Anillo de foco** del HUD: estado (el elemento enfocado) + navegación geométrica.
+/// **Anillo de foco** del HUD: adapta `eng::ui::FocusRing` al modelo (índice de lista →
+/// `GridHandle`/id) y sincroniza el estado del modelo en cada operación.
 class HudFocus {
 public:
-	/// Elemento enfocado.
+	/// Elemento enfocado (en el vocabulario del HUD).
 	[[nodiscard]] const HudFocusTarget& target() const noexcept { return m_target; }
 	/// ¿Hay foco?
 	[[nodiscard]] bool active() const noexcept { return m_target.kind != HudFocusTarget::Kind::None; }
 	/// Quita el foco (cierre de panel, cambio de región).
-	void reset() noexcept { m_target = HudFocusTarget {}; }
+	void reset() noexcept {
+		m_ring.reset();
+		m_target = HudFocusTarget {};
+	}
 
 	/// Enfoca el **primer** elemento del modelo (el primer rect empujado o la primera
 	/// rejilla). `false` si no hay elementos interactivos.
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
 	[[nodiscard]] bool focus_first(Hud<R, W, S, D, H>& model) noexcept {
-		const eng::Span<const HudHitRect> rects = model.hits();
-		if (!rects.empty()) {
-			m_target = HudFocusTarget {};
-			m_target.kind = HudFocusTarget::Kind::Rect;
-			m_target.id = rects[0].id;
-			return true;
+		if (!m_ring.focus_first(model.hits(), model.grid_hits())) {
+			return false;
 		}
-		const eng::Span<const HudGridHit> grids = model.grid_hits();
-		if (!grids.empty() && grids[0].grid.valid()) {
-			m_target = HudFocusTarget {};
-			m_target.kind = HudFocusTarget::Kind::Grid;
-			m_target.grid = grids[0].grid;
-			m_target.slot = model.grid(grids[0].grid).focus;
-			return true;
+		if (m_ring.target().kind == eng::ui::FocusRing::Target::Kind::Grid) {
+			const HudGridHit& g = model.grid_hits()[m_ring.target().index];
+			if (!g.grid.valid()) {
+				m_ring.reset();
+				return false;
+			}
+			// La celda de entrada es la que ya tenga el modelo.
+			m_ring.focus_grid_cell(m_ring.target().index, model.grid(g.grid).focus);
 		}
-		return false;
+		map_target(model);
+		return true;
 	}
 
 	/// Sincroniza el foco con un *hit* del ratón (hover): si toca una celda de rejilla, el
@@ -98,17 +103,27 @@ public:
 		if (!hit.hit) {
 			return false;
 		}
-		m_target = HudFocusTarget {};
 		if (hit.grid.valid()) {
-			m_target.kind = HudFocusTarget::Kind::Grid;
-			m_target.grid = hit.grid;
-			m_target.slot = hit.slot;
-			(void)model.grid_move_focus_to(hit.grid, hit.slot);
-			return true;
+			const eng::Span<const HudGridHit> grids = model.grid_hits();
+			for (eng::usize i = 0u; i < grids.size(); ++i) {
+				if (grids[i].grid.index == hit.grid.index) {
+					m_ring.focus_grid_cell(static_cast<eng::u16>(i), hit.slot);
+					(void)model.grid_move_focus_to(hit.grid, hit.slot);
+					map_target(model);
+					return true;
+				}
+			}
+			return false;
 		}
-		m_target.kind = HudFocusTarget::Kind::Rect;
-		m_target.id = hit.id;
-		return true;
+		const eng::Span<const HudHitRect> rects = model.hits();
+		for (eng::usize i = 0u; i < rects.size(); ++i) {
+			if (rects[i].id == hit.id) {
+				m_ring.focus_rect(static_cast<eng::u16>(i));
+				map_target(model);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/// Mueve el foco en `(dx, dy)` (flechas/joystick). Dentro de una rejilla mueve su celda;
@@ -117,79 +132,16 @@ public:
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
 	[[nodiscard]] HudFocusResult move(Hud<R, W, S, D, H>& model, eng::s8 dx, eng::s8 dy) noexcept {
 		HudFocusResult out {};
-		if (m_target.kind == HudFocusTarget::Kind::Grid && m_target.grid.valid()) {
-			if (model.grid_move_focus(m_target.grid, dx, dy)) {
-				m_target.slot = model.grid(m_target.grid).focus;
-				out.moved = true;
-				out.grid = m_target.grid;
-				out.slot = m_target.slot;
-				return out;
-			}
-		}
-		// Salto entre elementos: centro del actual contra los centros de los demás.
-		eng::s16 cx = 0;
-		eng::s16 cy = 0;
-		if (!current_center(model, cx, cy)) {
+		const eng::ui::FocusRing::Result r = m_ring.move(model.hits(), model.grid_hits(), dx, dy);
+		if (!r.moved) {
 			return out;
 		}
-		eng::s32 best = 0;
-		HudFocusTarget best_t {};
-		const eng::Span<const HudHitRect> rects = model.hits();
-		for (eng::usize i = 0u; i < rects.size(); ++i) {
-			const HudHitRect& r = rects[i];
-			if (m_target.kind == HudFocusTarget::Kind::Rect && r.id == m_target.id) {
-				continue;
-			}
-			const eng::s16 rx = static_cast<eng::s16>(r.box.x + r.box.w / 2);
-			const eng::s16 ry = static_cast<eng::s16>(r.box.y + r.box.h / 2);
-			if (!in_direction(cx, cy, rx, ry, dx, dy)) {
-				continue;
-			}
-			const eng::s32 d = distance(cx, cy, rx, ry);
-			if (best_t.kind == HudFocusTarget::Kind::None || d < best) {
-				best = d;
-				best_t = HudFocusTarget {};
-				best_t.kind = HudFocusTarget::Kind::Rect;
-				best_t.id = r.id;
-			}
-		}
-		const eng::Span<const HudGridHit> grids = model.grid_hits();
-		for (eng::usize i = 0u; i < grids.size(); ++i) {
-			const HudGridHit& g = grids[i];
-			if (!g.grid.valid() || g.cols == 0u || g.rows == 0u) {
-				continue;
-			}
-			// El candidato se mide por el **centro de su caja** (como los rects); la celda de
-			// entrada se calcula al aterrizar (la más cercana a la posición de origen).
-			const eng::s16 gx = static_cast<eng::s16>(g.area.x + g.area.w / 2);
-			const eng::s16 gy = static_cast<eng::s16>(g.area.y + g.area.h / 2);
-			if (m_target.kind == HudFocusTarget::Kind::Grid &&
-			    g.grid.index == m_target.grid.index) {
-				continue;
-			}
-			if (!in_direction(cx, cy, gx, gy, dx, dy)) {
-				continue;
-			}
-			const eng::s32 d = distance(cx, cy, gx, gy);
-			if (best_t.kind == HudFocusTarget::Kind::None || d < best) {
-				best = d;
-				best_t = HudFocusTarget {};
-				best_t.kind = HudFocusTarget::Kind::Grid;
-				best_t.grid = g.grid;
-				best_t.slot = nearest_cell(g, cx, cy);
-			}
-		}
-		if (best_t.kind == HudFocusTarget::Kind::None) {
-			return out;
-		}
-		m_target = best_t;
-		if (m_target.kind == HudFocusTarget::Kind::Grid && m_target.grid.valid()) {
-			(void)model.grid_move_focus_to(m_target.grid, m_target.slot);
-		}
+		map_target(model);
+		sync_model(model);
 		out.moved = true;
+		out.id = m_target.id;
 		out.grid = m_target.grid;
 		out.slot = m_target.slot;
-		out.id = m_target.id;
 		return out;
 	}
 
@@ -223,126 +175,55 @@ public:
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
 	[[nodiscard]] HudFocusResult next(Hud<R, W, S, D, H>& model, bool forward) noexcept {
 		HudFocusResult out {};
-		const eng::usize n_rects = model.hits().size();
-		const eng::usize n_grids = model.grid_hits().size();
-		const eng::usize total = n_rects + n_grids;
-		if (total == 0u) {
+		const eng::ui::FocusRing::Result r =
+			m_ring.next(model.hits(), model.grid_hits(), forward);
+		if (!r.moved) {
 			return out;
 		}
-		eng::usize idx = 0u;
-		if (m_target.kind == HudFocusTarget::Kind::Rect) {
-			const eng::Span<const HudHitRect> rects = model.hits();
-			for (eng::usize i = 0u; i < rects.size(); ++i) {
-				if (rects[i].id == m_target.id) {
-					idx = i;
-					break;
-				}
-			}
-		} else if (m_target.kind == HudFocusTarget::Kind::Grid) {
-			idx = n_rects;
-			const eng::Span<const HudGridHit> grids = model.grid_hits();
-			for (eng::usize i = 0u; i < grids.size(); ++i) {
-				if (grids[i].grid.index == m_target.grid.index) {
-					idx = n_rects + i;
-					break;
-				}
-			}
-		}
-		idx = forward ? (idx + 1u) % total : (idx + total - 1u) % total;
-		if (idx < n_rects) {
-			m_target = HudFocusTarget {};
-			m_target.kind = HudFocusTarget::Kind::Rect;
-			m_target.id = model.hits()[idx].id;
-		} else {
-			const HudGridHit& g = model.grid_hits()[idx - n_rects];
-			if (!g.grid.valid()) {
-				return out;
-			}
-			m_target = HudFocusTarget {};
-			m_target.kind = HudFocusTarget::Kind::Grid;
-			m_target.grid = g.grid;
-			m_target.slot = model.grid(g.grid).focus;
-		}
+		map_target(model);
+		sync_model(model);
 		out.moved = true;
+		out.id = m_target.id;
 		out.grid = m_target.grid;
 		out.slot = m_target.slot;
-		out.id = m_target.id;
 		return out;
 	}
 
 private:
-	/// Centro del elemento enfocado (rect: su caja; rejilla: su celda con foco).
+	/// Traduce el objetivo del anillo (índice de lista) al vocabulario del HUD
+	/// (`GridHandle`/id lógico). Si el índice no resuelve (lista cambiada), desactiva el foco.
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
-	[[nodiscard]] bool current_center(const Hud<R, W, S, D, H>& model, eng::s16& x,
-					  eng::s16& y) const noexcept {
-		if (m_target.kind == HudFocusTarget::Kind::Rect) {
-			const eng::Span<const HudHitRect> rects = model.hits();
-			for (eng::usize i = 0u; i < rects.size(); ++i) {
-				if (rects[i].id == m_target.id) {
-					x = static_cast<eng::s16>(rects[i].box.x + rects[i].box.w / 2);
-					y = static_cast<eng::s16>(rects[i].box.y + rects[i].box.h / 2);
-					return true;
-				}
+	void map_target(const Hud<R, W, S, D, H>& model) noexcept {
+		m_target = HudFocusTarget {};
+		const eng::ui::FocusRing::Target& t = m_ring.target();
+		if (t.kind == eng::ui::FocusRing::Target::Kind::Rect) {
+			if (t.index < model.hits().size()) {
+				m_target.kind = HudFocusTarget::Kind::Rect;
+				m_target.id = model.hits()[t.index].id;
 			}
-			return false;
+			return;
 		}
-		if (m_target.kind == HudFocusTarget::Kind::Grid) {
-			const eng::Span<const HudGridHit> grids = model.grid_hits();
-			for (eng::usize i = 0u; i < grids.size(); ++i) {
-				if (grids[i].grid.index == m_target.grid.index) {
-					const eng::u16 slot = model.grid(m_target.grid).focus;
-					x = cell_center_x(grids[i], slot);
-					y = cell_center_y(grids[i], slot);
-					return true;
+		if (t.kind == eng::ui::FocusRing::Target::Kind::Grid) {
+			if (t.index < model.grid_hits().size()) {
+				const HudGridHit& g = model.grid_hits()[t.index];
+				if (g.grid.valid()) {
+					m_target.kind = HudFocusTarget::Kind::Grid;
+					m_target.grid = g.grid;
+					m_target.slot = t.slot;
 				}
 			}
 		}
-		return false;
 	}
 
-	/// ¿`(px,py)` cae en la dirección `(dx,dy)` desde `(cx,cy)`? El eje del movimiento manda:
-	/// en horizontal exige `px` en el lado y descarta los que caen "detrás" en ese eje.
-	[[nodiscard]] static bool in_direction(eng::s16 cx, eng::s16 cy, eng::s16 px, eng::s16 py,
-					       eng::s8 dx, eng::s8 dy) noexcept {
-		const eng::s32 ax = static_cast<eng::s32>(px) - cx;
-		const eng::s32 ay = static_cast<eng::s32>(py) - cy;
-		if (dx > 0 && ax <= 0) return false;
-		if (dx < 0 && ax >= 0) return false;
-		if (dy > 0 && ay <= 0) return false;
-		if (dy < 0 && ay >= 0) return false;
-		return true;
+	/// Sincroniza el modelo con el foco (la rejilla enfocada mueve su celda `focus`).
+	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
+	void sync_model(Hud<R, W, S, D, H>& model) noexcept {
+		if (m_target.kind == HudFocusTarget::Kind::Grid && m_target.grid.valid()) {
+			(void)model.grid_move_focus_to(m_target.grid, m_target.slot);
+		}
 	}
 
-	/// Distancia al cuadrado (ponderada por el eje del movimiento para favorecer la misma
-	/// fila/columna).
-	[[nodiscard]] static eng::s32 distance(eng::s16 cx, eng::s16 cy, eng::s16 px,
-					       eng::s16 py) noexcept {
-		const eng::s32 ax = static_cast<eng::s32>(px) - cx;
-		const eng::s32 ay = static_cast<eng::s32>(py) - cy;
-		return ax * ax + ay * ay;
-	}
-
-	[[nodiscard]] static eng::u16 nearest_cell(const HudGridHit& g, eng::s16 cx,
-						   eng::s16 cy) noexcept {
-		const eng::s16 rx = static_cast<eng::s16>(cx - g.area.x);
-		const eng::s16 ry = static_cast<eng::s16>(cy - g.area.y);
-		eng::u16 col = rx <= 0 ? 0u : static_cast<eng::u16>(rx / g.pitch_x);
-		eng::u16 row = ry <= 0 ? 0u : static_cast<eng::u16>(ry / g.pitch_y);
-		if (col >= g.cols) col = static_cast<eng::u16>(g.cols - 1u);
-		if (row >= g.rows) row = static_cast<eng::u16>(g.rows - 1u);
-		return static_cast<eng::u16>(row * g.cols + col);
-	}
-
-	[[nodiscard]] static eng::s16 cell_center_x(const HudGridHit& g, eng::u16 slot) noexcept {
-		const eng::u16 col = static_cast<eng::u16>(slot % g.cols);
-		return static_cast<eng::s16>(g.area.x + col * g.pitch_x + g.pitch_x / 2);
-	}
-
-	[[nodiscard]] static eng::s16 cell_center_y(const HudGridHit& g, eng::u16 slot) noexcept {
-		const eng::u16 row = static_cast<eng::u16>(slot / g.cols);
-		return static_cast<eng::s16>(g.area.y + row * g.pitch_y + g.pitch_y / 2);
-	}
-
+	eng::ui::FocusRing m_ring {};
 	HudFocusTarget m_target {};
 };
 

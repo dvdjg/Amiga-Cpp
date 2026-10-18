@@ -150,9 +150,38 @@ public:
 		case UiEventKind::Tick:
 			tick_toasts(root);
 			return false;
+		case UiEventKind::MouseMove: {
+			// *Hover* (primitiva común de la GUI; el HUD tiene su equivalente en el modelo):
+			// el puntero actualiza `WfHover` del widget bajo él. No se consume (mover no es
+			// una acción), pero marca sucio el anterior y el nuevo para repintar el estado.
+			Widget* basis = top_modal();
+			if (basis == nullptr) {
+				basis = root;
+			}
+			Widget* h = hit_test(basis, ev.x, ev.y);
+			if (h == m_hover.get()) {
+				return false;
+			}
+			if (m_hover.get() != nullptr) {
+				m_hover->clear_flag(WfHover);
+				m_hover->mark_dirty();
+				m_hover.reset();
+			}
+			if (h != nullptr) {
+				m_hover = eng::Ref<Widget>(h);
+				h->set_flag(WfHover);
+				h->mark_dirty();
+			}
+			return false;
+		}
 		case UiEventKind::PointerCancel: {
 			// Pérdida de foco global, cierre de ventana o cambio de escena: el click en curso
 			// se cancela sin disparar `on_click` (contrato G9 de captura de puntero).
+			if (m_hover.get() != nullptr) {
+				m_hover->clear_flag(WfHover);
+				m_hover->mark_dirty();
+				m_hover.reset();
+			}
 			Widget* t = m_pressed.get();
 			m_pressed.reset();
 			if (t == nullptr) {
@@ -165,7 +194,6 @@ public:
 		case UiEventKind::Action:
 			return dispatch_action(ev);
 		case UiEventKind::None:
-		case UiEventKind::MouseMove:
 		case UiEventKind::KeyUp:
 		case UiEventKind::JoyButton:
 			return false;
@@ -299,6 +327,7 @@ private:
 	}
 
 	eng::Ref<Widget> m_pressed {};
+	eng::Ref<Widget> m_hover {}; ///< widget bajo el puntero (`WfHover`), o vacío
 };
 
 } // namespace eng::ui

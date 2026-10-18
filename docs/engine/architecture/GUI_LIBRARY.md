@@ -393,6 +393,8 @@ struct UiEvent {
   se marcan sucios todos.
 - **Caret**: el parpadeo es un `UiEventKind::Tick` derivado del VBlank (cada N frames), no un
   timer propio.
+- **Núcleo de interacción** (`interaction.hpp`, header hoja): las primitivas comunes a **toda** interfaz —las comparten la GUI y el HUD de juego (`eng::hud` lo incluye: el HUD se construye **sobre** la GUI)—: **formas de *hit* por concepto** (`HitRectLike`: `box`/`id`/`layer`; `HitGridLike`: `area`/`cols`/`rows`/`pitch_x`/`pitch_y`/`first_id`; cada capa define sus entradas), **`hit_test`** (punto → entrada: rects por capa; si no, rejilla por fórmula —la misma función sirve al ratón y al foco—) y **`FocusRing`** (anillo navegable por geometría: dentro de una rejilla mueve la celda, en el borde salta al vecino por centro; `next`/`Tab` en orden de empuje; activación devuelta al llamador). Ver `docs/engine/manual/04_referencia/ui/interaction.md`.
+- **Hover**: `UiContext` mantiene `WfHover` en el widget bajo el puntero (`MouseMove`; `PointerCancel` lo limpia). Mover **no** consume el evento; el widget repinta su estado al cambiar el flag.
 
 ## 11. Widgets mínimos (orden de implementación)
 

@@ -6,6 +6,10 @@
 /// **selección y foco** (`HUD_SYSTEM.md` §7). No es un segundo despachador: es un consumidor
 /// del evento, y la política de consumo es explícita por región (`Policy::capture_input`).
 ///
+/// El *hit-test* genérico (rects por capa + rejillas por fórmula) vive en el **núcleo de
+/// interacción** de la GUI (`eng::ui::hit_test`, `eng/ui/interaction.hpp`): aquí solo se mapea
+/// su resultado al vocabulario del HUD (índice de lista → `GridHandle`).
+///
 /// Subconjunto vigente (H2, hasta que G9 cierre el contrato de `eng::ui`): `MouseMove`,
 /// `MouseDown`, `MouseUp`, `PointerCancel`, `JoyButton` y `Action`. `KeyDown`/`KeyUp`/`Tick`
 /// no se consumen aquí (la repetición la aporta el servicio de entrada o el `Tick`).
@@ -17,6 +21,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/hud/model.hpp>
 #include <eng/ui/event.hpp>
+#include <eng/ui/interaction.hpp>
 
 namespace eng::hud {
 
@@ -45,58 +50,28 @@ struct HudHit {
 /// entera: el *pitch* no tiene que ser múltiplo de 16) en orden de empuje (gana la primera).
 /// La transformación a coordenadas de región es responsabilidad del llamador (§7.4): el
 /// *hit-test* y el pintado comparten la misma, no hay dos caminos que se desincronicen.
+///
+/// Delega en `eng::ui::hit_test` (el algoritmo es de la GUI, no del HUD) y mapea el índice de
+/// lista devuelto al vocabulario del HUD: la rejilla (`GridHandle`) y el **índice** de slot
+/// que consumen las llamadas del modelo (`grid_select`); `id` es el lógico
+/// (`first_id` + índice). La multiplicación del índice ocurre **en el evento**, nunca por
+/// frame ni por píxel (§5.4).
 template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
 [[nodiscard]] constexpr HudHit hud_hit_test(const Hud<R, W, S, D, H>& model, eng::s16 x,
 					    eng::s16 y) noexcept {
-	HudHit best {};
-	bool found = false;
-	const eng::Span<const HudHitRect> rects = model.hits();
-	for (eng::usize i = 0u; i < rects.size(); ++i) {
-		const HudHitRect& r = rects[i];
-		if (!r.box.contains(x, y)) {
-			continue;
-		}
-		if (!found || r.layer >= best.layer) {
-			best.hit = true;
-			best.id = r.id;
-			best.layer = r.layer;
-			best.grid = GridHandle {};
-			best.slot = kHudNoSlot;
-			found = true;
-		}
+	const eng::ui::HitResult r = eng::ui::hit_test(model.hits(), model.grid_hits(), x, y);
+	HudHit out {};
+	if (!r.hit()) {
+		return out;
 	}
-	if (found) {
-		return best;
+	out.hit = true;
+	out.id = r.id;
+	out.layer = r.layer;
+	if (r.kind == eng::ui::HitResult::Kind::Grid) {
+		out.grid = model.grid_hits()[r.index].grid;
+		out.slot = r.slot;
 	}
-	const eng::Span<const HudGridHit> grids = model.grid_hits();
-	for (eng::usize i = 0u; i < grids.size(); ++i) {
-		const HudGridHit& g = grids[i];
-		if (g.cols == 0u || g.rows == 0u || g.pitch_x == 0u || g.pitch_y == 0u) {
-			continue;
-		}
-		if (!g.area.contains(x, y) || x < g.area.x || y < g.area.y) {
-			continue;
-		}
-		const eng::u16 col = static_cast<eng::u16>(
-			static_cast<eng::u16>(x - g.area.x) / g.pitch_x);
-		const eng::u16 row = static_cast<eng::u16>(
-			static_cast<eng::u16>(y - g.area.y) / g.pitch_y);
-		if (col >= g.cols || row >= g.rows) {
-			continue;
-		}
-		// Índice del slot = fila*columnas + columna (la multiplicación ocurre **en el
-		// evento**, nunca por frame ni por píxel, §5.4). `slot` es el índice que consumen
-		// las llamadas del modelo (`grid_select`); `id` es el lógico (`first_id` + índice).
-		const eng::u16 index = static_cast<eng::u16>(
-			static_cast<eng::u16>(row * g.cols) + col);
-		best.hit = true;
-		best.id = static_cast<eng::u16>(g.first_id + index);
-		best.grid = g.grid;
-		best.slot = index;
-		best.layer = 0u;
-		return best;
-	}
-	return best;
+	return out;
 }
 
 /// **Consumidor de entrada del HUD** (H2): máquina de puntero mínima (*hover* implícito,

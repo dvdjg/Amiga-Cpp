@@ -13,7 +13,8 @@ La librería GUI del engine (`eng::ui`): widgets sobre un **árbol intrusivo** s
 
 | Página | Qué documenta |
 |---|---|
-| [`widgets.md`](widgets.md) | `Widget`/`WidgetType`/`WidgetFlags`, `Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`, `UiContext`, `UiEvent`/`UiEventKind`, `ui_bridge`/`msg_adapter`, `layout`, `UiPainter`/`PaintTarget`/`UiTheme`. |
+| [`interaction.md`](interaction.md) | **Núcleo de interacción** (header hoja, sin árbol ni *backing*): conceptos `HitRectLike`/`HitGridLike`, `hit_test` (rects por capa + rejillas por fórmula) y `FocusRing` (anillo por geometría + `Tab` + activación). Lo comparten la GUI y el HUD de juego (`eng::hud` lo incluye: el HUD se construye **sobre** la GUI). |
+| [`widgets.md`](widgets.md) | `Widget`/`WidgetType`/`WidgetFlags` (incl. `WfHover`, mantenido por `UiContext` al mover el puntero), `Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`, `UiContext`, `UiEvent`/`UiEventKind`, `ui_bridge`/`msg_adapter`, `layout`, `UiPainter`/`PaintTarget`/`UiTheme`. |
 | [`windows.md`](windows.md) | `Window`/`WindowKind`, `Compositor`/`CompWindow`, `WindowBacking`/`DirtyList`, `DoubleBufferScreen`, `EditBox`/`ListView`/`Slider`/`ScrollBar`, `hardware_cursor`/`keymap`/`keys`. |
 
 ## Reglas

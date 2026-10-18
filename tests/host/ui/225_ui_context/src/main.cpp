@@ -139,6 +139,20 @@ int main() {
 	ctx.dispatch(mouse(eng::ui::UiEventKind::MouseUp, 5, 5));
 	check(clicks_a == 0, "tras PointerCancel el up no dispara");
 
+	// --- hover (WfHover) via MouseMove: el nucleo de interaccion lo mantiene en el contexto ---
+	ctx.dispatch(mouse(eng::ui::UiEventKind::MouseMove, 15, 5));
+	check(b.has(eng::ui::WfHover) && !a.has(eng::ui::WfHover),
+	      "MouseMove marca hover en B (delante)");
+	check(!ctx.dispatch(mouse(eng::ui::UiEventKind::MouseMove, 5, 5)),
+	      "MouseMove no consume (mover no es accion)");
+	check(a.has(eng::ui::WfHover) && !b.has(eng::ui::WfHover), "MouseMove mueve el hover a A");
+	ctx.dispatch(mouse(eng::ui::UiEventKind::MouseMove, 100, 100));
+	check(!a.has(eng::ui::WfHover) && !b.has(eng::ui::WfHover), "MouseMove fuera limpia el hover");
+	ctx.dispatch(mouse(eng::ui::UiEventKind::MouseMove, 5, 5));
+	check(a.has(eng::ui::WfHover), "hover repuesto en A");
+	ctx.dispatch(mouse(eng::ui::UiEventKind::PointerCancel, 0, 0));
+	check(!a.has(eng::ui::WfHover), "PointerCancel limpia el hover");
+
 	// --- G9: acciones semanticas (foco y activacion) ---
 	ctx.set_focus(&a);
 	check(ctx.dispatch(action(eng::ui::UiAction::NextFocus)), "NextFocus consume");

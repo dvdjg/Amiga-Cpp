@@ -3,8 +3,11 @@
 /// \file hud.hpp
 /// **Fachada de `eng::hud`**: un solo include con el modelo de HUD, el contrato de región, el
 /// tema, el presentador de franja y la entrada/foco (`HudInput` + `HudFocus`, el HUD como
-/// pantalla de GUI: ratón, teclado, joystick, foco por geometría, hover). Diseño canónico en
-/// `docs/engine/architecture/HUD_SYSTEM.md`; plan en `docs/guides/roadmap/ROADMAP_HUD.md`.
+/// pantalla de GUI: ratón, teclado, joystick, foco por geometría, hover). El HUD se construye
+/// **sobre el núcleo de interacción de la GUI** (`eng::ui::hit_test`/`FocusRing`,
+/// `eng/ui/interaction.hpp`): los conceptos de interfaz viven en `eng::ui`, no aquí. Diseño
+/// canónico en `docs/engine/architecture/HUD_SYSTEM.md`; plan en
+/// `docs/guides/roadmap/ROADMAP_HUD.md`.
 ///
 /// Verificación: **HOST-467** (modelo y validadores), **HOST-468** (franja y operaciones),
 /// **HOST-469** (entrada: hit-test, click, selección/foco, joystick, `capture_input`, anillo

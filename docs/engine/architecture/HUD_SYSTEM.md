@@ -55,9 +55,9 @@ El HUD es una **capa de escena**, no un *toolkit* de ventanas en miniatura: el m
 | GUI de aplicación: ventanas, *backing store*, edición de texto, menús, *focus scopes*. | Presentación de estado de juego: medidores, contadores, rejillas, slots y arrastre. |
 | Árbol intrusivo de widgets y despacho por `UiContext`. | Modelo plano de componentes con *handles* y operaciones de dibujo; sin árbol de ventanas. |
 | `ProgressBar` es un widget genérico de valor. | `Meter` es una visualización de juego con estilos (*linear*, *segmented*, *pips*, *raster*) y sin edición. |
-| Captura de puntero y propagación `capture → target → bubble` (G9). | Reutiliza ese contrato; añade foco de rejilla para joystick y política de *drop*. |
+| Captura de puntero y propagación `capture → target → bubble` (G9); *hover* (`WfHover`) y foco de árbol. | Reutiliza ese contrato; adapta el anillo geométrico (`FocusRing`) a rejillas y verbos, y añade política de *drop*. |
 
-El HUD **no depende** de `UiContext`, `Widget`, `Window` ni del compositor de ventanas. `eng::ui` tampoco depende de `eng::hud`. Comparten `eng::Box`, `DirtyList`, el contrato de eventos, las fuentes y las rutas de rasterizado. Un panel modal complejo puede usar `eng::ui` para ventanas de aplicación, pero la barra de vida de un *shooter* no debe arrastrar ese stack.
+El HUD **no depende** de `UiContext`, `Widget`, `Window` ni del compositor de ventanas, pero **sí del núcleo de interacción de la GUI** (`eng/ui/interaction.hpp`, header hoja): el *hit-test* por capas/fórmula (`eng::ui::hit_test`) y el anillo de foco genérico (`eng::ui::FocusRing`) que `HudFocus` adapta a su modelo. La dirección de dependencia es **HUD → GUI**: los conceptos de interacción (hover, foco, hit-test, activación) son de interfaz y viven en `eng::ui`; el HUD aporta lo suyo (regiones, franja, medidores, rejillas de inventario, puente RPG) encima. `eng::ui` no depende de `eng::hud`. Comparten `eng::Box`, `DirtyList`, el contrato de eventos, las fuentes y las rutas de rasterizado. Un panel modal complejo puede usar `eng::ui` para ventanas de aplicación, pero la barra de vida de un *shooter* no debe arrastrar ese stack.
 
 ### 2.2 Frontera con `eng::rpg`
 
@@ -257,12 +257,14 @@ El HUD es **una pantalla donde funciona el sistema de GUI**: sus capas de entrad
   modelo (model.hpp)      estado + GEOMETRIA: Button/Label.box, HudHitRect.box, HudGridHit.area/pitch
        │  push_hit / push_grid_hit        (el juego declara los mismos mapas para raton y foco)
        ▼
-  hit-test (input.hpp)    hud_hit_test: punto -> elemento (rect por capa; celda por formula)
+  hit-test (eng::ui)      eng::ui::hit_test (nucleo de interaccion): punto -> elemento
        ▼
   entrada (input.hpp)     HudInput: eventos -> hover/click/seleccion (raton), pasos y captura
        ▼
-  foco (focus.hpp)        HudFocus: anillo navegable por geometria + activacion + Tab + hover->foco
+  foco (focus.hpp)        HudFocus: adaptador de eng::ui::FocusRing (geometria + Tab + hover->foco)
 ```
+
+- **Núcleo compartido**: el *hit-test* (rects por capa + rejillas por fórmula) y el anillo geométrico son **primitivas de interfaz** y viven en la GUI (`eng/ui/interaction.hpp`); el HUD solo las adapta a su modelo (índice de lista → `GridHandle`/id). La dirección de dependencia es **HUD → GUI** (§2.1).
 
 - **Ratón**: `HudInput` resuelve *hover* (`MouseMove` -> `grid_hover`/`button_hover`), *click* (`down`+`up` mismo objetivo) y *click* de rejilla (`grid_select`). El *hover* vive en el modelo (`IconGrid::hover`, `Button::hover`) y lo pinta el presentador.
 - **Teclado/joystick**: `HudFocus` navega **por geometría** (el elemento más cercano en la dirección; dentro de una rejilla mueve su celda y en el borde salta al vecino) y `Tab`/`Shift+Tab` recorren el anillo en orden; `Fire`/`Enter`/`Espacio` (`UiAction::Accept`/`Activate`) **activan** (seleccionan la celda o devuelven el `id` del rect para que el juego lo resuelva, el mismo camino del click).
@@ -337,9 +339,10 @@ El *hit-test* y los valores mostrados **nunca** se degradan. El presentador incr
 ### 7.1 *Hit map*
 
 - Las regiones se consultan de delante hacia atrás (`Screen` → overlays por `z` → `Band` → juego).
-- Dentro de una región, primero las rejillas (fórmula) y después la lista de `HudHitRect` ordenada por capa.
+- Dentro de una región, primero la lista de `HudHitRect` (por capa) y, si ninguno toca, las rejillas (fórmula).
 - Un `HudHitEntry` puede declarar `capture_input`: si la región captura, el evento se consume; si no, el HUD solo consume cuando el *hit* es interactivo y el resto pasa al juego.
 - El *hit map* y el pintado comparten la misma transformación de coordenadas; no hay dos caminos que puedan desincronizarse.
+- El algoritmo es el **núcleo de interacción de la GUI** (`eng::ui::hit_test`, `eng/ui/interaction.hpp`); el HUD solo mapea el índice de lista devuelto al `GridHandle` de su modelo (`hud_hit_test`).
 
 ### 7.2 Máquina de puntero
 
@@ -361,6 +364,7 @@ Idle ──move──> Hover ──down──> Pressed ──move > umbral──
 
 - El HUD consume `UiAction` (tras G9) para `Accept`, `Cancel`, `NextFocus`, `PreviousFocus` y navegación; no interpreta *rawkeys*. Mientras G9 no exponga `UiAction`, el subconjunto vigente usa `KeyDown`/`KeyUp` con la traducción de `eng::ui::keymap` y `JoyButton` para el pad.
 - Sin ratón, cada rejilla mantiene un índice de **foco** independiente de la **selección**. El joystick mueve el foco por filas/columnas; `Fire` equivale a *click*; el botón secundario cancela.
+- El anillo que recorre los elementos interactivos es `eng::ui::FocusRing` (núcleo de interacción de la GUI), adaptado por `HudFocus` (`eng/hud/focus.hpp`): navegación **geométrica**, `Tab` circular y activación devuelta al llamador; el HUD solo sincroniza su modelo (`grid_move_focus_to`/`grid_select`).
 - La repetición de movimiento la aporta el servicio de entrada o el `Tick` de VBlank; el widget no la implementa.
 - `focus_index` es visible (marco o realce) y participa en el *dirty* de interacción.
 
@@ -466,7 +470,7 @@ El lienzo de juego es *single-buffer*: lo que la CPU o el Blitter escriba tarde 
 - **Sin overlay sin política de restauración** (`GameRedraws` o `Backing`).
 - **Sin coordenadas de scroll en el inventario**; espacios de pantalla/región tipados.
 - **Sin lógica de juego en el HUD**: el HUD no modifica vida, puntuación ni objetos.
-- **Sin dependencia de `eng::ui` para la barra de vida**: comparten contrato de entrada y primitivas, no el árbol de ventanas.
+- **Sin el stack de ventanas para la barra de vida**: comparten el **núcleo de interacción** (`eng/ui/interaction.hpp`: hit-test y `FocusRing`) y el contrato de eventos; no arrastran `UiContext`, árbol de widgets ni compositor.
 - **Sin regiones inválidas**: planos, split, paleta y canales se validan en *setup*.
 
 ## 11. Esquema resumido

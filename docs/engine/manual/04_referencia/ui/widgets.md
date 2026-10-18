@@ -4,7 +4,7 @@ El **árbol de widgets** de `eng::ui`: datos planos + árbol intrusivo (padre/hi
 
 ## `Widget` — `ui/widget.hpp`
 
-`WidgetType` (`widget.hpp:16`) es el discriminante (`Panel`/`Label`/`Button`/`Check`/`Radio`/`Edit`/`Slider`/`ScrollBar`/`List`/`Window`). `WidgetFlags` (`:30`) es la máscara (`WfVisible`/`WfEnabled`/`WfDirty`/`WfFocused`/`WfPressed`/`WfModal`/`WfAcceptsFocus`/`WfNoInput`). `Widget` (`:44`) es el nodo: `type`/`bounds`/`flags` + `parent`/`first_child`/`next`. **Los hijos se insertan al frente**: el orden de la lista de hermanos es el orden Z (el primero = el más al frente). `children_creation_order<Max>` (`:109`) recorre los hijos en orden de creación.
+`WidgetType` (`widget.hpp:16`) es el discriminante (`Panel`/`Label`/`Button`/`Check`/`Radio`/`Edit`/`Slider`/`ScrollBar`/`List`/`Window`). `WidgetFlags` (`:30`) es la máscara (`WfVisible`/`WfEnabled`/`WfDirty`/`WfFocused`/`WfPressed`/`WfModal`/`WfAcceptsFocus`/`WfNoInput`/`WfHover`). `Widget` (`:44`) es el nodo: `type`/`bounds`/`flags` + `parent`/`first_child`/`next`. **Los hijos se insertan al frente**: el orden de la lista de hermanos es el orden Z (el primero = el más al frente). `children_creation_order<Max>` (`:109`) recorre los hijos en orden de creación.
 
 ## Widgets concretos — `ui/widgets.hpp`
 
@@ -16,6 +16,7 @@ El **árbol de widgets** de `eng::ui`: datos planos + árbol intrusivo (padre/hi
 
 - hit-test de **delante hacia atrás**; con un **modal** (`WfModal`) abierto, solo su subárbol.
 - el ratón **engancha** el widget en `MouseDown` y le entrega el `MouseUp`.
+- el *hover* (`WfHover`) lo mantiene el contexto al mover el puntero (`MouseMove`); `PointerCancel` lo limpia. Mover no consume el evento.
 - `Tab`/`Shift+Tab` cicla el foco (dentro del modal si lo hay).
 - `Esc` cierra el popup/diálogo superior; pulsar fuera cierra el popup.
 - los `Toast` (`WfNoInput`) no captan input y expiran por `Tick`.
