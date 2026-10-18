@@ -41,6 +41,7 @@ dependen de hardware y no necesitan WinUAE.
 
 | Categoría | Tests | Catálogo |
 |-----------|-------|----------|
+| `adv` | 1 | [adv/README.md](adv/README.md) |
 | `ai` | 19 | [ai/README.md](ai/README.md) |
 | `audio` | 36 | [audio/README.md](audio/README.md) |
 | `board` | 20 | [board/README.md](board/README.md) |
@@ -57,4 +58,4 @@ dependen de hardware y no necesitan WinUAE.
 | `sim` | 34 | [sim/README.md](sim/README.md) |
 | `ui` | 27 | [ui/README.md](ui/README.md) |
 
-Total: 420 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).
+Total: 421 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).

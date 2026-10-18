@@ -8,7 +8,7 @@ Organización canónica de la batería de tests del engine por **plataforma**, *
 |---|---|
 | **Plataforma** | `host` · `amiga` · `atarist` · `megadrive` |
 | **Nivel** | `L0` bare-metal · `L1` unitario host · `L2` integración on-target · `L3` visual |
-| **Categoría (dominio)** | core-math, core-types, core-containers, graphics-raster, graphics-copper, graphics-composition, graphics-effects, field-scroll, field-tilemap, scene, platform-amiga, ai-decision, ai-navigation, ai-steering, ai-planning, sim, rpg, board-chess, board-go, cards, os, ui, audio, res, parallel, debug |
+| **Categoría (dominio)** | core-math, core-types, core-containers, graphics-raster, graphics-copper, graphics-composition, graphics-effects, field-scroll, field-tilemap, scene, platform-amiga, ai-decision, ai-navigation, ai-steering, ai-planning, sim, rpg, adv, board-chess, board-go, cards, os, ui, audio, res, parallel, debug |
 
 Un test se localiza por su ruta: plataforma + categoría + nivel. El **nivel** no siempre coincide con la carpeta (un test host es L1; un test on-target puede ser L0/L2/L3 y lo declara su README).
 
@@ -27,6 +27,7 @@ tests/
 │   ├── ai/                   → decision, navigation, steering, planning, perception
 │   ├── sim/                  → ecosistema vivo
 │   ├── rpg/                  → capa RPG/CRPG: hechos, objetos, inventario/equipo, stats, save
+│   ├── adv/                  → aventura gráfica: walkboxes, hotspots y contenido de sala (SIM v2)
 │   ├── board/                → ajedrez, Go
 │   ├── cards/                → póker y variantes
 │   ├── os/                   → mini-SO (mensajes, E/S, tiempo, tareas)
