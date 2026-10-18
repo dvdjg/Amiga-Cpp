@@ -1,2 +1,5 @@
+# `-O2`: con `-O3` el vectorizador de gcc 15 m68k miscompila el render (DT-038);
+# no subir sin comprobacion visual. Ablaciones de la sonda:
+#   -DCLIP_PROBE_CPU     : relleno por la referencia CPU (A/B pixel a pixel).
+#   -DCLIP_PROBE_NO_CLIP : sin recortar.
 DEMO_OPT=-O2
-DEMO_FLAGS=-DCLIP_PROBE_CPU
