@@ -28,6 +28,10 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
+#include <eng/core/math/sinetable.hpp> // lissajous de los actores (regla 25)
+#include <eng/debug/hud.hpp>           // HudFpsWindow (fps10)
+#include <eng/debug/peripheral.hpp>    // contadores (telemetria de memoria)
+#include <eng/debug/prof.hpp>          // prof_clock
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -73,18 +77,36 @@ constexpr eng::u16 kHpos0 = 144;
 constexpr eng::u16 kHposStep = 32;
 
 // Fondo navy + parejas de color de sprite: COLOR17=rojo, COLOR21=verde,
-// COLOR25=azul, COLOR29=amarillo (cada par de canales comparte su gama).
+// COLOR25=azul, COLOR29=amarillo (cada par de canales comparte su gama). Los indices 6 y 9
+// son del **fondo estructurado** (regla 25: suelo verde y sol naranja) que el copper no toca.
 constexpr eng::Palette32 kBasePalette {{
-	0x013, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
-	0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
+	0x013, 0x111, 0x222, 0x333, 0x444, 0x555, 0x150, 0x777,
+	0x888, 0xf80, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
 	0x111, 0xf00, 0x111, 0x111,   // COLOR16-19
 	0x222, 0x0f0, 0x222, 0x222,   // COLOR20-23
 	0x333, 0x00f, 0x333, 0x333,   // COLOR24-27
 	0x444, 0xff0, 0x444, 0x444,   // COLOR28-31
 }};
 
+constexpr eng::SineTable<64, 64> kSin {};
+
+/// Pixel del **fondo** en el bitmap (CPU, planos contiguos, 6 planos): pinta `color`
+/// (índice lógico) en (x, y). Solo al init (fondo estático): no toca el coste del frame.
+void put_bg(eng::u8* base, eng::u16 x, eng::u16 y, eng::u8 color) {
+	const eng::u32 row = static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u);
+	const eng::u8 bit = static_cast<eng::u8>(0x80u >> (x & 7u));
+	for (eng::u8 p = 0u; p < kPlanes; ++p) {
+		eng::u8* px = base + static_cast<eng::u32>(p) * kPlaneBytes + row;
+		if ((color & (1u << p)) != 0u) {
+			*px = static_cast<eng::u8>(*px | bit);
+		} else {
+			*px = static_cast<eng::u8>(*px & static_cast<eng::u8>(~bit));
+		}
+	}
+}
+
 struct SpriteAllocatorDemo {
-	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({
 			96u * 1024u,
@@ -104,6 +126,7 @@ struct SpriteAllocatorDemo {
 		}
 		eng::Words<eng::SpriteTag> sprite_data = m_sprite_block.view.as_words();
 
+		draw_background();
 		build_sprite_sheet(sprite_data);
 		if (!add_actors(sprite_data.as_const())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005404u);
@@ -120,6 +143,12 @@ struct SpriteAllocatorDemo {
 		}
 
 		backend.takeover_display(m_copper_view);
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
+		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("comp_ok"));
+		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("comp_bad"));
+		eng::debug::DebugPeripheral::counter_name(3u, reinterpret_cast<eng::u32>("split"));
+		eng::debug::DebugPeripheral::counter_name(4u, reinterpret_cast<eng::u32>("composed"));
+		m_fps_win.reset(context.frame.frame_index, eng::debug::prof_clock());
 		eng::debug::mark_ready(
 			g_eng_run_status,
 			(static_cast<eng::u32>(m_sprites_in_hw) << 8u) |
@@ -127,9 +156,50 @@ struct SpriteAllocatorDemo {
 		);
 	}
 
+	/// Movimiento (regla 25) + recomposicion cada 4 frames: los actores recorren lissajous
+	/// con x e y; la lista de copper se re-emite porque las posiciones de sprite
+	/// (SPRxPOS/CTL) viajan en ella. Con los actores en lineas distintas el multiplexado de
+	/// sprites admite los 9 en HW (0 degradados); el reparto se publica por contador.
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		if (m_copper_ok) {
-			backend.install_copper_list(m_copper_view);
+		const eng::u16 t = static_cast<eng::u16>(context.frame.frame_index);
+		if ((t & 3u) == 0u) {
+			for (eng::u8 i = 0; i < kActors; ++i) {
+				auto a = m_scene.store().get(m_ids[i]);
+				if (!a.valid()) {
+					continue;
+				}
+				const eng::u8 ph = static_cast<eng::u8>(
+					(i * 9u + t) & 63u);
+				a->desc.x = static_cast<eng::s16>(
+					static_cast<eng::s16>(kHpos0 +
+							      static_cast<eng::u16>(i) * kHposStep) +
+					kSin[ph] * 24 / 64);
+				a->desc.y = static_cast<eng::s16>(
+					static_cast<eng::s16>(kY) +
+					kSin[static_cast<eng::u8>((ph + 21u) & 63u)] * 18 / 64);
+			}
+			const bool composed = compose();
+			// Telemetria de memoria: TODO actor representado (HW + degradados = 9). Con los
+			// actores moviendose por lineas distintas el reparto pasa de 8+1 (estatico) a
+			// 9+0 (multiplexado por el allocator); el invariante es la suma, no el reparto.
+			if (composed &&
+			    static_cast<eng::u8>(m_sprites_in_hw + m_bob_count) == kActors) {
+				++m_comp_ok;
+			} else {
+				++m_comp_bad;
+			}
+			eng::debug::DebugPeripheral::counter_value(1u, m_comp_ok);
+			eng::debug::DebugPeripheral::counter_value(2u, m_comp_bad);
+			eng::debug::DebugPeripheral::counter_value(
+				3u, (static_cast<eng::u32>(m_sprites_in_hw) << 8u) |
+					    static_cast<eng::u32>(m_bob_count));
+			if (composed && build_copper()) {
+				backend.install_copper_list(m_copper_view);
+			}
+		}
+		eng::u32 fps10 = 0u;
+		if (m_fps_win.update(context.frame.frame_index, eng::debug::prof_clock(), fps10)) {
+			eng::debug::DebugPeripheral::counter_value(0u, fps10);
 		}
 	}
 
@@ -138,6 +208,59 @@ struct SpriteAllocatorDemo {
 	}
 
 private:
+	/// **Fondo estructurado** (regla 25): suelo verde (índice 6), horizonte, tres montañas
+	/// (índice 2) con cumbres claras (14), sol naranja (9) y árboles. Se pinta UNA vez.
+	void draw_background() {
+		eng::u8* const base = m_bitplane_block.view.data();
+		// Suelo + horizonte.
+		for (eng::u16 y = 169u; y < 256u; ++y) {
+			for (eng::u16 x = 0u; x < 320u; ++x) {
+				put_bg(base, x, y, 6u);
+			}
+		}
+		for (eng::u16 x = 0u; x < 320u; ++x) {
+			put_bg(base, x, 168u, 2u);
+		}
+		// Sol (disco r=16 en (272, 52), índice 9).
+		for (eng::s16 dy = -16; dy <= 16; ++dy) {
+			eng::s16 hw = 0;
+			while ((hw + 1) * (hw + 1) + dy * dy <= 256) {
+				++hw;
+			}
+			for (eng::s16 dx = -hw; dx <= hw; ++dx) {
+				put_bg(base, static_cast<eng::u16>(272 + dx),
+				       static_cast<eng::u16>(52 + dy), 9u);
+			}
+		}
+		// Tres montañas (índice 2) con cumbre clara (14).
+		const eng::s16 peaks[3][2] = {{52, 116}, {160, 96}, {268, 122}};
+		for (eng::u8 m = 0u; m < 3u; ++m) {
+			const eng::s16 px = peaks[m][0];
+			const eng::s16 py = peaks[m][1];
+			for (eng::s16 y = py; y < 169; ++y) {
+				const eng::s16 hw = static_cast<eng::s16>((y - py) * 5 / 8);
+				for (eng::s16 dx = -hw; dx <= hw; ++dx) {
+					const eng::s16 x = static_cast<eng::s16>(px + dx);
+					if (x >= 0 && x < 320) {
+						put_bg(base, static_cast<eng::u16>(x),
+						       static_cast<eng::u16>(y),
+						       (y - py) < 4 ? 14u : 2u);
+					}
+				}
+			}
+		}
+		// Árboles (barras índice 2) sobre el horizonte.
+		const eng::u16 tx[5] = {28u, 96u, 172u, 240u, 300u};
+		for (eng::u8 i = 0u; i < 5u; ++i) {
+			for (eng::u16 y = 152u; y < 182u; ++y) {
+				for (eng::u16 x = tx[i]; x < static_cast<eng::u16>(tx[i] + 6u);
+				     ++x) {
+					put_bg(base, x, y, 2u);
+				}
+			}
+		}
+	}
+
 	void build_sprite_sheet(eng::Words<eng::SpriteTag> data) {
 		for (eng::u8 inst = 0; inst < kActors; ++inst) {
 			for (eng::u8 line = 0; line < kSpriteHeight; ++line) {
@@ -171,7 +294,8 @@ private:
 			d.transparency = scene::TransparencyMode::Opaque; // sprite: transparencia nativa
 			d.background = scene::BackgroundPolicy::None;
 			d.layout = eng::graphics::BobLayout::Interleaved;
-			if (!m_scene.add(d).valid()) {
+			m_ids[i] = m_scene.add(d);
+			if (!m_ids[i].valid()) {
 				return false;
 			}
 		}
@@ -242,6 +366,10 @@ private:
 	eng::SpriteScene<kActors> m_scene {}; ///< fachada: actores + compose (HW sprites + BOB)
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::SpriteManager m_sprites {};
+	scene::ActorId m_ids[kActors] {};      ///< ids de los actores (movimiento por frame)
+	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps10 (telemetria)
+	eng::u32 m_comp_ok = 0u;               ///< composicion coherente (8 HW + 1 degradado)
+	eng::u32 m_comp_bad = 0u;              ///< composicion inesperada (deberia ser 0)
 };
 
 } // namespace
