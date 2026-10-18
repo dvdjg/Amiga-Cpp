@@ -36,6 +36,9 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
+#include <eng/debug/hud.hpp>        // HudFpsWindow (fps10)
+#include <eng/debug/peripheral.hpp> // contadores (telemetria de memoria)
+#include <eng/debug/prof.hpp>       // prof_clock
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_attached.hpp>
@@ -186,6 +189,10 @@ struct AttachedActorsDemo {
 			return;
 		}
 		m_copper.takeover(backend);
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
+		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("comp_ok"));
+		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("comp_bad"));
+		m_fps_win.reset(0u, eng::debug::prof_clock());
 		eng::debug::mark_ready(
 			g_eng_run_status,
 			(static_cast<eng::u32>(m_sprites_in_hw) << 8u) |
@@ -228,8 +235,23 @@ struct AttachedActorsDemo {
 				a->desc.y = static_cast<eng::s16>(m_spark_y[i]);
 			}
 		}
-		if (compose() && build_copper()) {
+		const bool composed = compose();
+		if (composed && build_copper()) {
 			m_copper.install(backend); // swap de COP1LC: el Copper estrena la lista en el VBlank
+		}
+		// Telemetria de memoria (regla 25): todo actor representado (2 placements por gema
+		// attached + 1 por chispa = 6) y fps10 por contadores.
+		if (composed && static_cast<eng::u16>(m_sprites_in_hw) + m_bob_count ==
+					static_cast<eng::u16>(kGems) * 2u + kSparks) {
+			++m_comp_ok;
+		} else {
+			++m_comp_bad;
+		}
+		eng::debug::DebugPeripheral::counter_value(1u, m_comp_ok);
+		eng::debug::DebugPeripheral::counter_value(2u, m_comp_bad);
+		eng::u32 fps10 = 0u;
+		if (m_fps_win.update(f, eng::debug::prof_clock(), fps10)) {
+			eng::debug::DebugPeripheral::counter_value(0u, fps10);
 		}
 	}
 
@@ -401,6 +423,9 @@ private:
 	scene::ActorId m_ids[kGems + kSparks] {};
 	eng::u16 m_sprites_in_hw = 0;
 	eng::u8  m_bob_count = 0;
+	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps10 (telemetria)
+	eng::u32 m_comp_ok = 0u;               ///< composicion completa (6 placements)
+	eng::u32 m_comp_bad = 0u;              ///< composicion incompleta (deberia ser 0)
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::copper::DoubleBuffer m_copper {}; ///< lista activa/inactiva: sin reescritura en vuelo
 	// Bloques **Chip** tipados en el tipo: la chispa la lee el DMA de sprites y el pool lo
