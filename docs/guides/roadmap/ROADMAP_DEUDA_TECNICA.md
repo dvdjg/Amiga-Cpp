@@ -465,4 +465,10 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Sospecha:** uno de los jobs del save-under (restore/save) no pasa `finish_blit_job`/`blit_job_within` en esas posiciones (geometria de la caja de guardado o de la restauracion) y deja el plan no-ok; el efecto "desaparece" es el plan saltado.
 
-**Plan:** (a) repro en test host con la matriz de posiciones del save-under (extender HOST-072/453 con el barrido de y no alineada) y localizar el job que falla; (b) arreglar la validacion/geometria; (c) que un plan no-ok **avise** (telemetria/`detail`) en vez de saltarse en silencio (hoy la unica pista es el sprite ausente).
+**Aislamiento (2026-10-18):**
+- **El disparador es el movimiento en `y`**: con la misma lissajous en `x` y `y` fija (150), el sprite aparece en **20/20** frames; con `y` variando desaparece en tramos (f58-f61 de la captura).
+- **El repro host NO lo reproduce**: `out/tmp/dt035/repro2.cpp` (la secuencia real del path con `prev` encadenada, hoja par + SaveUnder, `finalize()` + bounds del target) pasa las 32 posiciones con `plan.ok()==1` y 3 jobs. El camino emit/validacion del engine es correcto en host: el fallo es **de estado/entorno del demo** (o del ejecutor en Amiga), no de la geometria del emit.
+- **DMA del Blitter por campo (perfilador)**: con el actor dibujando, el canal blitter da ~1024 slots/campo; en los tramos afectados cae a **0** durante varios campos (los blits no se ejecutan) y algun campo suelto dobla (2048). Confirma "plan no ejecutado" y no "blit que escribe mal".
+- Con `BackgroundPolicy::None` (sin save-under) el sprite se dibuja siempre; con `ClearRect` no se pudo medir (build bloqueado por edicion en vuelo de `polygon_planes.hpp` de otro hilo).
+
+**Plan:** (a) instrumentar el demo para exponer `plan.ok()`/`blit_job_count` del plan del `App` (hoy inaccesible: la unica pista es el sprite ausente) o reproducir con el ejecutor real; (b) barrer el estado del save-under en hardware (posiciones del path, contenido previo del buffer, `prev` encadenada real) contra el repro host hasta encontrar la diferencia; (c) arreglar y **hacer que un plan no-ok avise** (telemetria/`detail`), no que se salte en silencio.
