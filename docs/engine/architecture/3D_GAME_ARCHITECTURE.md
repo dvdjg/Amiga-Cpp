@@ -43,9 +43,7 @@ El renderer por objeto debe tener etapas visibles y buffers de capacidad fija:
    quedan detrás. Añadir far/side planes solo si el juego no garantiza límites de mundo/cámara.
 5. **Proyección**: dividir los vértices ya válidos. Proteger rango, denominador mínimo, saturación y
    coordenadas fuera del rango `s16`; no convertir `z=0` en `1` como sustituto del clipping.
-6. **Clipping de viewport**: clipping 2D contra el rectángulo de pantalla, reutilizando Sutherland–
-   Hodgman de `retro::clip_polygon` o una variante de dominio que no fuerce representación `Vec2`
-   retro. Los polígonos que cruzan el borde se conservan recortados, no se descartan por bbox.
+6. **Clipping de viewport**: clipping 2D contra el rectángulo de pantalla, reutilizando Sutherland–Hodgman de `retro::clip_polygon` o una variante de dominio que no fuerce representación `Vec2` retro. **Convención de bordes** (`clip_inside` semiabierto): el rect pasa la última columna/fila INCLUIDA (`width−1`/`height−1`); con `width`/`height` los vértices de corte caen fuera del buffer y el contorno del Blitter corrompe la palabra vecina (fijado en HOST-479). Los polígonos que cruzan el borde se conservan recortados, no se descartan por bbox.
 7. **Orden/composición**: painter order para geometría opaca sin Z-buffer; separar materiales con
    reglas de orden distintas y evitar ordenar objetos/caras cuando la topología garantiza que el
    orden no afecta al resultado.

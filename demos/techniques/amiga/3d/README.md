@@ -23,3 +23,4 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/3d/<NNN>_<tema>
 ```
 
 El número `NNN` es único **dentro de este ámbito** (`demos/techniques/amiga/3d`).
+| 085 | [fill_clip_probe](085_fill_clip_probe/README.md) | Sonda mínima (WIP) de **recorte 2D + relleno por plano** (`clip_polygon` + `fill_polygons_by_plane`): triángulo que cruza el borde, pentágono medio fuera y cuadrado de referencia; A/B contra la referencia CPU (`-DCLIP_PROBE_CPU`). Encontró y fijó el bug de cierre del recorte (HOST-479) y la convención de rect inclusivo (`width−1`/`height−1`). |

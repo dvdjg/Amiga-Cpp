@@ -180,32 +180,31 @@ inline void clip_edge(const Rect& win, Vec2& o, const Vec2& s, const Vec2& e, u1
 /// Una pasada de Sutherland-Hodgman (recorta contra un solo semi-plano).
 /// `src`/`dst` deben tener capacidad >= n+1. Devuelve los vértices escritos en `dst`.
 inline u32 clip_polygon_pass(const Rect& win, const Vec2* src, Vec2* dst, u32 n, u16 plane) {
-	if (n == 0u) return 0u;
-	const Vec2* s = src;
-	const Vec2* e = src + 1;
-	bool s_in = clip_inside(*s, win, plane);
-	bool need_close = true;
-	u32 m = 0;
-	if (s_in) {
-		need_close = false;
-		dst[m++] = *s;
+	if (n == 0u) {
+		return 0u;
 	}
-	while (--n) {
-		const bool e_in = clip_inside(*e, win, plane);
+	// Barrido de TODAS las aristas, incluida la de cierre (n−1 → 0): se arranca con el
+	// ULTIMO vertice como «previo» y se recorren los n vertices como extremo final. La
+	// version anterior recorria n−1 aristas (faltaba el cierre) y lo parcheaba metiendo un
+	// vertice duplicado al final: en poligonos con el primer vertice FUERA, el recorte
+	// perdia el cruce de la arista de cierre y devolvia poligonos incompletos o < 3
+	// vertices con parte visible dentro (sonda de recorte parcial, 2026-10-18).
+	Vec2 s = src[n - 1u];
+	bool s_in = clip_inside(s, win, plane);
+	u32 m = 0u;
+	for (u32 i = 0u; i < n; ++i) {
+		const Vec2 e = src[i];
+		const bool e_in = clip_inside(e, win, plane);
 		if (s_in && e_in) {
-			dst[m++] = *e;
+			dst[m++] = e;
 		} else if (s_in && !e_in) {
-			clip_edge(win, dst[m++], *s, *e, plane);
+			clip_edge(win, dst[m++], s, e, plane);
 		} else if (!s_in && e_in) {
-			clip_edge(win, dst[m++], *e, *s, plane);
-			dst[m++] = *e;
+			clip_edge(win, dst[m++], e, s, plane);
+			dst[m++] = e;
 		}
+		s = e;
 		s_in = e_in;
-		++s;
-		++e;
-	}
-	if (need_close) {
-		dst[m++] = dst[0];
 	}
 	return m;
 }
