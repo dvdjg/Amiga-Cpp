@@ -136,7 +136,7 @@ void test_apply(eng::MemoryManager& mem) {
 	text.kind = eng::hud::HudOpKind::Text;
 	text.box = eng::Box {100, 4, 16u, 8u};
 	text.color = 3u;
-	text.text = eng::Span<const char> {msg, 2u};
+	CHECK(text.set_text(eng::Span<const char> {msg, 2u}));
 	const eng::hud::HudDrawOp empty {};
 	const eng::hud::HudDrawOp ops4[] = {text, empty};
 	CHECK(strip.apply(eng::Span<const eng::hud::HudDrawOp> {ops4, 2u}) == 1u);
@@ -156,7 +156,7 @@ void test_apply(eng::MemoryManager& mem) {
 	textw.kind = eng::hud::HudOpKind::Text;
 	textw.box = eng::Box {96, 20, 16u, 8u};
 	textw.color = 2u;
-	textw.text = eng::Span<const char> {msg2, 2u};
+	CHECK(textw.set_text(eng::Span<const char> {msg2, 2u}));
 	const eng::hud::HudDrawOp bgfill = fill_op(96, 20, 16u, 8u, 3u);
 	CHECK(strip.apply(eng::Span<const eng::hud::HudDrawOp> {&bgfill, 1u}) == 1u);
 	CHECK(strip.apply(eng::Span<const eng::hud::HudDrawOp> {&textw, 1u}) == 1u);
