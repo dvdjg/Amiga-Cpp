@@ -4,8 +4,12 @@ Infraestructura **host** (PC) del pipeline de conversión de aventuras clásicas
 
 ## Estado
 
-- **Hecho**: compilación local del oráculo (`build-scummvm-tools.sh`, por ahora `descumm`) y toolchain de discos Amiga verificado (ADF de entrada y de salida).
-- **Planificado (I0–I5)**: esquema del SIM (`tools/adventure/sim/`), extractores por familia (`tools/adventure/frontends/`), traductor de guiones (`tools/adventure/translate/`) y validador de presupuesto (`tools/adventure/report/`).
+- **Hecho**:
+  - Oráculo compilado en local (`build-scummvm-tools.sh`: `descumm`) y toolchain de discos Amiga verificado (§Herramientas de disco).
+  - **Frontend SCUMM V5** (`frontends/scumm_v5/extract.mjs`, con su [README](frontends/scumm_v5/README.md)): índice, digest de salas, volcado por sala y descompilado de guiones. Extracción completa verificada de **MI2 Ultimate Talkie Edition**: 127 salas en el índice (110 con datos), **1006 guiones descompilados al 100 %** con `descumm`, 163 costumes, 229 sonidos, 9 charsets, 1200 objetos globales.
+  - **SIM v1** ([`sim/SCHEMA.md`](sim/SCHEMA.md) + validador `sim/sim.mjs`) con **fixture sintético** (`sim/make-fixture.mjs`) y golden test: `node --test tools/adventure/sim/sim.test.mjs`.
+- **Planificado (I0–I5)**: decodificación semántica (walkboxes/costumes/imagen — I0/I2), frontend V3/V4 `.LFL` (copias Amiga), traductor de guiones (`translate/`, I1) y validador de presupuesto (`report/`, I4).
+- **Juego piloto**: MI2 *Ultimate Talkie Edition* (V5) como primer objetivo completo; MI1 UE segundo; Fate of Atlantis CD tercero (ver «Fuentes locales» del roadmap).
 
 ## `build-scummvm-tools.sh`
 

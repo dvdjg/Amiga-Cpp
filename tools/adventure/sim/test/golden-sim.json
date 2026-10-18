@@ -1,0 +1,66 @@
+{
+  "format": "sim/1",
+  "game": {
+    "id": "fixture",
+    "source": {
+      "type": "scumm-v5",
+      "index": "fixture.000",
+      "data": [
+        "fixture.001"
+      ],
+      "enc": 105
+    },
+    "counts": {
+      "rooms": 1,
+      "scripts": 1,
+      "costumes": 0,
+      "sounds": 0,
+      "charsets": 0,
+      "globalObjects": 0
+    }
+  },
+  "roomNames": {
+    "1": "test-room"
+  },
+  "rooms": [
+    {
+      "room": 1,
+      "name": "test-room",
+      "file": "fixture.001",
+      "off": 30,
+      "lflfOff": 22,
+      "blocks": [
+        {
+          "tag": "RMHD",
+          "size": 14
+        },
+        {
+          "tag": "BOXD",
+          "size": 19
+        }
+      ],
+      "lflfBlocks": [
+        {
+          "tag": "SCRP",
+          "size": 10
+        },
+        {
+          "tag": "EXCD",
+          "size": 10
+        }
+      ],
+      "scripts": [
+        {
+          "tag": "SCRP",
+          "off": 71,
+          "size": 10
+        },
+        {
+          "tag": "EXCD",
+          "off": 81,
+          "size": 10
+        }
+      ]
+    }
+  ]
+}
