@@ -26,6 +26,7 @@
 #define ENG_SCALAR_RETRO16 // host/preview: instancia retro (coord q0)
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/api/api.hpp>
+#include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/retro/lib2d.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -116,7 +117,12 @@ struct DemoGame {
 		ProbeFace faces[3];
 		// 1) Triangulo que barre: de x=100 (dentro) a x=280 (300 px de barrido; el lado
 		//    derecho del triangulo llega a x+80, asi que cruza el borde 319 de sobra).
+#if defined(CLIP_PROBE_FREEZE_X)
+		// Estado CONGELADO (A/B determinista CPU vs Blitter: freeze-diff pixel a pixel).
+		const eng::s32 tri_x = CLIP_PROBE_FREEZE_X;
+#else
 		const eng::s32 tri_x = 100 + static_cast<eng::s32>((f * 2u) % 300u);
+#endif
 		faces[0] = ProbeFace {{static_cast<eng::s16>(tri_x), static_cast<eng::s16>(tri_x + 80),
 				       static_cast<eng::s16>(tri_x + 80)},
 			      {90, 90, 150}, 3u, 1u};
@@ -124,8 +130,7 @@ struct DemoGame {
 		faces[1] = ProbeFace {{-20, 30, 60, 40, -20}, {200, 180, 220, 260, 260}, 5u, 2u};
 		// 3) Cuadrado de referencia, siempre dentro.
 		faces[2] = ProbeFace {{20, 60, 60, 20}, {40, 40, 80, 80}, 4u, 3u};
-		// --- Recorte + submit ---------------------------------------------------------------
-		// CONVENCION CRITICA (lib2d, semiabierto): un punto con `x == maxX` esta FUERA, asi
+		// --- Recorte + submit ---------------------------------------------------------------		// CONVENCION CRITICA (lib2d, semiabierto): un punto con `x == maxX` esta FUERA, asi
 		// que los vertices de CORTE caen exactamente en `maxX`. Si se pasa `width`/`height`,
 		// el corte queda fuera del buffer (x=320/y=256) y el contorno del Blitter pinta en la
 		// palabra vecina (corrupcion). El rect de recorte usa la ULTIMA columna/fila
@@ -137,6 +142,7 @@ struct DemoGame {
 		eng::graphics::PlaneFillBuilder<3> fb;
 		eng::retro::Vec2 in[8];
 		eng::retro::Vec2 tmp[8];
+		eng::u8 n_debug[3] = {0u, 0u, 0u};
 		for (eng::u8 i = 0u; i < 3u; ++i) {
 			eng::u8 n = faces[i].n;
 			for (eng::u8 k = 0u; k < n; ++k) {
@@ -149,8 +155,10 @@ struct DemoGame {
 						     retro::PF_BOTTOM)));
 #endif
 			if (n < 3u) {
+				n_debug[i] = n; // 0/1/2 = descartada y por que (validacion n<3)
 				continue;
 			}
+			n_debug[i] = n;
 			for (eng::u8 k = 0u; k < n; ++k) {
 				// Coordenadas LOCALES a la caja de relleno (el dest empieza en kFillY0):
 				// el fill barre [0, height) y las caras usan su sistema local (patrón de
@@ -185,6 +193,14 @@ struct DemoGame {
 						    m_scene.width(), h, false);
 		}
 #endif
+		// Traza al run-status (legible en run-report.json): n tras el recorte de cada cara
+		// (bytes 0-2) + el nº de caras aceptadas (byte alto): distingue "recorte vacio" de
+		// "fill roto" sin emulador vivo.
+		g_eng_run_status.detail =
+			(static_cast<eng::u32>(n_debug[0]) |
+			 (static_cast<eng::u32>(n_debug[1]) << 8u) |
+			 (static_cast<eng::u32>(n_debug[2]) << 16u) |
+			 (static_cast<eng::u32>(fb.count()) << 24u));
 		eng::debug::probe_when_ready(g_eng_run_status, f);
 	}
 
