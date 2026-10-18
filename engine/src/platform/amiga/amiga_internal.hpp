@@ -426,6 +426,31 @@ inline void blit_clear_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, 
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
+/// **Aplica un patrón 1-bit a un plano** (`D = A & B` con `B = D`, minterm `$C0`): deja el
+/// contenido del plano donde el patrón tiene 1 y lo borra donde tiene 0. Un blit por plano
+/// sobre la misma caja del area fill; es el paso que convierte el relleno sólido en
+/// punteado/tablero/líneas (`eng::graphics::fill_pattern.hpp`). El canal B se apunta al
+/// propio destino (realimentación), así que el blit **no** necesita una máscara aparte.
+/// `pattern` debe ser un plano 1-bit en Chip con el mismo `row_bytes` que `dst` y la fase
+/// anclada a la fila 0 de `dst` (el llamador lo construye con `fill_pattern_plane_cpu`).
+inline void blit_apply_pattern(eng::u8* dst, const eng::u8* pattern, eng::u16 row_bytes,
+			       eng::u16 words, eng::u16 h) {
+	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] =
+		static_cast<eng::u16>(blt_use_a | blt_use_b | blt_use_d | 0x00c0u); // D = A & B
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltamod_offset] = mod;
+	custom_base[custom_bltbmod_offset] = mod;
+	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltapt_offset, pattern);
+	write_custom_pointer(custom_bltbpt_offset, dst);
+	write_custom_pointer(custom_bltdpt_offset, dst);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+}
+
 /// **Fill strided de palabras**: escribe `value` en `rows` palabras separadas `dmod` bytes
 /// (D = A con A deshabilitado -> `BLTADAT` constante; 1 palabra por fila). Sirve para parchear
 /// la copperlist (p. ej. `SPRxPOS`, constante por columna) sin tocar la CPU. `d` alineada a word.

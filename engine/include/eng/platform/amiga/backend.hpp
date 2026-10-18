@@ -504,11 +504,16 @@ public:
 	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
 	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
 	/// bit `p` a 1 y hace **un area fill** (`FILL_XOR`); un fill por plano en vez de uno
-	/// por polígono. `dest` es el bitmap contiguo (se escribe en su sitio). Referencia CPU:
-	/// `graphics::fill_polygons_by_plane_cpu`. Verificada por el self-test de 077.
+	/// por polígono. `dest` es el bitmap contiguo (se escribe en su sitio). `pattern`
+	/// opcional (plano 1-bit en Chip, `row_bytes` × `height`, patrón de
+	/// `graphics::fill_pattern_plane_cpu`): tras el fill de cada plano se aplica con un
+	/// blit `D = A & B` (`B = D`), convirtiendo el relleno sólido en tablero/punteado/
+	/// líneas sin tocar el contorno. Referencia CPU: `graphics::fill_polygons_by_plane_cpu`
+	/// (mismo parámetro `pattern`). Verificada por el self-test de 077.
 	bool fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
 				    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
-				    u8 planes, u16 width, u16 height);
+				    u8 planes, u16 width, u16 height,
+				    eng::MaskBytes pattern = {});
 
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el

@@ -34,6 +34,7 @@ inline constexpr u16 kBlitterMintermZero = 0x0000u;   ///< `D = 0` (borrado)
 inline constexpr u16 kBlitterMintermCopyA = 0x00f0u;  ///< `D = A` (copia desde A)
 inline constexpr u16 kBlitterMintermCopyC = 0x00aau;  ///< `D = C` (copia compacta desde C)
 inline constexpr u16 kBlitterMintermAOrB = 0x00fcu;   ///< `D = A | B` (con `B = D`, OR)
+inline constexpr u16 kBlitterMintermAAndB = 0x00c0u;  ///< `D = A & B` (con `B = D`, AND del patrón)
 inline constexpr u16 kBlitterMintermCookieCut = 0x00cau; ///< `D = (A & B) | (~A & C)` (cookie-cut)
 
 /// Bits de **modo línea** (`BLTCON1`, modo `LINE`): octante, `SIGN` y los datos de los canales

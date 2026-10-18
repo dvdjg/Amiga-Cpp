@@ -38,6 +38,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
+#include <eng/graphics/fill_pattern.hpp>
 
 namespace eng::graphics {
 
@@ -54,21 +55,27 @@ struct PlanePolygon {
 namespace detail {
 
 /// Escribe el span `[xl, xr]` (inclusivo, ya recortado) OR-eando los bits en la fila `y` del
-/// plano contiguo. Palabra completa en el interior; extremos con máscara.
-inline void plane_or_span(eng::u8* plane, eng::u16 row_bytes, eng::s32 y, eng::s32 xl, eng::s32 xr) {
+/// plano contiguo, **enmascarados por la palabra de patrón** de esa fila (`0xFFFF` = sólido).
+/// Palabra completa en el interior (también enmascarada); extremos con máscara doble.
+inline void plane_or_span(eng::u8* plane, eng::u16 row_bytes, eng::s32 y, eng::s32 xl, eng::s32 xr,
+			  eng::u16 pattern_word) {
 	eng::u8* row = plane + static_cast<eng::u32>(y) * row_bytes;
 	const eng::u32 b0 = static_cast<eng::u32>(xl) >> 3u;
 	const eng::u32 b1 = static_cast<eng::u32>(xr) >> 3u;
-	const eng::u8 first = static_cast<eng::u8>(0xffu >> (static_cast<eng::u32>(xl) & 7u));
-	const eng::u8 last = static_cast<eng::u8>(0xffu << (7u - (static_cast<eng::u32>(xr) & 7u)));
+	// MSB = píxel izquierdo: índice de byte par -> byte alto de la palabra de patrón.
+	const eng::u8 pat_hi = static_cast<eng::u8>(pattern_word >> 8u);
+	const eng::u8 pat_lo = static_cast<eng::u8>(pattern_word & 0xffu);
+	const auto pat_at = [&](eng::u32 b) -> eng::u8 { return (b & 1u) != 0u ? pat_lo : pat_hi; };
+	const eng::u8 m0 = static_cast<eng::u8>(0xffu >> (static_cast<eng::u32>(xl) & 7u));
+	const eng::u8 m1 = static_cast<eng::u8>(0xffu << (7u - (static_cast<eng::u32>(xr) & 7u)));
 	if (b0 == b1) {
-		row[b0] = static_cast<eng::u8>(row[b0] | (first & last));
+		row[b0] = static_cast<eng::u8>(row[b0] | ((m0 & m1) & pat_at(b0)));
 		return;
 	}
-	row[b0] = static_cast<eng::u8>(row[b0] | first);
-	row[b1] = static_cast<eng::u8>(row[b1] | last);
+	row[b0] = static_cast<eng::u8>(row[b0] | (m0 & pat_at(b0)));
+	row[b1] = static_cast<eng::u8>(row[b1] | (m1 & pat_at(b1)));
 	for (eng::u32 i = b0 + 1u; i < b1; ++i) {
-		row[i] = 0xffu;
+		row[i] = static_cast<eng::u8>(row[i] | pat_at(i));
 	}
 }
 
@@ -79,14 +86,16 @@ inline constexpr eng::u8 kMaxCrossings = 128;
 
 /// **Rellena un conjunto de caras componiendo por bitplane (CPU)**: para cada plano `p`,
 /// rasteriza por **scanline even-odd** la unión de las caras cuyo `color` tiene el bit `p`
-/// a 1 y escribe los spans en el plano `p` de `dest` (contiguo, `plane_bytes` por plano).
-/// Los planos destino se **OR-ean** (el llamador los limpia antes). Devuelve el nº de spans
-/// escritos. `width`/`height` recortan. Es el equivalente CPU del fill por Blitter
-/// (1 fill por plano) y sirve para validar la composición sin hardware.
+/// a 1 y escribe los spans en el plano `p` de `dest` (contiguo, `plane_bytes` por plano),
+/// **enmascarados por `pattern`** (el mismo para todos los planos de la llamada; `Solid` =
+/// sin patrón). Los planos destino se **OR-ean** (el llamador los limpia antes). Devuelve el
+/// nº de spans escritos. `width`/`height` recortan. Es el equivalente CPU del fill por
+/// Blitter (1 fill por plano) y sirve para validar la composición sin hardware.
 inline eng::u32 fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> faces,
 					   eng::PlaneBytes dest, eng::u16 row_bytes,
 					   eng::u32 plane_bytes, eng::u8 planes,
-					   eng::u16 width, eng::u16 height) {
+					   eng::u16 width, eng::u16 height,
+					   FillPattern pattern = FillPattern::Solid) {
 	if (faces.empty() || dest.empty() || planes == 0u || row_bytes == 0u || plane_bytes == 0u) {
 		return 0u;
 	}
@@ -137,7 +146,8 @@ inline eng::u32 fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> faces,
 				if (xr < xl) {
 					continue;
 				}
-				detail::plane_or_span(plane, row_bytes, y, xl, xr);
+				detail::plane_or_span(plane, row_bytes, y, xl, xr,
+						      fill_pattern_word(pattern, static_cast<eng::u32>(y)));
 				++spans;
 			}
 		}
@@ -169,9 +179,11 @@ public:
 
 	/// Rellena por CPU los planos de `dest` (ver `fill_polygons_by_plane_cpu`).
 	eng::u32 fill_cpu(eng::PlaneBytes dest, eng::u16 row_bytes, eng::u32 plane_bytes,
-			  eng::u8 planes, eng::u16 width, eng::u16 height) const {
+			  eng::u8 planes, eng::u16 width, eng::u16 height,
+			  FillPattern pattern = FillPattern::Solid) const {
 		return fill_polygons_by_plane_cpu({m_faces.data(), m_count},
-						  dest, row_bytes, plane_bytes, planes, width, height);
+						  dest, row_bytes, plane_bytes, planes, width, height,
+						  pattern);
 	}
 
 	/// Caras acumuladas (para el camino Blitter del backend).

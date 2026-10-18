@@ -782,9 +782,16 @@ bool AmigaBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::Pl
 
 bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
 					    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
-					    u8 planes, u16 width, u16 height) {
+					    u8 planes, u16 width, u16 height,
+					    eng::MaskBytes pattern) {
 	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
 	    row_bytes == 0u || plane_bytes == 0u) {
+		return false;
+	}
+	// Patrón opcional: si viene, debe cubrir la caja del fill (se lee con el MISMO
+	// `row_bytes`, anclado a la fila 0 del destino) — mejor rechazar que corromper.
+	const bool has_pattern = pattern.data() != nullptr;
+	if (has_pattern && pattern.size() < static_cast<u32>(row_bytes) * height) {
 		return false;
 	}
 	for (u8 p = 0; p < planes; ++p) {
@@ -816,6 +823,12 @@ bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u
 		//    (pensado para el bitmap multicapa contiguo de 116) y desbordaria el plano.
 		blitter_area_fill_rect(plane, row_bytes, 0, 0, static_cast<u16>(width / 16u), height,
 				       true);
+		// 4) patrón opcional: `D = A & B` con `B = D` sobre la misma caja que el fill
+		//    (un blit por plano; el plano de patrón se reutiliza entre frames).
+		if (has_pattern) {
+			blit_apply_pattern(plane.data(), pattern.data(), row_bytes,
+					   static_cast<u16>(width / 16u), height);
+		}
 	}
 	return true;
 }
