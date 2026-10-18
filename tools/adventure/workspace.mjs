@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeDirReadme, PIPELINE_RELATIONS } from './lib/docs.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../..');
@@ -49,6 +50,29 @@ if (cmd === 'init') {
 		notes: prev.notes ?? '',
 	};
 	fs.writeFileSync(descriptorPath, JSON.stringify(descriptor, null, 2) + '\n');
+	// Ficha local del workspace: qué hay en cada carpeta y cómo se relaciona (generada).
+	writeDirReadme(dir, {
+		title: `Workspace del juego «${descriptor.id}»`,
+		what: `${descriptor.title}. Material de trabajo del pipeline de conversión (no versionado: se regenera). El flujo es **fuente → raw → decoded → edited → cook → engine**; los informes viven en reports/.`,
+		producedBy: '`node tools/adventure/workspace.mjs init <juego>` (estructura y este README).',
+		consumedBy: 'las herramientas de `tools/adventure/` y (previsto) el editor/previewer; el engine consume solo `cook/`.',
+		items: [
+			{ name: 'game.json', desc: 'descriptor: id, título, motor, edición y ruta de la fuente.' },
+			{ name: 'inbox/', desc: 'copias locales del material original (normalmente vacío: se referencia la fuente).' },
+			{ name: 'raw/', desc: 'extracción literal del contenedor (.000/.00N): bloques por sala y guiones descompilados.' },
+			{ name: 'decoded/', desc: 'SIM v2 (semántica), PNG de salas/objetos, audio FLAC, walkboxes y AST de guiones.' },
+			{ name: 'edited/', desc: 'FUENTE editable del port: SIM retocado y añadidos Amiga (capas, cues, transparencias).' },
+			{ name: 'cook/', desc: 'salida cocinada para el engine (`cpp/<juego>_content.hpp`).' },
+			{ name: 'preview/', desc: 'capturas e informes del previewer host (I3).' },
+			{ name: 'reports/', desc: 'informes: uso de opcodes, cobertura de AST, presupuesto (I4).' },
+		],
+		related: PIPELINE_RELATIONS,
+		notes: [
+			'Regenerable: borrar `raw/`, `decoded/`, `cook/` o `reports/` no pierde trabajo humano; `edited/` es lo único irremplazable.',
+			'Cada carpeta de artefactos incluye su propio `README.md` generado con su ficha y relaciones.',
+			'Nada de estos datos entra en git (out/ está ignorado): el contenido original tiene derechos.',
+		],
+	});
 	console.log(`[workspace] ${descriptorPath}`);
 } else if (cmd === 'status' || cmd === undefined) {
 	if (!fs.existsSync(ROOT)) {
@@ -66,10 +90,16 @@ if (cmd === 'init') {
 				return 0;
 			}
 		};
+		const countRooms = fs.existsSync(path.join(dir, 'raw', 'rooms'))
+			? fs.readdirSync(path.join(dir, 'raw', 'rooms')).filter((n) => /^room_\d+$/.test(n)).length
+			: 0;
 		const scripts = [];
 		const scriptsDir = path.join(dir, 'raw', 'scripts');
 		try {
-			for (const room of fs.readdirSync(scriptsDir)) scripts.push(...fs.readdirSync(path.join(scriptsDir, room)).filter((f) => f.endsWith('.txt')));
+			for (const room of fs.readdirSync(scriptsDir)) {
+				if (!/^room_\d+$/.test(room)) continue;
+				scripts.push(...fs.readdirSync(path.join(scriptsDir, room)).filter((f) => f.endsWith('.txt')));
+			}
 		} catch {
 			/* sin scripts */
 		}
@@ -79,7 +109,7 @@ if (cmd === 'init') {
 		} catch {
 			/* sin walkboxes */
 		}
-		console.log(`${game}: ${desc.title ?? '?'} [${desc.engine ?? '?'}] salas(raw)=${count('raw/rooms')} guiones=${scripts.length} walkboxes=${walkboxes}`);
+		console.log(`${game}: ${desc.title ?? '?'} [${desc.engine ?? '?'}] salas(raw)=${countRooms} guiones=${scripts.length} walkboxes=${walkboxes}`);
 	}
 } else {
 	console.error(`Comando no soportado: ${cmd} (usa init | status)`);

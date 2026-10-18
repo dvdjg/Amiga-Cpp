@@ -33,6 +33,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { decodeWalkboxes } from '../../decode/decoders.mjs';
+import { writeDirReadme } from '../../lib/docs.mjs';
 
 const ENC_KEYS = [0x69, 0x00]; // clave de cifrado probable primero (V5 con GF_USE_KEY = 0x69)
 const INDEX_TAGS = new Set(['RNAM', 'MAXS', 'DROO', 'DSCR', 'DCOS', 'DSOU', 'DCHR', 'DOBJ', 'DIRF', 'DIRR', 'DIRS', 'DIRC', 'DIRN']);
@@ -306,7 +307,7 @@ function dumpRoomScripts(work, data, room, descumm) {
 		if (!descumm) continue;
 		const out = spawnSync(descumm, ['-5', bin], { encoding: 'latin1', maxBuffer: 64 * 1024 * 1024 });
 		if (out.status === 0 && out.stdout && !/Unknown|ERROR/i.test(out.stdout.slice(0, 120))) {
-			fs.writeFileSync(bin.replace(/\.bin$/, '.txt'), out.stdout);
+			fs.writeFileSync(bin.replace(/\.bin$/, '.txt'), out.stdout.replace(/\r\n/g, '\n')); // LF en artefactos
 			ok++;
 		} else {
 			fs.writeFileSync(bin.replace(/\.bin$/, '.err.txt'), (out.stdout || '') + (out.stderr || ''));
@@ -344,7 +345,49 @@ function cmdDumpGame(args) {
 		}
 	}
 	cmdRoomsJson({ ...args, out: path.join(work, 'raw', 'index', 'rooms.json') });
+	writeRawDocs(work, base);
 	console.log(`[extract] dump-game: ${rooms} salas, ${blockCount} bloques, ${total} guiones (descumm OK: ${ok}) -> ${work}`);
+}
+
+// Fichas generadas de `raw/` (qué contiene cada subcarpeta y cómo se relaciona con decoded/).
+function writeRawDocs(work, base) {
+	const raw = path.join(work, 'raw');
+	writeDirReadme(raw, {
+		title: `Extracción literal (${base})`,
+		what: 'Volcado **literal** del contenedor SCUMM V5: índice, bloques por sala (payload sin cabecera) y guiones descompilados. Es la fuente de la que se deriva todo lo demás; no se edita a mano.',
+		producedBy: '`node tools/adventure/frontends/scumm_v5/extract.mjs dump-game <juego.000> --out <workspace>`.',
+		consumedBy: '`decode/` (SIM v2, PNG, audio), `translate/` (AST) y las herramientas de análisis.',
+		items: [
+			{ name: 'index/rooms.json', desc: 'SIM v1: inventario de salas y bloques (con tamaños) del índice del juego.' },
+			{ name: 'rooms/room_<N>/', desc: 'payload de cada bloque de la sala (`<TAG>_<offset>.bin`) + `blocks.json` con offset/tamaño.' },
+			{ name: 'scripts/room_<N>/', desc: 'guiones (`SCRP/EXCD/ENCD/LSCR`) con cabecera (.bin) y su descompilado descumm (.txt).' },
+		],
+	});
+	writeDirReadme(path.join(raw, 'index'), {
+		title: 'Índice del juego (SIM v1)',
+		what: 'Manifiesto de extracción: salas con sus nombres y la lista de bloques de cada una, más contadores globales del contenedor.',
+		producedBy: '`extract.mjs rooms-json` (invocado por `dump-game`).',
+		consumedBy: '`decode/scumm_v5-decode.mjs` (para saber qué salas existen y qué bloques leer).',
+		items: [{ name: 'rooms.json', desc: 'formato `sim/1`: `rooms[]` con `blocks` (tag/size), `lflfBlocks` y `scripts`.' }],
+		related: [{ name: '`../rooms/room_<N>/blocks.json`', desc: 'detalle por sala con offsets y ficheros de bloque.' }],
+	});
+	writeDirReadme(path.join(raw, 'rooms'), {
+		title: 'Bloques por sala (payload literal)',
+		what: 'Un directorio por sala con el payload de cada bloque del `ROOM`/`LFLF` (RMHD, paletas, BOXD/BOXM, RMIM, OBIM/OBCD, SCRP, COST…). Aquí NO se interpreta nada: los datos están tal cual.',
+		producedBy: '`extract.mjs dump-game` (o `dump-room` para una sola sala).',
+		consumedBy: '`decode/scumm_v5-decode.mjs` (walkboxes/paleta/objetos, imágenes y SIM v2).',
+		items: [{ name: 'room_<N>/<TAG>_<offset>.bin', desc: 'payload del bloque (sin cabecera tag+size; ver `blocks.json`).' }, { name: 'room_<N>/blocks.json', desc: 'tabla [{tag,size,off,file}] de la sala.' }],
+		related: [{ name: '`decoded/sim.json`', desc: 'cada entrada `rooms[].blocks` proviene de este directorio.' }, { name: '`decoded/png/rooms/room_<N>.png`', desc: 'imagen decodificada del bloque `RMIM`.' }],
+	});
+	writeDirReadme(path.join(raw, 'scripts'), {
+		title: 'Guiones descompilados (descumm)',
+		what: 'Un directorio por sala con los bloques de guion originales (.bin, con cabecera) y su texto descompilado (.txt, sintaxis descumm).',
+		producedBy: '`extract.mjs dump-game/scripts` (ejecuta `descumm -5`).',
+		consumedBy: '`translate/parse.mjs` (AST) y revisión humana; el texto NO es la fuente del port (lo es el C++ traducido).',
+		items: [{ name: 'room_<N>/<TAG>_<offset>.bin', desc: 'bloque de guion íntegro (cabecera incluida), lo que consume descumm.' }, { name: 'room_<N>/<TAG>_<offset>.txt', desc: 'descompilado legible con direcciones `[addr] (opcode)`.' }],
+		related: [{ name: '`decoded/ast/room_<N>/<guion>.ast.json`', desc: 'representación estructurada del mismo guion (I1).' }],
+		notes: ['Los .bin de guion viven aquí y no en `raw/rooms/` porque descumm necesita la cabecera completa.'],
+	});
 }
 
 // Decodifica las walkboxes (BOXD + BOXM) a JSON semántico en decoded/walkboxes/.
@@ -380,6 +423,14 @@ function cmdDecodeBoxes(args) {
 		}
 	}
 	fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ format: 'adv-walkboxes/1', game: base, rooms: index }, null, 2) + '\n');
+	writeDirReadme(dir, {
+		title: 'Walkboxes decodificadas (BOXD + BOXM)',
+		what: 'Geometría de suelo por sala: cajas convexas (esquina ul/ur/lr/ll, `scale`, flags) y la matriz de adyacencia del bloque `BOXM`. Es la fuente del pathfinding del runtime (A0).',
+		producedBy: '`extract.mjs decode-boxes <juego.000>` (decodificador en `decode/decoders.mjs`).',
+		consumedBy: 'revisión humana, `decode/` (SIM v2) y (previsto) el walkbox system del engine; `codegen/` emite estas cajas como tablas C++.',
+		items: [{ name: 'room_<N>.json', desc: 'cajas + `adjacency` + offset de origen en el contenedor.' }, { name: 'index.json', desc: 'resumen por sala (nº de cajas y de entradas de adyacencia).' }],
+		related: [{ name: '`../sim.json`', desc: 'incluye las mismas cajas en `rooms[].walkboxes` + `adjacency`.' }, { name: '`../png/rooms/room_<N>.png`', desc: 'fondo de la sala donde se aplican esas cajas.' }],
+	});
 	console.log(`[extract] walkboxes: ${index.length} salas -> ${dir}`);
 }
 

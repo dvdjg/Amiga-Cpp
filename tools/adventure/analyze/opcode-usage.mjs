@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeDirReadme } from '../lib/docs.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../../..');
@@ -80,6 +81,20 @@ const report = { format: 'adv-opcodes/1', game: GAME, engine: 'scumm-v5', files,
 const outFile = path.join(REPO, 'out', 'adventure', GAME, 'reports', 'opcode-usage.json');
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, JSON.stringify(report, null, 2) + '\n');
+writeDirReadme(path.dirname(outFile), {
+	title: `Informes del pipeline (${GAME})`,
+	what: 'Informes de análisis (JSON, deterministas): qué opcodes usa el juego y qué porcentaje de guiones entiende el parser. Sirven para dimensionar la conversión y detectar lo que falta.',
+	producedBy: '`analyze/opcode-usage.mjs` (opcodes) y `translate/parse.mjs` (cobertura de AST).',
+	consumedBy: 'revisión humana, roadmap (prioridades de I1) y el traductor (qué primitivas implementar primero).',
+	items: [
+		{ name: 'opcode-usage.json', desc: '`adv-opcodes/1`: opcodes por byte con nombre de handler del oráculo y frecuencia.' },
+		{ name: 'parse-coverage.json', desc: '`adv-ast-coverage/1`: líneas de guion parseadas vs `raw`, por sala y global.' },
+	],
+	related: [
+		{ name: '`../raw/scripts/`', desc: 'corpus de entrada (descompilados).' },
+		{ name: '`../decoded/ast/`', desc: 'AST producido; sus `kind:"raw"` alimentan lo que falta por soportar.' },
+	],
+});
 
 const top = Number(args.top ?? 25);
 console.log(`[opcodes] ${GAME}: ${files} ficheros, ${total} opcodes, ${opcodes.length} distintos (de 256) -> ${outFile}`);

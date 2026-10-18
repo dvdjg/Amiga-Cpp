@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { decodeWalkboxes, decodeObject, decodeObjectImage, decodePalette, decodeRoomHeader, findImageEntry } from './decoders.mjs';
 import { decodeSmappedImage } from './image.mjs';
 import { encodeIndexedPng, paletteTo8Bit } from '../lib/png.mjs';
+import { writeDirReadme, PIPELINE_RELATIONS } from '../lib/docs.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../../..');
@@ -159,4 +160,63 @@ if (png) {
 	fs.writeFileSync(imgFile, JSON.stringify(imageManifest, null, 2) + '\n');
 	pngNote = `, PNG: ${imageManifest.rooms.length} salas + ${imageManifest.objects.length} objetos (${imageManifest.errors.length} avisos)`;
 }
+writeDecodedDocs(WS, GAME, png, stats, imageManifest);
 console.log(`[decode] ${GAME}: ${stats.rooms} salas, ${stats.walkboxes} walkboxes, ${stats.objects} objetos, ${stats.palettes} paletas${pngNote} -> ${outFile}`);
+
+// Fichas generadas de `decoded/` y sus subcarpetas de imágenes (qué es cada cosa y cómo encaja).
+function writeDecodedDocs(ws, game, withPng, st, imgManifest) {
+	const decoded = path.join(ws, 'decoded');
+	writeDirReadme(decoded, {
+		title: `Contenido decodificado (${game})`,
+		what: 'Capa **semántica** del juego y formatos estándar: a partir de `raw/` se decodifica la estructura (SIM v2), las imágenes (PNG), el audio (FLAC, herramienta aparte) y los guiones (AST, etapa I1).',
+		producedBy: '`node tools/adventure/decode/scumm_v5-decode.mjs <juego>` (SIM v2 + PNG); `decode/sof-extract.mjs` (audio) y `translate/parse.mjs` (AST).',
+		consumedBy: '`codegen/` (tablas C++ para el engine), el previewer (I3), los informes y la revisión humana; `edited/` parte de aquí.',
+		items: [
+			{ name: 'sim.json', desc: 'SIM v2: salas con tamaño, walkboxes+adyacencia, paleta, objetos (id/x/y/w/h + imagen) y lista de guiones.' },
+			{ name: 'walkboxes/room_<N>.json', desc: 'cajas y adyacencia por sala (misma información que `sim.json`, por comodidad).' },
+			... (withPng ? [{ name: 'png/', desc: 'imágenes normalizadas sin pérdidas (ver png/README.md).' }, { name: 'images.json', desc: 'manifiesto `adv-images/1`: qué PNG existe, tamaño y códecs de tira usados.' }] : []),
+			{ name: 'audio/', desc: 'pistas del contenedor .sof en FLAC + manifiesto `adv-sof/1` (otra herramienta).' },
+			{ name: 'ast/', desc: 'guiones parseados a AST JSON (etapa I1, otra herramienta).' },
+		],
+		related: PIPELINE_RELATIONS,
+	});
+	if (!withPng) return;
+	const pngDir = path.join(decoded, 'png');
+	writeDirReadme(pngDir, {
+		title: 'Imágenes normalizadas (PNG indexado, sin pérdidas)',
+		what: 'Salas y objetos decodificados con los códecs del original y guardados como **PNG indexado 8bpp** (PLTE con la paleta del juego escalada de 6→8 bits). Los índices son exactamente los del original: sirve como verdad de referencia para la cocina y el diff visual.',
+		producedBy: '`scumm_v5-decode.mjs` (`decode/image.mjs` + `lib/png.mjs`).',
+		consumedBy: 'previewer (I3), cocina de assets (I2), validación por visión y comparación con ScummVM.',
+		items: [
+			{ name: 'rooms/room_<N>.png', desc: 'fondo completo de la sala N (decodificado del bloque RMIM; ancho/alto = RMHD).' },
+			{ name: 'objects/room_<N>_obj<M>.png', desc: 'imagen del objeto M de la sala N (entrada IMxx de su OBIM); índice 0 transparente (tRNS).' },
+			{ name: '../images.json', desc: 'manifiesto con dimensiones, nº de tiras y códigos de compresión por imagen.' },
+		],
+		related: [
+			{ name: '`../sim.json`', desc: 'cada PNG corresponde a `rooms[N]` (fondo) o a `rooms[N].objects[id=M]` (objeto), con posición y tamaño en píxeles.' },
+			{ name: '`../walkboxes/room_<N>.json`', desc: 'geometría de suelo dibujable sobre el mismo fondo.' },
+			{ name: '`../../raw/rooms/room_<N>/RMIM_*.bin`, `OBIM_*.bin`', desc: 'bloques originales de los que se decodifica cada imagen.' },
+		],
+		notes: ['Índices de paleta = índices del juego: **no** se han reordenado ni cuantizado.', 'Un objeto sin PNG significa que su imagen no existe en la sala (hotspot decorativo pintado en el fondo).'],
+	});
+	writeDirReadme(path.join(pngDir, 'rooms'), {
+		title: 'Fondos de sala (PNG)',
+		what: 'Un PNG por sala con el fondo completo. Nombre: `room_<N>.png`, con N = id de sala del SIM.',
+		producedBy: '`scumm_v5-decode.mjs` (bloque `RMIM` → tiras SMAP → códecs MajMin/zig-zag → PNG).',
+		consumedBy: 'previewer, cocina (capas/parallax), visión.',
+		items: [{ name: 'room_<N>.png', desc: 'índice de color 8bpp + PLTE del juego; tamaño = `sim.rooms[room].width × height`.' }],
+		related: [{ name: '`../../sim.json`', desc: 'nombre de la sala, dimensiones y paleta (`rooms[room].palette`).' }],
+	});
+	writeDirReadme(path.join(pngDir, 'objects'), {
+		title: 'Objetos de sala (PNG con transparencia)',
+		what: 'Un PNG por objeto con imagen propia. Nombre: `room_<N>_obj<M>.png` (M = id de objeto del SIM). El índice 0 es transparente (tRNS) porque son sprites para componer sobre el fondo.',
+		producedBy: '`scumm_v5-decode.mjs` (entrada `IMxx` del `OBIM` → tiras SMAP → PNG).',
+		consumedBy: 'cocina (BOBs/sprites), previewer, visión.',
+		items: [{ name: 'room_<N>_obj<M>.png', desc: 'índice de color 8bpp + PLTE; tamaño del objeto según CDHD (múltiplo de 8).' }],
+		related: [
+			{ name: '`../../sim.json`', desc: 'posición (`x`,`y`), tamaño y flags del objeto M en `rooms[N].objects`.' },
+			{ name: '`../../raw/rooms/room_<N>/OBIM_*.bin`', desc: 'imagen original del objeto.' },
+		],
+		notes: ['El objeto puede no tener PNG si su `OBIM` no contiene entradas `IMxx` (solo `IMHD`): en ese caso su dibujo está pintado en el fondo.'],
+	});
+}

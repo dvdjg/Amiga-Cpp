@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractSof, readSofIndex } from './sof.mjs';
+import { writeDirReadme } from '../lib/docs.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../../..');
@@ -97,3 +98,23 @@ if (limit > 0) {
 	const flac = manifest.entries.filter((e) => e.ext === 'flac').length;
 	console.log(`[sof] ${manifest.entries.length} pistas (${flac} flac) -> ${outDir}/manifest.json`);
 }
+
+// Ficha local del audio extraído (qué es cada fichero y cómo se relaciona con el juego).
+const files = fs.readdirSync(outDir);
+const nFlac = files.filter((f) => f.endsWith('.flac')).length;
+writeDirReadme(outDir, {
+	title: 'Audio digital extraído (.sof → FLAC)',
+	what: 'Pistas del contenedor de sonido de las ediciones Talkie extraídas **sin recodificar** (streams FLAC/Ogg/MP3 embebidos tal cual). Cada fichero es una locución/efecto digital referenciado por el juego por su posición en el contenedor original.',
+	producedBy: '`node tools/adventure/decode/sof-extract.mjs <juego>` (parser en `sof.mjs`; formato en `sound.cpp:1180-1200`).',
+	consumedBy: 'cocina de audio (I2: conversión a módulos/muestras del engine), revisión humana; (previsto) el mapeo voz↔réplica del traductor de diálogos.',
+	items: [
+		{ name: 'NNNNN.flac|ogg|mp3', desc: 'stream embebido sin pérdidas (normalmente FLAC 44.1 kHz mono); NNNNN = índice de entrada.' },
+		{ name: 'manifest.json', desc: 'formato `adv-sof/1`: por entrada, `org` (offset en el SOU original), `off` (offset en el contenedor), `tags` (bytes de metadatos), `size`, `ext` y `file`.' },
+	],
+	related: [
+		{ name: '`../../raw/scripts/`', desc: 'los guiones contienen los ids de sonido/voz que disparan estas pistas.' },
+		{ name: '`../../reports/opcode-usage.json`', desc: '`startSound`/`soundKludge` (0x1c/0x4c) muestran dónde se usan.' },
+	],
+	notes: [`${nFlac} pistas FLAC en esta extracción.`, 'No se recodifica: la calidad y el formato original se preservan para la cocina.'],
+});
+

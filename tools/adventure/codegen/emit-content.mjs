@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeDirReadme } from '../lib/docs.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../../..');
@@ -126,4 +127,16 @@ lines.push('');
 const outFile = args.out ? String(args.out) : path.join(ws, 'cook', 'cpp', `${GAME}_content.hpp`);
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, lines.join('\n'));
+writeDirReadme(path.dirname(outFile), {
+	title: `Contenido C++ para el engine (${GAME})`,
+	what: 'Tablas `constexpr` de **contenido de aventura** para `eng::adv`: walkboxes y hotspots por sala, más el índice `kRooms` con `find_room()`. Generado desde el SIM v2; es lo que compila el juego.',
+	producedBy: '`node tools/adventure/codegen/emit-content.mjs <juego>` (base: `decoded/sim.json`).',
+	consumedBy: 'el juego/demo en el engine (incluir el header con `-I out/adventure/<juego>/cook/cpp`); validado compilando el contenido de MI1 contra el engine host.',
+	items: [{ name: `${GAME}_content.hpp`, desc: 'namespace `<juego>::content`: arrays de `Walkbox<s16>`/`Hotspot<s16>` por sala + `kRooms[]` + `find_room(id)`.' }],
+	related: [
+		{ name: '`../../decoded/sim.json`', desc: 'fuente de verdad: cada caja/hotspot sale de `rooms[]` (y de los PNG para la parte visual).' },
+		{ name: '`engine/include/eng/adv/`', desc: 'tipos destino (`Walkbox`, `Hotspot`, `RoomContent`); HOST-473 los prueba.' },
+	],
+	notes: ['No editar a mano: se regenera. Los cambios de contenido se hacen en `edited/`/SIM y se vuelve a emitir.'],
+});
 console.log(`[codegen] ${GAME}: ${rooms.length} salas con contenido -> ${outFile}`);

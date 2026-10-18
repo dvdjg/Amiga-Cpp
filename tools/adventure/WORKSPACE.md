@@ -33,6 +33,34 @@ out/adventure/<juego>/
 - **Determinismo**: mismos comandos → mismos bytes (los informes no llevan fechas; el workspace no versiona tiempos).
 - **Nombres**: `<juego>` es un id corto estable (`mi1`, `mi2`, `foa`, `loom`, `indy3`…), aunque el contenedor se llame distinto (`monkey.000` → `mi1`); el descriptor guarda la ruta fuente.
 
+## Relaciones entre artefactos
+
+```text
+datos del juego (.000/.00N)                        audio de la edición (.sof)
+        │ extract.mjs                                     │ sof-extract.mjs
+        ▼                                                  ▼
+raw/{index,rooms,scripts} ──decode──► decoded/{sim.json, walkboxes/, png/, audio/}
+        │                                   │
+        │                                   ├─ translate/parse.mjs ──► decoded/ast/*.ast.json
+        │                                   ├─ codegen/emit-content ──► cook/cpp/<juego>_content.hpp ──► engine
+        │                                   └─ analyze/* ───────────► reports/*.json
+        └────────────── edited/ (humano) ───► cook/ (futuro: UAF, planar, módulos)
+```
+
+| Artefacto | Se produce desde | Lo consume | Clave de enlace |
+|---|---|---|---|
+| `raw/rooms/room_<N>/<TAG>_<off>.bin` | contenedor `.00N` | `decode/` | `blocks.json` de la sala |
+| `raw/scripts/room_<N>/*.txt` | bloques `SCRP/EXCD/ENCD/LSCR` | `translate/parse.mjs` | mismo basename → `.ast.json` |
+| `decoded/sim.json` | `raw/rooms` (RMHD, BOXD/BOXM, CLUT, CDHD/IMHD) | `codegen/`, previewer (I3) | `room` (id) y `objects[].id` |
+| `decoded/png/rooms/room_<N>.png` | bloque `RMIM` + paleta del SIM | cocina, visión, previewer | `sim.rooms[N]` (width/height/paleta) |
+| `decoded/png/objects/room_<N>_obj<M>.png` | entrada `IMxx` del `OBIM` + paleta | cocina (BOBs/sprites), visión | `sim.rooms[N].objects` con `id=M` (x,y) |
+| `decoded/audio/NNNNN.flac` | contenedor `.sof` | cocina de audio (I2) | `manifest.json` (`org`/`off`) |
+| `decoded/ast/room_<N>/*.ast.json` | `.txt` de descumm | traductor I1, revisión | basename del guion |
+| `cook/cpp/<juego>_content.hpp` | `decoded/sim.json` | engine (`eng::adv`) | `find_room(id)` |
+| `reports/*.json` | `raw/`, `decoded/` | revisión humana | — |
+
+**Cada carpeta de artefactos lleva su propio `README.md` generado** (ficha local: qué es, quién lo produce y consume, y cómo se relaciona con el resto). Se reescribe al regenerar la carpeta; este documento es la referencia canónica del conjunto.
+
 ## Herramientas que tocan el workspace
 
 | Paso | Herramienta | Escribe en |
@@ -42,6 +70,7 @@ out/adventure/<juego>/
 | Walkboxes | `... extract.mjs decode-boxes <juego.000> --out out/adventure/<juego>` | `decoded/walkboxes/` |
 | SIM v2 semántico | `node tools/adventure/decode/scumm_v5-decode.mjs <juego>` | `decoded/sim.json` + `decoded/png/` + `decoded/images.json` |
 | Audio (`.sof`) | `node tools/adventure/decode/sof-extract.mjs <juego>` | `decoded/audio/` (+`manifest.json`) |
+| AST de guiones (I1) | `node tools/adventure/translate/parse.mjs <juego>` | `decoded/ast/` + `reports/parse-coverage.json` |
 | Contenido C++ | `node tools/adventure/codegen/emit-content.mjs <juego>` | `cook/cpp/<juego>_content.hpp` |
 | Informes | `node tools/adventure/analyze/opcode-usage.mjs <juego>` | `reports/` |
 | Estado | `node tools/adventure/workspace.mjs status` | — (stdout) |
