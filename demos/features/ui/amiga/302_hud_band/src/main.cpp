@@ -214,6 +214,7 @@ struct HudBandDemo {
 		m_ready = true;
 		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>(kCntCutBad));
 		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>(kCntFps10));
+		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("vbl"));
 		eng::amiga::mark_ready();
 	}
 
@@ -291,6 +292,9 @@ struct HudBandDemo {
 			// Telemetria: el mismo fps al periferico (medida fiable sin depender del video).
 			eng::debug::DebugPeripheral::counter_value(1u, fps10);
 		}
+		// Telemetria de latidos: el contador de VBlank del mini-SO (os::frame_count),
+		// para contrastar frames vs campos sin depender del reloj del periferico (DT-036).
+		eng::debug::DebugPeripheral::counter_value(2u, eng::os::frame_count());
 	}
 
 private:
