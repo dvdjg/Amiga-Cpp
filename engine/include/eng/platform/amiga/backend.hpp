@@ -196,6 +196,19 @@ public:
 	/// `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
 	void set_vblank_sleep(bool on) noexcept { m_vblank_sleep = on; }
 
+	/// `true` si el proceso corre **bajo un SO vivo** (es un AmigaDOS `Process` con CLI,
+	/// p. ej. lanzado por el runner/Shell). Junto a `set_vblank_sleep` decide
+	/// `vblank_wait_unsafe` (familia 212/DT-011).
+	[[nodiscard]] bool runs_under_os() const;
+
+	/// **Configuracion letal** (familia 212/DT-011): espera por `Wait()` bajo un SO vivo
+	/// **sin** takeover — el planificador reescribe `INTENA`, apaga el latido y la tarea
+	/// duerme para siempre (cuelgue intermitente, PC en el `STOP` del dispatcher).
+	/// `Engine::run_frames` la comprueba **al entrar** y, si se cumple, marca `FAILED`
+	/// (codigo `0xE212`) en vez de colgar en silencio. Soluciones: `run_frames_polling`
+	/// (sondeo), `set_vblank_sleep(false)` (espera activa) o `takeover_system()`.
+	[[nodiscard]] bool vblank_wait_unsafe() const;
+
 	/// Instala la IRQ de **VBlank** (nivel 3) y hace que el backend ejecute
 	/// `task(user, vpos)` en cada VBlank. Es el **latido del juego**: `Engine` la usa en
 	/// modo interrupt-driven para correr `update`/`render` con deadline de un frame,

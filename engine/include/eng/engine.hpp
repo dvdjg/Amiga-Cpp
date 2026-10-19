@@ -214,6 +214,19 @@ class Engine {
 	/// en el **bucle principal** (su propia pila), notificados por el contador. Es el modelo de
 	/// un SO real. Si el backend no tiene servicio de VBlank, cae a `run_frames_polling`.
 	void run_frames(u32 frame_count) {
+		// **Guarda de configuracion letal** (familia 212/DT-011): con la espera por defecto
+		// (`Wait()`) bajo un SO vivo sin takeover, el planificador reescribe INTENA y el
+		// bucle puede colgarse en silencio (intermitente). Mejor fallar RUIDOSAMENTE: se
+		// marca FAILED con codigo propio y no se entra al bucle. Alternativas: bucle por
+		// sondeo (`run_frames_polling`) o `set_vblank_sleep(false)`/`takeover_system()`.
+		if constexpr (requires { m_backend.vblank_wait_unsafe(); }) {
+			if (m_backend.vblank_wait_unsafe()) {
+#if defined(ENG_AMIGA)
+				eng::debug::mark_failed(eng::debug::g_eng_run_status, 0x0000E212u);
+#endif
+				return;
+			}
+		}
 		GameContext context {};
 		context.background = &m_background;
 

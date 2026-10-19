@@ -5,6 +5,7 @@
 #include <proto/graphics.h>
 #include <graphics/gfxbase.h>
 #include <exec/memory.h>
+#include <dos/dosextens.h> // struct Process (pr_CLI): deteccion de "bajo SO vivo" (212)
 #include <eng/debug/prof.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/hw/info.hpp>
@@ -736,6 +737,17 @@ struct SystemTakeoverState {
 };
 SystemTakeoverState g_sys {};
 } // namespace
+
+bool AmigaBackend::runs_under_os() const {
+	// Un proceso AmigaDOS (lanzado por el Shell/runner) tiene `pr_CLI` no nulo; una tarea
+	// pura no. Es la senal de "SO vivo" que hace letal la espera por `Wait()` (familia 212).
+	const struct Process* self = reinterpret_cast<const struct Process*>(FindTask(nullptr));
+	return self != nullptr && self->pr_CLI != 0;
+}
+
+bool AmigaBackend::vblank_wait_unsafe() const {
+	return m_vblank_sleep && !g_sys.active && runs_under_os();
+}
 
 bool AmigaBackend::takeover_system() {
 	if (g_sys.active) {
