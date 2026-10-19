@@ -116,12 +116,98 @@ void test_degrade_ladder() {
 	CHECK(a.changes() == b.changes());
 }
 
+/// **Telemetría por región** (H4): acumulación (`add`), reinicio por frame (`reset`) y
+/// estado degradado agregado; el índice fuera de rango cae en la región 0 (documentado).
+void test_region_stats() {
+	eng::hud::HudRegionStats a {};
+	a.ops = 10u;
+	a.blits = 2u;
+	a.copper_moves = 3u;
+	a.sprite_channels = 0x03u;
+	a.bobs = 4u;
+	a.backing_bytes = 100u;
+	a.degrade_level = 1u;
+	eng::hud::HudRegionStats b {};
+	b.ops = 5u;
+	b.sprite_channels = 0x0cu;
+	b.bobs = 1u;
+	b.backing_bytes = 50u;
+	b.degrade_level = 3u;
+	a.add(b);
+	CHECK(a.ops == 15u);
+	CHECK(a.blits == 2u);
+	CHECK(a.copper_moves == 3u);
+	CHECK(a.sprite_channels == 0x0fu); // máscaras: OR
+	CHECK(a.bobs == 5u);
+	CHECK(a.backing_bytes == 150u);
+	CHECK(a.degrade_level == 3u); // el nivel más alto manda
+
+	eng::hud::HudStats stats {};
+	CHECK(stats.count == 0u);
+	CHECK(!stats.degraded());
+	stats.count = 2u;
+	stats.region(0u).ops = 7u;
+	stats.region(1u).degrade_level = 2u;
+	CHECK(stats.degraded());
+	CHECK(stats.region(1u).degrade_level == 2u);
+	CHECK(stats.region(200u).ops == 7u); // fuera de rango -> región 0 (fallback documentado)
+	stats.changes = 9u;
+	stats.reset();
+	CHECK(stats.region(0u).ops == 0u);
+	CHECK(stats.region(1u).degrade_level == 0u);
+	CHECK(!stats.degraded());
+	CHECK(stats.changes == 9u); // el reset del frame no borra la telemetría acumulada
+}
+
+/// **Comprobador de presupuesto** (H4): el primer campo excedido en el orden de la escalera,
+/// con presupuesto 0 = sin límite (salvo la máscara de sprites, que en 0 no reserva nada).
+void test_budget_check() {
+	eng::hud::HudBudget budget {};
+	eng::hud::HudRegionStats used {};
+	// Sin límites declarados y sin gasto: dentro.
+	CHECK(eng::hud::hud_budget_check(budget, used) == eng::hud::HudBudgetOver::None);
+	budget.max_draw_ops = 20u;
+	budget.max_blits_per_frame = 4u;
+	budget.max_backing_bytes = 512u;
+	budget.max_bobs = 2u;
+	budget.sprite_channel_mask = 0x03u; // canales 0 y 1 reservados
+	used.ops = 20u;
+	used.blits = 4u;
+	used.backing_bytes = 512u;
+	used.bobs = 2u;
+	used.sprite_channels = 0x03u;
+	CHECK(eng::hud::hud_budget_check(budget, used) == eng::hud::HudBudgetOver::None); // justo
+	used.ops = 21u;
+	CHECK(eng::hud::hud_budget_check(budget, used) == eng::hud::HudBudgetOver::DrawOps);
+	used.ops = 20u;
+	used.blits = 5u;
+	CHECK(eng::hud::hud_budget_check(budget, used) == eng::hud::HudBudgetOver::Blits);
+	used.blits = 4u;
+	used.backing_bytes = 513u;
+	CHECK(eng::hud::hud_budget_check(budget, used) == eng::hud::HudBudgetOver::BackingBytes);
+	used.backing_bytes = 512u;
+	used.sprite_channels = 0x05u; // canal 2 fuera de la máscara reservada (0x03)
+	CHECK(eng::hud::hud_budget_check(budget, used) == eng::hud::HudBudgetOver::SpriteChannels);
+	used.sprite_channels = 0x03u;
+	used.bobs = 3u;
+	CHECK(eng::hud::hud_budget_check(budget, used) == eng::hud::HudBudgetOver::Bobs);
+	used.bobs = 2u;
+	// Con máscara 0 (sin canales reservados) cualquier uso de sprite es exceso.
+	eng::hud::HudBudget no_spr {};
+	used.sprite_channels = 0x01u;
+	CHECK(eng::hud::hud_budget_check(no_spr, used) == eng::hud::HudBudgetOver::SpriteChannels);
+	used.sprite_channels = 0u;
+	CHECK(eng::hud::hud_budget_check(no_spr, used) == eng::hud::HudBudgetOver::None);
+}
+
 } // namespace
 
 int main() {
 	test_backing_bytes();
 	test_channel_conflict();
 	test_degrade_ladder();
+	test_region_stats();
+	test_budget_check();
 	if (g_fail == 0) {
 		std::printf("HOST-471 hud_budget: OK\n");
 		return 0;

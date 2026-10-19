@@ -192,6 +192,8 @@ struct HudIconsDemo {
 
 		m_ready = true;
 		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>(kCntFps10));
+		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("vbl"));
+		eng::debug::DebugPeripheral::counter_name(3u, reinterpret_cast<eng::u32>("frame"));
 		eng::amiga::mark_ready();
 	}
 
@@ -335,6 +337,11 @@ struct HudIconsDemo {
 			draw_fps(fps10);
 			eng::debug::DebugPeripheral::counter_value(0u, fps10);
 		}
+		// **Latidos de VBlank** (reloj de 50 Hz exactos del mini-SO) y **frames** del motor:
+		// el ratio `frame`/`vbl` mide la perdida real de campos (DT-036) sin depender del
+		// reloj de pared del periferico (que subestima con el emulador a tiempo real).
+		eng::debug::DebugPeripheral::counter_value(2u, eng::os::frame_count());
+		eng::debug::DebugPeripheral::counter_value(3u, app.frame());
 	}
 
 private:
@@ -579,5 +586,10 @@ int main() {
 	display.color_depth = 4u;
 	display.layout = eng::graphics::PlaneLayout::Interleaved;
 	display.palette = kGamePalette;
-	return eng::amiga::run_demo(g_game, display);
+	// **Bucle por sondeo** (familia 212/DT-011, clase 119/400/303): bajo el SO vivo la
+	// espera por senal pierde el despertar y la espera activa tampoco salva a esta demo
+	// (paron determinista a los ~209 frames, medido 2026-10-19: vbl y frame congelados);
+	// el sondeo (`run_polling`, sin depender de la IRQ de VBlank) es la unica variante
+	// estable de la investigacion 212.
+	return eng::amiga::run_demo(g_game, display, eng::amiga::VblankWait::Polling);
 }

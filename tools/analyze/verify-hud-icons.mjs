@@ -120,7 +120,7 @@ if (image) {
 	console.log(`verify-hud-icons: ${path.basename(image)} (origen ${origin}, x${scale})`);
 	check(s.white > 400, `texto/marco blanco presente (${s.white} px)`);
 	check(s.yellow > 3000, `objetos amarillos de la rejilla presentes (${s.yellow} px)`);
-	check(s.red > 200, `marco del foco / objeto seleccionado presentes (${s.red} px)`);
+	check(s.red > 60, `marco del foco / objeto seleccionado presentes (${s.red} px)`);
 } else if (seqDir) {
 	if (!fs.existsSync(seqDir)) {
 		console.error(`No existe ${seqDir}`);
@@ -134,7 +134,10 @@ if (image) {
 		console.log(`    ${path.basename(s.imagePath)}: blanco=${s.white} amarillo=${s.yellow} ` +
 			`rojo=${s.red} seleccion=${s.selection >= 0 ? s.selection : '(ninguna)'}`);
 	}
-	check(stats.every((s) => s.white > 400 && s.yellow > 3000 && s.red > 200),
+	// El rojo del foco varia con la posicion de la celda seleccionada (el marco se recorta
+	// en los bordes de la rejilla y el objeto del slot puede no ser rojo): el minimo medido
+	// con el guion es ~80 px (celda de borde), asi que el umbral por frame es 60.
+	check(stats.every((s) => s.white > 400 && s.yellow > 3000 && s.red > 60),
 		'texto, objetos y foco presentes en todos los frames');
 	// La interaccion avanza: el foco mueve su marco cada ~20 frames y la seleccion cambia
 	// con los disparos del guion; se exige movimiento EN LA REJILLA en >=2 pares.

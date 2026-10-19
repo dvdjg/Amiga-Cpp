@@ -40,6 +40,110 @@ inline constexpr eng::u8 kHudDegradeMaxLevel = 6u;
 	return (a & b) != 0u;
 }
 
+/// **Gasto de una región en el frame** (telemetría H4, `HUD_SYSTEM.md` §6.6/§8): lo que el
+/// presentador consumió (operaciones, blits, movimientos de Copper, canales de sprite,
+/// bytes de *backing*) y el nivel de degradación vigente. El presentador lo rellena
+/// (`reset` + acumulación); el juego lo lee para su telemetría y `VALIDATION.md`.
+struct HudRegionStats {
+	eng::u16 ops = 0u;            ///< operaciones de dibujo aplicadas
+	eng::u16 blits = 0u;          ///< jobs de Blitter lanzados
+	eng::u16 copper_moves = 0u;   ///< movimientos de Copper emitidos
+	eng::u8 sprite_channels = 0u; ///< canales SPRx usados (máscara)
+	eng::u8 bobs = 0u;            ///< BOBs de overlay dibujados
+	eng::u32 backing_bytes = 0u;  ///< bytes de *backing* usados
+	eng::u8 degrade_level = 0u;   ///< nivel de la escalera (0 = completo)
+
+	/// Acumula el gasto de otro recuento (p. ej. por capas dentro de la región).
+	constexpr void add(const HudRegionStats& o) noexcept {
+		ops = static_cast<eng::u16>(ops + o.ops);
+		blits = static_cast<eng::u16>(blits + o.blits);
+		copper_moves = static_cast<eng::u16>(copper_moves + o.copper_moves);
+		sprite_channels = static_cast<eng::u8>(sprite_channels | o.sprite_channels);
+		bobs = static_cast<eng::u8>(bobs + o.bobs);
+		backing_bytes += o.backing_bytes;
+		if (o.degrade_level > degrade_level) {
+			degrade_level = o.degrade_level;
+		}
+	}
+};
+
+/// Campo del presupuesto excedido (el primero según el orden de la escalera de §6.7).
+enum class HudBudgetOver : eng::u8 {
+	None = 0,       ///< dentro del presupuesto
+	DrawOps,        ///< se excedieron las operaciones de dibujo
+	Blits,          ///< se excedieron los jobs de Blitter
+	CopperMoves,    ///< se excedieron los movimientos de Copper
+	BackingBytes,   ///< se excedieron los bytes de *backing*
+	SpriteChannels, ///< se usaron canales fuera de la máscara reservada
+	Bobs,           ///< se excedieron los BOBs de overlay
+};
+
+/// **Comprobador del presupuesto** (`HUD_SYSTEM.md` §6.6): compara el gasto de la región
+/// contra su `HudBudget` y devuelve el primer campo excedido (o `None`). Un campo con
+/// presupuesto 0 = sin límite declarado (la máscara de sprites 0 = sin canales reservados,
+/// así que cualquier uso es exceso). Determinista y sin efectos: la reacción (degradar) es
+/// del presentador.
+[[nodiscard]] constexpr HudBudgetOver hud_budget_check(const HudBudget& budget,
+						       const HudRegionStats& used) noexcept {
+	if (budget.max_draw_ops != 0u && used.ops > budget.max_draw_ops) {
+		return HudBudgetOver::DrawOps;
+	}
+	if (budget.max_blits_per_frame != 0u && used.blits > budget.max_blits_per_frame) {
+		return HudBudgetOver::Blits;
+	}
+	if (budget.max_copper_moves_per_line != 0u &&
+	    used.copper_moves > budget.max_copper_moves_per_line) {
+		return HudBudgetOver::CopperMoves;
+	}
+	if (budget.max_backing_bytes != 0u && used.backing_bytes > budget.max_backing_bytes) {
+		return HudBudgetOver::BackingBytes;
+	}
+	// Canales de sprite: el gasto debe caber en la máscara reservada de la región
+	// (usar un canal fuera de ella es el solape que `hud_channels_conflict` rechaza).
+	if ((used.sprite_channels & static_cast<eng::u8>(~budget.sprite_channel_mask)) != 0u) {
+		return HudBudgetOver::SpriteChannels;
+	}
+	if (budget.max_bobs != 0u && used.bobs > budget.max_bobs) {
+		return HudBudgetOver::Bobs;
+	}
+	return HudBudgetOver::None;
+}
+
+/// **Telemetría agregada del HUD** (H4): un `HudRegionStats` por región del modelo más el
+/// recuento de cambios de degradación. El presentador lo rellena por frame; el juego lo
+/// publica (p. ej. por contadores del periférico) para el gate de la demo.
+inline constexpr eng::u8 kHudStatsMaxRegions = 8u;
+
+struct HudStats {
+	HudRegionStats regions[kHudStatsMaxRegions] {};
+	eng::u8 count = 0u;    ///< regiones con telemetría (índice = región del modelo)
+	eng::u32 changes = 0u; ///< cambios de nivel de degradación (acumulado)
+
+	/// Reinicia el gasto del frame (conserva `changes`).
+	constexpr void reset() noexcept {
+		for (eng::u8 i = 0u; i < kHudStatsMaxRegions; ++i) {
+			regions[i] = HudRegionStats {};
+		}
+	}
+
+	[[nodiscard]] constexpr HudRegionStats& region(eng::u8 index) noexcept {
+		return regions[index < kHudStatsMaxRegions ? index : 0u];
+	}
+	[[nodiscard]] constexpr const HudRegionStats& region(eng::u8 index) const noexcept {
+		return regions[index < kHudStatsMaxRegions ? index : 0u];
+	}
+
+	/// ¿Alguna región está degradada?
+	[[nodiscard]] constexpr bool degraded() const noexcept {
+		for (eng::u8 i = 0u; i < kHudStatsMaxRegions; ++i) {
+			if (regions[i].degrade_level != 0u) {
+				return true;
+			}
+		}
+		return false;
+	}
+};
+
 /// **Escalera de degradación** (H4, `HUD_SYSTEM.md` §6.7): niveles 0..6 en el orden canónico
 /// (0 completo; 1 *ghost* estático; 2 pulso del medidor estático; 3 contador cada 2 frames;
 /// 4 overlay a 25 Hz; 5 sin *ghost*; 6 sin adornos). El presentador mide el coste de la

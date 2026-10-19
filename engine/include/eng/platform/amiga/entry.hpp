@@ -102,12 +102,17 @@ inline void mark_failed(::eng::debug::BootFail stage) {
 /// **Modo de espera de VBlank** del bucle de `run_demo` (familia 212/DT-011; receta
 /// operativa DT-042): con la espera por **señal** el planificador de un SO vivo puede
 /// apagar el latido y la tarea duerme para siempre (parón determinista de frames, PC en
-/// el `STOP` del dispatcher); la espera **activa** (latido por IRQ + sondeo de VPOS) es
-/// la variante recomendada para demos con trabajo por frame variable (HUD de texto,
-/// blits síncronos). Ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
+/// el `STOP` del dispatcher) — el engine la rechaza con `0xE212`; la espera **activa**
+/// (latido por IRQ + sondeo de VPOS) evita el camino de `Wait()` y es la variante
+/// recomendada para demos con trabajo por frame variable; **`Polling`** no depende de la
+/// IRQ de VBlank en absoluto (`App::run_polling`) y es la única estable para las demos
+/// que mueren también con la espera activa (clase 119/400/303: la interacción de las IRQ
+/// con exec bajo el SO vivo). Ver
+/// `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
 enum class VblankWait : eng::u8 {
 	Signal = 0u, ///< duerme en `Wait()` (por defecto; no usar bajo SO vivo sin takeover)
 	Active,      ///< espera activa (`set_vblank_sleep(false)`)
+	Polling,     ///< bucle por sondeo (`run_polling`), sin depender de la IRQ de VBlank
 };
 
 namespace detail {
@@ -126,9 +131,9 @@ int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryC
 	AmigaBackend backend {};
 	// **Modo de espera de VBlank** (familia 212/DT-011, receta DT-042): con la espera por
 	// señal el planificador de un SO vivo puede apagar el latido y la tarea duerme para
-	// siempre (parón determinista); la espera activa (latido por IRQ + sondeo de VPOS) es
-	// la variante recomendada para demos con trabajo por frame variable (HUD de texto,
-	// blits síncronos). Se configura ANTES de `start` para que el bucle nazca en el modo.
+	// siempre (parón determinista); la espera activa (latido por IRQ + sondeo de VPOS)
+	// evita el camino de `Wait()`; el sondeo no depende de la IRQ en absoluto. Se
+	// configura ANTES de `start` para que el bucle nazca en el modo.
 	backend.set_vblank_sleep(wait == VblankWait::Signal);
 	const bool memory_ok = memory.valid() ? backend.configure_memory(*memory)
 					      : backend.configure_game_memory();
@@ -142,7 +147,11 @@ int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryC
 		::eng::debug::mark_failed(g_eng_run_status, ::eng::debug::BootFail::Display);
 		return 0;
 	}
-	app.run();
+	if (wait == VblankWait::Polling) {
+		app.run_polling();
+	} else {
+		app.run();
+	}
 	return 0;
 }
 
