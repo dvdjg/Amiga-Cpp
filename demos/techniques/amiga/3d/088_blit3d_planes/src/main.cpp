@@ -165,14 +165,33 @@ struct Blit3dPlanesDemo {
 		cam.half_w = CT::from_int(160);
 		cam.half_h = CT::from_int(116);
 		// Vertices en espacio de camara (z + kZ0) para el test de frustum del objeto.
+		// Deriva lateral (kDrift): modo de VALIDACION del clip fino (entra/sale por el
+		// borde). Off por defecto: los frames de cruce bajan a ~16-28 fps y rompen el
+		// presupuesto; la evidencia de clip esta en VALIDATION.md.
+		constexpr bool kDrift = false;
+		s32 ox = 0;
+		if constexpr (kDrift) {
+			++m_phase;
+			if (m_phase >= 400u) m_phase = 0u;
+			ox = (m_phase < 200u) ? (-600 + static_cast<s32>(m_phase) * 6)
+					      : (600 - static_cast<s32>(m_phase - 200u) * 6);
+		}
 		eng::graphics::CamVertex<eng::coord> wc[8] {};
 		for (u8 i = 0u; i < 8u; ++i) {
-			wc[i].x = world[i].v[0];
+			wc[i].x = world[i].v[0] + CT::from_int(ox);
 			wc[i].y = world[i].v[1];
 			wc[i].z = world[i].v[2] + CT::from_int(kZ0);
 		}
-		// Fast path: si las 8 esquinas estan dentro del frustum, ninguna cara necesita clip.
-		const bool all_inside = eng::graphics::camera_contains_vertices(cam, wc, 8u);
+		// Fast path: si las 8 esquinas estan dentro del frustum, ninguna cara necesita clip
+		// y la proyeccion se hace UNA vez por vertice (8), no por cara (hasta 24).
+		bool all_inside = eng::graphics::camera_contains_vertices(cam, wc, 8u);
+		s16 px[8] {}, py[8] {};
+		if (all_inside) {
+			for (u8 i = 0u; i < 8u; ++i) {
+				all_inside = all_inside && eng::graphics::project_camera_vertex(
+								  wc[i], cam, px[i], py[i]);
+			}
+		}
 
 		// Vértices por cara: el builder guarda VISTAS, no copia; deben vivir hasta el fill.
 		s16 xs[6][16] {};
@@ -182,29 +201,38 @@ struct Blit3dPlanesDemo {
 		eng::graphics::PlaneFillBuilder<6> fb {};
 		m_submitted = 0u;
 		for (u8 fi = 0u; fi < 6u; ++fi) {
-			eng::graphics::CamVertex<eng::coord> cv[4] {};
-			for (u8 k = 0u; k < 4u; ++k) { cv[k] = wc[kCubeFaces[fi][k]]; }
-			eng::graphics::CamVertex<eng::coord> cl[16] {};
 			u8 m = 4u;
 			if (all_inside) {
-				for (u8 k = 0u; k < 4u; ++k) { cl[k] = cv[k]; }
+				for (u8 k = 0u; k < 4u; ++k) {
+					const u8 v = kCubeFaces[fi][k];
+					xs[fi][k] = px[v];
+					ys[fi][k] = py[v];
+				}
 			} else {
+				eng::graphics::CamVertex<eng::coord> cv[4] {};
+				for (u8 k = 0u; k < 4u; ++k) { cv[k] = wc[kCubeFaces[fi][k]]; }
+				eng::graphics::CamVertex<eng::coord> cl[16] {};
 				m = eng::graphics::clip_camera_polygon(cv, 4u, cam, cl, 16u);
+				if (m < 3u) continue;
+				bool ok = true;
+				for (u8 k = 0u; k < m; ++k) {
+					ok = ok && eng::graphics::project_camera_vertex(cl[k], cam,
+										       xs[fi][k], ys[fi][k]);
+				}
+				if (!ok) continue;
 			}
-			if (m < 3u) continue;
-			bool ok = true;
-			for (u8 k = 0u; k < m; ++k) {
-				ok = ok && eng::graphics::project_camera_vertex(cl[k], cam, xs[fi][k], ys[fi][k]);
-			}
-			if (!ok) continue;
 			// Back-face culling por winding proyectado: en este sistema (+y abajo) una cara que mira a la camara proyecta area NEGATIVA (HOST-481); area >= 0 es trasera o degenerada.
 			if (eng::graphics::screen_area2(xs[fi], ys[fi], m) >= 0) continue;
 			if (fb.submit(xs[fi], ys[fi], m, kCubeColors[fi])) ++m_submitted;
 		}
 		ENG_PROF_END(1u);
 		ENG_PROF_BEGIN(2u);
-		(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), planes, kRowBytes,
-						     kPlaneBytes, kPlanes, kWidth, kWorldH);
+		if (fb.count() != 0u) {
+			(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), planes,
+							     kRowBytes, kPlaneBytes, kPlanes, kWidth, kWorldH);
+		} else {
+			(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kWorldH);
+		}
 		g_eng_run_status.detail = fb.count();
 		ENG_PROF_END(2u);
 		draw_hud_dynamic(frame);
@@ -246,6 +274,7 @@ private:
 	playfield::DiffText<16> m_frame_diff {};
 	eng::Block<eng::MaskTag> m_mask {};
 	u32 m_submitted = 0u;
+	u32 m_phase = 0u;
 	bool m_ready = false;
 };
 

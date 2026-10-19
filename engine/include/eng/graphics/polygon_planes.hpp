@@ -189,34 +189,88 @@ inline eng::u32 fill_polygons_by_plane_patterns_cpu(eng::Span<const PlanePolygon
 	if (faces.empty() || dest.empty() || planes == 0u || row_bytes == 0u || plane_bytes == 0u) {
 		return 0u;
 	}
+	// **Active edge list** con x en 16.16: UNA división por arista (pendiente) y sumas
+	// por fila. El scanline ingenuo dividía por cruce y por fila (~5.5k `__divsi3`/frame
+	// en la 088: 1.14 fps); esta versión mantiene el mismo rasterizado even-odd.
+	struct CpuEdge {
+		eng::s32 x_q16 = 0;  // x en 16.16 al inicio de [y0, y1)
+		eng::s32 dx_q16 = 0; // pendiente en 16.16
+		eng::s16 y0 = 0;
+		eng::s16 y1 = 0;
+	};
+	constexpr eng::u32 kMaxEdges = 128u;
+	CpuEdge edges[kMaxEdges];
 	eng::s32 cross[detail::kMaxCrossings];
 	eng::u32 spans = 0u;
+	const eng::s32 h = static_cast<eng::s32>(height);
+	const eng::s32 wlast = static_cast<eng::s32>(width) - 1;
 	for (eng::u8 p = 0; p < planes; ++p) {
 		eng::u8* plane = dest.data() + static_cast<eng::u32>(p) * plane_bytes;
-		for (eng::s32 y = 0; y < static_cast<eng::s32>(height); ++y) {
-			eng::u32 n = 0u;
-			for (eng::u32 f = 0; f < faces.size(); ++f) {
-				const PlanePolygon& face = faces[f];
-				if ((face.color & (1u << p)) == 0u || face.count < 3u) {
+		// 1) Aristas de las caras de este plano, normalizadas a y0 < y1 y recortadas.
+		eng::u32 ne = 0u;
+		for (eng::u32 f = 0; f < faces.size(); ++f) {
+			const PlanePolygon& face = faces[f];
+			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
+				continue;
+			}
+			for (eng::u8 i = 0; i < face.count; ++i) {
+				const eng::u8 j = static_cast<eng::u8>((i + 1u == face.count) ? 0u : (i + 1u));
+				eng::s32 ya = face.ys[i];
+				eng::s32 yb = face.ys[j];
+				if (ya == yb) {
+					continue; // horizontal: no cruza filas
+				}
+				eng::s32 xa = face.xs[i];
+				eng::s32 xb = face.xs[j];
+				if (ya > yb) {
+					const eng::s32 ty = ya;
+					ya = yb;
+					yb = ty;
+					const eng::s32 tx = xa;
+					xa = xb;
+					xb = tx;
+				}
+				if (yb <= 0 || ya >= h) {
 					continue;
 				}
-				for (eng::u8 i = 0; i < face.count; ++i) {
-					const eng::u8 j = static_cast<eng::u8>((i + 1u) % face.count);
-					const eng::s32 y0 = face.ys[i];
-					const eng::s32 y1 = face.ys[j];
-					// Semiaabierta [y0, y1): un vértice compartido cuenta una vez.
-					const bool up = (y0 <= y) && (y < y1);
-					const bool down = (y1 <= y) && (y < y0);
-					if (!up && !down) {
-						continue;
-					}
-					if (n >= detail::kMaxCrossings) {
-						break;
-					}
-					const eng::s32 x0 = face.xs[i];
-					const eng::s32 x1 = face.xs[j];
-					cross[n++] = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
+				if (ya < 0) {
+					// Cruce con y=0 (una división por arista recortada).
+					xa += (xb - xa) * (0 - ya) / (yb - ya);
+					ya = 0;
 				}
+				if (yb > h) {
+					// Recorta el extremo inferior moviendo TAMBIEN x (si no, la pendiente
+					// se calcula contra el punto original y el span se pierde).
+					xb = xa + (xb - xa) * (h - ya) / (yb - ya);
+					yb = h;
+				}
+				const eng::s32 dy = yb - ya;
+				edges[ne].x_q16 = xa << 16;
+				edges[ne].dx_q16 = ((xb - xa) << 16) / dy;
+				edges[ne].y0 = static_cast<eng::s16>(ya);
+				edges[ne].y1 = static_cast<eng::s16>(yb);
+				++ne;
+				if (ne >= kMaxEdges) {
+					break;
+				}
+			}
+			if (ne >= kMaxEdges) {
+				break;
+			}
+		}
+		// 2) Barrido: cada arista avanza su x solo mientras está activa (semiaabierto).
+		for (eng::s32 y = 0; y < h; ++y) {
+			eng::u32 n = 0u;
+			for (eng::u32 e = 0u; e < ne; ++e) {
+				CpuEdge& ed = edges[e];
+				if (y < ed.y0 || y >= ed.y1) {
+					continue;
+				}
+				if (n >= detail::kMaxCrossings) {
+					break;
+				}
+				cross[n++] = ed.x_q16 >> 16;
+				ed.x_q16 += ed.dx_q16;
 			}
 			// Inserción: n es pequeño (cruces de una scanline).
 			for (eng::u32 i = 1u; i < n; ++i) {
@@ -232,7 +286,7 @@ inline eng::u32 fill_polygons_by_plane_patterns_cpu(eng::Span<const PlanePolygon
 				eng::s32 xl = cross[k];
 				eng::s32 xr = cross[k + 1u] - 1; // even-odd: [xl, xr)
 				if (xl < 0) xl = 0;
-				if (xr >= static_cast<eng::s32>(width)) xr = static_cast<eng::s32>(width) - 1;
+				if (xr > wlast) xr = wlast;
 				if (xr < xl) {
 					continue;
 				}
