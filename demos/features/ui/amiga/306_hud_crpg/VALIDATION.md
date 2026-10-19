@@ -16,6 +16,7 @@
 | `state` | verbo*100 + selección (p. ej. 499 = verbo 4, sin selección) | contador 1 |
 | `aframe` | frames de guion (se **reinicia con entrada real**: ratón/joystick); 726 en la ventana larga | contador 2 |
 | `iconset` | **2** — cambios de conjunto de iconos (dispara el ciclo de tema cada 300 frames) | contador 3 |
+| `hud_ops` | operaciones del modelo aplicadas en el **último frame** (0 en frames sin deltas; sube con los repintados completos por cambio de tema) — dogfooding de `HudStats` (H4, `budget.hpp`) | contador 4 |
 
 Sin picos medidos con la instrumentación temporal (retirada): el frame repinta solo las celdas/verbos cuyo estado cambió + la línea del tooltip al expirar; el cambio de tema repinta la banda completa cada 300 frames. La pérdida de latidos de la familia DT-036 queda resuelta en esta demo con la espera activa.
 

@@ -331,7 +331,7 @@ struct HudCrpgDemo {
 		show_tooltip_for_state();
 		(void)m_strip.apply(m_hud.ops());
 		paint_icon_pass();
-		m_hud.clear_ops();
+		close_ops();
 		m_hud.clear_dirty();
 
 		m_ready = true;
@@ -340,6 +340,8 @@ struct HudCrpgDemo {
 		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("aframe"));
 		// Cambios de conjunto de iconos (H6): el gate comprueba que el skin cicla.
 		eng::debug::DebugPeripheral::counter_name(3u, reinterpret_cast<eng::u32>("iconset"));
+		// Operaciones del modelo aplicadas por frame (telemetria HudStats, H4).
+		eng::debug::DebugPeripheral::counter_name(4u, reinterpret_cast<eng::u32>("hud_ops"));
 		eng::amiga::mark_ready();
 	}
 
@@ -431,6 +433,7 @@ struct HudCrpgDemo {
 		if (!m_ready) {
 			return;
 		}
+		m_stats.reset(); // gasto del frame (HudStats, H4): lo acumula `close_ops`
 		// **Cambio de tema en caliente** (H6): clasico <-> ambar cada 300 frames; el modelo
 		// no cambia, solo los indices que pinta el presentador. Al cambiar, repintado
 		// completo de la banda (clear + contenido).
@@ -524,7 +527,7 @@ struct HudCrpgDemo {
 		if (m_hud.any_dirty()) {
 			(void)m_strip.apply(m_hud.ops());
 			paint_icon_pass();
-			m_hud.clear_ops();
+			close_ops();
 			m_hud.clear_dirty();
 		}
 
@@ -539,6 +542,9 @@ struct HudCrpgDemo {
 			draw_fps(fps10);
 			eng::debug::DebugPeripheral::counter_value(0u, fps10);
 		}
+		// **Telemetría del HUD** (H4): operaciones del modelo aplicadas este frame (sube en
+		// los repintados completos por cambio de tema/skin; el gate la usa como evidencia).
+		eng::debug::DebugPeripheral::counter_value(4u, m_stats.region(0u).ops);
 	}
 
 private:
@@ -557,7 +563,7 @@ private:
 		paint_tooltip_line();
 		(void)m_strip.apply(m_hud.ops());
 		paint_icon_pass();
-		m_hud.clear_ops();
+		close_ops();
 		m_hud.clear_dirty();
 	}
 
@@ -736,6 +742,14 @@ private:
 				       eng::Span<const eng::hud::HudSlotView> {slots, kSlotCount});
 	}
 
+	/// **Cierra el frame de operaciones** (H4): acumula el gasto en la telemetría
+	/// (`HudStats`, patrón de `budget.hpp`) y limpia la lista del modelo. Sustituye a los
+	/// `clear_ops()` sueltos para que todo `apply` quede contado.
+	void close_ops() {
+		m_stats.region(0u).ops += static_cast<eng::u16>(m_hud.ops().size());
+		m_hud.clear_ops();
+	}
+
 	/// **Pasada de iconos** (H6): lee el atlas (2 planos, interleaved por filas, bit 15 =
 	/// pixel 0, color 0 = transparente) y pinta la trama de cada celda marcada en el lienzo
 	/// de la banda; la barra de cantidad va encima. Debe correr DESPUES de `m_strip.apply`
@@ -849,7 +863,7 @@ private:
 		frame.color = m_theme.fg;
 		(void)m_hud.push_op(frame);
 		(void)m_strip.apply(m_hud.ops());
-		m_hud.clear_ops();
+		close_ops();
 		m_hud.clear_dirty();
 	}
 
@@ -972,6 +986,7 @@ private:
 	u8 m_prev_theme = 0u;  ///< 0 = clasico, 1 = ambar (para el cambio en caliente)
 	s16 m_ov_hover = -1;   ///< boton del overlay bajo el puntero (-1 = ninguno)
 	u16 m_icon_pass[kSlotCount] {}; ///< celdas marcadas para la pasada de iconos (H6)
+	eng::hud::HudStats m_stats {};  ///< telemetria por region (H4; `close_ops` la acumula)
 	u8 m_icon_n = 0u;
 	eng::hud::GridHandle m_grid {};
 	eng::hud::VerbBarHandle m_verbs {};

@@ -292,3 +292,15 @@ Con el guard `0xE212` (commit `cae4f4d2`), las demos con espera por señal falla
 | **Activa** (`VblankWait::Active`) | 001, 122, 214, 215, 304, 305, 306, 010, 011, 060 | avance comprobado: 304/214/215 por secuencias (pares con cambio), 122 por sonda de frame (563), 305/306 por gates con memoria; 010/011/060 son pantallas estáticas por diseño (el guard no las rechaza). |
 
 Regla práctica: empezar con la espera **activa**; si la demo muere (parón determinista con `vbl`/`frame` congelados en dos corridas), pasar a **sondeo** — la única variante estable para la clase de muerte por IRQ bajo SO vivo. El sondeo cuesta CPU ocupada (sondea `VPOSR`) a cambio de no depender de la IRQ.
+
+## Estado en la muerte con espera activa (2026-10-19, demo 302)
+
+La 302 murió en dos corridas consecutivas con espera activa (`vbl=124` y `176`, bucle congelado) y **sobrevivió 3/3** tras un cambio de layout del engine (parche temporal de diagnóstico, retirado): es un **Heisenbug sensible al código/tiempo**, como el efecto observador de DT-036. La sonda en el momento de la muerte (contadores del periférico escritos por el bucle principal y leídos tras el cuelgue) dio un estado **sin anomalías de registro**:
+
+- Vector de nivel 3: **el del engine** (sin re-toma; el mecanismo de la 214 **no** aplica aquí).
+- `INTENA` (INTENAR): **0x77FF/0x77E0 — VERTB habilitada** (sin clobber).
+- `INTREQ` (INTREQR): **0** — nada pendiente (el latido no se entrega, o se ackea y no llega al bucle).
+- `os::frame_count` (latido): **congelado** con el bucle (la IRQ dejó de alimentarlo).
+- `VPOSR` del último frame vivo: posición normal (el haz vivo en las lecturas).
+
+Conclusión: la clase de muerte de la 302/303 **no** es el clobber de INTENA ni la re-toma del vector; el bucle queda atascado con la IRQ aparentemente sana — consistente con el hallazgo del juego 400 («se atascan a la vez la entrega de VERTB y la condición de salida del sondeo VPOSR»). Método listo para el siguiente intento: **marcador de fase** en `wait_vblank_run` (contador: `0x100|vpos` = atascado en `vpos==311`, `0x200|vpos` = esperando llegar a 311, `0x300` = salió) — con un build que muera, la lectura post-mortem dice en qué bucle quedó; el reto es un build que muera **y** conserve la instrumentación.
