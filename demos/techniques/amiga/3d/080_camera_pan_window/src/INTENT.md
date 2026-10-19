@@ -17,8 +17,8 @@ El **contrato de frames intermedios por paneo** de la técnica `docs/reference/a
 
 | Elemento | Color | Papel |
 |---|---|---|
-| Suelo y pared derecha | marrón (sólido; damero 1×1 de 1/0 con `-DK080_PATTERN`) | sala; su borde con el techo/fondo fija la referencia del paneo |
-| Pared izquierda | verde (sólido; damero de 2/0 con `-DK080_PATTERN`) | sala |
+| Suelo | marrón (sólido; damero 1×1 de 1/0 con `-DK080_PATTERN`) | sala; su borde con las paredes fija la referencia del paneo |
+| Paredes (izquierda y derecha) | verde (sólido; damero de 2/0 con `-DK080_PATTERN`) | sala (cuna del tubo) |
 | Techo y pared del fondo | azul (sólido; oliva con damero en la vista con paneo) | fondo de la escena (referencia central) |
 | Panel (x=-100) y (x=+60) | cian (rango 8-11) | columnas verticales |
 | Panel (x=-60) | amarillo (rango 4-7) | columna vertical |

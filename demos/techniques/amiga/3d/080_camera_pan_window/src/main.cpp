@@ -196,7 +196,7 @@ constexpr FaceSpec kFaces[kFaceCount] = {
 	{{p3(-kRoomX, -kRoomY, kRoomZ0), p3(-kRoomX, -kRoomY, kRoomZ1),
 	  p3(-kRoomX, kRoomY, kRoomZ1), p3(-kRoomX, kRoomY, kRoomZ0)}, 2u},
 	{{p3(kRoomX, -kRoomY, kRoomZ0), p3(kRoomX, kRoomY, kRoomZ0),
-	  p3(kRoomX, kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1)}, 1u},
+	  p3(kRoomX, kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1)}, 2u},
 	{{p3(-kRoomX, -kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1),
 	  p3(kRoomX, kRoomY, kRoomZ1), p3(-kRoomX, kRoomY, kRoomZ1)}, 3u},
 	{{p3(-112, -80, 635), p3(-88, -80, 645), p3(-88, 80, 645), p3(-112, 80, 635)}, 8u},
