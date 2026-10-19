@@ -117,6 +117,71 @@ function buildMousePathFromArgs() {
     }
     return points;
 }
+function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+function buildMouseRouteFromArgs() {
+    const text = argValue('--mouse-route', '');
+    if (text === '') {
+        return [];
+    }
+    const maxX = parseInt(argValue('--mouse-max-x', '319'), 10);
+    const maxY = parseInt(argValue('--mouse-max-y', '255'), 10);
+    const stepsPerSegment = Math.max(3, parseInt(argValue('--mouse-steps-per-segment', '24'), 10));
+    const arc = Math.max(0, Math.min(0.45, parseFloat(argValue('--mouse-arc', '0.18'))));
+    const ease = argValue('--mouse-ease', 'inout') === 'linear' ? (t) => t : easeInOut;
+    const dwellMs = Math.max(0, parseInt(argValue('--mouse-dwell-ms', '120'), 10));
+    const clickEach = hasArg('--mouse-click-waypoints');
+    const fromText = argValue('--mouse-from', '');
+    const start = fromText ? parsePoint(fromText, '--mouse-from') : { x: 160, y: 128 };
+    const waypoints = text
+        .split(';')
+        .map((chunk) => chunk.trim())
+        .filter((chunk) => chunk !== '')
+        .map((chunk) => {
+        const [xs, ys] = chunk.split(',');
+        const x = parseInt(xs, 10);
+        const y = parseInt(ys, 10);
+        if (!Number.isInteger(x) || !Number.isInteger(y)) {
+            throw new Error(`--mouse-route: waypoint invalido '${chunk}' (formato "X,Y;X,Y;...")`);
+        }
+        return { x: clampInt(x, 0, maxX), y: clampInt(y, 0, maxY) };
+    });
+    if (waypoints.length === 0) {
+        throw new Error('--mouse-route necesita al menos un waypoint X,Y.');
+    }
+    const points = [];
+    let prev = { x: clampInt(start.x, 0, maxX), y: clampInt(start.y, 0, maxY) };
+    let arcSign = 1;
+    for (const wp of waypoints) {
+        const dx = wp.x - prev.x;
+        const dy = wp.y - prev.y;
+        const dist = Math.hypot(dx, dy);
+        // Muestreo proporcional a la distancia (un punto cada ~6 px) y arco perpendicular
+        // alterno: cada tramo se curva como un gesto, no como una recta.
+        const steps = Math.max(3, Math.min(stepsPerSegment, Math.round(dist / 6)));
+        const nx = dist > 0 ? (-dy / dist) * arcSign * arc * dist : 0;
+        const ny = dist > 0 ? (dx / dist) * arcSign * arc * dist : 0;
+        const ctrl = { x: (prev.x + wp.x) / 2 + nx, y: (prev.y + wp.y) / 2 + ny };
+        for (let i = 1; i <= steps; i++) {
+            const t = ease(i / steps);
+            const p = curvePoint(prev, ctrl, wp, t);
+            points.push({ x: clampInt(p.x, 0, maxX), y: clampInt(p.y, 0, maxY) });
+        }
+        const landing = points[points.length - 1];
+        if (landing) {
+            if (dwellMs > 0) {
+                landing.dwellAfterMs = dwellMs;
+            }
+            if (clickEach) {
+                landing.clickAfter = true;
+            }
+        }
+        prev = wp;
+        arcSign = -arcSign;
+    }
+    return points;
+}
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -1097,6 +1162,9 @@ async function captureFramePreferred(protocol, sideChannelPort, imagePath, timeo
 const demoArg = process.argv[2];
 if (!demoArg || demoArg.startsWith('--')) {
     console.error('Uso: node tools/run/run-demo.mjs demos/techniques/amiga/setup/000_toolchain_cpp23 [--wait-ms 12000] [--screenshot file.png]');
+    console.error('     raton: --mouse-route "x,y;x,y;..." [--mouse-click-waypoints] [--mouse-ease inout|linear]');
+    console.error('            [--mouse-arc 0.18] [--mouse-dwell-ms 120] [--mouse-step-delay-ms 16] [--mouse-button 0|1]');
+    console.error('     o:     --mouse-from X,Y --mouse-to X,Y [--mouse-control X,Y] [--mouse-steps N] [--mouse-drag] [--mouse-click]');
     process.exit(2);
 }
 const demoPath = path.resolve(root, demoArg);
@@ -1209,6 +1277,11 @@ const cd32Pad = hasArg('--cd32');
 const diskArg = argValue('--disk', '');
 const diskAdf = diskArg !== '' ? path.resolve(diskArg) : '';
 const mousePath = buildMousePathFromArgs();
+const mouseRoute = buildMouseRouteFromArgs();
+if (mouseRoute.length > 0 && mousePath.length > 0) {
+    throw new Error('Usa --mouse-route o --mouse-from/--mouse-to, no ambos.');
+}
+const mouseStepDelayMs = Math.max(0, parseInt(argValue('--mouse-step-delay-ms', '16'), 10));
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
 // --mouse-click-at X,Y: movimiento **relativo** (+X,+Y) seguido de un click. Determinista
@@ -1465,16 +1538,8 @@ try {
         console.log(`[run-demo] fallback wait ${waitMs} ms`);
         await sleep(waitMs);
     }
-    // WinUAE-DBG v2.1: leer el periférico de depuración tras READY (opt-in).
-    // `--read-debugperiph [sub]` envía `monitor debugperiph [sub]` y vuelca la
-    // respuesta. Útil para leer los contadores del benchmark de una demo (p. ej.
-    // la 063: `--read-debugperiph counters`) o su consola/checkpoints.
-    const debugPeriphSub = argValue('--read-debugperiph', null);
-    if (debugPeriphSub !== null) {
-        const cmd = debugPeriphSub ? `debugperiph ${debugPeriphSub}` : 'debugperiph';
-        const reply = await protocol.sendMonitorCommand(cmd, 10000);
-        console.log(`[run-demo] ${cmd}:\n${Buffer.from(reply, 'hex').toString('utf8').trim()}`);
-    }
+    // (La lectura de `--read-debugperiph` va **despues** de inyectar la entrada: los
+    // contadores deben reflejar el efecto de los clicks del raton; ver mas abajo.)
     // --hide <bpl,spr,blt,cop[,cop:l0-l1]>: captura con canales de render apagados (escena
     // simplificada para vision). Preferente: comando `render` del canal lateral (WinUAE-DBG con
     // soporte; apaga el canal en el emulador y el Copper puede cegarse en un rango de lineas);
@@ -1576,6 +1641,31 @@ try {
             };
         }
     }
+    if (mouseRoute.length > 0) {
+        const clickHoldMs = Math.max(20, parseInt(argValue('--mouse-click-ms', '80'), 10));
+        console.log(`[run-demo] injecting natural mouse route (${mouseRoute.length} steps)`);
+        for (const step of mouseRoute) {
+            await protocol.sendMonitorCommand(`input mouse abs ${step.x} ${step.y}`, 5000);
+            if (mouseStepDelayMs > 0) {
+                await sleep(mouseStepDelayMs);
+            }
+            if (step.dwellAfterMs) {
+                await sleep(step.dwellAfterMs);
+            }
+            if (step.clickAfter) {
+                await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 1`, 5000);
+                await sleep(clickHoldMs);
+                await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 0`, 5000);
+            }
+        }
+        report.mouseRoute = {
+            steps: mouseRoute.length,
+            first: mouseRoute[0],
+            last: mouseRoute[mouseRoute.length - 1],
+            button: mouseButton,
+            clickedWaypoints: hasArg('--mouse-click-waypoints'),
+        };
+    }
     if (mousePath.length > 0) {
         console.log(`[run-demo] injecting mouse path with ${mousePath.length} points`);
         if (hasArg('--mouse-drag')) {
@@ -1616,6 +1706,16 @@ try {
             button: mouseButton,
             clicked: true,
         };
+    }
+    // WinUAE-DBG v2.1: leer el periférico de depuración **tras inyectar la entrada**
+    // (opt-in). `--read-debugperiph [sub]` envía `monitor debugperiph [sub]` y vuelca la
+    // respuesta. Útil para leer los contadores del benchmark o el efecto de la entrada
+    // inyectada (clicks del ratón) en el estado de la UI.
+    const debugPeriphSub = argValue('--read-debugperiph', null);
+    if (debugPeriphSub !== null) {
+        const cmd = debugPeriphSub ? `debugperiph ${debugPeriphSub}` : 'debugperiph';
+        const reply = await protocol.sendMonitorCommand(cmd, 10000);
+        console.log(`[run-demo] ${cmd}:\n${Buffer.from(reply, 'hex').toString('utf8').trim()}`);
     }
     // --keys: inyecta teclas Amiga por **rawkey** (hex, separadas por comas; p. ej. --keys 0x45,0x44)
     // vía el monitor `input key <rawkey>` de WinUAE-DBG. Sirve para validar la entrada de teclado por
@@ -1823,15 +1923,15 @@ try {
         } : undefined;
     }
     // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
-    // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB
-    // durante `telemetrySamples` muestras → permite medir el coste real de jobs
-    // del scrolling (skip-on-equal, fusión, etc.).
+    // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB.
     const telemetrySymbol = findMapSymbol(builtMap, 'g_eng_frame_telemetry');
-    // Las secciones runtime las devuelve el comando `state` del canal lateral y
-    // se guardan en report.sideChannel.state.sections (no en .value.state).
     const sideSections = report.sideChannel?.state?.sections;
     if (telemetrySamples > 0 && telemetrySymbol !== null && Array.isArray(sideSections) && sideSections.length > 0) {
-        const telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
+        let telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
+        // Ancla al run status ya verificado: evita el desfase de orden de secciones.
+        if (runStatusSymbol !== null && report.sideChannel?.runtimeAddress) {
+            telAddr = report.sideChannel.runtimeAddress + (telemetrySymbol - runStatusSymbol);
+        }
         if (telAddr !== null) {
             report.telemetry = [];
             for (let t = 0; t < telemetrySamples; ++t) {
