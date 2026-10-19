@@ -17,6 +17,7 @@ La sonda es **estática y determinista**: una sola postura, cinco caras en banda
 | borde izquierdo | (-1,90)-(60,130) | `x < 0` se recorta con margen de 1 px (el trazador dibuja en `x-1`) |
 | borde inferior | (100,200)-(180,232) | `y == height` (232) se recorta al último píxel incluido |
 | fuera | (400,20)-(500,60) | no debe escribir nada |
+| adyacencia | (120,150)-(200,190) color 1 y (200,150)-(280,190) color 2 | borde x=200 compartido: sin magenta (ambas caras) ni hueco |
 
 El mismo conjunto se pinta con la referencia CPU (`fill_polygons_by_plane_cpu`, oráculo portátil validado por HOST-217/474/482) y se publica el veredicto en `g_eng_run_status.detail`:
 
@@ -28,6 +29,8 @@ El mismo conjunto se pinta con la referencia CPU (`fill_polygons_by_plane_cpu`, 
 | 3 | interiores de los cuatro casos rellenos |
 | 4 | nada perdido respecto a la CPU (±1 px por el desfase del trazador) |
 | 5 | fila 0 limpia: el primer píxel de cada línea va por el canal D y se descarta en una **palabra de descarte Chip** fuera del bitmap (m_line_trash) |
+| 6 | adyacencia entre planos: la columna compartida por dos caras de planos distintos (x=200) es de **un solo** color (ni magenta de ambas caras ni hueco) |
+| 7 | junta contigua: x=199 (cara izquierda, plano 0) y x=201 (cara derecha, plano 1) pintadas |
 
 `verify.sh` exige `detail == 0x3f` (los seis bits).
 

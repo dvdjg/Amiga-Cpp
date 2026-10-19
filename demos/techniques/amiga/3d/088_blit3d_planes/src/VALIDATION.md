@@ -11,10 +11,10 @@ Cubo convexo rotando sobre 2 bitplanes, relleno por plano con Blitter (contorno 
 | Config | fps | ciclos/frame | campos/frame | ventanas |
 |---|---|---|---|---|
 | `A500_debug` (centrado, defecto) | 32.33 | 219 435 | 1.55 | 28.3–37.0 |
-| `A500_release` (centrado, defecto) | 33.00 | 214 958 | 1.52 | 29.7–37.3 |
+| `A500_release` (centrado, defecto) | 32.92 | 215 500 | 1.52 | 29.5–37.2 |
 | `A500_debug` (`kDrift = true`) | 27.28 | 260 049 | 1.83 | 25.2–29.5 |
 
-El recorte de caras y la palabra de descarte no tienen coste medible en debug (32.56 → 32.33, dentro del ruido del medidor; en release la ventana de 5 s dio 33.0 frente a 33.9 previos, también dentro de la dispersión de ±4 fps). **Cadencia**: alterna frames de 1 y 2 campos (29–37 fps, dispersión ~8 en la ventana de 5 s); no hay frames de 3+ campos; el suelo de 25 fps se cumple en la deriva. El relleno (≈65 %) sigue siendo el coste dominante.
+El recorte de caras y la palabra de descarte no tienen coste medible en debug (32.56 → 32.33, dentro del ruido del medidor; en release la ventana de 20 s con 8 muestras da 32.92 frente a 33.87 previos, dentro de la dispersión de ±4 fps). **Cadencia**: alterna frames de 1 y 2 campos (29–37 fps, dispersión ~8 en la ventana de 5 s); no hay frames de 3+ campos; el suelo de 25 fps se cumple en la deriva. El relleno (≈65 %) sigue siendo el coste dominante.
 
 ## Bug del borde derecho (CERRADO)
 
@@ -38,7 +38,7 @@ En modo línea el **primer píxel** de cada arista va por el canal **D**; con `D
 
 ## Defectos conocidos (abiertos)
 
-- **Costura de 1 px magenta** entre caras que comparten arista y caen en planos distintos: cada plano posee el píxel del borde. Pendiente la regla top-left/half-open por cara.
+- **Costura en aristas diagonales compartidas entre planos**: la adyacencia **recta** entre dos caras de planos distintos está verificada en L1-003 (bits 6/7: la columna compartida es de un solo color y la junta no tiene hueco), pero con aristas **diagonales** el trazador es direccional (escribe un paso por detrás) y cada cara puede rasterizar el borde con píxeles distintos: quedan píxeles magenta (ambas) o huecos de 1 px. Pendiente: canonizar la dirección de la arista compartida y asignarla a un solo plano (regla top-left).
 
 ## Visión (Ollama, prompt canónico)
 

@@ -17,12 +17,13 @@ const fs = require('node:fs');
 const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const status = report.finalSideChannel;
 const detail = status?.detail ?? -1;
-// 6 bits: residuo, mundo, bordes, interiores, nada perdido (±1 px) y fila 0 limpia.
-const want = 0x3f;
+// 8 bits: residuo, mundo, bordes, interiores, nada perdido (+-1 px), fila 0 limpia,
+// adyacencia entre planos (sin magenta/hueco) y junta contigua.
+const want = 0xff;
 if (report.status !== 'ok' || status?.state !== 3 || detail !== want) {
-  console.error('[L1-003] FAIL: se esperaba READY/detail=0x3f (sin residuo fuera de las cajas, mundo y bordes limpios, interiores rellenos, nada perdido respecto a la CPU y fila 0 limpia).');
+  console.error('[L1-003] FAIL: se esperaba READY/detail=0xff (sin residuo, mundo y bordes limpios, interiores rellenos, nada perdido respecto a la CPU, fila 0 limpia y adyacencia entre planos correcta).');
   console.error(JSON.stringify({status: report.status, finalSideChannel: status}, null, 2));
   process.exit(1);
 }
-console.log('[L1-003] OK: relleno por plano con caras en x=320, x=-1 e y=232, sin residuo en el borde ni escritura fantasma en la fila 0.');
+console.log('[L1-003] OK: relleno por plano con caras en x=320, x=-1 e y=232, sin residuo, con fila 0 limpia y junta entre planos de un solo color.');
 NODE

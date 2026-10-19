@@ -80,6 +80,7 @@ enum : eng::u32 {
 //   borde izquierdo: x=-1
 //   borde inferior: y=232 (una fila FUERA de la zona de mundo)
 //   fuera: enteramente fuera del bitmap (no debe escribir nada)
+//   adyacencia: dos caras que comparten la vertical x=200 en PLANOS DISTINTOS (1 y 2)
 constexpr s16 kCase0X[4] = {40, 120, 120, 40};
 constexpr s16 kCase0Y[4] = {20, 20, 60, 60};
 constexpr s16 kCase1X[4] = {280, 320, 320, 280};
@@ -90,16 +91,21 @@ constexpr s16 kCase3X[4] = {100, 180, 180, 100};
 constexpr s16 kCase3Y[4] = {200, 200, 232, 232};
 constexpr s16 kCase4X[4] = {400, 500, 500, 400};
 constexpr s16 kCase4Y[4] = {20, 20, 60, 60};
+constexpr s16 kCase5X[4] = {120, 200, 200, 120}; // izquierda, color 1 (plano 0)
+constexpr s16 kCase5Y[4] = {150, 150, 190, 190};
+constexpr s16 kCase6X[4] = {200, 280, 280, 200}; // derecha, color 2 (plano 1)
+constexpr s16 kCase6Y[4] = {150, 150, 190, 190};
 
 // Cajas esperadas (recorte al bitmap; el relleno exclusivo deja el borde derecho).
 struct Rect {
 	s16 x0, y0, x1, y1;
 };
-constexpr Rect kExpect[4] = {
-	{40, 20, 120, 60},   // control
-	{280, 20, 319, 70},  // borde derecho (x=320 se recorta a 319)
-	{0, 90, 60, 130},    // borde izquierdo (x=-1 se recorta a 0)
-	{100, 200, 180, 231} // borde inferior (y=232 se recorta a 231)
+constexpr Rect kExpect[5] = {
+	{40, 20, 120, 60},    // control
+	{280, 20, 319, 70},   // borde derecho (x=320 se recorta a 319)
+	{0, 90, 60, 130},     // borde izquierdo (x=-1 se recorta a 0)
+	{100, 200, 180, 231}, // borde inferior (y=232 se recorta a 231)
+	{120, 150, 280, 190}  // adyacencia (dos caras, mismo borde x=200)
 };
 
 // Puntos interiores de control (uno por caso; la cara del borde izquierdo es magenta,
@@ -139,12 +145,14 @@ struct PlaneFillBoundsProbe {
 		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kHeight);
 		(void)backend.blitter_clear(m_ref.view, kPlanes, kRowBytes, kPlaneBytes, kWidth, kHeight);
 
-		eng::graphics::PlanePolygon faces[5] = {
+		eng::graphics::PlanePolygon faces[7] = {
 			{kCase0X, kCase0Y, 4u, 1u},
 			{kCase1X, kCase1Y, 4u, 2u},
 			{kCase2X, kCase2Y, 4u, 3u},
 			{kCase3X, kCase3Y, 4u, 1u},
 			{kCase4X, kCase4Y, 4u, 2u},
+			{kCase5X, kCase5Y, 4u, 1u},
+			{kCase6X, kCase6Y, 4u, 2u},
 		};
 #if defined(PROBE_CONTOURS_ONLY)
 		// Inspección paso a paso: SOLO contornos, con el mismo planificador y la misma
@@ -153,7 +161,7 @@ struct PlaneFillBoundsProbe {
 		for (u8 p = 0u; p < kPlanes; ++p) {
 			eng::graphics::PlaneEdge edges[64] {};
 			const u32 ne = eng::graphics::plan_plane_edges_in_bounds(
-				faces, 5u, p, s16 {1}, static_cast<s16>(kWidth - 1u),
+				faces, 7u, p, s16 {1}, static_cast<s16>(kWidth - 1u),
 				s16 {0}, static_cast<s16>(kWorldH - 1u), edges, 64u);
 			eng::PlaneBytes plane =
 				planes.subspan(static_cast<u32>(p) * kPlaneBytes, kPlaneBytes);
@@ -166,10 +174,10 @@ struct PlaneFillBoundsProbe {
 #else
 		// Camino del Blitter (contorno ONEDOT + area fill + clear de la caja) y la
 		// referencia CPU, cada uno en su buffer.
-		(void)backend.fill_polygons_by_plane(faces, 5u, planes, kRowBytes, kPlaneBytes, kPlanes,
+		(void)backend.fill_polygons_by_plane(faces, 7u, planes, kRowBytes, kPlaneBytes, kPlanes,
 						     kWidth, kWorldH);
 		(void)eng::graphics::fill_polygons_by_plane_cpu(
-			eng::Span<const eng::graphics::PlanePolygon>(faces, 5u), m_ref.view, kRowBytes,
+			eng::Span<const eng::graphics::PlanePolygon>(faces, 7u), m_ref.view, kRowBytes,
 			kPlaneBytes, kPlanes, kWidth, kWorldH);
 #endif
 
@@ -217,7 +225,7 @@ private:
 						continue;
 					}
 					bool in_box = false;
-					for (u32 c = 0u; c < 4u && !in_box; ++c) {
+					for (u32 c = 0u; c < 5u && !in_box; ++c) {
 						const s16 dx0 = static_cast<s16>(kExpect[c].x0 - 1);
 						const s16 dy0 = static_cast<s16>(kExpect[c].y0 - 1);
 						const s16 dx1 = static_cast<s16>(kExpect[c].x1 + 1);
@@ -317,6 +325,30 @@ private:
 		}
 		if (row0_clean) {
 			bits |= 1u << 5u;
+		}
+		// bit 6: adyacencia entre planos. La columna compartida por las dos caras (x=200,
+		// filas 151..189) debe pertenecer a UN solo plano: 1,1 sería magenta (ambas caras
+		// pintan el borde) y 0,0 un hueco.
+		bool seam_ok = true;
+		for (u32 y = 151u; y <= 189u; ++y) {
+			if (pixel(g, 0u, 200u, y) == pixel(g, 1u, 200u, y)) {
+				seam_ok = false;
+			}
+		}
+		if (seam_ok) {
+			bits |= 1u << 6u;
+		}
+		// bit 7: junta contigua: la última columna de la cara izquierda (x=199, plano 0) y la
+		// primera de la derecha después del borde (x=201, plano 1) están pintadas; no hay
+		// hueco negro de separación.
+		bool join_ok = true;
+		for (u32 y = 151u; y <= 189u; ++y) {
+			if (!pixel(g, 0u, 199u, y) || !pixel(g, 1u, 201u, y)) {
+				join_ok = false;
+			}
+		}
+		if (join_ok) {
+			bits |= 1u << 7u;
 		}
 		return bits;
 	}
