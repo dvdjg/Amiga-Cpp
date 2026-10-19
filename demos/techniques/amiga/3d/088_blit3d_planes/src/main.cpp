@@ -166,10 +166,9 @@ struct Blit3dPlanesDemo {
 		cam.half_w = CT::from_int(160);
 		cam.half_h = CT::from_int(116);
 		// Vertices en espacio de camara (z + kZ0) para el test de frustum del objeto.
-		// Deriva lateral (kDrift): modo de VALIDACION del clip fino (entra/sale por el
-		// borde). Off por defecto: los frames de cruce bajan a ~16-28 fps y rompen el
-		// presupuesto; la evidencia de clip esta en VALIDATION.md.
-		constexpr bool kDrift = false;
+		// Deriva lateral: el cubo entra y sale por el borde derecho. Se deja ON: valida el
+		// clip fino y el contrato del Blitter (coordenadas dentro del bitmap) en cada frame.
+		constexpr bool kDrift = true;
 		s32 ox = 0;
 		if constexpr (kDrift) {
 			++m_phase;
@@ -195,6 +194,11 @@ struct Blit3dPlanesDemo {
 									      wv[i].v[2]};
 				all_inside = all_inside && eng::graphics::project_camera_vertex(
 								  cv, cam, px[i], py[i]);
+				// Contrato del Blitter: NINGUN vertice fuera del bitmap (x=320 corrompe).
+				if (px[i] < 0) px[i] = 0;
+				if (px[i] > static_cast<s16>(kWidth - 1u)) px[i] = static_cast<s16>(kWidth - 1u);
+				if (py[i] < 0) py[i] = 0;
+				if (py[i] > static_cast<s16>(kWorldH - 1u)) py[i] = static_cast<s16>(kWorldH - 1u);
 			}
 		}
 
