@@ -543,6 +543,11 @@ public:
 					     eng::Span<const eng::MaskBytes> patterns,
 					     u8 pattern_period);
 
+	/// **Relleno por plano con spans CPU + cookie-cut** (sin contorno XOR ni área fill): por cada plano limpia una vez y estampa las caras cuyo bit `p` de color esté a 1 con máscara 1 bit y `D = (A & B) | D`. Es el camino validado por cara (087/089) aplicado por plano: inmune a paridad, winding y solapes (unión OR). `mask` debe ser Chip con al menos `row_bytes · height` bytes.
+	bool fill_polygons_by_plane_spans(const graphics::PlanePolygon* faces, u32 n_faces,
+					  eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+					  u8 planes, u16 width, u16 height, eng::MaskBuffer mask);
+
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
 	/// contorno de polígonos (un píxel por fila) que luego rellena

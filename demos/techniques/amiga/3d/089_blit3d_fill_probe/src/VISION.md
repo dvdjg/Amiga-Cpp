@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-19T18:43:45.010Z
+- Fecha: 2026-10-19T19:23:22.937Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png (2)
+- Frames: frame_000.png (1)
 - Secuencia: `out/run/089_blit3d_fill_probe/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,10 +15,9 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-- **Fondo**: negro uniforme.
+- **Fondo**: Negro uniforme.
 - **Elementos gráficos**:
-  - **Cuadrado blanco**: situado en la mitad izquierda de la pantalla. Contorno limpio, sin halos ni píxeles cortados. Fondo negro inmediatamente alrededor, sin artefactos.
-  - **Rombo blanco**: situado en la mitad derecha de la pantalla, rotado 45 grados. Contorno limpio, sin halos ni píxeles cortados. Fondo negro inmediatamente alrededor, sin artefactos.
-  - **Texto en la parte inferior**: “089 FILL PROBE” en letras blancas, tipo pixel art. Posición fija en la parte inferior central.
-  - **Línea horizontal blanca**: ubicada en la parte superior izquierda, cerca del borde superior. Contorno limpio, sin artefactos.
-- **Estado**: Todos los elementos están estables, sin movimiento ni cambio entre imágenes. No hay superposiciones ni recortes visibles. La composición es estática.
+  - **Cuadrado azul**: Ubicado en la parte superior izquierda. Es un cuadrado sólido de color azul intenso, con bordes limpios y sin artefactos. No muestra movimiento ni cambios.
+  - **Rombo rojo**: Ubicado en la parte superior derecha. Es un rombo sólido de color rojo intenso, orientado con una diagonal horizontal. Sus bordes son limpios, sin halos ni píxeles cortados. No muestra movimiento ni cambios.
+  - **Texto azul**: Ubicado en la parte inferior central. Muestra el texto “G89 FILL PROBE” en letras mayúsculas de color azul. El texto es estático y no cambia.
+- **Estado general**: Todos los elementos están fijos, sin movimiento, parpadeo ni cambios entre imágenes. No hay artefactos, superposiciones ni recortes visibles. El fondo negro permanece uniforme alrededor de todos los elementos.

@@ -37,12 +37,12 @@ using eng::u8;
 
 constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
-constexpr u8 kPlanes = 1u;
+constexpr u8 kPlanes = 2u;
 constexpr u16 kRowBytes = kWidth / 8u;
 constexpr u32 kPlaneBytes = static_cast<u32>(kRowBytes) * kHeight;
 
 constexpr eng::Palette32 kPalette {{
-	0x000, 0xfff, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x00f, 0xf00, 0xf0f, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 }};
 
@@ -68,7 +68,7 @@ struct FillProbeDemo {
 		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = 1u;
 		if (!scene::compose(m_scene, backend.memory_manager(), res, scene::ocs_a500,
-				    scene::display(res), scene::palette(kPalette, 0u, 2u))) {
+				    scene::display(res), scene::palette(kPalette, 0u, 4u))) {
 			eng::debug::mark_failed(g_eng_run_status,
 						kBootCompose + static_cast<eng::u32>(m_scene.config_error().code));
 			return;
@@ -79,11 +79,13 @@ struct FillProbeDemo {
 		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kHeight);
 		eng::graphics::PlaneFillBuilder<2> fb {};
 		(void)fb.submit(kRectX, kRectY, 4u, 1u);
-		(void)fb.submit(kDiamX, kDiamY, 4u, 1u);
-		(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), planes, kRowBytes,
-						     kPlaneBytes, kPlanes, kWidth, kHeight);
+		(void)fb.submit(kDiamX, kDiamY, 4u, 2u);
+		eng::Block<eng::MaskTag> mask = backend.memory_manager().chip().reserve<eng::MaskTag>(kPlaneBytes);
+		if (!mask.valid()) { eng::debug::mark_failed(g_eng_run_status, kBootCompose); return; }
+		(void)backend.fill_polygons_by_plane_spans(fb.faces().data(), fb.count(), planes, kRowBytes,
+						     kPlaneBytes, kPlanes, kWidth, kHeight, mask.view);
 		playfield::ContiguousPlayfield pf {};
-		(void)pf.bind_raw(planes.data(), kPlaneBytes, kWidth, kHeight, kPlanes, kPlaneBytes);
+		(void)pf.bind_raw(planes.data(), static_cast<u32>(kPlaneBytes) * kPlanes, kWidth, kHeight, kPlanes, kPlaneBytes);
 		playfield::Surface hud {pf, playfield::SurfaceRect {0, 232, kWidth, 24}};
 		(void)hud.draw_text_words(16, 236, "089 FILL PROBE", 1u);
 		m_ready = true;

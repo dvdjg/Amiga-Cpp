@@ -2,7 +2,7 @@
 
 ## Qué hace
 
-Sonda de diagnóstico del **relleno compuesto por bitplane**: dibuja una sola vez en `init` (sin update ni doble buffer, para que ninguna captura pille el blit a medias) un **rectángulo** (aristas rectas) y un **rombo** (aristas inclinadas) con el mismo camino del engine que la demo 088 (`fill_polygons_by_plane`), sobre un display de **un plano**: el plano de trabajo es la imagen visible.
+Sonda de diagnóstico del **relleno compuesto por bitplane**: dibuja una sola vez en `init` (sin update ni doble buffer, para que ninguna captura pille el blit a medias) un **rectángulo** (aristas rectas) y un **rombo** (aristas inclinadas) con el mismo camino del engine que usa la demo 088 (`fill_polygons_by_plane`), sobre un display de **un plano**: el plano de trabajo es la imagen visible.
 
 ## Qué pretende demostrar
 
@@ -11,7 +11,7 @@ Sonda de diagnóstico del **relleno compuesto por bitplane**: dibuja una sola ve
 
 ## Elementos en pantalla
 
-- **Rectángulo** blanco a la izquierda (control) y **rombo** blanco a la derecha (aristas inclinadas); fondo negro.
+- **Rectángulo** azul a la izquierda (color 1 = plano 0) y **rombo** rojo a la derecha (color 2 = plano 1), con aristas inclinadas; fondo negro. La separación horizontal demuestra que cada plano se rellena sin filtrarse al otro.
 - Texto `089 FILL PROBE` en la franja inferior.
 
 ## Evolución temporal

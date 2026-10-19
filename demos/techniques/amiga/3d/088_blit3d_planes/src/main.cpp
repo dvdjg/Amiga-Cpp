@@ -78,6 +78,7 @@ constexpr eng::debug::Version kVersion {1u, 0u}; // build inyectado por build-de
 enum : eng::u32 {
 	kBootMemory = 0x00008801u,
 	kBootCompose = 0x00008802u,
+	kBootMask = 0x00008803u,
 };
 
 /// Cubo 3D de medio lado `kHalf` en espacio de camara (+x derecha, +y abajo, +z
@@ -112,6 +113,12 @@ struct Blit3dPlanesDemo {
 				    scene::display(res), scene::palette(kPalette, 0u, 4u))) {
 			eng::debug::mark_failed(g_eng_run_status,
 						kBootCompose + static_cast<eng::u32>(m_scene.config_error().code));
+			return;
+		}
+		// Máscara 1 bit de cookie-cut (Chip: la lee el Blitter; una por buffer de plano).
+		m_mask = backend.memory_manager().chip().reserve<eng::MaskTag>(kPlaneBytes);
+		if (!m_mask.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, kBootMask);
 			return;
 		}
 		m_scene.takeover(backend);
@@ -156,6 +163,7 @@ struct Blit3dPlanesDemo {
 		cam.half_h = 116;
 
 		eng::graphics::PlaneFillBuilder<6> fb {};
+		m_submitted = 0u;
 		for (u8 fi = 0u; fi < 6u; ++fi) {
 			eng::graphics::CamVertex cv[4] {};
 			for (u8 k = 0u; k < 4u; ++k) {
@@ -164,23 +172,6 @@ struct Blit3dPlanesDemo {
 				cv[k].y = static_cast<s16>(eng::math::scalar_traits<eng::coord>::to_int(v.v[1]));
 				cv[k].z = static_cast<s16>(eng::math::scalar_traits<eng::coord>::to_int(v.v[2]) +
 							 kZ0);
-			}
-			// Culling por normal 3D con la camara en el origen: dot(n, cam - p0) > 0.
-			// (Coordenadas acotadas: diferencias <= 300, productos <= ~9.5e7; cabe en s32.)
-			{
-				const s32 ux = cv[1].x - cv[0].x;
-				const s32 uy = cv[1].y - cv[0].y;
-				const s32 uz = cv[1].z - cv[0].z;
-				const s32 vx = cv[2].x - cv[0].x;
-				const s32 vy = cv[2].y - cv[0].y;
-				const s32 vz = cv[2].z - cv[0].z;
-				const s32 nx = uy * vz - uz * vy;
-				const s32 ny = uz * vx - ux * vz;
-				const s32 nz = ux * vy - uy * vx;
-				const s32 dot = nx * (-static_cast<s32>(cv[0].x)) +
-						ny * (-static_cast<s32>(cv[0].y)) +
-						nz * (-static_cast<s32>(cv[0].z));
-				if (dot <= 0) continue;
 			}
 			eng::graphics::CamVertex cl[16] {};
 			const u8 m = eng::graphics::clip_camera_polygon(cv, 4u, cam, cl, 16u);
@@ -192,11 +183,13 @@ struct Blit3dPlanesDemo {
 				ok = ok && eng::graphics::project_camera_vertex(cl[k], cam, xs[k], ys[k]);
 			}
 			if (!ok) continue;
-			if (eng::graphics::screen_area2(xs, ys, m) == 0) continue; // degenerada
-			(void)fb.submit(xs, ys, m, kCubeColors[fi]);
+			// Back-face culling por winding proyectado: en este sistema (+y abajo) una cara que mira a la camara proyecta area NEGATIVA (HOST-481); area >= 0 es trasera o degenerada.
+			if (eng::graphics::screen_area2(xs, ys, m) >= 0) continue;
+			if (fb.submit(xs, ys, m, kCubeColors[fi])) ++m_submitted;
 		}
-		(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), planes, kRowBytes,
-						     kPlaneBytes, kPlanes, kWidth, kWorldH);
+		(void)backend.fill_polygons_by_plane_spans(fb.faces().data(), fb.count(), planes, kRowBytes,
+						     kPlaneBytes, kPlanes, kWidth, kWorldH, m_mask.view);
+		g_eng_run_status.detail = fb.count();
 		draw_hud_dynamic(frame);
 		eng::debug::probe_when_ready(g_eng_run_status, frame);
 	}
@@ -215,6 +208,7 @@ private:
 	void draw_hud_dynamic(u32 frame) {
 		playfield::Surface hud {m_pf, playfield::SurfaceRect {0, kBandY, kWidth, kBandH}};
 		char f[8] {};
+		
 		u8 q = 1u;
 		f[0] = 'F';
 		u32 v = frame;
@@ -233,6 +227,8 @@ private:
 	/// Playfield de la escena, enlazado en init (mismo buffer que pinta el Copper).
 	playfield::ContiguousPlayfield m_pf {};
 	playfield::DiffText<16> m_frame_diff {};
+	eng::Block<eng::MaskTag> m_mask {};
+	u32 m_submitted = 0u;
 	bool m_ready = false;
 };
 
