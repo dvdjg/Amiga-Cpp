@@ -4,33 +4,29 @@
 
 | Afirmación | Evidencia | Alcance |
 |---|---|---|
-| El actor camina por la **ruta de walkboxes** al destino del guion | Secuencia `out/run/adventure_amiga_001_adv_walk/A500_debug/sequence/` (12 frames): el actor cruza el mundo y `WP` avanza `0/2 → 1/2 → 2/2` en el HUD | Mundo propio de 3 cajas; destino dentro de la unión |
-| La **cámara** sigue con dead-zone y límites | `CAM` pasa de 0 (actor dentro de la zona muerta) a 2 al acercarse al este y el contenido se desplaza 2 px con el puntero pegado a pantalla | Eje X; clamp [0..32] (mundo 352, vista 320) |
-| El **puntero** (bob) sigue al ratón y se desplaza con la cámara | Run con `--mouse-click-at -80,-40`: la flecha aparece en el mar y se mueve; tras el paneo se mantiene en su posición de pantalla | Inyección relativa del runner (deltas de `JOY0DAT`) |
-| El **click** fija destino en coordenadas de mundo | El actor cambia de rumbo tras el click inyectado (frames posteriores) | Destino dentro de una caja; click fuera se ignora |
-| El **HUD** (banda 1bpp) y la **versión** se muestran | `src/VISION.md` (modelo) y capturas: `001 ADV WALK`, `v1.0.4891`, `FRM/CAM/WP/BF`, `MIRA: PUERTA`/`PASEO...` | Texto por palabras; contador de blits fallidos `BF = 0` |
-| **Sin artefactos** en el perfil de los bobs y el fondo | Respuesta cruda en `src/VISION.md`: «contornos limpios… sin bandas, halos ni píxeles cortados», «el fondo inmediatamente alrededor… permanece igual» | 6 frames repartidos de la secuencia de 12 |
-| **Chip presupuestado** | `configure_memory({160 KiB, 8 KiB, 8 KiB})` + escena compuesta con validadores del engine (`scene::compose` rechaza lo que no cabe) | A500 PAL, debug |
+| El actor camina por la **ruta de walkboxes** al destino del guion | Secuencia `out/run/adventure_amiga_001_adv_walk/A500_debug/sequence/` (12 frames): el actor cruza el mundo y `WP` avanza `0/2 → 2/2`; `FRM` progresa (29 → 259 en la secuencia de visión) | Mundo propio de 3 cajas; destino dentro de la unión |
+| La **cámara** sigue con dead-zone y límites | `CAM` pasa de 0 a 2 al acercarse al este y el contenido se desplaza con el puntero pegado a pantalla | Eje X; clamp [0..32] (mundo 352, vista 320) |
+| El **puntero** (bob) sigue al ratón y se desplaza con la cámara | Run con `--mouse-click-at`: la flecha aparece/mueve y mantiene su posición de pantalla tras el paneo | Inyección relativa del runner (deltas de `JOY0DAT`) |
+| El **click** fija destino en coordenadas de mundo | El actor cambia de rumbo tras el click inyectado | Destino dentro de una caja; click fuera se ignora |
+| El **HUD** (banda 1bpp, repintado por diferencias) y la **versión** se muestran | `src/VISION.md` (modelo) y capturas: `001 ADV WALK`, `v1.0.5103`, `FRM/CAM/WP/BF`, `MIRA:`/`PASEO...` | Texto por palabras; contador de blits fallidos `BF = 0` |
+| **Sin artefactos** en el perfil de los bobs y el fondo | `src/VISION.md`: contornos limpios, «sin restos de su posición anterior», fondo «constante y sin artefactos» | 6 frames repartidos de la secuencia de 12 |
+| **Presupuesto**: 1 frame por VBlank | `measure-fps` (build final, IRQ+espera activa): ventanas estables **48,0 / 49,5 / 48,0 / 48,7 / 49,1 fps**, ~1,0 campos/frame (227 k ciclos/frame de media con arranque) | A500 PAL, `A500_debug`, sin warp |
+| **Flicker** | `tools/test-regression.sh --flicker --require-flicker-ok --demo demos/features/adventure/amiga/001_adv_walk --warp` → `Regression OK`; `flicker-baseline.json` con `max_candidates: 0`, `max_blocks_low: 0` | Secuencia estándar del gate |
+| **Chip presupuestado** | `configure_memory({160 KiB, 8 KiB, 8 KiB})` + escena compuesta con los validadores del engine | A500 PAL |
 
-## 2. Presupuesto: NO VERIFICADA (coste de la HUD abierto)
+## 2. Historia de los defectos encontrados y corregidos
 
-Medida con la demo commiteada + fixes de este turno (measure-fps, sin warp): **~10–17 fps** (~4,6 campos/frame). Objetivo del repo: 1 frame por VBlank (50 Hz).
-
-Estado de la investigación (detalle en docs/debugging/investigaciones/001-adv-walk-pacing.md):
-
-- Una tanda inicial de ablaciones fue **inválida**: uild.args con BOM UTF-8 hacía que DEMO_FLAGS se ignorase en silencio (builds «diferentes» con el mismo binario). **Corregido** en uild-demo.sh.
-- Ablaciones rehechas con flags efectivos: sin update → **~49,5 fps**; sin HUD dinámica → **~49,4 fps**; sin blits → ~17,7 fps. El coste es el **redibujo completo del HUD** (~230 000 ciclos/línea, ~1 500 por palabra por la vía virtual del playfield); los blits son despreciables.
-- **Corregido**: engine.set_blit_service_enabled(false) (el servicio de Blitter de fondo competía con los litter_submit síncronos: estela y bloqueos intermitentes).
-- **Corregido**: clamp de la ventana de los bobs al bitmap (con el actor en y=186 el blit escribía filas fuera del plano; el puntero podía salir por la derecha; corrupción/bus error).
-- **Abierto**: el intento de HUD por diferencias (redibujar solo palabras cambiadas) degradó la cadencia de forma no explicada (~0,1 fps) y se revirtió; falta perfil por función de draw_text_words/store_plane_word y una primitiva por filas de una sola llamada.
-- **Flicker**: no medido (cadencia fuera de presupuesto).
+1. **BOM en `build.args`** (`tools/build/build-demo.sh`): un `DEMO_FLAGS` guardado con BOM se ignoraba **en silencio** (builds «distintos», mismo binario; detectado por hash). Corregido en el parser; norma «sin BOM» en `BUILD_AND_RUN.md`.
+2. **Carrera con el servicio de Blitter de fondo**: `engine.set_blit_service_enabled(false)` se había perdido; el servicio (IRQ) y los `blitter_submit(j, true)` síncronos comparten los registros del Blitter → filas del save-under perdidas (estela) y bloqueos. Restaurado.
+3. **Ventanas de bob sin recortar**: con el actor en `y=186` (h=24) o el puntero al borde derecho, el blit escribía fuera del plano (corrupción/bus error). Clamp de la ventana en `blit_stash` (región e `px/py` compartidos); guion a `y=184`.
+4. **Carrera de despertar del VBlank** (clase `212-vblank-irq-apagada-por-el-so`): con el bucle por señal puro (`run_frames`), ciertas fases del frame perdían el despertar → el CPU quedaba dormido (frames congelados, ciclos parados). Era la causa de TODOS los parones intermitentes y de las medidas contaminadas (de ahí la «contradicción» 42 vs 17,6 fps: distintas fases ⇒ distinta tasa de pérdidas). Corregido con **espera activa** (`backend.set_vblank_sleep(false)` + `run_frames`), la variante recomendada del engine.
+5. **Coste del HUD**: redibujar las dos líneas completas cada frame cuesta > 1 campo (la cadencia cuantiza a 25/16,5 fps). Corregido en dos niveles: primitiva del engine `Playfield::store_plane_words_row` (trozo de línea, mapeo una vez; usada por `Surface::draw_text_words`, HOST-449) y **repintado por diferencias** en la demo (solo las 1-2 palabras que cambian por frame). El HUD completo deja de costar más de un campo.
 
 ## 3. Prompts de visión y respuestas crudas
 
-- Evaluación canónica (única que va al informe): `src/VISION.md` (generado por `tools/analyze/vision-final.mjs` con `tools/analyze/vision-prompt.txt`, 6 frames de la secuencia, modelo `qwen3-vl:8b-instruct-q8_0`).
-- Preguntas de depuración (no entran en `VISION.md`): consulta puntual a un frame final — «¿hay un sprite de personaje en la playa? ¿escena con cielo/mar/arena? ¿barra de texto abajo?» → «Yes… Yes… Yes».
-- Nota de lectura del informe: el modelo describe **dos figuras** porque la **flecha del puntero** (blob de 8×11) y el actor comparten aspecto a esa escala; es el puntero del ratón, no un segundo personaje.
+- Evaluación canónica: `src/VISION.md` (generado por `tools/analyze/vision-final.mjs` con `tools/analyze/vision-prompt.txt`, 6 frames de la secuencia final).
+- Nota de lectura: el modelo describe **dos figuras**; la segunda es la **flecha del puntero** del ratón (8×11), no un actor.
 
 ## 4. Exclusiones declaradas
 
-- **SIN VERIFICAR**: cadencia 50 fps, estabilidad de cadencia (tirones), flicker, comportamiento con ratón real (solo se probó la inyección por deltas), destino fuera de las walkboxes con varios saltos de caja (se probó el caso del guion de 2 waypoints), y coste medido por secciones (`ENG_PROF_*`) más allá del perfil de CPU agregado.
+- **SIN VERIFICAR**: 50,0 fps exactos (la medida estable es ~48-49, igual que el resto de demos del repo); comportamiento con ratón físico (se probó la inyección por deltas); destinos fuera de las walkboxes con varios saltos de caja; el coste por palabra del HUD por debajo del umbral de un campo (no se perfila por sección; con el repintado por diferencias el rol de coste deja de importar para esta demo).

@@ -281,6 +281,13 @@ public:
             while (text[n] != '\0' && n < 64u) ++n;
         }
         const s32 x_end = m_clip.x + static_cast<s32>(m_clip.w);
+        // Composición en trozos de `kWordChunk` palabras: cada trozo se escribe con UNA
+        // llamada por línea (`store_plane_words_row`), que resuelve el mapeo del playfield una
+        // vez para todo el trozo (ver la motivación medida en `playfield_base.hpp`).
+        static constexpr u16 kWordChunk = 8u;
+        u16 chunk[kWordChunk * eng::Font8::kRows] {};
+        u16 chunk_words = 0u;
+        s32 chunk_x = x;
         for (u16 p = 0u; p * 2u < n; ++p) {
             const s32 wx = x + static_cast<s32>(p) * 16;
             if (wx + 16 > x_end) break;
@@ -288,16 +295,23 @@ public:
             const u16 c1 = (p * 2u + 1u < n)
                 ? static_cast<u16>(static_cast<u8>(text[p * 2u + 1u]))
                 : static_cast<u16>(' ');
-            // Una RACHA de 8 filas por palabra (`store_plane_word_rows`): la dirección se
-            // calcula una vez por palabra en vez de por fila (ver la motivación medida en
-            // `playfield_base.hpp`; en A500 la vía por fila cuesta ~3x).
-            u16 rows_bits[eng::Font8::kRows];
+            u16* const dst = chunk + static_cast<u32>(chunk_words) * eng::Font8::kRows;
             for (u8 r = 0u; r < eng::Font8::kRows; ++r) {
                 const u16 hi = static_cast<u16>(rev8(eng::Font8::row(c0, r)) << 8u);
                 const u16 lo = static_cast<u16>(rev8(eng::Font8::row(c1, r)));
-                rows_bits[r] = static_cast<u16>(hi | lo);
+                dst[r] = static_cast<u16>(hi | lo);
             }
-            (void)m_target->store_plane_word_rows(wx, y, rows_bits, eng::Font8::kRows, color);
+            ++chunk_words;
+            if (chunk_words == kWordChunk) {
+                (void)m_target->store_plane_words_row(chunk_x, y, chunk, chunk_words,
+                                                      eng::Font8::kRows, color);
+                chunk_x += static_cast<s32>(chunk_words) * 16;
+                chunk_words = 0u;
+            }
+        }
+        if (chunk_words != 0u) {
+            (void)m_target->store_plane_words_row(chunk_x, y, chunk, chunk_words,
+                                                  eng::Font8::kRows, color);
         }
         return true;
     }

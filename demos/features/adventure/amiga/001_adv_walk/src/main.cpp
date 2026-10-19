@@ -758,6 +758,21 @@ private:
 	}
 
 	// --- HUD ---
+	/// Redibuja SOLO las palabras de 2 glifos de `text` (rellenada a `kHudCols`) que difieren
+	/// de `prev`, y actualiza `prev`. Con el bucle robusto (`run_frames_polling`, sin la
+	/// carrera de despertar del VBlank) el coste por frame es el de 1-2 palabras (FRM), no el
+	/// de la línea completa: el frame cabe en un campo.
+	void hud_paint_diff(playfield::Surface& hud, s32 x, s32 y, const char* text, char* prev) {
+		for (eng::u8 w = 0u; w * 2u < kHudCols; ++w) {
+			const char c0 = text[w * 2u];
+			const char c1 = text[w * 2u + 1u];
+			if (prev[w * 2u] == c0 && prev[w * 2u + 1u] == c1) continue;
+			const char cell[3] = {c0, c1, '\0'};
+			(void)hud.draw_text_words(x + static_cast<s32>(w) * 16, y, cell, 1u);
+			prev[w * 2u] = c0;
+			prev[w * 2u + 1u] = c1;
+		}
+	}
 
 	void draw_hud_static() {
 		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, 320u, kHudLines}};
@@ -789,7 +804,11 @@ private:
 		(void)u16_to_str(static_cast<u16>(m_blit_fail), buf);
 		m = str_cat(text, m, buf);
 		pad_to(text, m, kHudCols);
-		(void)hud.draw_text_words(16, 22, text, 1u);
+#if defined(ADVWALK_HUD_1WORD)
+		(void)hud.draw_text_words(16, 22, "XY", 1u);
+#else
+		hud_paint_diff(hud, 16, 22, text, m_hud_prev1);
+#endif
 
 		// Etiqueta del hotspot bajo el puntero (o el estado del paseo).
 		char text2[64] {};
@@ -813,7 +832,9 @@ private:
 			}
 		}
 		pad_to(text2, n, kHudCols);
-		(void)hud.draw_text_words(16, 32, text2, 1u);
+#if !defined(ADVWALK_HUD_1WORD)
+		hud_paint_diff(hud, 16, 32, text2, m_hud_prev2);
+#endif
 	}
 
 	// --- Estado ---
@@ -851,6 +872,8 @@ private:
 	s16 m_err_y = 0;
 	u32 m_walk_timer = 0u;
 	u32 m_blit_fail = 0u;
+	char m_hud_prev1[64] {}; // linea FRM/CAM/WP/BF ya dibujada
+	char m_hud_prev2[64] {}; // linea de estado/hotspot ya dibujada
 
 	// Router: buffers de trabajo (sin heap).
 	eng::adv::walkbox_dist_t<s16> m_best[kBoxCount] {};
@@ -872,6 +895,9 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
+	// Espera de VBlank ACTIVA (variante IRQ + sondeo, ver docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md): con el bucle de
+	// senal puro la demo perdia despertados en ciertas fases del frame (parones de frames).
+	backend.set_vblank_sleep(false);
 	eng::Engine engine {backend, g_game};
 	// Mini-SO: el latido de VBlank por IRQ + senal es lo que deja al bucle dormir en `Wait()`
 	// (sin esto `run_frames` no duerme, la CPU gira y el frame pierde cadencia).

@@ -1,0 +1,5 @@
+{
+  "max_candidates": 0,
+  "max_blocks_low": 0,
+  "note": "Demo 001_adv_walk: fondo estatico en un unico buffer con scroll por hardware (punteros/BPLCON1) y actor/puntero por bobs con save-under; no hay doble buffer ni repintado del playfield. La secuencia de flicker (tools/test-regression.sh --flicker --require-flicker-ok --demo demos/features/adventure/amiga/001_adv_walk --warp) termina con 'Regression OK' y sin candidatos: el unico cambio entre frames es el actor/puntero/HUD por diferencias."
+}

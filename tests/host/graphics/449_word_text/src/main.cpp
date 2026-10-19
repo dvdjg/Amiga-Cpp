@@ -250,6 +250,51 @@ int main() {
 		}
 	}
 
+	// 10) Racha HORIZONTAL por palabras (`store_plane_words_row`): equivalencia con las
+	//     primitivas por palabra/por fila, contrato de fallo y rechazos.
+	{
+		u16 bits[3 * 8] {};
+		for (u16 w = 0u; w < 3u; ++w) {
+			for (u8 r = 0u; r < 8u; ++r) {
+				bits[w * 8u + r] = static_cast<u16>(0x1111u * static_cast<u16>(w + 1u) +
+								    0x0101u * r);
+			}
+		}
+		MockPlayfield a;
+		MockPlayfield b;
+		MockPlayfield c;
+		a.init(64, 64, 4);
+		b.init(64, 64, 4);
+		c.init(64, 64, 4);
+		for (u16 w = 0u; w < 3u; ++w) {
+			check(a.store_plane_word_rows(16 + static_cast<s32>(w) * 16, 10, bits + w * 8u,
+						      8u, 0xAu),
+			      "linea: control por palabra");
+			(void)b.store_plane_word_rows(16 + static_cast<s32>(w) * 16, 10, bits + w * 8u,
+						      8u, 0xAu);
+			for (u8 r = 0u; r < 8u; ++r) {
+				(void)c.store_plane_word(16 + static_cast<s32>(w) * 16, 10 + r,
+							 bits[w * 8u + r], 0xAu);
+			}
+		}
+		MockPlayfield d;
+		d.init(64, 64, 4);
+		check(d.store_plane_words_row(16, 10, bits, 3u, 8u, 0xAu),
+		      "linea: store_plane_words_row");
+		check(a.mem == d.mem, "linea por palabras == 3x store_plane_word_rows");
+		check(c.mem == d.mem, "linea por palabras == 24x store_plane_word");
+		check(!d.store_plane_words_row(24, 10, bits, 3u, 8u, 0xAu), "linea: x sin alinear -> false");
+		check(!d.store_plane_words_row(16, 10, bits, 0u, 8u, 0xAu), "linea: 0 palabras -> false");
+		check(!d.store_plane_words_row(16, 10, nullptr, 3u, 8u, 0xAu), "linea: puntero nulo -> false");
+		// Ultima palabra fuera de la fila: las palabras previas quedan escritas.
+		MockPlayfield e;
+		e.init(64, 64, 1);
+		check(!e.store_plane_words_row(32, 10, bits, 3u, 8u, 1u), "linea: ultima palabra fuera -> false");
+		check(e.word(0u, 4u, 10) != 0u && e.word(0u, 6u, 10) != 0u,
+		      "linea: palabras previas escritas antes del rechazo");
+		check(e.word(0u, 0u, 11) == 0u, "linea: palabra fuera no se escribe ni rebasa a la fila siguiente");
+	}
+
 	if (g_fail != 0) {
 		std::printf("HOST-449 FALLO: %d comprobaciones\n", g_fail);
 		return 1;

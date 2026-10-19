@@ -387,6 +387,95 @@ public:
         return true;
     }
 
+    /// **Palabras de patrón en UNA fila, en racha horizontal** (`words` palabras de 16 px
+    /// consecutivas desde `wx`, fila `wy`): `bits` va como `[palabra][fila]` (row-major por
+    /// palabra, `words * rows` entradas). Es la forma por **línea de texto completa** de
+    /// `store_plane_word_rows`: el mapeo (`byte_for`/`planeline_for` y strides) se resuelve
+    /// **una vez por llamada** en vez de por palabra, y la escritura recorre palabras y filas
+    /// con punteros crudos. Con las palabras contiguas por construcción (2 bytes por palabra)
+    /// el caso de texto/HUD va por la ruta rápida; cualquier layout no lineal (guarda por
+    /// palabra, anillo en Y) cae a `store_plane_word_rows` palabra a palabra (correcto).
+    /// \param wx columna de la primera palabra (múltiplo de 16; fuera → `false`).
+    /// \param wy fila superior.
+    /// \param bits `[palabra][fila]` (row-major por palabra), `words * rows` u16.
+    /// \param words palabras de la racha (0 → `false`).
+    /// \param rows filas por palabra (0 → `false`).
+    /// \param color planos seleccionados (bit `p` = plano `p`).
+    /// \return `false` en la primera palabra/fila fuera del bitmap; las palabras y filas
+    ///         completamente anteriores quedan escritas (el filo exacto de una fila a medias
+    ///         puede diferir de la escritura fila a fila).
+    bool store_plane_words_row(eng::pix wx, eng::pix wy, const u16* bits, u16 words, u8 rows, u8 color) {
+        if (!m_initialized || bits == nullptr || words == 0u || rows == 0u) return false;
+        if (wx < 0 || (wx & 15) != 0) return false;
+        const u32 byte = byte_for(wx);
+        if (byte + 2u > m_bytes_per_row) return false;
+        const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
+        const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
+        const u32 off0 = eng::math::mulu16(static_cast<u16>(planeline_for(wy)),
+                                           static_cast<u16>(rstride)) +
+                         byte;
+        u32 delta = rstride;
+        bool linear = true;
+        if (rows > 1u) {
+            const u32 off1 = eng::math::mulu16(static_cast<u16>(planeline_for(wy + 1)),
+                                               static_cast<u16>(rstride)) +
+                             byte;
+            const u32 offn = eng::math::mulu16(
+                                 static_cast<u16>(planeline_for(wy + static_cast<eng::pix>(rows) - 1)),
+                                 static_cast<u16>(rstride)) +
+                             byte;
+            if (off1 >= off0) {
+                delta = off1 - off0;
+                linear = (offn == off0 + (static_cast<u32>(rows) - 1u) * delta);
+            } else {
+                linear = false;
+            }
+        }
+        // Linealidad horizontal: las palabras deben avanzar 2 bytes (16 px) por palabra.
+        if (linear && words > 1u) {
+            linear = (byte_for(wx + 16) == byte + 2u) &&
+                     (byte_for(wx + static_cast<eng::pix>(words - 1u) * 16) ==
+                      byte + static_cast<u32>(words - 1u) * 2u);
+        }
+        if (!linear) {
+            for (u16 w = 0u; w < words; ++w) {
+                if (!store_plane_word_rows(wx + static_cast<eng::pix>(w) * 16, wy,
+                                           bits + static_cast<u32>(w) * rows, rows, color)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        u8* plane_base[8] {};
+        u32 plane_rel[8] {};
+        const u8 planes = (m_planes < 8u) ? m_planes : 8u;
+        u8* const mem0 = (m_frontbuffer + off0).ptr();
+        for (u8 p = 0u; p < planes; ++p) {
+            plane_base[p] = mem0 + static_cast<u32>(p) * pstride;
+            plane_rel[p] = off0 + static_cast<u32>(p) * pstride;
+        }
+        for (u16 w = 0u; w < words; ++w) {
+            // Misma guarda que `store_plane_word` por palabra: no salirse de la fila.
+            if (byte + static_cast<u32>(w) * 2u + 2u > m_bytes_per_row) return false;
+            for (u8 p = 0u; p < planes; ++p) {
+                if (plane_rel[p] + 2u > m_total_bytes) return false;
+                const bool on = (color & static_cast<u8>(1u << p)) != 0u;
+                u8* dst = plane_base[p];
+                u32 rel = plane_rel[p];
+                for (u8 r = 0u; r < rows; ++r) {
+                    if (rel + 2u > m_total_bytes) return false;
+                    *reinterpret_cast<u16*>(dst) =
+                        on ? bits[static_cast<u32>(w) * rows + r] : static_cast<u16>(0u);
+                    dst += delta;
+                    rel += delta;
+                }
+                plane_base[p] += 2u;
+                plane_rel[p] += 2u;
+            }
+        }
+        return true;
+    }
+
     /// Escribe un tramo horizontal `[x0, x1]` (inclusive) en la fila `wy`. Un byte completo
     /// (16 píxeles) se resuelve con una sola escritura por plano; los extremos parciales van
     /// con máscara. Es la versión rápida del bucle de `write_pixel` para el relleno de
