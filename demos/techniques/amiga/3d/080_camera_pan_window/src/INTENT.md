@@ -29,13 +29,13 @@ La paleta está diseñada por **rangos de bits** (0-1 fondo, 2-3 paneles con las
 
 ## Evolución temporal
 
-- La cámara recorre un paneo triangular entre −128 y +128 px de imagen (yaw ±29°): fase lenta (±96 px, 1 px/frame: rachas Full + varios Fake) y fase rápida (borde de la trayectoria, 16 px/frame: Full cada frame; el Fake se rechaza por margen).
+- La cámara recorre un paneo triangular entre −128 y +128 px de imagen (yaw ±29°): fase lenta (±96 px, 1 px/frame: el Full se **rebanada** en etapas —clip, sala por plano, paneles— una por update, y la pantalla sigue presentando el Full anterior; K=0) y fase rápida (borde de la trayectoria, 16 px/frame: Full completo cada frame; el Fake se rechaza por margen).
 - En cada Full la escena se re-renderiza con la cámara actual; en cada Fake la ventana se desplaza 1 px dentro del framebuffer (la escena parece moverse un 1 px suave entre Fulls y varios falsos por pasada alargan la imitación). El marcador naranja permite seguir el movimiento en cualquier frame.
 - El HUD se refresca cada 32 frames (~1,5 Hz) con los contadores, el estado del frame y el K vigente.
 
 ## Criterio de éxito
 
 1. Contrato de píxel: el PNG de un frame Fake = PNG del Full anterior desplazado su offset (exactitud del mecanismo probada en aislamiento; en secuencia, costura de captura acotada — ver `VALIDATION.md` §1–§2).
-2. Cadencia: display ≥25 Hz con base (Full) ≥12,5 Hz — display **cumplido** (~28 fps medidos); base **pendiente** (el Full mide ~3,4 campos y sale K=2, ~9 Hz; demo ABIERTA, §5 y §7 de `VALIDATION.md`).
-3. Sin flicker/tearing — sin veredicto por ahora (la costura de la captura es la firma del frame que desborda el campo).
-4. La visión (Ollama) describe la sala con sus paneles y confirma el desplazamiento.
+2. Cadencia: display ≥25 Hz con base (Full) ≥12,5 Hz — display **cumplido** (32–36 updates/s con el rebanado); base **pendiente** (~9 Hz: el Full completo suma ~4 campos y el rebanado no reduce su trabajo, solo lo reparte; demo ABIERTA, §5, §7 y §11 de `VALIDATION.md`).
+3. Sin flicker/tearing — sin veredicto por ahora: mientras el Full desborde el campo (DT-034, configurable en el rebanado de F2) puede verse una **banda horizontal rasgada** (parche de ventana aplicado a mitad de campo) o una **columna de contenido del frame anterior** en el borde de la ventana. Ambas son **defecto de presentación, no elementos de la escena**: el pase C debe marcarlas explícitamente; se cierran con la optimización/rebanado del Full, no con un parche de dibujo.
+4. La visión (Ollama) describe la sala con sus paneles y confirma el desplazamiento. **Defecto conocido (DT-042)**: a pan > 0 la sala se muestra invertida (suelo arriba) desde antes de F2; el pase C debe marcarlo como FALLO, no como elemento de la escena (el eval sin contraste lo ha racionalizado como «coherente»).

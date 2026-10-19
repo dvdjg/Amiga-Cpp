@@ -165,8 +165,17 @@ constexpr eng::u8 kRoomDitherB = 2u; // índice base B (verde)
 // ADAPTATIVA: el numero de Fakes entre Fulls lo fija `RenderPacing` a partir del coste
 // medido de la pasada completa (HOST-471), con tope `kFakeCap` (tolerancia visual: en la
 // fase lenta cada Fake acumula 1 px de paneo no resuelto). Sin medida aun, racha 1.
-constexpr eng::u8 kFakeCap = 3u;
-constexpr eng::graphics::PanWindowPolicy kPanPolicyBase {15, 0, 1};
+// Full rebanado (F2): en la fase lenta el propio Full produce un update por campo, asi
+// que no hacen falta fakes "de espera"; K=0 publica un Full cada 4 updates (12,5 Hz) y la
+// pantalla se refresca a 50 Hz con las ventanas de la pasada en curso. Sin rebanado
+// (`-DK080_NO_SLICE`, A/B) se mantiene el pacing medido (hasta 3 fakes).
+#if defined(K080_NO_SLICE)
+constexpr bool kSliceEnabled = false;
+#else
+constexpr bool kSliceEnabled = true;
+#endif
+constexpr eng::u8 kFakeCap = kSliceEnabled ? 0u : 3u;
+constexpr eng::graphics::PanWindowPolicy kPanPolicyBase {15, 0, kFakeCap};
 
 // --- Escena: sala (5 caras) + 4 paneles en fila (mismo z: sin solapes entre ellos) ---
 constexpr u32 kFaceCount = 9u;
@@ -212,6 +221,10 @@ constexpr FaceSpec kFaces[kFaceCount] = {
 // anteriores del mismo buffer (el contenido varia poco entre rerenders).
 constexpr s16 kRoomBoxY = 8;
 constexpr u16 kRoomBoxH = 193u; // filas 8..200 inclusive
+// Reparto del relleno de sala (F2) por PLANO: una llamada por plano sobre la caja completa
+// (mismo contorno y misma paridad que la llamada de 2 planos; solo cambia la frontera de
+// llamada, no la geometria). Cada etapa cuesta ~1/2 del fill de sala y el resultado es
+// pixel-identico (sin costura de corte: el area fill no ve bordes artificiales).
 
 // Caja FIJA de los planos de panel (2-3): cubre la posicion de los paneles para todo el
 // rango de paneo (+-29 grados). Debe cubrir tambien la posicion en el render ANTERIOR del
@@ -262,6 +275,32 @@ void pad_to(char* text, u8 len, u8 width) {
 		text[len++] = ' ';
 	}
 	text[len] = '\0';
+}
+
+/// `true` si TODOS los vertices caen dentro del rectangulo (fast path del recorte).
+bool box_inside(const eng::retro::Vec2* v, u32 n, const eng::retro::Rect& r) {
+	for (u32 k = 0u; k < n; ++k) {
+		if (!(v[k].x().v >= r.minX.v && v[k].x().v < r.maxX.v && v[k].y().v >= r.minY.v &&
+		      v[k].y().v < r.maxY.v)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/// `true` si TODOS los vertices quedan a un mismo lado del rectangulo (poligono fuera).
+bool box_outside(const eng::retro::Vec2* v, u32 n, const eng::retro::Rect& r) {
+	bool left = true;
+	bool right = true;
+	bool top = true;
+	bool bottom = true;
+	for (u32 k = 0u; k < n; ++k) {
+		left = left && (v[k].x().v < r.minX.v);
+		right = right && (v[k].x().v >= r.maxX.v);
+		top = top && (v[k].y().v < r.minY.v);
+		bottom = bottom && (v[k].y().v >= r.maxY.v);
+	}
+	return left || right || top || bottom;
 }
 
 struct PanWindowDemo {
@@ -381,69 +420,91 @@ struct PanWindowDemo {
 #endif
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfFrame);
-		// **Decisión del frame por el controlador de presentación** (`PresentController`,
-		// F2): publicación diferida al inicio del campo (el update corre justo tras el
-		// VBlank, así el cambio de buffer se parchea ANTES de que el haz llegue a los
-		// `MOVE` de punteros → frame entero, sin el corte a mitad de campo de DT-034),
-		// política de paneo y racha adaptativa por coste medido. El buffer renderizado se
-		// muestra en el update SIGUIENTE (latencia de 1 frame, como la 116).
-		const eng::graphics::PresentStep pstep = m_present.begin(m_pan);
-		if (pstep.publish) {
-			m_show_buf = m_pending_buf;
-			m_draw_buf = static_cast<u8>(m_pending_buf ^ 1u);
+		// **Presentación (F2)**: publicación diferida al inicio del campo (el update corre
+		// justo tras el VBlank, antes de los `MOVE` de punteros) y política de paneo. Con
+		// el Full rebanado, mientras hay una pasada en curso NO se consulta al
+		// controlador: se presenta el Full anterior desplazado (fakes) y se avanza UNA
+		// etapa por update; el render terminado se publica al inicio del campo siguiente.
+		eng::graphics::PresentStep pstep {};
+		if (m_stage == Stage::None) {
+			pstep = m_present.begin(m_pan);
+			if (pstep.publish) {
+				m_show_buf = m_pending_buf;
+				m_draw_buf = static_cast<u8>(m_pending_buf ^ 1u);
+			}
+			if (pstep.full) {
+				if (kSliceEnabled && m_pan < 96 && m_pan > -96) {
+					// Fase lenta: rebanado (etapas de <=1 campo; el pan avanza 1 px por
+					// update, muy por debajo del margen de 15 -> los fakes cubren la
+					// latencia de publicacion).
+					m_stage = Stage::Clip;
+					m_stage_pan = m_pan;
+					m_stage_cycles = 0u;
+				} else {
+					// Fase rapida: 16 px/update; no hay margen para interpolar. Pasada
+					// completa de una vez (las etapas encadenadas en este update).
+					ENG_PROF_BEGIN(kProfFull);
+#if defined(ENG_AMIGA)
+					const eng::u32 full_c0 = eng::debug::prof_clock();
+#endif
+					render_full_now(backend, m_pan);
+					ENG_PROF_END(kProfFull);
+					m_pending_buf = m_draw_buf;
+					m_present.commit(m_pan);
+#if defined(ENG_AMIGA)
+					m_present.observe_full(eng::debug::prof_clock() - full_c0);
+#endif
+				}
+			}
+		} else {
+			// Pasada en curso: ventana de la presentacion sobre el Full publicado
+			// (clampeada al margen de la politica). El paneo puede ir por delante del
+			// Full en curso; al publicarse, `begin()` devuelve el offset real.
+			s32 off = m_pan - m_present.shown_pan();
+			if (off > kPanPolicyBase.margin_x) {
+				off = kPanPolicyBase.margin_x;
+			}
+			if (off < -kPanPolicyBase.margin_x) {
+				off = -kPanPolicyBase.margin_x;
+			}
+			pstep.offset_x = static_cast<s16>(off);
+			pstep.publish = false;
+			pstep.full = false;
 		}
 #if defined(K080_OFFSET_TEST)
 		{
 			static constexpr s16 kCycle[17] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
 							   12, 13, 14, 15, 16};
-			step.full = false;
-			step.offset_x = kCycle[(f / 8u) % 17u];
+			pstep.full = false;
+			pstep.publish = false;
+			pstep.offset_x = kCycle[(f / 8u) % 17u];
 		}
 #endif
 
 		// Ventana del frame PRESENTADO: el paneo avanzado respecto al Full publicado,
-		// clampeado al margen (S en 1..31 = off −15..+15) — lo decide el controlador. El
-		// render de un Full nuevo no cambia lo mostrado hasta su publicación (arriba).
-		s32 disp_off = pstep.offset_x;
-#if defined(K080_OFFSET_TEST)
-		{
-			static constexpr s16 kCycle[17] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-							   12, 13, 14, 15, 16};
-			disp_off = kCycle[(f / 8u) % 17u];
-		}
-#endif
+		// clampeado al margen (S en 1..31 = off −15..+15). El render de un Full nuevo no
+		// cambia lo mostrado hasta su publicación.
+		const s32 disp_off = pstep.offset_x;
 		const u16 s = static_cast<u16>(kCenterS + disp_off);
 		if (pstep.publish) {
 			++m_fulls;
 		} else {
 			++m_fakes;
 		}
-		if (pstep.full) {
-			ENG_PROF_BEGIN(kProfFull);
-#if defined(ENG_AMIGA)
-			const eng::u32 full_c0 = eng::debug::prof_clock();
-#endif
-			render_full(backend, m_pan);
-			ENG_PROF_END(kProfFull);
-			// Coste medido del Full -> racha de Fakes (base >=12,5 Hz / display >=25 Hz) y
-			// publicacion diferida al update siguiente (inicio de campo).
-			m_pending_buf = m_draw_buf;
-			m_present.commit(m_pan);
-#if defined(ENG_AMIGA)
-			m_present.observe_full(eng::debug::prof_clock() - full_c0);
-#endif
+		if (m_stage != Stage::None) {
+			run_stage(backend); // Clip en el mismo update en que se pidió; luego una etapa
 		}
-		// El HUD se repinta cada 16 frames (~3 Hz): suficiente para telemetria de
-		// depuracion y deja el camino del frame en 1 campo (una linea de texto por
-		// palabras cuesta ~190k ciclos medidos cuando el frame desborda el VBlank y
-		// escribe con el display activo; medido con `profile.mjs`).
+		// El HUD se repinta cada 32 frames (~0,6 s con el bucle rebanado): suficiente para
+		// telemetria y deja el camino del frame en 1 campo (una linea de texto por
+		// palabras cuesta ~190k ciclos medidos con el display activo).
 #if !defined(K080_SKIP_HUD)
 		if ((f & 31u) == 0u) {
 			ENG_PROF_BEGIN(kProfHud);
 			draw_hud_dynamic(f, pstep);
 			ENG_PROF_END(kProfHud);
 		}
-#endif		ENG_PROF_BEGIN(kProfPatch);
+#endif
+		ENG_PROF_BEGIN(kProfPatch);
 #if !defined(K080_SKIP_PATCH)
 		patch_window(s);
 #endif
@@ -544,11 +605,17 @@ private:
 #endif
 	}
 
-	// --- Render de la pasada completa -------------------------------------------------
-	void render_full(eng::amiga::AmigaBackend& backend, s32 pan) {
-		ENG_PROF_BEGIN(kProfWait);
-		backend.wait_blitter();
-		ENG_PROF_END(kProfWait);
+	// --- Pasada completa por ETAPAS (F2) ----------------------------------------------
+	// El Full se divide en etapas de coste <= 1 campo (clip -> sala en 2 bandas ->
+	// paneles), una por update. Entre etapas el bucle vuelve al VBlank y la pantalla
+	// sigue presentando el Full anterior desplazado (fakes); la publicacion sigue
+	// diferida al inicio de campo. En la fase rapida (16 px/update) no hay margen para
+	// interpolar: se renderiza de una vez (etapas encadenadas en el mismo update).
+	enum class Stage : u8 { None, Clip, Room0, Room1, Panels };
+
+	void stage_clip(s32 pan) {
+		// Sin `wait_blitter` inicial: los fills son sincronos (esperan al Blitter al
+		// terminar) y el buffer de dibujo no se publica hasta completar la pasada.
 		// Vista mundo->camara con yaw = pan/focal: Ry(-yaw) aplica xc = x*cos - z*sin
 		// (girar a la derecha mueve los puntos +x hacia la izquierda de la pantalla).
 		// `retro::turns` usa el indice de 4096 pasos/vuelta (kAngleSteps): 1 px de imagen
@@ -597,35 +664,7 @@ private:
 		eng::retro::Vec2 in[kMaxVerts];
 		eng::retro::Vec2 tmp[kMaxVerts];
 
-		// Dos pasadas de relleno por plano: la sala en los planos 0-1 sobre el area
-		// completa, y los paneles en los planos 2-3 sobre su bbox (el barrido del area
-		// fill es lo caro; acotarlo a la caja de los paneles ahorra ~85k ciclos/frame).
-		eng::graphics::PlaneFillBuilder<kFaceCount> walls_fb;
-		eng::graphics::PlaneFillBuilder<kFaceCount> panels_fb;
 		u32 verts = 0u;
-		// Fast path del recorte: dentro = sin pasadas; fuera = descartar; si no, S-H.
-		const auto inside_box = [](const eng::retro::Vec2* v, const eng::retro::Rect& r) {
-			for (u32 k = 0u; k < 4u; ++k) {
-				if (!(v[k].x().v >= r.minX.v && v[k].x().v < r.maxX.v &&
-				      v[k].y().v >= r.minY.v && v[k].y().v < r.maxY.v)) {
-					return false;
-				}
-			}
-			return true;
-		};
-		const auto outside_box = [](const eng::retro::Vec2* v, const eng::retro::Rect& r) {
-			bool left = true;
-			bool right = true;
-			bool top = true;
-			bool bottom = true;
-			for (u32 k = 0u; k < 4u; ++k) {
-				left = left && (v[k].x().v < r.minX.v);
-				right = right && (v[k].x().v >= r.maxX.v);
-				top = top && (v[k].y().v < r.minY.v);
-				bottom = bottom && (v[k].y().v >= r.maxY.v);
-			}
-			return left || right || top || bottom;
-		};
 
 		ENG_PROF_BEGIN(kProfClip);
 		for (u32 i = 0u; i < kFaceCount; ++i) {
@@ -683,9 +722,9 @@ private:
 				in[k] = eng::retro::v2(sx, sy);
 			}
 			u32 n = 0u;
-			if (inside_box(in, clip)) {
+			if (box_inside(in, 4u, clip)) {
 				n = 4u; // fast path: todo dentro del framebuffer
-			} else if (!outside_box(in, clip)) {
+			} else if (!box_outside(in, 4u, clip)) {
 				n = eng::retro::clip_polygon(
 					clip, in, tmp, 4u,
 					static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
@@ -696,9 +735,10 @@ private:
 				continue;
 			}
 			if (i < 5u) {
-				// Sala: acotar a la caja de filas del tubo; coords locales a la caja.
-				if (!inside_box(in, room_box)) {
-					n = outside_box(in, room_box)
+				// Sala: coords locales a la caja del tubo (la banda se recorta en la
+				// etapa de relleno, con la misma caja como referencia).
+				if (!box_inside(in, n, room_box)) {
+					n = box_outside(in, n, room_box)
 						    ? 0u
 						    : eng::retro::clip_polygon(
 							      room_box, in, tmp, n,
@@ -707,108 +747,221 @@ private:
 									      eng::retro::PF_RIGHT |
 									      eng::retro::PF_BOTTOM));
 				}
-				m_fn[i] = static_cast<u8>(n);
 				if (n < 3u) {
+					m_fn[i] = 0u;
 					continue;
 				}
+				// Compacta vertices consecutivos duplicados (los crea el clip en los
+				// bordes): una arista degenerada no aporta cruce al area fill y puede
+				// desequilibrar la paridad de la fila (DT-042).
+				u32 w = 0u;
 				for (u32 k = 0u; k < n; ++k) {
-					m_fx[i][k] = in[k].x().v;
-					m_fy[i][k] = static_cast<s16>(in[k].y().v - kRoomBoxY);
+					const s16 x = in[k].x().v;
+					const s16 y = static_cast<s16>(in[k].y().v - kRoomBoxY);
+					if (w != 0u && m_fx[i][w - 1u] == x && m_fy[i][w - 1u] == y) {
+						continue;
+					}
+					m_fx[i][w] = x;
+					m_fy[i][w] = y;
+					++w;
 				}
-				verts += n;
-				(void)walls_fb.submit(m_fx[i], m_fy[i], static_cast<u8>(n),
-						      kFaces[i].color);
+				if (w >= 2u && m_fx[i][0] == m_fx[i][w - 1u] &&
+				    m_fy[i][0] == m_fy[i][w - 1u]) {
+					--w;
+				}
+				m_fn[i] = static_cast<u8>(w);
+				if (w < 3u) {
+					m_fn[i] = 0u;
+					continue;
+				}
+				verts += w;
 			} else {
 				// Paneles: se guardan en coords globales; el bloque de paneles los
-				// recorta a su caja fija y los desplaza.
-				m_fn[i] = static_cast<u8>(n);
+				// recorta a su caja fija y los desplaza. Se compactan duplicados
+				// consecutivos igual que en la sala (paridad del area fill).
+				u32 w = 0u;
 				for (u32 k = 0u; k < n; ++k) {
-					m_fx[i][k] = in[k].x().v;
-					m_fy[i][k] = in[k].y().v;
+					const s16 x = in[k].x().v;
+					const s16 y = in[k].y().v;
+					if (w != 0u && m_fx[i][w - 1u] == x && m_fy[i][w - 1u] == y) {
+						continue;
+					}
+					m_fx[i][w] = x;
+					m_fy[i][w] = y;
+					++w;
 				}
-				verts += n;
+				if (w >= 2u && m_fx[i][0] == m_fx[i][w - 1u] &&
+				    m_fy[i][0] == m_fy[i][w - 1u]) {
+					--w;
+				}
+				m_fn[i] = static_cast<u8>(w > 255u ? 255u : w);
+				verts += w;
 			}
 		}
 		m_dbg_verts = static_cast<u8>(verts > 255u ? 255u : verts);
-		ENG_PROF_END(kProfClip);
-
-		const eng::PlaneBytes buf = m_scene.buffer(m_draw_buf);
-#if defined(K080_SKIP_FILL)
-		(void)backend.blitter_clear(buf, kPlanes, kRowBytes, kSceneBytes, kFbW, kFbH, true);
-		(void)walls_fb;
-		(void)panels_fb;
-#else
-		if (walls_fb.count() != 0u) {
-			// Mezcla A/B de la sala: el patrón del plano 0 y su inverso en el plano 1
-			// (damero 1×1; `kRoomDither=false` deja ambos vacíos = sólido, A/B).
-			const eng::MaskBytes room_patterns[2] = {
-				kRoomDither
-					? m_pattern.view.first(2u * kRowBytes).as_const()
-					: eng::MaskBytes {},
-				kRoomDither
-					? m_pattern.view.subspan(2u * kRowBytes, 2u * kRowBytes)
-						  .as_const()
-					: eng::MaskBytes {}};
-			ENG_PROF_BEGIN(kProfFill);
-			(void)backend.fill_polygons_by_plane_patterns(
-				walls_fb.faces().data(), walls_fb.count(),
-				buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes), kRowBytes,
-				kSceneBytes, 2u, kFbW, kRoomBoxH,
-				eng::Span<const eng::MaskBytes>(room_patterns, 2u), 2u);
-			ENG_PROF_END(kProfFill);
-		} else {
-			(void)backend.blitter_clear(buf.subspan(static_cast<u32>(kRoomBoxY) * kRowBytes),
-						    2u, kRowBytes, kSceneBytes, kFbW, kRoomBoxH, false);
+		// Caras que llegan al relleno (todas las que sobreviven al clip del FB; el
+		// recorte fino por caja/banda ocurre en las etapas de relleno).
+		u8 faces = 0u;
+		for (u32 i = 0u; i < kFaceCount; ++i) {
+			if (m_fn[i] >= 3u) {
+				++faces;
+			}
 		}
+		m_dbg_faces = faces;
+		ENG_PROF_END(kProfClip);
+	}
 
-		// Paneles: bbox con margen de 8 px (el contenido del mismo buffer cambia como
-		// mucho ~4 px entre Fulls ya que solo varia la camara) y coords locales a la caja;
-		// los colores se remapean a los bits 0-1 de la ventana de 2 planos.
-		// Paneles: coords locales a la caja FIJA de los planos 2-3 y colores remapeados
-		// a los bits 0-1 de esa ventana de 2 planos.
-		{
-			const s16 wx0 = kPanelBoxX;
-			const u16 pw = kPanelBoxW;
-			const u16 ph = kPanelBoxH;
-			const s16 by0 = kPanelBoxY;
-			const eng::retro::Rect bbox =
-				eng::retro::rect(wx0, by0, static_cast<s16>(wx0 + pw), static_cast<s16>(by0 + ph));
-			for (u32 i = 5u; i < kFaceCount; ++i) {
-				const u8 n = m_fn[i];
-				if (n < 3u) {
-					continue;
-				}
-				for (u32 k = 0u; k < n; ++k) {
-					in[k] = eng::retro::v2(m_fx[i][k], m_fy[i][k]);
-				}
-				const u32 m = eng::retro::clip_polygon(
-					bbox, in, tmp, n,
-					static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
-							eng::retro::PF_RIGHT | eng::retro::PF_BOTTOM));
-				if (m < 3u) {
-					continue;
-				}
-				for (u32 k = 0u; k < m; ++k) {
-					m_fx[i][k] = static_cast<s16>(in[k].x().v - wx0);
-					m_fy[i][k] = static_cast<s16>(in[k].y().v - by0);
-				}
-				// Color remapeado: 4->1, 8->2, 12->3 (bits 0-1 de los planos 2-3).
-				(void)panels_fb.submit(m_fx[i], m_fy[i], static_cast<u8>(m),
-						       static_cast<u8>(kFaces[i].color >> 2u));
+	/// Rellena UN plano de la sala (0 o 1) sobre la caja completa del tubo. El color se
+	/// remapea a bit 0 de la llamada (`color >> plane`): el backend prueba el bit local 0
+	/// del plano que se le pasa, asi que cada llamada de 1 plano pide su bit como bit 0.
+	void stage_room(eng::amiga::AmigaBackend& backend, u8 plane) {
+		const eng::PlaneBytes buf = m_scene.buffer(m_draw_buf);
+		eng::PlaneBytes dst =
+			buf.subspan(static_cast<u32>(plane) * kSceneBytes +
+				    static_cast<u32>(kRoomBoxY) * kRowBytes);
+#if defined(K080_SKIP_FILL)
+		(void)backend.blitter_clear(dst, 1u, kRowBytes, kSceneBytes, kFbW, kRoomBoxH,
+					    false);
+#else
+		// Los vertices ya estan en coords locales de la caja de sala (sin recorte extra:
+		// el contorno y la paridad son los mismos que en la llamada de 2 planos).
+		eng::graphics::PlaneFillBuilder<kFaceCount> fb {};
+		for (u32 i = 0u; i < 5u; ++i) {
+			if (m_fn[i] < 3u) {
+				continue;
 			}
-			if (panels_fb.count() != 0u) {
-				const u32 dest_off = 2u * kSceneBytes +
-						     static_cast<u32>(by0) * kRowBytes +
-						     static_cast<u32>(wx0 >> 3);
-				ENG_PROF_BEGIN(kProfFill);
-				(void)backend.fill_polygons_by_plane(
-					panels_fb.faces().data(), panels_fb.count(),
-					buf.subspan(dest_off), kRowBytes, kSceneBytes, 2u, pw, ph);
-				ENG_PROF_END(kProfFill);
-			}
+			const u8 color = (plane == 0u)
+						 ? static_cast<u8>(kFaces[i].color & 0x1u)
+						 : static_cast<u8>((kFaces[i].color >> 1u) & 0x1u);
+			(void)fb.submit(m_fx[i], m_fy[i], m_fn[i], color);
+		}
+		const eng::MaskBytes pat =
+			kRoomDither
+				? (plane == 0u
+					   ? m_pattern.view.first(2u * kRowBytes).as_const()
+					   : m_pattern.view.subspan(2u * kRowBytes, 2u * kRowBytes)
+						     .as_const())
+				: eng::MaskBytes {};
+		const eng::MaskBytes pats[1] = {pat};
+		ENG_PROF_BEGIN(kProfFill);
+#if defined(K080_CPU_FILL)
+		// Referencia CPU del mismo conjunto de caras (diagnostico DT-042): mismo
+		// recorte/paridad, sin Blitter.
+		(void)pats;
+		(void)backend.blitter_clear(dst, 1u, kRowBytes, kSceneBytes, kFbW, kRoomBoxH,
+					    false);
+		(void)fb.fill_cpu(dst, kRowBytes, kSceneBytes, 1u, kFbW, kRoomBoxH);
+#else
+		if (fb.count() != 0u) {
+			(void)backend.fill_polygons_by_plane_patterns(
+				fb.faces().data(), fb.count(), dst, kRowBytes, kSceneBytes, 1u,
+				kFbW, kRoomBoxH, eng::Span<const eng::MaskBytes>(pats, 1u), 2u);
+		} else {
+			(void)backend.blitter_clear(dst, 1u, kRowBytes, kSceneBytes, kFbW,
+						    kRoomBoxH, false);
 		}
 #endif
-		m_dbg_faces = static_cast<u8>(walls_fb.count() + panels_fb.count());
+		ENG_PROF_END(kProfFill);
+#endif
+	}
+
+	/// Rellena los paneles (planos 2-3) en su caja fija, con los colores remapeados a
+	/// los bits 0-1 de esa ventana de 2 planos.
+	void stage_panels(eng::amiga::AmigaBackend& backend) {
+		const eng::PlaneBytes buf = m_scene.buffer(m_draw_buf);
+		const s16 wx0 = kPanelBoxX;
+		const u16 pw = kPanelBoxW;
+		const u16 ph = kPanelBoxH;
+		const s16 by0 = kPanelBoxY;
+#if defined(K080_SKIP_FILL)
+		(void)backend;
+		(void)buf;
+#else
+		const eng::retro::Rect bbox = eng::retro::rect(
+			wx0, by0, static_cast<s16>(wx0 + pw), static_cast<s16>(by0 + ph));
+		eng::retro::Vec2 in[kMaxVerts];
+		eng::retro::Vec2 tmp[kMaxVerts];
+		eng::graphics::PlaneFillBuilder<kFaceCount> fb {};
+		for (u32 i = 5u; i < kFaceCount; ++i) {
+			u32 n = m_fn[i];
+			if (n < 3u) {
+				continue;
+			}
+			for (u32 k = 0u; k < n; ++k) {
+				in[k] = eng::retro::v2(m_fx[i][k], m_fy[i][k]);
+			}
+			n = eng::retro::clip_polygon(
+				bbox, in, tmp, n,
+				static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
+						eng::retro::PF_RIGHT | eng::retro::PF_BOTTOM));
+			if (n < 3u) {
+				continue;
+			}
+			for (u32 k = 0u; k < n; ++k) {
+				m_bx[i][k] = static_cast<s16>(tmp[k].x().v - wx0);
+				m_by[i][k] = static_cast<s16>(tmp[k].y().v - by0);
+			}
+			// Color remapeado: 4->1, 8->2, 12->3 (bits 0-1 de los planos 2-3).
+			(void)fb.submit(m_bx[i], m_by[i], static_cast<u8>(n),
+					static_cast<u8>(kFaces[i].color >> 2u));
+		}
+		if (fb.count() != 0u) {
+			const u32 dest_off = 2u * kSceneBytes +
+					     static_cast<u32>(by0) * kRowBytes +
+					     static_cast<u32>(wx0 >> 3);
+			ENG_PROF_BEGIN(kProfFill);
+			(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(),
+							    buf.subspan(dest_off), kRowBytes,
+							    kSceneBytes, 2u, pw, ph);
+			ENG_PROF_END(kProfFill);
+		}
+#endif
+	}
+
+	/// Pasada completa de una vez (fase rapida / `K080_NO_SLICE`): las tres etapas en el
+	/// mismo update (sala plano a plano, como en el camino rebanado).
+	void render_full_now(eng::amiga::AmigaBackend& backend, s32 pan) {
+		stage_clip(pan);
+		stage_room(backend, 0u);
+		stage_room(backend, 1u);
+		stage_panels(backend);
+	}
+
+	/// Ejecuta la siguiente etapa del Full rebanado; al terminar los paneles deja el
+	/// buffer pendiente de publicacion (se muestra en el update siguiente).
+	void run_stage(eng::amiga::AmigaBackend& backend) {
+#if defined(ENG_AMIGA)
+		const u32 c0 = eng::debug::prof_clock();
+#endif
+		switch (m_stage) {
+		case Stage::Clip:
+			stage_clip(m_stage_pan);
+			m_stage = Stage::Room0;
+			break;
+		case Stage::Room0:
+			stage_room(backend, 0u);
+			m_stage = Stage::Room1;
+			break;
+		case Stage::Room1:
+			stage_room(backend, 1u);
+			m_stage = Stage::Panels;
+			break;
+		case Stage::Panels:
+			stage_panels(backend);
+#if defined(ENG_AMIGA)
+			m_stage_cycles += eng::debug::prof_clock() - c0;
+			m_present.observe_full(m_stage_cycles);
+#endif
+			m_pending_buf = m_draw_buf;
+			m_present.commit(m_stage_pan);
+			m_stage = Stage::None;
+			return;
+		case Stage::None:
+			return;
+		}
+#if defined(ENG_AMIGA)
+		m_stage_cycles += eng::debug::prof_clock() - c0;
+#endif
 	}
 
 	// --- HUD --------------------------------------------------------------------------
@@ -886,12 +1039,17 @@ private:
 	u8 m_show_buf = 0u;
 	u8 m_draw_buf = 1u;
 	u8 m_pending_buf = 0u; ///< buffer del Full pendiente de publicar (lo decide `m_present`)
+	Stage m_stage = Stage::None; ///< etapa en curso del Full rebanado (None = sin pasada)
+	s32 m_stage_pan = 0;         ///< paneo con el que se capturo la pasada en curso
+	u32 m_stage_cycles = 0u;     ///< ciclos acumulados de la pasada (pacing al terminar)
 	u32 m_fulls = 0u;
 	u32 m_fakes = 0u;
 	u8 m_dbg_faces = 0u;
 	u8 m_dbg_verts = 0u;
-	s16 m_fx[kFaceCount][kMaxVerts] {};
+	s16 m_fx[kFaceCount][kMaxVerts] {}; ///< poligonos proyectados (caja de sala = local)
 	s16 m_fy[kFaceCount][kMaxVerts] {};
+	s16 m_bx[kFaceCount][kMaxVerts] {}; ///< coordenadas locales del lote de relleno en curso
+	s16 m_by[kFaceCount][kMaxVerts] {};
 	u8 m_fn[kFaceCount] {};
 };
 

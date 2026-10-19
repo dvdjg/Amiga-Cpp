@@ -1,6 +1,6 @@
 # VALIDATION — 080_camera_pan_window (F1: paneo de cámara con frames intermedios)
 
-Estado: **ABIERTA / NO VERIFICADA** por cadencia (display ≥25 Hz cumplido; base de F1 ≥12,5 Hz pendiente, §5). El **render de la escena está verificado correcto** (§3, pase C con los elementos del `INTENT.md`) tras arreglar la rotura observada 2026-10-18: era una **miscompilación con `-O3` en el TU de la demo** (DT-038), no un fallo de la lógica — arreglada con `DEMO_OPT=-O2`.
+Estado: **ABIERTA / NO VERIFICADA** por cadencia (display ≥25 Hz cumplido; base de F1 ≥12,5 Hz pendiente, §5 y §10). El **render de la escena está verificado correcto** (§3, pase C con los elementos del `INTENT.md`) tras arreglar la rotura observada 2026-10-18: era una **miscompilación en el TU de la demo** (DT-038), no un fallo de la lógica. El par de flags **certificado hoy es `DEMO_OPT=-O3` + `DEMO_FLAGS=-fno-tree-vectorize`** (captura congelada a pan 0 idéntica con y sin culling); con `-O2` el código actual vuelve a salir partido: la sensibilidad es del codegen y depende de la versión del código, así que no se tocan los flags sin repetir la captura congelada. **Alcance del render (2026-10-19): correcto a pan 0 y negativo; a pan > 0 la sala sale invertida** (preexistente, también en HEAD; DT-042), así que la demo sigue **ABIERTA también por render**.
 
 ## 1. Contrato del mecanismo: prueba de aislamiento (exactitud)
 
@@ -40,6 +40,7 @@ Salida (resumen del 2026-10-18): telemetría de cada frame == reloj esperado (Fu
 
 - `src/VISION.md` (prompt canónico **actual**, que mira contornos; `vision-final.mjs`, 5 frames de la captura por intervalo del build con patrón): el modelo describe el fondo como un patrón de bandas geométricas y **barras verticales que se desplazan** entre imágenes (con la reaparición de una columna desde el margen — el desplazamiento de ventana) y el HUD `FULL 12.5 + FAKE 25` con `K 2`; concluye **contornos limpios, sin halos ni restos de la posición anterior**, con el fondo uniforme. La reevaluación **con captura por paso** (frames nítidos, sin el banding del Full mid-render) sigue pendiente: la captura por paso está bloqueada (DT-033).
 - `ollama-frames.mjs` sobre una secuencia: confirma **movimiento apreciable** ("la escena se ha movido hacia la izquierda, revelando partes nuevas") — la dinámica del paneo es observable por el modelo.
+- **Nota (2026-10-19)**: el eval no detectó la **inversión de la sala a pan > 0** (DT-042): preguntado explícitamente por la orientación del suelo en una captura congelada a +13 (suelo marrón arriba), respondió que el suelo está abajo y la escena es coherente. El pase C contra los elementos del `INTENT.md` es el que debe marcarlo; el eval libre no es veredicto.
 
 ## 4. Gates técnicos
 
@@ -58,8 +59,11 @@ Receta (importante: hay que cerrar instancias `winuae-gdb` huérfanas antes, y l
 
 ```bash
 bash tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window >/dev/null 2>&1
-node tools/debug/profile.mjs 080_camera_pan_window A500_debug 5
+node tools/debug/profile.mjs 080_camera_pan_window A500_debug 5 \
+  --names Frame,Full,Fill,Patch,Hud,HudCtor,HudLine1,HudLine2,Wait,Clip
 ```
+
+`profile.mjs` imprime por defecto los nombres de sección de otra demo (086): sin `--names` la tabla se lee mal. Si `Fill` sale 0 con la escena visible, el `.exe` es de una ablación (`K080_SKIP_FILL`) o está viejo: recompilar limpio antes de medir.
 
 Build actual (política adaptativa, `-O3`, HUD cada 32 frames):
 
@@ -119,3 +123,17 @@ La geometría de la sala **no se renderiza correctamente**: con la cámara conge
 **Estabilidad del damero (2026-10-19)**: con `run_frames_polling` el modo `-DK080_PATTERN` es estable de nuevo: 4/4 arranques vivos (frames 7-9 -> 89-90). Su inestabilidad era enteramente la espera de VBlank (familia 212).
 
 **Full tras el solido (2026-10-19)**: ultimo perfil valido del build con render correcto: `Full` ~562k ciclos (~3,9 campos) media -> K=2 -> base ~9 Hz: **DT-034 sigue ABIERTA** (el damero ya no pesa, pero el relleno por plano base domina); el culling y la sala solida dejan la campana de F1 sobre una base sana.
+
+## 11. F2: pasada completa rebanada por etapas (2026-10-19) - EN CURSO
+
+**Diseño**: el Full se divide en **clip → relleno de sala (plano 0) → relleno de sala (plano 1) → relleno de paneles**, una etapa por update, con la **publicación diferida** al inicio de campo. Mientras hay una pasada en curso no se consulta al `PresentController`: se presenta el Full anterior desplazado (fakes) y cada update avanza una etapa. En la fase rápida (16 px/update) se encadenan todas las etapas en el mismo update (no hay margen para interpolar). El reparto por **plano** (no por filas ni columnas) evita costuras: el area fill ve exactamente el mismo contorno y la misma paridad que la llamada de 2 planos.
+
+**Equivalencia de píxel (captura congelada, `-DK080_PAN_FREEZE`)**: el build rebanado es **pixel-idéntico a HEAD** (`cb5eaaaf`, `render_full` monolítico) a pan 0, −13 y +13 (diff 0 px en la escena; solo cambian los contadores del HUD). La comparación se hizo con un worktree temporal de HEAD y `scenediff.py`/`diffmap.py` (out/tmp).
+
+**Cadencia medida (build canónico, `profile.mjs` con `--names`, 5 s)**: 179 frames, **199.514 ciclos/frame = 1,41 campos/update** (≈35 updates/s); sonda del runner: 113 updates en 3,52 s = **32,1 updates/s**. Los rellenos por plano miden **114-180k** por llamada (una llamada puede pasar de 1 campo), `clip` 69-118k, parche ~1k. La publicación (Full real) sale cada ~4 updates → **base ≈ 9 Hz**: el rebanado **no reduce el trabajo total** del Full (~4 campos), solo reparte el coste y mantiene la pantalla viva (display **32-36 Hz**, antes ~24,6). Cerrar la base de F1 exige **solapar** el Blitter con CPU (cola IRQ de F2) o abaratar el relleno (DT-034), no más etapas.
+
+**Mejora visual verificada**: con publicación diferida + etapas desaparece el **parche a mitad de campo** que en HEAD dejaba una columna de basura en el borde izquierdo (visible en la captura congelada de HEAD a +13: barra rojiza en x≈76). El build rebanado no la tiene.
+
+**Hallazgo (preexistente, registrado como DT-042)**: a **pan > 0** la sala se renderiza invertida (suelo marrón arriba, techo azul abajo; paneles correctos). Está **también en HEAD** (misma imagen, diff 0 px): no es del rebanado. El modelo de visión consultado (`qwen3-vl:8b`) **niega el defecto** («el suelo está en la parte inferior, la escena es coherente») — nueva evidencia de que el eval sin contraste no es veredicto.
+
+**Medida vigente (2026-10-19, build solido + culling + `run_frames_polling`, flags certificados)**: HUD tras ~3 s de corrida a intervalos (`--sequence-frames 12 --sequence-interval-ms 300`): `FRAME 64 / FULL 24 / FAKE 41 / FULL OFF 1 / FAC 9 / VER 40 / PAN -19 / K 2`; perfil (`profile.mjs`, 5 s): **124 frames, 287.642 ciclos/frame = 2,03 campos por update** (~24,6 updates/s). Con `RenderPacing`, K=2 implica `full_fields = 4` (≈567k ciclos, coherente con los ~562k de arriba): **base ≈ 8,2-8,3 Hz**, display ≈ 24,6 Hz. El reparto de la ventana (24 Full / 41 Fake) confirma el ciclo Full+2 Fakes. DT-034 sigue abierta; la palanca es el relleno (solapar/rebanar, F2).
