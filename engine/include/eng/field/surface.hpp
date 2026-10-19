@@ -288,12 +288,16 @@ public:
             const u16 c1 = (p * 2u + 1u < n)
                 ? static_cast<u16>(static_cast<u8>(text[p * 2u + 1u]))
                 : static_cast<u16>(' ');
+            // Una RACHA de 8 filas por palabra (`store_plane_word_rows`): la dirección se
+            // calcula una vez por palabra en vez de por fila (ver la motivación medida en
+            // `playfield_base.hpp`; en A500 la vía por fila cuesta ~3x).
+            u16 rows_bits[eng::Font8::kRows];
             for (u8 r = 0u; r < eng::Font8::kRows; ++r) {
                 const u16 hi = static_cast<u16>(rev8(eng::Font8::row(c0, r)) << 8u);
                 const u16 lo = static_cast<u16>(rev8(eng::Font8::row(c1, r)));
-                (void)m_target->store_plane_word(wx, y + static_cast<s32>(r),
-                                                 static_cast<u16>(hi | lo), color);
+                rows_bits[r] = static_cast<u16>(hi | lo);
             }
+            (void)m_target->store_plane_word_rows(wx, y, rows_bits, eng::Font8::kRows, color);
         }
         return true;
     }

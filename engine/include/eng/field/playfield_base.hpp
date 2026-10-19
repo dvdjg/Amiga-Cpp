@@ -301,6 +301,92 @@ public:
         return true;
     }
 
+    /// **Palabras de patrón por RACHA de filas**: escribe `bits_by_row[r]` (16 px,
+    /// MSB = izquierda) en las `rows` filas consecutivas que empiezan en `wy`, columna `wx`
+    /// (múltiplo de 16). Es la versión por columna de `store_plane_word` para texto por
+    /// palabras e iconos: `byte_for` y el cálculo de dirección se hacen **una vez** por racha
+    /// en vez de por fila. Motivación medida (demo 001, A500): una palabra de texto de 8
+    /// filas por la vía por fila cuesta ~1 500 ciclos (llamada virtual + checks por store);
+    /// la racha baja el coste de la línea HUD ~3× (10–17 fps → ~42 fps solo con esto).
+    ///
+    /// **Layouts con anillo**: la racha asume paso constante entre filas, derivado de
+    /// `planeline_for` (contiguo avanza 1 planelínea por fila; interleaved, `planes`) y
+    /// **verificado** para la última fila. Si un canvas con anillo en Y envuelve dentro de la
+    /// racha (el paso no se mantiene) se cae al camino por fila (`store_plane_word`),
+    /// correcto pero sin el atajo; el caso lineal (texto/HUD) va por la ruta rápida.
+    /// \param wx columna del patrón (múltiplo de 16; fuera → `false`).
+    /// \param wy fila superior de la racha.
+    /// \param bits_by_row palabra de patrón por fila (al menos `rows` entradas).
+    /// \param rows filas de la racha (0 → `false`).
+    /// \param color planos seleccionados (bit `p` = plano `p`); el resto reciben 0, como
+    ///        `store_plane_word`.
+    /// \return `false` si `wx` no es válida o alguna fila cae fuera del bitmap (las filas
+    ///         anteriores a la que falla quedan escritas, igual que llamadas por fila).
+    bool store_plane_word_rows(eng::pix wx, eng::pix wy, const u16* bits_by_row, u8 rows, u8 color) {
+        if (!m_initialized || bits_by_row == nullptr || rows == 0u) return false;
+        if (wx < 0 || (wx & 15) != 0) return false;
+        const u32 byte = byte_for(wx);
+        if (byte + 2u > m_bytes_per_row) return false;
+        const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
+        const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
+        // Linealidad de la racha en MEMORIA: el delta entre filas consecutivas se deriva de
+        // `planeline_for` (contiguo avanza 1 por fila; interleaved, `planes`), y se comprueba
+        // que la última fila está donde toca. Con anillo que envuelva dentro de la racha (el
+        // delta no se mantiene) se cae al camino por fila, correcto y sin el atajo.
+        const u32 off0 = eng::math::mulu16(static_cast<u16>(planeline_for(wy)),
+                                           static_cast<u16>(rstride)) +
+                         byte;
+        u32 delta = rstride;
+        bool linear = true;
+        if (rows > 1u) {
+            const u32 off1 = eng::math::mulu16(static_cast<u16>(planeline_for(wy + 1)),
+                                               static_cast<u16>(rstride)) +
+                             byte;
+            const u32 offn = eng::math::mulu16(
+                                 static_cast<u16>(planeline_for(wy + static_cast<eng::pix>(rows) - 1)),
+                                 static_cast<u16>(rstride)) +
+                             byte;
+            if (off1 >= off0) {
+                delta = off1 - off0;
+                linear = (offn == off0 + (static_cast<u32>(rows) - 1u) * delta);
+            } else {
+                linear = false;
+            }
+        }
+        if (!linear) {
+            for (u8 r = 0u; r < rows; ++r) {
+                if (!store_plane_word(wx, wy + static_cast<eng::pix>(r), bits_by_row[r], color)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        // Ruta rápida en orden **fila a fila con planos dentro** (el mismo orden que las
+        // llamadas secuenciales a `store_plane_word`): el contrato de fallo -una fila que no
+        // cabe deja escritas las anteriores y devuelve false- se mantiene idéntico. Las bases
+        // por plano se calculan UNA vez **como puntero crudo** (la aritmética tipada de
+        // `Address` por store es lo caro; medido: ~2x en A500) y cada fila avanza `delta`.
+        u8* plane_base[8] {};
+        u32 plane_rel[8] {};
+        const u8 planes = (m_planes < 8u) ? m_planes : 8u;
+        u8* const mem0 = (m_frontbuffer + off0).ptr();
+        for (u8 p = 0u; p < planes; ++p) {
+            plane_base[p] = mem0 + static_cast<u32>(p) * pstride;
+            plane_rel[p] = off0 + static_cast<u32>(p) * pstride;
+        }
+        for (u8 r = 0u; r < rows; ++r) {
+            for (u8 p = 0u; p < planes; ++p) {
+                if (plane_rel[p] + 2u > m_total_bytes) return false;
+                *reinterpret_cast<u16*>(plane_base[p]) =
+                    ((color & static_cast<u8>(1u << p)) != 0u) ? bits_by_row[r]
+                                                                : static_cast<u16>(0u);
+                plane_base[p] += delta;
+                plane_rel[p] += delta;
+            }
+        }
+        return true;
+    }
+
     /// Escribe un tramo horizontal `[x0, x1]` (inclusive) en la fila `wy`. Un byte completo
     /// (16 píxeles) se resuelve con una sola escritura por plano; los extremos parciales van
     /// con máscara. Es la versión rápida del bucle de `write_pixel` para el relleno de

@@ -201,6 +201,55 @@ int main() {
 		check(pf.word(1u, 0u, 3) == 0u, "x=8 no escribe");
 	}
 
+	// 8) Racha por filas (`store_plane_word_rows`): equivalente fila a fila y genérica en
+	//    planos/color; rechazos de geometría sin escribir la racha completa.
+	{
+		u16 bits[8] {};
+		for (u8 r = 0u; r < 8u; ++r) {
+			bits[r] = static_cast<u16>(0x8001u << (r & 7u));
+		}
+		MockPlayfield a;
+		MockPlayfield b;
+		a.init(64, 64, 4);
+		b.init(64, 64, 4);
+		for (u8 r = 0u; r < 8u; ++r) {
+			check(a.store_plane_word(16, 20 + r, bits[r], 0xAu), "racha: control por fila");
+		}
+		check(b.store_plane_word_rows(16, 20, bits, 8u, 0xAu), "racha: store_plane_word_rows");
+		check(a.mem == b.mem, "racha por filas == 8 llamadas store_plane_word (4 planos, color 0xA)");
+		check(!b.store_plane_word_rows(8, 20, bits, 8u, 1u), "racha: x sin alinear a 16 -> false");
+		check(!b.store_plane_word_rows(16, 20, nullptr, 8u, 1u), "racha: puntero nulo -> false");
+		check(!b.store_plane_word_rows(16, 20, bits, 0u, 1u), "racha: 0 filas -> false");
+		// Fila fuera del bitmap: se escriben las filas previas y devuelve false en la que
+		// desborda (mismo contrato fila a fila).
+		check(!b.store_plane_word_rows(16, 61, bits, 8u, 0xAu), "racha 61..68: false en la 64");
+		check(b.word(1u, 2u, 61) == bits[0] && b.word(1u, 2u, 63) == bits[2],
+		      "racha: filas 61..63 escritas antes del rechazo");
+	}
+
+	// 9) Layout con anillo en Y dentro de la racha: cae al camino por fila y cada fila va a
+	//    su planelínea envuelta (contrato de `store_plane_word`). Periodo 8 = sin colisiones
+	//    entre las 8 filas de la racha (con periodo que solape, la última escritura gana,
+	//    igual que llamadas secuenciales).
+	{
+		struct WrapPlayfield : MockPlayfield {
+			u32 planeline_for(s32 wy) const override {
+				return static_cast<u32>(wy & 7) * m_planes; // anillo cada 8 filas
+			}
+		};
+		WrapPlayfield w;
+		w.init(64, 64, 2);
+		u16 bits[8] {};
+		for (u8 r = 0u; r < 8u; ++r) {
+			bits[r] = static_cast<u16>(0x1000u + r);
+		}
+		check(w.store_plane_word_rows(16, 2, bits, 8u, 0x3u), "anillo: racha válida");
+		for (u8 r = 0u; r < 8u; ++r) {
+			const s32 y = 2 + r;
+			check(w.word(0u, 2u, y & 7) == bits[r], "anillo: fila escrita en su planelínea envuelta");
+		}
+	}
+
 	if (g_fail != 0) {
 		std::printf("HOST-449 FALLO: %d comprobaciones\n", g_fail);
 		return 1;
