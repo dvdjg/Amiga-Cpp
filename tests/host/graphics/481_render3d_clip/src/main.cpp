@@ -18,6 +18,7 @@
 #include <eng/graphics/render3d.hpp>
 #include <eng/memory/mem_bank.hpp>
 
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -204,6 +205,61 @@ int main() {
 			}
 		}
 		check(ok, "fuzz: invariantes y proyección acotada");
+	}
+
+	// 6b) Generalizacion del culling a CUALQUIER convexo: tetraedro irregular con
+	//     rotaciones aleatorias. La visibilidad por normal 3D (camara en el origen)
+	//     debe coincidir con el signo del area proyectada para toda cara visible no
+	//     degenerada. Si el modelo fuese solo para el cubo, esto fallaria.
+	{
+		const math3d::Vec3t<CS> tetra[4] = {{1.0f, 1.0f, 1.0f},
+						 {1.0f, -1.0f, -1.0f},
+						 {-1.0f, 1.0f, -1.0f},
+						 {-1.0f, -1.0f, 1.0f}};
+		const u8 faces4[4][3] = {{0u, 1u, 2u}, {0u, 2u, 3u}, {0u, 3u, 1u}, {1u, 3u, 2u}};
+		const math3d::Vec3t<CS> origin {0.0f, 0.0f, 0.0f};
+		u32 seed = 0x9e3779b9u;
+		auto rnd = [&seed]() {
+			seed = seed * 1664525u + 1013904223u;
+			return static_cast<int>(seed >> 16u) - 32768;
+		};
+		bool ok = true;
+		for (int it = 0; it < 64 && ok; ++it) {
+			const float ax = static_cast<float>(rnd()) * (6.2831853f / 65536.0f);
+			const float ay = static_cast<float>(rnd()) * (6.2831853f / 65536.0f);
+			const CS ca = std::cos(ax), sa = std::sin(ax);
+			const CS cb = std::cos(ay), sb = std::sin(ay);
+			math3d::Vec3t<CS> w[4];
+			for (u8 k = 0u; k < 4u; ++k) {
+				const CS x = tetra[k].v[0];
+				const CS y = tetra[k].v[1];
+				const CS z = tetra[k].v[2];
+				// Rz no hace falta: dos ejes bastan para orientaciones genericas.
+				const CS xr = cb * x + sb * z;
+				const CS zr = -sb * x + cb * z;
+				w[k] = math3d::Vec3t<CS> {{xr, ca * y - sa * zr, sa * y + ca * zr}};
+				w[k].v[2] += 900.0f; // camara: z delante
+			}
+			for (u8 f = 0u; f < 4u && ok; ++f) {
+				const math3d::Vec3t<CS>& a = w[faces4[f][0]];
+				const math3d::Vec3t<CS>& b = w[faces4[f][1]];
+				const math3d::Vec3t<CS>& c = w[faces4[f][2]];
+				const bool nvis = math3d::face_visible(a, b, c, origin);
+				const CV cva {a.v[0], a.v[1], a.v[2]};
+				const CV cvb {b.v[0], b.v[1], b.v[2]};
+				const CV cvc {c.v[0], c.v[1], c.v[2]};
+				s16 xs[3] {}, ys[3] {};
+				if (!project_camera_vertex(cva, kCam, xs[0], ys[0]) ||
+				    !project_camera_vertex(cvb, kCam, xs[1], ys[1]) ||
+				    !project_camera_vertex(cvc, kCam, xs[2], ys[2])) {
+					continue;
+				}
+				const s32 area = screen_area2(xs, ys, 3u);
+				if (area > -8 && area < 8) continue; // canto de perfil: ambiguo
+				ok = ok && (nvis == (area < 0));
+			}
+		}
+		check(ok, "culling por normal 3D coincide con area proyectada (tetraedro irregular)");
 	}
 
 	// 7) `render_mesh`: una cara interior se emite; trasera se culla; doble cara la pinta;

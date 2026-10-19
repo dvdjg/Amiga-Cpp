@@ -35,6 +35,7 @@
 #include <eng/field/surface.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/core/data/mesh3d.hpp>
+#include <eng/retro/fixed_mesh.hpp>
 #include <eng/core/math/arith.hpp>
 #include <eng/graphics/polygon_planes.hpp>
 #include <eng/graphics/render3d.hpp>
@@ -176,20 +177,24 @@ struct Blit3dPlanesDemo {
 			ox = (m_phase < 200u) ? (-600 + static_cast<s32>(m_phase) * 6)
 					      : (600 - static_cast<s32>(m_phase - 200u) * 6);
 		}
-		eng::graphics::CamVertex<eng::coord> wc[8] {};
+		// Vertices de camara como Vec3t (dominio): el culling por normal de mesh3d sirve
+		// para CUALQUIER convexo con winding CCW hacia fuera (icosaedro irregular incluido).
+		eng::math3d::Vec3t<eng::coord> wv[8] {};
 		for (u8 i = 0u; i < 8u; ++i) {
-			wc[i].x = world[i].v[0] + CT::from_int(ox);
-			wc[i].y = world[i].v[1];
-			wc[i].z = world[i].v[2] + CT::from_int(kZ0);
+			wv[i] = eng::math3d::Vec3t<eng::coord> {{world[i].v[0] + CT::from_int(ox),
+							    world[i].v[1],
+							    world[i].v[2] + CT::from_int(kZ0)}};
 		}
 		// Fast path: si las 8 esquinas estan dentro del frustum, ninguna cara necesita clip
 		// y la proyeccion se hace UNA vez por vertice (8), no por cara (hasta 24).
-		bool all_inside = eng::graphics::camera_contains_vertices(cam, wc, 8u);
+		bool all_inside = eng::graphics::camera_contains_vertices(cam, wv, 8u);
 		s16 px[8] {}, py[8] {};
 		if (all_inside) {
 			for (u8 i = 0u; i < 8u; ++i) {
+				const eng::graphics::CamVertex<eng::coord> cv {wv[i].v[0], wv[i].v[1],
+									      wv[i].v[2]};
 				all_inside = all_inside && eng::graphics::project_camera_vertex(
-								  wc[i], cam, px[i], py[i]);
+								  cv, cam, px[i], py[i]);
 			}
 		}
 
@@ -200,7 +205,14 @@ struct Blit3dPlanesDemo {
 		ENG_PROF_BEGIN(1u);
 		eng::graphics::PlaneFillBuilder<6> fb {};
 		m_submitted = 0u;
+		const eng::math3d::Vec3t<eng::coord> cam_origin {};
 		for (u8 fi = 0u; fi < 6u; ++fi) {
+			// Culling por NORMAL 3D (camara en el origen): cara trasera fuera ANTES de
+			// proyectar/recortar; general para todo convexo con caras CCW desde fuera.
+			if (!eng::math3d::face_visible(wv[kCubeFaces[fi][0]], wv[kCubeFaces[fi][1]],
+						  wv[kCubeFaces[fi][2]], cam_origin)) {
+				continue;
+			}
 			u8 m = 4u;
 			if (all_inside) {
 				for (u8 k = 0u; k < 4u; ++k) {
@@ -210,7 +222,10 @@ struct Blit3dPlanesDemo {
 				}
 			} else {
 				eng::graphics::CamVertex<eng::coord> cv[4] {};
-				for (u8 k = 0u; k < 4u; ++k) { cv[k] = wc[kCubeFaces[fi][k]]; }
+				for (u8 k = 0u; k < 4u; ++k) {
+					const auto& v = wv[kCubeFaces[fi][k]];
+					cv[k] = eng::graphics::CamVertex<eng::coord> {v.v[0], v.v[1], v.v[2]};
+				}
 				eng::graphics::CamVertex<eng::coord> cl[16] {};
 				m = eng::graphics::clip_camera_polygon(cv, 4u, cam, cl, 16u);
 				if (m < 3u) continue;

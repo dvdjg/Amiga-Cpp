@@ -2,7 +2,7 @@
 
 ## Alcance
 
-Cubo convexo girando sobre 2 bitplanes, relleno por plano con Blitter (contorno ONEDOT + area fill acotado al bbox + patrón opcional), culling por winding proyectado, **fast path de frustum por objeto** y **proyección única de los 8 vértices** (no por cara). Se verifica: cubo con 3 caras de colores y relleno limpio, coste debug/release, y el **clip fino en hardware** con el modo de deriva (`kDrift`). **No cubierto**: bloqueo a 50 Hz, solapes entre sólidos (painter, no z-buffer) y el artefacto de arista compartida (1 px).
+Cubo convexo girando sobre 2 bitplanes, relleno por plano con Blitter (contorno ONEDOT + area fill acotado al bbox + patrón opcional), **culling por normal 3D general para cualquier convexo** (caras CCW desde fuera; cámara en el origen), **fast path de frustum por objeto** y **proyección única de los 8 vértices** (no por cara). Se verifica: cubo con 3 caras de colores y relleno limpio, coste debug/release, y el **clip fino en hardware** con el modo de deriva (`kDrift`). **No cubierto**: bloqueo a 50 Hz, solapes entre sólidos (painter, no z-buffer) y el artefacto de arista compartida (1 px).
 
 ## Medidas
 
@@ -14,6 +14,8 @@ Cubo convexo girando sobre 2 bitplanes, relleno por plano con Blitter (contorno 
 | `A500_release` | 33.87 | 209 424 | 1.48 | 31.4–37.2 |
 
 Evolución (debug): 12.5 fps (módulos por variable en el clip) → 16.7 (culling tipado sin libcalls) → 17.2 (pipeline 3D genérico sobre `Fixed`) → 28.2 (fast path de frustum) → **32.6** (proyección única de los 8 vértices; el bucle de caras baja a ~40k). Reparto: `actors` (transform + test de frustum) ~47k, `blits` (culling/área) ~40k, `copper` (relleno Blitter) ~130k, resto ~19k.
+
+**Culling general**: ace_visible (mesh_traits) descarta caras traseras antes de proyectar/recortar; sirve para cualquier poliedro convexo irregular (probado en HOST-481 con un tetraedro irregular bajo 64 rotaciones: coincide con el signo del área proyectada). En el modo kDrift (cruces de borde) sube de 20.3 a **26.5 fps** (ventanas 22.6–30.9).
 
 **Cadencia**: alterna frames de 1 y 2 campos (30–37 fps, dispersión ~4). No hay frames de 3+ campos; el suelo de 25 fps se cumple en todas las ventanas, sin bloqueo a 50 Hz. El relleno (65 %) es el coste dominante y su varianza (93k–169k) explica la alternancia.
 
