@@ -16,6 +16,8 @@
 //   4) `emit_armed_into`: un solo WAIT temprano para todos los canales.
 //   5) `emit_placements_into`: primera config por canal en el armado y REARME vertical del
 //      canal reutilizado en otra franja (multiplexado del allocator; demo 216).
+//   6) `emit_placements_into(..., clear_unused)`: canales sin placement quedan desactivados
+//      en la linea de armado (evita fantasmas del frame anterior).
 //
 // El scheduler se sustituye por el real ligado a un bloque Chip del arena (como HOST-105);
 // los MOVEs se leen de la copperlist construida.
@@ -315,6 +317,43 @@ void test_placements_multiplex() {
 	CHECK(color_at < pos0_at, "paleta antes del rearme de la franja 140");
 }
 
+/// `clear_unused`: un canal sin placement de este frame se desactiva en la linea de armado
+/// (si no, conservaria el sprite del frame anterior).
+void test_placements_clear_unused() {
+	std::printf("emit_placements_into: desactiva canales sin placement\n");
+
+	alignas(4) u16 d0[64] {};
+	MemoryManager mem = make_memory();
+	eng::copper::Scheduler sched = make_scheduler(mem, 256u);
+	eng::graphics::HwSpritePlacement p {};
+	p.channel = 0u;
+	p.hpos = 80u;
+	p.vstart = 100u;
+	p.height = 16u;
+	p.data = chip(d0);
+
+	eng::graphics::SpriteManager::emit_placements_into(
+		sched, eng::Span<const eng::graphics::HwSpritePlacement> {&p, 1u}, 32u, {}, {}, true);
+	sched.end();
+
+	const u16* w = sched.data();
+	const u16 count = sched.words_used();
+	Mv mv[64] {};
+	const unsigned n = collect_moves(w, count, mv, 64u);
+	CHECK(find(mv, n, 0x140u) != nullptr, "canal 0 armado");
+	for (eng::u8 c = 1u; c < 8u; ++c) {
+		const u16 ctl = static_cast<u16>(0x142u + c * 8u);
+		const u16 pth = static_cast<u16>(0x120u + c * 4u);
+		const u16 ptl = static_cast<u16>(0x122u + c * 4u);
+		const Mv* cv = find(mv, n, ctl);
+		const Mv* hv = find(mv, n, pth);
+		const Mv* lv = find(mv, n, ptl);
+		CHECK(cv != nullptr && cv->val == 0u, "canal sin placement: CTL a 0");
+		CHECK(hv != nullptr && hv->val == 0u, "canal sin placement: PTH a 0");
+		CHECK(lv != nullptr && lv->val == 0u, "canal sin placement: PTL a 0");
+	}
+}
+
 void test_rejects() {
 	std::printf("arm_object: rechazos sin emision\n");
 
@@ -343,6 +382,7 @@ int main() {
 	test_odd_x_parity();
 	test_manager_armed_into();
 	test_placements_multiplex();
+	test_placements_clear_unused();
 	test_rejects();
 
 	if (g_fail == 0) {

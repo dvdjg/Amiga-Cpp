@@ -324,6 +324,7 @@ struct XlimitedSceneConfigT {
 
     // --- Sprites hardware (a nivel de escena) ------------------------------
     eng::u32 sprite_data_bytes = 0;   // 0 = sin sprites; si > 0, reserva DATA Chip
+    bool sprites_armed = false;        // true = armar objetos una vez (WAIT temprano)
 };
 
 /// Alias del caso denso/disperso (`TileLayerMap`), retrocompatible.
@@ -519,7 +520,7 @@ public:
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, ddfstop,
-                sprites, cfg.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
+                sprites, cfg.sprites_armed, cfg.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         if (cfg.sprite_data_bytes != 0) {
             if (!m_sprites.init(memory, cfg.sprite_data_bytes)) return eng::util::unexpected(eng::Result::OutOfMemory);
@@ -708,6 +709,7 @@ public:
     /// compositor emite la zona inferior (playfield separado) tras el main.
     bool compose() {
         if (!m_initialized) return false;
+        m_single.set_sprite_placements(m_sprite_placements);
         if (m_cfg.dpf.enabled) {
             if (m_cfg.dpf.fg_canvas) {
                 return m_dual.compose(m_field[0].hardware_view(), m_fg_canvas.hardware_view());
@@ -861,6 +863,15 @@ public:
     /// COLOR16-31. Configura con `set(u8, SpriteConfig)`; la DATA en `sprite_data()`.
     graphics::SpriteManager& sprites() { return m_sprites; }
     const graphics::SpriteManager& sprites() const { return m_sprites; }
+
+    /// **Placements de sprite HW del frame** (multiplexado vertical). Vacio = usa el
+    /// `SpriteManager` como hasta ahora. Se reenvia al compositor en `compose()`; la lista
+    /// debe seguir viva hasta el final del frame y venir ordenada por `vstart`.
+    void set_sprite_placements(eng::Span<const graphics::HwSpritePlacement> placements) noexcept {
+        m_sprite_placements = placements;
+    }
+
+
     /// Superficie de dibujo sobre el playfield de scroll (coordenadas de mundo;
     /// para objetos fijos convierte con `screen_to_world_x/y`). Es el contexto de
     /// dibujo con clip; `Playfield` no dibuja.
@@ -903,6 +914,7 @@ private:
     CanvasPlayfield m_hud {};        // franja HUD (lienzo plano, si hud_height>0)
     CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
     graphics::SpriteManager m_sprites {};
+    eng::Span<const graphics::HwSpritePlacement> m_sprite_placements {};
     XlimitedTileBank m_tiles[2] {};
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};

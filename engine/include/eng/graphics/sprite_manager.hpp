@@ -327,7 +327,8 @@ public:
     static void emit_placements_into(Sched& sched, eng::Span<const HwSpritePlacement> placements,
                                      u16 arm_line = 32u,
                                      eng::Span<const SpritePaletteEvent> extra = {},
-                                     eng::Span<const SpriteDmaChain> chains = {}) {
+                                     eng::Span<const SpriteDmaChain> chains = {},
+                                     bool clear_unused = false) {
         // 0) Cobertura de cadena por canal: `chains[c]` lista si cubre todos los placements
         //    válidos del canal `c` (mismo criterio de validez que el resto de la función).
         bool use_chain[8] {};
@@ -350,8 +351,25 @@ public:
         }
         // 1) Primera config de cada canal: en la línea de armado temprana (un solo WAIT).
         //    Canal con cadena: `SPRxPT` a la cadena; el resto: `arm_object` (POS/CTL/PT).
+        //    Con `clear_unused`, los canales sin placement de este frame se desactivan en
+        //    la misma línea temprana (si no, conservarían el sprite del frame anterior).
+        bool has[8] {};
+        for (eng::u16 i = 0; i < placements.size(); ++i) {
+            const HwSpritePlacement& p = placements[i];
+            if (p.channel < 8u && !p.data.empty() && p.height != 0u && p.width_words != 0u) {
+                has[p.channel] = true;
+            }
+        }
         bool seen[8] {};
-        sched.wait_line_safe(arm_line);
+        sched.wait_line(static_cast<u8>(arm_line & 0xffu)); // arm_line es temprana (<256)
+        if (clear_unused) {
+            for (u8 c = 0u; c < 8u; ++c) {
+                if (has[c]) continue;
+                sched.move(copper::sprite_ctl_register(c), 0u);
+                sched.move(copper::sprite_pointer_high_register(c), 0u);
+                sched.move(copper::sprite_pointer_low_register(c), 0u);
+            }
+        }
         for (eng::u16 i = 0; i < placements.size(); ++i) {
             const HwSpritePlacement& p = placements[i];
             if (p.channel >= 8u || p.data.empty() || p.height == 0u || p.width_words == 0u) {
@@ -399,7 +417,8 @@ public:
             const u16 eline = (ei < extra.size()) ? extra.data()[ei].line : 0xffffu;
             if (rline <= eline) {
                 const HwSpritePlacement& p = placements[r_idx];
-                sched.wait_line_safe(rline);
+                if (rline <= 255u) sched.wait_line(static_cast<u8>(rline));
+                else sched.wait_line_safe(rline);
                 arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
                 pull_rearm();
             } else {

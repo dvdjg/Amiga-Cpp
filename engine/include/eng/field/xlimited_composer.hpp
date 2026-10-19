@@ -62,6 +62,9 @@ public:
         u16 ddfstrt = xlimited_detail::kDdfStrt;
         u16 ddfstop = xlimited_detail::kDdfStop;
         eng::Ref<const graphics::SpriteManager> sprites {}; // opcional
+        // Si true, arma los sprites una vez en una línea temprana (objetos); si false,
+        // usa `emit_into` (un WAIT por vstart, para multiplexado/rearme por línea).
+        bool sprites_armed = false;
         // Raster colors opcionales (gradiente del color del patrón de fondo).
         eng::Span<const ColorZone> color_zones {};
     };
@@ -82,6 +85,17 @@ public:
     bool compose(const PlayfieldHardwareView& view) {
         return compose(view, nullptr);
     }
+
+    /// **Placements de sprite hardware del frame** (multiplexado vertical). Si la lista no
+    /// esta vacia sustituye al `SpriteManager` como fuente de los sprites: el compositor
+    /// emite la primera config de cada canal en la linea temprana y los rearmes por
+    /// `vstart`, y desactiva los canales sin placement (evita fantasmas del frame previo).
+    /// La lista debe venir ordenada por `vstart` no decreciente.
+    void set_sprite_placements(eng::Span<const graphics::HwSpritePlacement> placements) noexcept {
+        m_placements = placements;
+    }
+
+
 
     /// Zona OVERLAY genérica: un playfield SEPARADO mostrado en la franja inferior
     /// de la ventana (raster `DIWSTRT_y + view.viewport_h` en adelante). Es un
@@ -204,9 +218,11 @@ private:
     void emit_display_header(Sched& sched, const PlayfieldHardwareView& view) const {
         // Fuente única de la cabecera (la misma que usa `scene::RasterLayout`).
         FieldHeaderConfig h {};
+        const u16 sprite_dma = static_cast<u16>(
+            (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0u) |
+            (m_placements.empty() ? 0u : 0x0020u)); // SPREN para placements externos
         h.dmacon = static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
-                                    copper::DmaCopper | copper::DmaBitplane |
-                                    (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0));
+                                    copper::DmaCopper | copper::DmaBitplane | sprite_dma);
         // BPLCON0 por el constructor único (`bplcon0_for`): BPU = planos del view; con 6
         // planos y HAM=DPF=0 el chipset entra en **EHB** (AHRM 3.ª cap. 3 "Color selection
         // in Extra Half Brite mode"; WinUAE `drawing.cpp:2741`), sin bit propio en BPLCON0.
@@ -236,6 +252,23 @@ private:
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         emit_display_header(sched, view);
         emit_scroll_pointers(sched, view);
+        // Sprites hardware (delante de los playfields): SPRxCTL/POS/PT + paleta 16-31.
+        // Van ANTES de los WAITs de raster (color zones/split/HUD) para no retroceder
+        // la línea de espera; el armado de objetos usa un único WAIT temprano.
+        if (!m_placements.empty()) {
+            sched.emit_palette(m_cfg.palette, 16, 16); // paleta de sprites (COLOR16-31)
+            graphics::SpriteManager::emit_placements_into(sched, m_placements, 32u, {}, {},
+                                                          true);
+        } else if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
+            sched.emit_palette(m_cfg.palette, 16, 16); // paleta de sprites (COLOR16-31)
+            if (m_cfg.sprites_armed) {
+                // Objetos: un solo WAIT temprano evita WAITs >255 y la fragilidad de
+                // rearmar por línea (DK: sprites en la mitad inferior del playfield).
+                m_cfg.sprites->emit_armed_into(sched, 32u);
+            } else {
+                m_cfg.sprites->emit_into(sched);
+            }
+        }
         // Raster colors: WAIT en cada línea + MOVE del color (orden ASCENDENTE).
         // Requieren un display lineal (sin split de Copper) para no desordenar el raster.
         for (eng::usize z = 0; z < m_cfg.color_zones.size(); ++z) {
@@ -303,11 +336,6 @@ private:
             sched.wait_line(0xf8);
             sched.move(copper::Register::COLOR00, 0x0000);
         }
-        // Sprites hardware (delante de los playfields): SPRxCTL/POS/PT + paleta 16-31.
-        if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
-            sched.emit_palette(m_cfg.palette, 16, 16); // paleta de sprites (COLOR16-31)
-            m_cfg.sprites->emit_into(sched);
-        }
         sched.end();
         m_copper_words = sched.words_used();
         // Validación de setup (capa 2 de `COHERENCIA_DE_SETUP.md`): la cabecera del
@@ -328,6 +356,7 @@ private:
     }
 
     Config m_cfg {};
+    eng::Span<const graphics::HwSpritePlacement> m_placements {};
     copper::DoubleBuffer m_copper {};
     u16 m_copper_words = 0;
     bool m_initialized = false;
