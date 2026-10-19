@@ -113,6 +113,22 @@ void test_dirty() {
 	CHECK(hud.dirty_revision() == r0 + 3u);
 	CHECK(!hud.set_counter(counter, 42));
 	CHECK(hud.dirty_revision() == r0 + 3u);
+
+	// **Skins (H6)**: el estilo del medidor/contador marca sucio solo al cambiar; el
+	// valor y el texto formateado no cambian con el estilo.
+	CHECK(hud.set_meter_style(meter, eng::hud::MeterStyle::Segmented));
+	CHECK(hud.dirty_revision() == r0 + 4u);
+	CHECK(hud.meter(meter).style == eng::hud::MeterStyle::Segmented);
+	CHECK(!hud.set_meter_style(meter, eng::hud::MeterStyle::Segmented)); // sin cambio
+	CHECK(hud.dirty_revision() == r0 + 4u);
+	CHECK(hud.set_counter_style(counter, eng::hud::CounterStyle::Bar, 100u));
+	CHECK(hud.dirty_revision() == r0 + 5u);
+	CHECK(hud.counter(counter).style == eng::hud::CounterStyle::Bar);
+	CHECK(hud.counter(counter).present_max == 100u);
+	CHECK(text_is(hud.counter_text(counter), "42")); // el formato no cambia con el estilo
+	CHECK(!hud.set_counter_style(counter, eng::hud::CounterStyle::Bar, 100u)); // sin cambio
+	CHECK(hud.set_counter_style(counter, eng::hud::CounterStyle::Bar, 200u)); // cambia la escala
+	CHECK(hud.dirty_revision() == r0 + 6u);
 }
 
 /// Contadores: base 10, relleno de ceros, base 16 en mayúsculas, negativos y base 2.

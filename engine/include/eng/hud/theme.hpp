@@ -31,6 +31,15 @@ enum class HudFont : eng::u8 {
 	Font3x5,     ///< micro-fuente para etiquetas densas
 };
 
+/// Estilo de presentación de un contador (*skins*, H6): el mismo valor se materializa como
+/// dígitos formateados (base/dígitos del contador), *pips* repetidos o barra proporcional
+/// contra `present_max`. El modelo no cambia al cambiar de estilo.
+enum class CounterStyle : eng::u8 {
+	Numeric = 0, ///< dígitos formateados (`Counter::base`/`digits`/`pad_zero`)
+	Pips,        ///< un *pip* por unidad (hasta 8; `present_max` escala)
+	Bar,         ///< barra proporcional al valor contra `present_max`
+};
+
 /// Tag de dominio del **atlas de iconos** (memoria Chip que lee el Blitter o el Blitter-copy).
 struct HudAtlasTag;
 

@@ -111,9 +111,11 @@ struct Counter {
 	eng::u8 digits = 1u;                      ///< ancho mínimo en dígitos (1..kHudMaxDigits)
 	eng::u8 base = 10u;                       ///< base (2..36)
 	bool pad_zero = false;                    ///< true = rellena con ceros hasta `digits`
+	CounterStyle style = CounterStyle::Numeric; ///< estilo de presentación (*skins*, H6)
+	eng::u16 present_max = 0u;                ///< escala para `Pips`/`Bar` (0 = sin escala)
 	bool dirty = true;                        ///< true si cambió desde el último `clear_dirty`
 	eng::u8 length = 0u;                      ///< longitud del texto formateado
-	char text[kHudCounterChars] {};           ///< texto formateado (sin heap; válido hasta el siguiente `set`)
+	char text[kHudCounterChars] {};           ///< texto formateado (sin heap; válido hasta el siguiente `set_counter`)
 };
 
 /// Vista de un slot de inventario/equipo: descriptor copiable que el juego refresca por frame.
@@ -507,6 +509,20 @@ public:
 		return true;
 	}
 
+	/// Cambia el **estilo** de presentación de un medidor (*skins*, H6): el modelo no cambia
+	/// de forma, solo cómo lo pinta el presentador (`Linear`/`Segmented`/`Pips`/`Raster`).
+	/// `true` si cambió (marca sucio); el repintado es del juego.
+	[[nodiscard]] bool set_meter_style(MeterHandle handle, MeterStyle style) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_meters_used);
+		Meter& m = m_meters[handle.index];
+		if (m.style == style) {
+			return false;
+		}
+		m.style = style;
+		mark_dirty(m);
+		return true;
+	}
+
 	// --- Contadores -------------------------------------------------------------------------
 
 	/// Añade un contador con base (2..36), dígitos mínimos (1..kHudMaxDigits) y relleno de ceros.
@@ -532,9 +548,8 @@ public:
 		return m_counters[handle.index];
 	}
 
-	/// Texto formateado de un contador (observador válido hasta el siguiente `set_counter`).
-	[[nodiscard]] eng::Span<const char> counter_text(CounterHandle handle) const noexcept {
-		const Counter& c = counter(handle);
+		/// Texto formateado de un contador (observador válido hasta el siguiente `set_counter`).
+	[[nodiscard]] eng::Span<const char> counter_text(CounterHandle handle) const noexcept {		const Counter& c = counter(handle);
 		return eng::Span<const char> {c.text, c.length};
 	}
 
@@ -547,6 +562,22 @@ public:
 		}
 		c.value = value;
 		(void)counter_format(c);
+		mark_dirty(c);
+		return true;
+	}
+
+	/// Cambia el **estilo** de presentación de un contador (*skins*, H6): `Numeric` (dígitos),
+	/// `Pips` o `Bar` contra `present_max`. El modelo no cambia de valor; el presentador usa
+	/// `style`/`present_max` para materializarlo. `true` si cambió (marca sucio).
+	[[nodiscard]] bool set_counter_style(CounterHandle handle, CounterStyle style,
+					     eng::u16 present_max = 0u) noexcept {
+		ENG_ASSERT(handle.valid() && handle.index < m_counters_used);
+		Counter& c = m_counters[handle.index];
+		if (c.style == style && c.present_max == present_max) {
+			return false;
+		}
+		c.style = style;
+		c.present_max = present_max;
 		mark_dirty(c);
 		return true;
 	}
