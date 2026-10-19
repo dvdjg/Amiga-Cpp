@@ -328,7 +328,9 @@ if [ -f "$DEMO_PATH/build.args" ]; then
 			ENGINE_OPT) ENGINE_OPT="$_v" ;;
 			DEMO_OPT) DEMO_OPT="$_v" ;;
 			C_OPT) C_OPT="$_v" ;;
-			DEMO_FLAGS) DEMO_FLAGS="$_v" ;;
+			# El valor del fichero se COMBINA con un `DEMO_FLAGS` del entorno (ablaciones de
+			# depuracion por env sin tocar el `build.args`: `DEMO_FLAGS=-DK_XXX bash ...`).
+			DEMO_FLAGS) DEMO_FLAGS="$_v ${DEMO_FLAGS:-}" ;;
 			FAST_STACK) FAST_STACK="$_v" ;;
 		esac
 	done <"$DEMO_PATH/build.args"
