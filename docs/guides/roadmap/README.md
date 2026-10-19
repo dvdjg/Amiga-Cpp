@@ -36,6 +36,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_HW_ZOOM.md](ROADMAP_HW_ZOOM.md) | **ACTIVO** | Zoom hardware vertical (`BPLxMOD`) y horizontal (`BPLCON1`/$102). |
 | [ROADMAP_RASTER_ROAD.md](ROADMAP_RASTER_ROAD.md) | **ACTIVO** | Carretera/suelo por raster (`BPLxPT` por línea): perspectiva, curvas y rasantes. |
 | [ROADMAP_3D_PRESENTACION.md](ROADMAP_3D_PRESENTACION.md) | **ACTIVO** | Presentación de juegos 3D: fotogramas intermedios por paneo de cámara (Full/Fake a 25/50 Hz) y horizonte cielo/tierra por Copper en DPF 2+3; contrato de clear del relleno por plano. |
+| [ROADMAP_3D_BLITTER.md](ROADMAP_3D_BLITTER.md) | **ACTIVO** | Librería 3D acelerada por Blitter (eng::graphics::render3d): clip de cámara (near + laterales), proyección acotada, painter por objetos y pila de tests 087 (triángulos) / 088 (pentágonos) / 089 (poliedros por esquinas); HOST-481. |
 | [ROADMAP_WORKBENCH.md](ROADMAP_WORKBENCH.md) | **ACTIVO** | Portabilidad a Workbench: UI + mini-SO + servicios del sistema. |
 | [REFACTOR_PLAYFIELD_SCROLL.md](REFACTOR_PLAYFIELD_SCROLL.md) | **ACTIVO** | Fases para llevar playfields/scroll al modelo objetivo (algoritmo/superficie/composición/máquina). |
 | [REFACTOR_SCALAR_GENERICO.md](REFACTOR_SCALAR_GENERICO.md) | **ACTIVO** | Escalar genérico (Fixed de 32 bits) y portabilidad a 32/64 bits sin duplicar algoritmos. |
