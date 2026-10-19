@@ -249,7 +249,7 @@ void rebuild_world_from_port() {
 /// Interna un metatile en la tabla y devuelve su indice (o 0xFFFF si no cabe).
 /// Hash directo con sondeo: el dedupe lineal escaneaba hasta 512 entradas por celda.
 eng::u16 intern_metatile(const eng::u8 t4[4], eng::u8 pal) {
-	const eng::u32 key = static_cast<eng::u32>(t4[0]) |
+		const eng::u32 key = static_cast<eng::u32>(t4[0]) |
 			     (static_cast<eng::u32>(t4[1]) << 8u) |
 			     (static_cast<eng::u32>(t4[2]) << 16u) |
 			     (static_cast<eng::u32>(t4[3]) << 24u);
@@ -349,7 +349,7 @@ struct DkXlGame {
 	eng::u32 m_pre_chr = 0u;
 	bool m_pre_ok = false;
 	bool m_pre16_ok = false;
-	eng::u32 m_cache_key[kSpriteCacheSlots] {};
+	eng::u64 m_cache_key[kSpriteCacheSlots] {};
 	eng::u32 m_cache_stamp[kSpriteCacheSlots] {};
 	eng::u32 m_frame_stamp = 0u;
 	eng::u16 m_pre_hits_frame = 0u;
@@ -390,11 +390,14 @@ struct DkXlGame {
 		eng::u8 oy;
 		eng::u8 tile;
 		eng::u8 tile2;   // mitad inferior si `merged` (par vertical de 8x8)
+		eng::u8 tile_r;  // tile derecho si `wide` (par horizontal)
+		eng::u8 tile2_r; // derecho de la mitad inferior si `merged` + `wide`
 		eng::u8 attr;
 		eng::u8 ox;
 		eng::u8 index;
 		eng::u8 h;       // 8 u 16
 		bool merged;
+		bool wide;
 	};
 
 	/// Tile CHR y fila de origen para una linea de la entrada OAM. Soporta 8x8 y 8x16
@@ -403,17 +406,18 @@ struct DkXlGame {
 	struct SpriteRow {
 		const eng::u8* chr;
 		eng::u8 row;
+		const eng::u8* chr_r; // null si el sprite no es de 16 px
+		eng::u8 row_r;
 	};
 	SpriteRow sprite_row(const OamSprite& o, eng::u16 line) const {
 		const eng::u16 h = o.merged ? 16u : m_sprite_height;
 		const eng::u16 l = (o.attr & 0x80u) ? static_cast<eng::u16>(h - 1u - line) : line;
-		if (o.merged) {
-			const eng::u8 tile = (l >= 8u) ? o.tile2 : o.tile;
-			return { &CHR_ROM[g_spr_chr + static_cast<eng::u32>(tile) * 16u],
-				 static_cast<eng::u8>(l & 7u) };
-		}
 		if (!m_sprite_tall) {
-			return { &CHR_ROM[g_spr_chr + static_cast<eng::u32>(o.tile) * 16u],
+			const eng::u8 tile = (o.merged && l >= 8u) ? o.tile2 : o.tile;
+			const eng::u8 tile_r = (o.merged && l >= 8u) ? o.tile2_r : o.tile_r;
+			return { &CHR_ROM[g_spr_chr + static_cast<eng::u32>(tile) * 16u],
+				 static_cast<eng::u8>(l & 7u),
+				 o.wide ? &CHR_ROM[g_spr_chr + static_cast<eng::u32>(tile_r) * 16u] : nullptr,
 				 static_cast<eng::u8>(l & 7u) };
 		}
 		const eng::u32 base = (o.tile & 1u) ? 0x1000u : 0u;
@@ -433,17 +437,31 @@ struct DkXlGame {
 			const SpriteRow sr = sprite_row(o, line);
 			eng::u16 a = sr.chr[sr.row];
 			eng::u16 b = sr.chr[8u + sr.row];
-			if (flip_h) {
-				eng::u16 fa = 0u, fb = 0u;
-				for (eng::u8 k = 0u; k < 8u; ++k) {
-					fa = static_cast<eng::u16>(fa | (((a >> k) & 1u) << (7u - k)));
-					fb = static_cast<eng::u16>(fb | (((b >> k) & 1u) << (7u - k)));
-				}
-				a = fa;
-				b = fb;
+			eng::u16 a2 = 0u, b2 = 0u;
+			if (sr.chr_r != nullptr) {
+				a2 = sr.chr_r[sr.row_r];
+				b2 = sr.chr_r[8u + sr.row_r];
 			}
-			inst[line * 2u + 0u] = static_cast<eng::u16>(a << 8u);
-			inst[line * 2u + 1u] = static_cast<eng::u16>(b << 8u);
+			if (flip_h) {
+				const auto flip8 = [](eng::u16 v) {
+					eng::u16 f = 0u;
+					for (eng::u8 k = 0u; k < 8u; ++k) {
+						f = static_cast<eng::u16>(f | (((v >> k) & 1u) << (7u - k)));
+					}
+					return f;
+				};
+				a = flip8(a);
+				b = flip8(b);
+				a2 = flip8(a2);
+				b2 = flip8(b2);
+			}
+			if (sr.chr_r != nullptr) {
+				inst[line * 2u + 0u] = static_cast<eng::u16>((a << 8u) | a2);
+				inst[line * 2u + 1u] = static_cast<eng::u16>((b << 8u) | b2);
+			} else {
+				inst[line * 2u + 0u] = static_cast<eng::u16>(a << 8u);
+				inst[line * 2u + 1u] = static_cast<eng::u16>(b << 8u);
+			}
 		}
 		inst[h * 2u + 0u] = 0u;
 		inst[h * 2u + 1u] = 0u;
@@ -452,23 +470,26 @@ struct DkXlGame {
 	const eng::u16* sprite_instance(const OamSprite& o) {
 		const eng::u16 slot = static_cast<eng::u16>(o.tile * 4u +
 			((o.attr & 0x40u) ? 1u : 0u) + ((o.attr & 0x80u) ? 2u : 0u));
-		if (!o.merged && m_sprite_tall && m_pre16_ok) {
+		if (!o.merged && !o.wide && m_sprite_tall && m_pre16_ok) {
 			++m_pre_hits_frame;
 			return reinterpret_cast<const eng::u16*>(m_sprite_pre16.view.data() +
 				static_cast<eng::u32>(slot) * kSpriteMaxInstanceWords * 2u);
 		}
-		if (!o.merged && !m_sprite_tall && m_pre_ok && g_spr_chr == m_pre_chr) {
+		if (!o.merged && !o.wide && !m_sprite_tall && m_pre_ok && g_spr_chr == m_pre_chr) {
 			++m_pre_hits_frame;
 			return reinterpret_cast<const eng::u16*>(m_sprite_pre.view.data() +
 				static_cast<eng::u32>(slot) * kSprite8x8InstanceWords * 2u);
 		}
-		const eng::u32 key = static_cast<eng::u32>(
-			o.tile | (static_cast<eng::u32>(o.tile2) << 8u) |
-			((o.attr & 0x40u) ? 0x10000u : 0u) |
-			((o.attr & 0x80u) ? 0x20000u : 0u) |
-			(o.merged ? 0x40000u : 0u) |
-			(m_sprite_tall ? 0x80000u : 0u) |
-			(!m_sprite_tall && g_spr_chr != 0u ? 0x100000u : 0u));
+		const eng::u64 key =
+			o.tile | (static_cast<eng::u64>(o.tile2) << 8u) |
+			(static_cast<eng::u64>(o.tile_r) << 16u) |
+			(static_cast<eng::u64>(o.tile2_r) << 24u) |
+			((o.attr & 0x40u) ? (1ull << 32u) : 0ull) |
+			((o.attr & 0x80u) ? (1ull << 33u) : 0ull) |
+			(o.merged ? (1ull << 34u) : 0ull) |
+			(o.wide ? (1ull << 35u) : 0ull) |
+			(m_sprite_tall ? (1ull << 36u) : 0ull) |
+			(!m_sprite_tall && g_spr_chr != 0u ? (1ull << 37u) : 0ull);
 		// Hash directo + sondeo lineal corto; el caso normal es 1-2 comparaciones.
 		constexpr eng::u16 kMask = static_cast<eng::u16>(kSpriteCacheSlots - 1u);
 		eng::u16 cslot = static_cast<eng::u16>(key & kMask);
@@ -506,18 +527,28 @@ struct DkXlGame {
 			const SpriteRow sr = sprite_row(o, line);
 			eng::u16 a = sr.chr[sr.row];
 			eng::u16 b = sr.chr[8u + sr.row];
-			if (flip_h) {
-				eng::u16 fa = 0u, fb = 0u;
-				for (eng::u8 k = 0u; k < 8u; ++k) {
-					fa = static_cast<eng::u16>(fa | (((a >> k) & 1u) << (7u - k)));
-					fb = static_cast<eng::u16>(fb | (((b >> k) & 1u) << (7u - k)));
-				}
-				a = fa;
-				b = fb;
+			eng::u16 a2 = 0u, b2 = 0u;
+			if (sr.chr_r != nullptr) {
+				a2 = sr.chr_r[sr.row_r];
+				b2 = sr.chr_r[8u + sr.row_r];
 			}
-			for (eng::u8 col = 0u; col < 8u; ++col) {
+			if (flip_h) {
+				const auto flip8 = [](eng::u16 v) {
+					eng::u16 f = 0u;
+					for (eng::u8 k = 0u; k < 8u; ++k) {
+						f = static_cast<eng::u16>(f | (((v >> k) & 1u) << (7u - k)));
+					}
+					return f;
+				};
+				a = flip8(a); b = flip8(b); a2 = flip8(a2); b2 = flip8(b2);
+			}
+			for (eng::u8 col = 0u; col < 16u; ++col) {
+				const eng::u16 src = (col < 8u) ? a : a2;
+				const eng::u16 srcb = (col < 8u) ? b : b2;
+				const eng::u8 bit_col = static_cast<eng::u8>(col & 7u);
 				const eng::u8 bit = static_cast<eng::u8>(
-					((a >> (7u - col)) & 1u) | (((b >> (7u - col)) & 1u) << 1u));
+					((src >> (7u - bit_col)) & 1u) |
+					(((srcb >> (7u - bit_col)) & 1u) << 1u));
 				if (bit == 0u) continue;
 				const eng::u32 o = static_cast<eng::u32>(line) * 16u + col;
 				px[o] = m_spr_to_bg[sub * 4u + bit];
@@ -615,12 +646,34 @@ struct DkXlGame {
 			s.tile = e[1];
 			s.attr = e[2];
 			s.ox = e[3];
-			s.tile2 = 0u; s.h = 8u; s.merged = false;
+			s.tile2 = 0u; s.tile_r = 0u; s.tile2_r = 0u; s.h = 8u; s.merged = false; s.wide = false;
 			s.index = i;
 		}
-		// Fusion vertical de dos OAM 8x8 contiguas (misma X, paleta y flips) en una sola
-		// entrada de 16 lineas: la mitad de placements para objetos 16x16. Sprite 0 se
-		// mantiene aparte para no alterar su hit.
+		// Fusion horizontal: dos OAM 8x8 contiguas en X (misma Y/paleta/flips) caben en
+		// los 16 px de un canal Amiga. Luego la fusion vertical las convierte en 16x16.
+		if (!m_sprite_tall) {
+			bool used[64] {};
+			for (eng::u16 i = 0u; i < n; ++i) {
+				if (used[i] || sprites[i].index == 0u) continue;
+				for (eng::u16 j = static_cast<eng::u16>(i + 1u); j < n; ++j) {
+					if (used[j] || sprites[j].index == 0u) continue;
+					if (sprites[j].oy == sprites[i].oy &&
+					    sprites[j].ox == static_cast<eng::u8>(sprites[i].ox + 8u) &&
+					    (sprites[j].attr & 0xC3u) == (sprites[i].attr & 0xC3u)) {
+						sprites[i].tile_r = sprites[j].tile;
+						sprites[i].wide = true;
+						used[j] = true;
+						break;
+					}
+				}
+			}
+			eng::u16 m = 0u;
+			for (eng::u16 i = 0u; i < n; ++i) if (!used[i]) sprites[m++] = sprites[i];
+			n = m;
+		}
+
+		// Fusion vertical de dos filas del mismo objeto (misma X/paleta/flips) en 16 lineas.
+		// Sprite 0 se mantiene aparte para no alterar su hit.
 		if (!m_sprite_tall) {
 			bool used[64] {};
 			for (eng::u16 i = 0u; i < n; ++i) {
@@ -629,8 +682,10 @@ struct DkXlGame {
 					if (used[j] || sprites[j].index == 0u) continue;
 					if (sprites[j].oy == static_cast<eng::u8>(sprites[i].oy + 8u) &&
 					    sprites[j].ox == sprites[i].ox &&
+					    sprites[j].wide == sprites[i].wide &&
 					    (sprites[j].attr & 0xC3u) == (sprites[i].attr & 0xC3u)) {
 						sprites[i].tile2 = sprites[j].tile;
+						sprites[i].tile2_r = sprites[j].tile_r;
 						sprites[i].h = 16u;
 						sprites[i].merged = true;
 						used[j] = true;
@@ -829,7 +884,7 @@ struct DkXlGame {
 			return;
 		}
 		for (eng::u16 i = 0u; i < kSpriteCacheSlots; ++i) {
-			m_cache_key[i] = 0xFFFFFFFFu;
+			m_cache_key[i] = 0xFFFFFFFFFFFFFFFFull;
 			m_cache_stamp[i] = 0u;
 		}
 		m_sprite_pre = backend.memory_manager().chip().reserve<eng::SpriteTag>(kSpritePreBytes, 16u);
