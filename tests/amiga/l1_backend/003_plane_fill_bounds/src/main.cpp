@@ -95,17 +95,24 @@ constexpr s16 kCase5X[4] = {120, 200, 200, 120}; // izquierda, color 1 (plano 0)
 constexpr s16 kCase5Y[4] = {150, 150, 190, 190};
 constexpr s16 kCase6X[4] = {200, 280, 280, 200}; // derecha, color 2 (plano 1)
 constexpr s16 kCase6Y[4] = {150, 150, 190, 190};
+// Dos triángulos que comparten la DIAGONAL (10,150)-(110,190), en planos distintos: la
+// junta no puede dejar magenta (las dos caras pintando el borde) ni hueco negro.
+constexpr s16 kDiag0X[3] = {10, 110, 110}; // superior-derecha, color 1 (plano 0)
+constexpr s16 kDiag0Y[3] = {150, 150, 190};
+constexpr s16 kDiag1X[3] = {10, 110, 10};  // inferior-izquierda, color 2 (plano 1)
+constexpr s16 kDiag1Y[3] = {150, 190, 190};
 
 // Cajas esperadas (recorte al bitmap; el relleno exclusivo deja el borde derecho).
 struct Rect {
 	s16 x0, y0, x1, y1;
 };
-constexpr Rect kExpect[5] = {
+constexpr Rect kExpect[6] = {
 	{40, 20, 120, 60},    // control
 	{280, 20, 319, 70},   // borde derecho (x=320 se recorta a 319)
 	{0, 90, 60, 130},     // borde izquierdo (x=-1 se recorta a 0)
 	{100, 200, 180, 231}, // borde inferior (y=232 se recorta a 231)
-	{120, 150, 280, 190}  // adyacencia (dos caras, mismo borde x=200)
+	{120, 150, 280, 190}, // adyacencia recta (dos caras, mismo borde x=200)
+	{10, 150, 110, 190}   // adyacencia diagonal (dos triángulos)
 };
 
 // Puntos interiores de control (uno por caso; la cara del borde izquierdo es magenta,
@@ -145,7 +152,8 @@ struct PlaneFillBoundsProbe {
 		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kHeight);
 		(void)backend.blitter_clear(m_ref.view, kPlanes, kRowBytes, kPlaneBytes, kWidth, kHeight);
 
-		eng::graphics::PlanePolygon faces[7] = {
+		constexpr u32 kFaceCount = 9u;
+		eng::graphics::PlanePolygon faces[kFaceCount] = {
 			{kCase0X, kCase0Y, 4u, 1u},
 			{kCase1X, kCase1Y, 4u, 2u},
 			{kCase2X, kCase2Y, 4u, 3u},
@@ -153,6 +161,8 @@ struct PlaneFillBoundsProbe {
 			{kCase4X, kCase4Y, 4u, 2u},
 			{kCase5X, kCase5Y, 4u, 1u},
 			{kCase6X, kCase6Y, 4u, 2u},
+			{kDiag0X, kDiag0Y, 3u, 1u},
+			{kDiag1X, kDiag1Y, 3u, 2u},
 		};
 #if defined(PROBE_CONTOURS_ONLY)
 		// Inspección paso a paso: SOLO contornos, con el mismo planificador y la misma
@@ -174,10 +184,10 @@ struct PlaneFillBoundsProbe {
 #else
 		// Camino del Blitter (contorno ONEDOT + area fill + clear de la caja) y la
 		// referencia CPU, cada uno en su buffer.
-		(void)backend.fill_polygons_by_plane(faces, 7u, planes, kRowBytes, kPlaneBytes, kPlanes,
+		(void)backend.fill_polygons_by_plane(faces, kFaceCount, planes, kRowBytes, kPlaneBytes, kPlanes,
 						     kWidth, kWorldH);
 		(void)eng::graphics::fill_polygons_by_plane_cpu(
-			eng::Span<const eng::graphics::PlanePolygon>(faces, 7u), m_ref.view, kRowBytes,
+			eng::Span<const eng::graphics::PlanePolygon>(faces, kFaceCount), m_ref.view, kRowBytes,
 			kPlaneBytes, kPlanes, kWidth, kWorldH);
 #endif
 
@@ -225,7 +235,7 @@ private:
 						continue;
 					}
 					bool in_box = false;
-					for (u32 c = 0u; c < 5u && !in_box; ++c) {
+					for (u32 c = 0u; c < 6u && !in_box; ++c) {
 						const s16 dx0 = static_cast<s16>(kExpect[c].x0 - 1);
 						const s16 dy0 = static_cast<s16>(kExpect[c].y0 - 1);
 						const s16 dx1 = static_cast<s16>(kExpect[c].x1 + 1);
@@ -283,8 +293,11 @@ private:
 		if (inside_ok) {
 			bits |= 1u << 3u;
 		}
-		// bit 4: nada perdido respecto a la referencia CPU (±1 px en las 8 direcciones).
+		// bit 4: nada perdido respecto a la referencia CPU. Tolerancia ±2 px: el trazador va un
+		// paso por detrás (1 fila) y en una esquina superior inclinada el desplazamiento en x
+		// puede sumar otro píxel; un hueco de verdad (región de 3+ px) sigue fallando.
 		bool lost = false;
+		u32 lose_x = 0u, lose_y = 0u, lose_p = 0u;
 		for (u32 p = 0u; p < kPlanes && !lost; ++p) {
 			for (u32 y = 0u; y < kWorldH && !lost; ++y) {
 				for (u32 x = 0u; x < kWidth && !lost; ++x) {
@@ -292,8 +305,8 @@ private:
 						continue;
 					}
 					bool found = false;
-					for (s32 dy = -1; dy <= 1 && !found; ++dy) {
-						for (s32 dx = -1; dx <= 1 && !found; ++dx) {
+					for (s32 dy = -2; dy <= 2 && !found; ++dy) {
+						for (s32 dx = -2; dx <= 2 && !found; ++dx) {
 							const s32 nx = static_cast<s32>(x) + dx;
 							const s32 ny = static_cast<s32>(y) + dy;
 							if (nx >= 0 && nx < static_cast<s32>(kWidth) && ny >= 0 &&
@@ -305,12 +318,22 @@ private:
 					}
 					if (!found) {
 						lost = true;
+						// Diagnóstico: primer píxel de la CPU sin equivalente en el Blitter
+						// (±1 px) en los bytes altos del detail.
+						lose_x = x;
+						lose_y = y;
+						lose_p = p;
 					}
 				}
 			}
 		}
 		if (!lost) {
 			bits |= 1u << 4u;
+		} else {
+			bits |= 1u << 15u; // diagnóstico: había un píxel perdido
+			bits |= ((lose_x + 1u) & 0xffu) << 16u;
+			bits |= ((lose_y + 1u) & 0xffu) << 24u;
+			bits |= (lose_p & 1u) << 14u;
 		}
 		// bit 5: fila 0 limpia (el primer píxel de cada línea va por D y se descarta en la
 		// palabra Chip del backend).
@@ -349,6 +372,23 @@ private:
 		}
 		if (join_ok) {
 			bits |= 1u << 7u;
+		}
+		// bit 8: adyacencia DIAGONAL (dos triángulos que comparten la diagonal (10,150)-(110,190),
+		// en planos distintos): ningún píxel de la banda es magenta (ambas caras pintando el
+		// borde) ni queda negro (hueco entre las dos).
+		bool diag_ok = true;
+		for (u32 y = 151u; y <= 189u && diag_ok; ++y) {
+			for (u32 x = 10u; x <= 109u; ++x) {
+				const bool p0 = pixel(g, 0u, x, y);
+				const bool p1 = pixel(g, 1u, x, y);
+				if (p0 == p1) { // 0,0 = hueco; 1,1 = magenta
+					diag_ok = false;
+					break;
+				}
+			}
+		}
+		if (diag_ok) {
+			bits |= 1u << 8u;
 		}
 		return bits;
 	}

@@ -17,11 +17,11 @@ const fs = require('node:fs');
 const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const status = report.finalSideChannel;
 const detail = status?.detail ?? -1;
-// 8 bits: residuo, mundo, bordes, interiores, nada perdido (+-1 px), fila 0 limpia,
-// adyacencia entre planos (sin magenta/hueco) y junta contigua.
-const want = 0xff;
+// 9 bits: residuo, mundo, bordes, interiores, nada perdido (+-1 px), fila 0 limpia,
+// adyacencia recta (sin magenta/hueco), junta contigua y adyacencia diagonal.
+const want = 0x1ff;
 if (report.status !== 'ok' || status?.state !== 3 || detail !== want) {
-  console.error('[L1-003] FAIL: se esperaba READY/detail=0xff (sin residuo, mundo y bordes limpios, interiores rellenos, nada perdido respecto a la CPU, fila 0 limpia y adyacencia entre planos correcta).');
+  console.error('[L1-003] FAIL: se esperaba READY/detail=0x1ff (sin residuo, mundo y bordes limpios, interiores rellenos, nada perdido respecto a la CPU, fila 0 limpia y adyacencia entre planos correcta).');
   console.error(JSON.stringify({status: report.status, finalSideChannel: status}, null, 2));
   process.exit(1);
 }

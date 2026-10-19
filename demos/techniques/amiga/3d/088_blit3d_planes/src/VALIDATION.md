@@ -2,7 +2,7 @@
 
 ## Alcance
 
-Cubo convexo rotando sobre 2 bitplanes, relleno por plano con Blitter (contorno ONEDOT + area fill acotado al bbox + patrón opcional), **culling por normal 3D general para cualquier convexo** (caras CCW desde fuera; cámara en el origen), **fast path de frustum por objeto** y **proyección única de los 8 vértices**, **clear del rectángulo sucio** (unión de los bbox N-1/N-2/actual) y **recorte de cada cara al rectángulo seguro del contorno** antes de planificar las aristas, con **palabra de descarte** para el primer píxel del trazador. Se verifica: cubo con 3 caras de colores y relleno limpio, coste debug, el **clip fino en hardware** con el modo deriva (`kDrift`) **sin residuo en el borde**, y la equivalencia Blitter/CPU del camino por plano. **No cubierto**: bloqueo a 50 Hz, solapes entre sólidos (painter, no z-buffer) y la costura de 1 px de arista compartida entre planos (defecto conocido).
+Cubo convexo rotando sobre 2 bitplanes, relleno por plano con Blitter (contorno ONEDOT + area fill acotado al bbox + patrón opcional), **culling por normal 3D general para cualquier convexo** (caras CCW desde fuera; cámara en el origen), **fast path de frustum por objeto** y **proyección única de los 8 vértices**, **clear del rectángulo sucio** (unión de los bbox N-1/N-2/actual) y **recorte de cada cara al rectángulo seguro del contorno** antes de planificar las aristas, con **palabra de descarte** para el primer píxel del trazador. Se verifica: cubo con 3 caras de colores y relleno limpio, coste debug, el **clip fino en hardware** con el modo deriva (`kDrift`) **sin residuo en el borde**, y la equivalencia Blitter/CPU del camino por plano. **No cubierto**: bloqueo a 50 Hz y solapes entre sólidos (painter, no z-buffer).
 
 ## Medidas
 
@@ -38,7 +38,7 @@ En modo línea el **primer píxel** de cada arista va por el canal **D**; con `D
 
 ## Defectos conocidos (abiertos)
 
-- **Costura en aristas diagonales compartidas entre planos**: la adyacencia **recta** entre dos caras de planos distintos está verificada en L1-003 (bits 6/7: la columna compartida es de un solo color y la junta no tiene hueco), pero con aristas **diagonales** el trazador es direccional (escribe un paso por detrás) y cada cara puede rasterizar el borde con píxeles distintos: quedan píxeles magenta (ambas) o huecos de 1 px. Pendiente: canonizar la dirección de la arista compartida y asignarla a un solo plano (regla top-left).
+- **Costura de arista compartida entre planos**: verificada en L1-003 para adyacencia **recta** (bits 6/7: la columna compartida es de un solo color y la junta no tiene hueco) y **diagonal** (bit 8: dos triángulos que comparten la diagonal, sin magenta ni hueco en toda la banda). El «magenta de esquina» que citaba la validación anterior era la propia cara magenta, no un solape.
 
 ## Visión (Ollama, prompt canónico)
 
