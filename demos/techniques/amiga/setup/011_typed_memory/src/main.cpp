@@ -84,5 +84,8 @@ int main() {
 	TypedMemoryDemo demo {};
 	// Presupuesto explícito de la demo: 64K chip (display 320x256x4 + planos de la demo),
 	// 4K slow, 1K frame, 16K fast (si la máquina no tiene Fast, `fast_or_slow` cae a Slow).
-	return eng::amiga::run_demo(demo, display, eng::MemoryConfig {65536u, 4096u, 1024u, 16384u});
+	// Espera de VBlank **activa** (familia 212/DT-011): el bucle por senal pierde el
+	// despertar bajo el SO vivo (y el guard 0xE212 lo rechaza); ver el doc 212.
+	return eng::amiga::run_demo(demo, display, eng::MemoryConfig {65536u, 4096u, 1024u, 16384u},
+				    eng::amiga::VblankWait::Active);
 }

@@ -187,5 +187,7 @@ int main() {
 	display.color_depth = 6u;
 	display.palette = kPalette;
 	CoreSelfcheckDemo game {};
-	return eng::amiga::run_demo(game, display);
+	// Espera de VBlank **activa** (familia 212/DT-011): el bucle por senal pierde el
+	// despertar bajo el SO vivo (y el guard 0xE212 lo rechaza); ver el doc 212.
+	return eng::amiga::run_demo(game, display, eng::amiga::VblankWait::Active);
 }

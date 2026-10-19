@@ -271,3 +271,24 @@ Repro determinista: demo 214 con `color_depth = 2` (escena de 2 planos). Llega a
 **Intento de arreglo (revertido)**: registrar el handler como **servidor Exec** (`AddIntServer`) en vez de sustituir el vector (un nodo por fuente, VERTB/BLIT, con un stub ASM `level3_server` que llama al mismo `level3_dispatch`). Con el servidor el vector se queda en la ROM, pero el cuelgue pasó al frame 23 con `INTREQ=$1040` (**BLIT pendiente sin despachar**) y la CPU en bucle de ROM: falta afinar el camino de servidor (orden de alta del servidor de BLIT, limpieza de INTREQ en contexto de servidor). Cambios revertidos; la receta de sondeo de este documento sigue siendo la salida operativa.
 
 **Siguiente paso**: reintentar los servidores Exec con la instrumentacion de la receta (publicar `INTREQR`/`INTENAR` y el vector 0x6C en globals leídos por canal lateral) para ver por qué el servidor de BLIT no despacha.
+
+## Aplicación a demos con blits síncronos y HUD (2026-10-19)
+
+La demo 001_adv_walk (capa de aventura, A0) reprodujo la misma familia de fallo en su forma más simple: con el bucle por señal puro (`run_frames`) el despertar del VBlank se **perdía en ciertas fases del frame** y la app quedaba dormida en `Wait()` (frames y ciclos congelados, CPU en STOP; evidencia por canal lateral). La tasa de pérdidas dependía del **trabajo por frame**, así que contaminaba las medidas A/B (se vieron ratios de 2,4× entre variantes equivalentes) y producía parones intermitentes en builds aparentemente idénticos.
+
+**Receta operativa confirmada**: para demos que combinan `run_frames` con trabajo por frame variable (HUD de texto, blits con `blitter_submit(j, true)`) usar la **espera activa** de la variante 2: `backend.set_vblank_sleep(false)` antes de construir `Engine`/`App` (`run_frames` se mantiene; el latido por IRQ no cambia, solo la espera sondea VPOS en vez de dormir en `Wait()`). Con ello la 001 pasa de 10-17 fps con parones a **48-49 fps estables** (`VALIDATION.md` de la demo; detalle de la investigación en `001-adv-walk-pacing.md`).
+
+**Cruce con la 306 / DT-035 (2026-10-19)**: el estancamiento determinista de la 306 (`App::run` dormido sin consumir el latido, frame clavado) es la misma familia; la nota de deuda (DT-035/DT-042) y el plan de instrumentar `Signal`/`Wait` en el emulador siguen vigentes como arreglo de raíz del camino de señal.
+
+**Nota de método**: toda medida de cadencia debe declarar el modo de espera (señal o activa); un guest dormido falsea cualquier comparación.
+
+## Migración de demos al modo seguro (2026-10-19)
+
+Con el guard `0xE212` (commit `cae4f4d2`), las demos con espera por señal fallan ruidosamente bajo el runner. Estado tras la pasada de migración (ventanas de 6-12 s, avance comprobado por `vbl`/frames/contadores):
+
+| Modo | Demos | Evidencia |
+|---|---|---|
+| **Sondeo** (`VblankWait::Polling`) | 302, 303 | la 302 moría a los ~2,5 s con señal **y** con activa (`vbl=124` congelado, determinista ×2); la 303 perdía ~11,8% de latidos con señal y moría a los ~209 frames con activa. Con sondeo: 302 con `vbl=584` avanzando en 12 s y 303 al 99,8-99,9% de latidos. |
+| **Activa** (`VblankWait::Active`) | 001, 122, 214, 215, 304, 305, 306, 010, 011, 060 | avance comprobado: 304/214/215 por secuencias (pares con cambio), 122 por sonda de frame (563), 305/306 por gates con memoria; 010/011/060 son pantallas estáticas por diseño (el guard no las rechaza). |
+
+Regla práctica: empezar con la espera **activa**; si la demo muere (parón determinista con `vbl`/`frame` congelados en dos corridas), pasar a **sondeo** — la única variante estable para la clase de muerte por IRQ bajo SO vivo. El sondeo cuesta CPU ocupada (sondea `VPOSR`) a cambio de no depender de la IRQ.

@@ -8,11 +8,13 @@ Un juego mínimo (campo a 4 planos con bloques estáticos y un actor que rebota)
 
 El actor va por el **sistema de objetos del engine** (`World::add_actor` + `BackgroundPolicy::SaveUnder`): el Blitter restaura el fondo que tapa y lo vuelve a guardar en su nueva posición, de modo que los bloques estáticos no se dañan. El render pinta **primero la capa viva del juego** (blits) y **después la franja** por CPU (`HUD_SYSTEM.md` §9.3).
 
-## Medidas (A500_debug)
+## Medidas (A500_debug, bucle por **sondeo**)
+
+**Modo de espera (familia 212/DT-011, 2026-10-19).** La demo usa `VblankWait::Polling`: con la espera por señal el guard `0xE212` la rechaza bajo el runner, y con la **espera activa moría de forma determinista a los ~2,5 s** (`vbl=124` congelado, idéntico en dos corridas). Con sondeo la app sobrevive la ventana completa: `vbl=584` avanzando en 12 s. Detalle y tabla de migración en `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
 
 | Medida | Valor | Herramienta |
 |---|---|---|
-| fps / cadencia | **49,9 fps** medidos por **contador** (`fps10 = 499`, lectura por el periférico de depuración: fiable, no depende del vídeo); la ventana del perfilador da **1 campo** (142.102 ciclos). La cifra en pantalla capturada puede quedar vieja (DT-023/DT-035) | contador `fps10` de la demo (`--read-debugperiph counters`) + `node tools/debug/winuae-profile.mjs ui_amiga_302_hud_band A500_debug 30` |
+| fps / cadencia | **47,9-49,9 fps** por **contador** (`fps10`; lectura por el periférico de depuración: fiable, no depende del vídeo) y `vbl` (latidos del mini-SO) avanzando en toda la ventana; la ventana del perfilador da **1 campo** (142.102 ciclos). La cifra en pantalla capturada puede quedar vieja (DT-023/DT-035) | contador `fps10`/`vbl` de la demo (`--read-debugperiph counters`) + `node tools/debug/winuae-profile.mjs ui_amiga_302_hud_band A500_debug 30` |
 | Secciones por frame (media 21 frames, `ENG_PROF`) | HUD `apply` **~18k** (tras el arreglo; antes ~208k), `draw_world` 26,5k, `present` 34,4k | contadores del periférico de depuración (`--read-debugperiph counters`, instrumentación temporal) |
 | Presencia del sprite | **124 px** del blob leídos por la demo en **sus propios bitplanes** (self-check, evidencia de memoria) + el modelo de visión lo describe con su contorno en cada frame | self-check del framebuffer (contadores) + `vision-final`/`vision-run` |
 | Integridad del prop de prueba (120,168,40,12) | sin daño durante el cruce (ver cookie-cut) | verifier + self-check |

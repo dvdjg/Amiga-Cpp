@@ -239,5 +239,8 @@ int main() {
 	display.buffers = kRes.buffers;
 	display.palette = kPalette;
 	AppSpriteDemo game {};
-	return eng::amiga::run_demo(game, display);
+	// Espera de VBlank **activa** (familia 212/DT-011): esta demo es la del cuelgue
+	// determinista del doc 212 (vector de nivel 3 retomado por el SO); el bucle por
+	// senal la rechaza el guard 0xE212. Si volviera a morir, la receta es el sondeo.
+	return eng::amiga::run_demo(game, display, eng::amiga::VblankWait::Active);
 }

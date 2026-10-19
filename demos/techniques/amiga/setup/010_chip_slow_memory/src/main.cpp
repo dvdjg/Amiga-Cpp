@@ -141,6 +141,9 @@ int main() {
 	display.palette = kPalette;
 	DemoGame game {};
 	// Presupuesto explícito: 64K chip (display + bancos DMA), 32K slow (datos de CPU), 8K scratch.
+	// Espera de VBlank **activa** (familia 212/DT-011): el bucle por senal pierde el
+	// despertar bajo el SO vivo (y el guard 0xE212 lo rechaza); ver el doc 212.
 	return eng::amiga::run_demo(game, display, eng::MemoryConfig {64u * 1024u, 32u * 1024u,
-								      8u * 1024u, 0u});
+								      8u * 1024u, 0u},
+				    eng::amiga::VblankWait::Active);
 }

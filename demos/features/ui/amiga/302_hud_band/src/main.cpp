@@ -676,5 +676,9 @@ int main() {
 	// Interleaved: la escena expone su `CanvasPlayfield` y `band_from_view` lo compone.
 	display.layout = eng::graphics::PlaneLayout::Interleaved;
 	display.palette = kGamePalette;
-	return eng::amiga::run_demo(g_game, display);
+	// **Bucle por sondeo** (familia 212/DT-011, clase 119/400/302/303): con la espera
+	// activa esta demo muere de forma determinista a los ~2,5 s (vbl=124 congelado,
+	// medido 2026-10-19); el sondeo (`run_polling`, sin depender de la IRQ) es la unica
+	// variante estable de la investigacion 212.
+	return eng::amiga::run_demo(g_game, display, eng::amiga::VblankWait::Polling);
 }
