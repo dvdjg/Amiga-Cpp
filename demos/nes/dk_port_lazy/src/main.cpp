@@ -349,13 +349,14 @@ struct DkXlGame {
 	eng::u32 m_pre_chr = 0u;
 	bool m_pre_ok = false;
 	bool m_pre16_ok = false;
-	eng::u16 m_cache_key[kSpriteCacheSlots] {};
+	eng::u32 m_cache_key[kSpriteCacheSlots] {};
 	eng::u32 m_cache_stamp[kSpriteCacheSlots] {};
 	eng::u32 m_frame_stamp = 0u;
 	eng::u16 m_pre_hits_frame = 0u;
 	eng::Block<eng::BobTag, eng::MemoryKind::Chip> m_bob_data {};
 	eng::u8 m_bob_x[kMaxBobs] {};
 	eng::u8 m_bob_y[kMaxBobs] {};
+	eng::u8 m_bob_h[kMaxBobs] {};
 	eng::u8 m_bob_count = 0u;
 	eng::u16 m_sprite_height = 8u;
 	eng::u16 m_sprite_instance_words = kSprite8x8InstanceWords;
@@ -388,9 +389,12 @@ struct DkXlGame {
 	struct OamSprite {
 		eng::u8 oy;
 		eng::u8 tile;
+		eng::u8 tile2;   // mitad inferior si `merged` (par vertical de 8x8)
 		eng::u8 attr;
 		eng::u8 ox;
 		eng::u8 index;
+		eng::u8 h;       // 8 u 16
+		bool merged;
 	};
 
 	/// Tile CHR y fila de origen para una linea de la entrada OAM. Soporta 8x8 y 8x16
@@ -401,8 +405,13 @@ struct DkXlGame {
 		eng::u8 row;
 	};
 	SpriteRow sprite_row(const OamSprite& o, eng::u16 line) const {
-		const eng::u16 l = (o.attr & 0x80u) ? static_cast<eng::u16>(m_sprite_height - 1u - line)
-						   : line;
+		const eng::u16 h = o.merged ? 16u : m_sprite_height;
+		const eng::u16 l = (o.attr & 0x80u) ? static_cast<eng::u16>(h - 1u - line) : line;
+		if (o.merged) {
+			const eng::u8 tile = (l >= 8u) ? o.tile2 : o.tile;
+			return { &CHR_ROM[g_spr_chr + static_cast<eng::u32>(tile) * 16u],
+				 static_cast<eng::u8>(l & 7u) };
+		}
 		if (!m_sprite_tall) {
 			return { &CHR_ROM[g_spr_chr + static_cast<eng::u32>(o.tile) * 16u],
 				 static_cast<eng::u8>(l & 7u) };
@@ -418,8 +427,9 @@ struct DkXlGame {
 	/// en el frame actual no se evictan (stamp), asi que los punteros de los placements
 	/// siguen vivos hasta `execute_frame_plan`.
 	void write_instance(eng::u16* const inst, const OamSprite& o) {
+		const eng::u16 h = o.merged ? 16u : m_sprite_height;
 		const bool flip_h = (o.attr & 0x40u) != 0u;
-		for (eng::u16 line = 0u; line < m_sprite_height; ++line) {
+		for (eng::u16 line = 0u; line < h; ++line) {
 			const SpriteRow sr = sprite_row(o, line);
 			eng::u16 a = sr.chr[sr.row];
 			eng::u16 b = sr.chr[8u + sr.row];
@@ -435,29 +445,31 @@ struct DkXlGame {
 			inst[line * 2u + 0u] = static_cast<eng::u16>(a << 8u);
 			inst[line * 2u + 1u] = static_cast<eng::u16>(b << 8u);
 		}
-		inst[m_sprite_height * 2u + 0u] = 0u;
-		inst[m_sprite_height * 2u + 1u] = 0u;
+		inst[h * 2u + 0u] = 0u;
+		inst[h * 2u + 1u] = 0u;
 	}
 
 	const eng::u16* sprite_instance(const OamSprite& o) {
 		const eng::u16 slot = static_cast<eng::u16>(o.tile * 4u +
 			((o.attr & 0x40u) ? 1u : 0u) + ((o.attr & 0x80u) ? 2u : 0u));
-		if (m_sprite_tall && m_pre16_ok) {
+		if (!o.merged && m_sprite_tall && m_pre16_ok) {
 			++m_pre_hits_frame;
 			return reinterpret_cast<const eng::u16*>(m_sprite_pre16.view.data() +
 				static_cast<eng::u32>(slot) * kSpriteMaxInstanceWords * 2u);
 		}
-		if (!m_sprite_tall && m_pre_ok && g_spr_chr == m_pre_chr) {
+		if (!o.merged && !m_sprite_tall && m_pre_ok && g_spr_chr == m_pre_chr) {
 			++m_pre_hits_frame;
 			return reinterpret_cast<const eng::u16*>(m_sprite_pre.view.data() +
 				static_cast<eng::u32>(slot) * kSprite8x8InstanceWords * 2u);
 		}
-		const eng::u16 key = static_cast<eng::u16>(
-			o.tile | ((o.attr & 0x40u) ? 0x100u : 0u) |
-			((o.attr & 0x80u) ? 0x200u : 0u) | (m_sprite_tall ? 0x400u : 0u) |
-			(!m_sprite_tall && g_spr_chr != 0u ? 0x800u : 0u));
-		// Hash directo + sondeo lineal corto. El barrido lineal de 128 ranuras por
-		// sprite costaba ~71k ciclos/frame; aqui el caso normal es 1-2 comparaciones.
+		const eng::u32 key = static_cast<eng::u32>(
+			o.tile | (static_cast<eng::u32>(o.tile2) << 8u) |
+			((o.attr & 0x40u) ? 0x10000u : 0u) |
+			((o.attr & 0x80u) ? 0x20000u : 0u) |
+			(o.merged ? 0x40000u : 0u) |
+			(m_sprite_tall ? 0x80000u : 0u) |
+			(!m_sprite_tall && g_spr_chr != 0u ? 0x100000u : 0u));
+		// Hash directo + sondeo lineal corto; el caso normal es 1-2 comparaciones.
 		constexpr eng::u16 kMask = static_cast<eng::u16>(kSpriteCacheSlots - 1u);
 		eng::u16 cslot = static_cast<eng::u16>(key & kMask);
 		eng::u16 probe = 0u;
@@ -490,7 +502,7 @@ struct DkXlGame {
 		eng::u8 mask[16u * 16u] {};
 		const eng::u8 sub = static_cast<eng::u8>(o.attr & 3u);
 		const bool flip_h = (o.attr & 0x40u) != 0u;
-		for (eng::u16 line = 0; line < m_sprite_height; ++line) {
+		for (eng::u16 line = 0; line < (o.merged ? 16u : m_sprite_height); ++line) {
 			const SpriteRow sr = sprite_row(o, line);
 			eng::u16 a = sr.chr[sr.row];
 			eng::u16 b = sr.chr[8u + sr.row];
@@ -516,6 +528,7 @@ struct DkXlGame {
 			m_bob_data.view.data() + static_cast<eng::u32>(m_bob_count) * kBobBytes);
 		eng::graphics::pack_interleaved_pair<16u, 16u, 4u>(px, mask, sheet);
 		m_bob_x[m_bob_count] = o.ox;
+		m_bob_h[m_bob_count] = o.h;
 		m_bob_y[m_bob_count] = o.oy;
 		++m_bob_count;
 	}
@@ -541,7 +554,7 @@ struct DkXlGame {
 					static_cast<eng::u32>(i) * kBobBytes),
 				kBobBytes};
 			bob.width = 32u;
-			bob.height = m_sprite_height;
+			bob.height = m_bob_h[i];
 			bob.planes = 4u;
 			bob.frame_count = 1u;
 			bob.layout = eng::graphics::BobLayout::Interleaved;
@@ -567,14 +580,14 @@ struct DkXlGame {
 		// HSTART de Amiga: pixel = hpos - 0x81 -> hpos = 0x81 + 32 + ox.
 		p.hpos = static_cast<eng::u16>(0x81u + 32u + o.ox);
 		p.vstart = top;
-		p.height = m_sprite_height;
+		p.height = o.h;
 		p.width_words = 1u;
 		p.attach = false;
 		// Vista tipada en Chip (el sprite DMA solo lee Chip): frontera explícita.
 		p.data = eng::ChipView<eng::SpriteTag> {
 			eng::Address<eng::MemoryKind::Chip>::from_storage(
 				reinterpret_cast<const eng::u8*>(inst)),
-			static_cast<eng::u32>(m_sprite_instance_words) * 2u};
+			static_cast<eng::u32>(o.h * 2u + 2u) * 2u};
 		m_placement_oam[count] = o.index;
 		++count;
 	}
@@ -602,8 +615,35 @@ struct DkXlGame {
 			s.tile = e[1];
 			s.attr = e[2];
 			s.ox = e[3];
+			s.tile2 = 0u; s.h = 8u; s.merged = false;
 			s.index = i;
 		}
+		// Fusion vertical de dos OAM 8x8 contiguas (misma X, paleta y flips) en una sola
+		// entrada de 16 lineas: la mitad de placements para objetos 16x16. Sprite 0 se
+		// mantiene aparte para no alterar su hit.
+		if (!m_sprite_tall) {
+			bool used[64] {};
+			for (eng::u16 i = 0u; i < n; ++i) {
+				if (used[i] || sprites[i].index == 0u) continue;
+				for (eng::u16 j = static_cast<eng::u16>(i + 1u); j < n; ++j) {
+					if (used[j] || sprites[j].index == 0u) continue;
+					if (sprites[j].oy == static_cast<eng::u8>(sprites[i].oy + 8u) &&
+					    sprites[j].ox == sprites[i].ox &&
+					    (sprites[j].attr & 0xC3u) == (sprites[i].attr & 0xC3u)) {
+						sprites[i].tile2 = sprites[j].tile;
+						sprites[i].h = 16u;
+						sprites[i].merged = true;
+						used[j] = true;
+						break;
+					}
+				}
+			}
+			eng::u16 m = 0u;
+			for (eng::u16 i = 0u; i < n; ++i) if (!used[i]) sprites[m++] = sprites[i];
+			n = m;
+		}
+
+
 		// Counting sort por Y (0..239): el emisor exige orden por vstart y la
 		// insercion O(n^2) se notaba en el perfil de OAM.
 		eng::u16 bucket[240] {};
@@ -637,7 +677,7 @@ struct DkXlGame {
 			if (o.index != 0u) continue;
 			const eng::u8 ch = static_cast<eng::u8>((o.attr & 3u) * 2u);
 			const eng::u16 top = static_cast<eng::u16>(o.oy + kSpriteTop);
-			end_line[ch] = static_cast<eng::u16>(top + m_sprite_height);
+			end_line[ch] = static_cast<eng::u16>(top + o.h);
 			emit_hw_sprite(o, ch, count);
 			has_sprite0 = true;
 			break;
@@ -658,7 +698,7 @@ struct DkXlGame {
 				build_bob_tile(o);
 				continue;
 			}
-			end_line[ch] = static_cast<eng::u16>(top + m_sprite_height);
+			end_line[ch] = static_cast<eng::u16>(top + o.h);
 			emit_hw_sprite(o, ch, count);
 		}
 
@@ -792,7 +832,7 @@ struct DkXlGame {
 			return;
 		}
 		for (eng::u16 i = 0u; i < kSpriteCacheSlots; ++i) {
-			m_cache_key[i] = 0xFFFFu;
+			m_cache_key[i] = 0xFFFFFFFFu;
 			m_cache_stamp[i] = 0u;
 		}
 		m_sprite_pre = backend.memory_manager().chip().reserve<eng::SpriteTag>(kSpritePreBytes, 16u);
