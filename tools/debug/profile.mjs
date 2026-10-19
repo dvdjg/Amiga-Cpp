@@ -27,6 +27,15 @@ const SECONDS = parseFloat(process.argv[4] || '5');
 const GDB_PORT = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 const SIDE_PORT = parseInt(process.env.WINUAE_SIDE_CHANNEL_PORT || '2346', 10);
 const MAP = `${ROOT}/out/demos/${DEMO}/${CONFIG_NAME}/${DEMO}.${CONFIG_NAME}.map`;
+// **Staging**: el runner lanza `dh1:a.exe`; sin copiar el binario recién compilado el perfil
+// puede leer un ejecutable VIEJO (medidas fantasma idénticas entre builds). Se replica lo
+// que hace `measure-fps.mjs`.
+try {
+  const builtExe = `${ROOT}/out/demos/${DEMO}/${CONFIG_NAME}/${DEMO}.${CONFIG_NAME}.exe`;
+  const stagedDir = `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}/dh1`;
+  fs.mkdirSync(stagedDir, { recursive: true });
+  fs.copyFileSync(builtExe, `${stagedDir}/a.exe`);
+} catch { /* sin exe: se usará el staging existente */ }
 const CPU_HZ = 7093790;
 const FIELD = CPU_HZ / 50;
 const PROF_MAGIC = 0x50524f46;

@@ -1925,15 +1925,15 @@ if (index !== injectSample - 1) return;
   }
 
   // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
-  // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB
-  // durante `telemetrySamples` muestras → permite medir el coste real de jobs
-  // del scrolling (skip-on-equal, fusión, etc.).
+  // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB.
   const telemetrySymbol = findMapSymbol(builtMap, 'g_eng_frame_telemetry');
-  // Las secciones runtime las devuelve el comando `state` del canal lateral y
-  // se guardan en report.sideChannel.state.sections (no en .value.state).
   const sideSections = report.sideChannel?.state?.sections;
   if (telemetrySamples > 0 && telemetrySymbol !== null && Array.isArray(sideSections) && sideSections.length > 0) {
-    const telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
+    let telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
+    // Ancla al run status ya verificado: evita el desfase de orden de secciones.
+    if (runStatusSymbol !== null && report.sideChannel?.runtimeAddress) {
+      telAddr = report.sideChannel.runtimeAddress + (telemetrySymbol - runStatusSymbol);
+    }
     if (telAddr !== null) {
       report.telemetry = [];
       for (let t = 0; t < telemetrySamples; ++t) {

@@ -274,17 +274,38 @@ const minFps = Math.min(...fpsList);
 const maxFps = Math.max(...fpsList);
 const spread = maxFps - minFps;
 const stable = spread <= Math.max(2, 0.1 * emuFps);
+// **Detección de cuantización por campos**: un frame cuyo trabajo excede un campo por poco
+// cae deterministamente a 1 frame cada N campos (50/N fps: 25,0 / 16,7 / 12,5). Es el modo de
+// fallo más silencioso del presupuesto (¡parece «estable»!), así que se detecta y se avisa
+// aunque `stable` sea true. Se miran las ventanas tras el arranque (las 2 primeras incluyen
+// init y no representan el régimen).
+const core = samples.slice(2).filter((s) => s.frames > 0).map((s) => s.fps).sort((a, b) => a - b);
+let quantizedFields = 0;
+if (core.length >= 3) {
+  const median = core[core.length >> 1];
+  for (let n = 1; n <= 4; n++) {
+    const nominal = 50 / n;
+    if (Math.abs(median - nominal) <= Math.max(1.0, 0.05 * nominal)) { quantizedFields = n; break; }
+  }
+}
 console.log('[fps] ' + DEMO + '/' + CONFIG_NAME +
   ' | emulado=' + emuFps.toFixed(2) + ' fps' +
   ' | host=' + hostFps.toFixed(2) + ' fps' +
   ' | ' + cyclesPerFrame.toFixed(0) + ' ciclos/frame (' + nominalFieldsPerFrame.toFixed(3) + ' campos/frame)' +
   ' | por ventana=' + fpsList.map((f) => f.toFixed(1)).join('/') +
+  ' | cuantizacion=' + (quantizedFields || '?') + ' campos/frame' +
   ' | detail=0x' + (samples[samples.length - 1].detail >>> 0).toString(16));
 if (!stable) {
   console.error('[fps] AVISO: cadencia INESTABLE (min=' + minFps.toFixed(2) + ' max=' + maxFps.toFixed(2) +
     ' fps; dispersión ' + spread.toFixed(2) + '): el frame está en el borde del campo (alterna 1 y 2 campos)' +
     ' o hay picos periódicos. La media (' + emuFps.toFixed(2) + ') NO vale como presupuesto: perfila por' +
     ' secciones (`ENG_PROF_*`) y mira el peor caso.');
+}
+if (quantizedFields > 1) {
+  console.error('[fps] AVISO: CUANTIZACIÓN a ' + quantizedFields + ' campos/frame (~' + (50 / quantizedFields).toFixed(1) +
+    ' fps estables): el frame excede el presupuesto de 1 campo por poco y cae a 1/N determinista (la media parece' +
+    ' «estable»). Recorta trabajo del frame (p. ej. HUD por diferencias con `DiffText`, ablaciones `ENG_PROF`) y' +
+    ' vuelve a medir.');
 }
 
 if (JSON_OUT) {
@@ -304,6 +325,7 @@ if (JSON_OUT) {
     measurementMs: t1 - t0,
     detail: '0x' + (samples[samples.length - 1].detail >>> 0).toString(16),
     stable,
+    quantizedFields: quantizedFields || null,
     minFps: Number(minFps.toFixed(2)),
     maxFps: Number(maxFps.toFixed(2)),
     samples: samples.map((s) => ({ frames: s.frames, fps: Number(s.fps.toFixed(2)) })),
