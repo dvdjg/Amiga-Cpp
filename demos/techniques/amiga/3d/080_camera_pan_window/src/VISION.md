@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-18T22:25:27.056Z
+- Fecha: 2026-10-19T11:42:30.426Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_005.png, frame_010.png, frame_014.png, frame_019.png (5)
+- Frames: frame_000.png, frame_002.png, frame_005.png, frame_007.png, frame_009.png (5)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,26 +15,26 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes son idénticas. No hay cambios en la composición, los elementos gráficos, ni en los datos de texto mostrados en la parte inferior.
+Las tres imágenes muestran una secuencia de captura de pantalla de un programa de edición de video o animación, probablemente de una computadora antigua, que visualiza un efecto de cámara que se desplaza (pan) a través de una escena. El texto en la parte inferior proporciona parámetros técnicos del efecto.
 
-**Descripción de lo observable:**
+**Descripción general de la escena:**
+- La escena es una representación 2D simplificada de un pasillo o espacio con paredes laterales y un suelo.
+- Las paredes laterales son de color verde oscuro (izquierda) y marrón (derecha).
+- El techo es de color azul oscuro.
+- El suelo es de color marrón claro.
+- En el centro de la escena, hay cinco barras verticales de colores: cian, amarillo, cian, azul, cian y naranja (de izquierda a derecha).
 
-*   **Elemento gráfico principal:** Una ventana rectangular con bordes pixelados, centrada en la parte superior de la imagen. Dentro de esta ventana se muestra una escena en perspectiva isométrica.
-    *   **Fondo de la escena:** Un plano inclinado de color verde oliva en la parte superior y un plano más oscuro, de tono grisáceo, en la parte inferior.
-    *   **Objetos en la escena:** Cuatro barras verticales, dispuestas en dos pares.
-        *   El par de la izquierda: una barra cian y una barra amarilla, muy cercanas entre sí.
-        *   El par de la derecha: una barra cian y una barra naranja, también muy cercanas entre sí.
-    *   **Contorno de los objetos:** Los contornos de las barras son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni colgando en los bordes.
-    *   **Fondo alrededor de los objetos:** El fondo inmediato alrededor de las barras es uniforme y consistente con el plano de la escena, sin restos de posiciones anteriores ni artefactos.
+**Cambio entre imágenes:**
+- **Imagen 1:** La cámara está posicionada a la izquierda, mostrando la pared verde y las cinco barras.
+- **Imagen 2:** La cámara se ha desplazado hacia la derecha, mostrando menos de la pared verde y más de la pared marrón. Las barras están más centradas.
+- **Imagen 3:** La cámara se ha desplazado aún más hacia la derecha, casi completamente fuera de la pared verde. Las barras están más a la izquierda del encuadre.
 
-*   **Texto en la parte inferior:** Una línea de texto en blanco sobre fondo negro, que permanece exactamente igual en todas las imágenes.
-    *   `080 CAMERA PAN WINDOW`
-    *   `FULL 12.5 + FAKE 25`
-    *   `FRAME 0 FULL 0 FAKE 1`
-    *   `FAKE OFF 0 FAC 6 VER 26 PAN -128 K 2`
+**Elementos gráficos y texto:**
+- **Texto en la parte inferior:** Muestra parámetros del efecto de cámara, como "FULL", "FAKE", "FRAME", "FAC", "VER", "PAN", y "K". Estos valores cambian entre las imágenes, indicando el progreso del efecto.
+- **Contorno de los objetos:** Los contornos de las barras y las paredes son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni restos de posiciones anteriores.
+- **Fondo:** El fondo inmediato alrededor de los objetos es uniforme y consistente con el color de las paredes y el suelo. No hay artefactos ni superposiciones.
 
-**Conclusiones:**
-
-*   **Cambio entre imágenes:** No hay ningún cambio entre las tres imágenes. Son exactamente iguales.
-*   **Elementos extraños o defectuosos:** No se observan artefactos, parpadeos, recortes, elementos superpuestos o incompletos. La imagen es coherente y completa en todos los aspectos visibles.
-*   **Movimiento:** No hay movimiento observable, ya que las imágenes son idénticas.
+**Observaciones:**
+- La secuencia muestra un desplazamiento progresivo de la cámara hacia la derecha.
+- El texto en la parte inferior cambia de forma coherente con el desplazamiento, reflejando el progreso del efecto.
+- No hay elementos extraños, defectuosos o incoherentes en la representación gráfica. La escena es consistente y bien definida en cada imagen.

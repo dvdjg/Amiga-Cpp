@@ -11,15 +11,15 @@ El **contrato de frames intermedios por paneo** de la técnica `docs/reference/a
 - **Full** (render real, base ≥12,5 Hz): la pasada completa transforma y proyecta la sala + los paneles y rellena el framebuffer ENTERO (márgenes incluidos) con el relleno por plano del Blitter (`fill_polygons_by_plane`). La ventana se centra (S=16) parcheando `BPLxPT`.
 - **Fake** (display ≥25 Hz): no se re-renderiza nada; solo se parchean `BPLxPT` (coarse) y `BPLCON1` (fino) con la convención de `playfield_scroll.hpp` para mover la ventana al offset del paneo, mostrando el contenido de los márgenes. El Fake es **exactamente** el Full anterior desplazado (contrato de píxel; ver `VALIDATION.md`). Entre dos Fulls caben **varios fakes** (K), decididos por el coste medido.
 - La política `eng::graphics::pan_window.hpp` (margen 15 px) produce fakes con el offset exacto en la fase lenta (1 px/frame) y fuerza Full cada frame en la fase rápida (16 px/frame: el offset supera el margen y el paneo ya no es válido); el número máximo de fakes seguidos lo fija `eng::graphics::render_pacing.hpp` (EMA del coste del Full en campos PAL, tope K≤3). El reloj es determinista por índice de frame (telemetría en `g_eng_run_status.detail`).
-- **Mezcla de colores con damero a nivel de píxel** (`eng::graphics::fill_pattern.hpp`, HOST-474): los planos de la sala llevan el damero 1×1 y su inverso (`fill_dither_plane_cpu`; 2 filas por plano) y el relleno por plano los aplica por fases (`D = A & B`) tras el area fill, fundiendo dos índices base por cara (aparecen tonos que no están en la paleta). Los paneles no llevan patrón (sólidos) y el marcador naranja conserva su color único.
+- **Mezcla de colores con damero a nivel de píxel** (opción `-DK080_PATTERN`; `eng::graphics::fill_pattern.hpp`, HOST-474): por defecto la sala va **SÓLIDA** (colores planos, menor coste de relleno y sin inestabilidad de timing — la fase de patrón presentó un cuelgue dependiente del arranque, deuda abierta). Con el flag, los planos de la sala llevan el damero 1×1 y su inverso (`fill_dither_plane_cpu`; 2 filas por plano) y el relleno por plano los aplica por fases (`D = A & B`) tras el area fill, fundiendo dos índices base por cara. Los paneles no llevan patrón (sólidos) y el marcador naranja conserva su color único.
 
 ## Elementos en pantalla
 
 | Elemento | Color | Papel |
 |---|---|---|
-| Suelo y pared derecha | marrón ⊕ azul (**damero 1×1** de 1/0) | sala con mezcla de color por damero; su borde con el techo/fondo fija la referencia del paneo |
-| Pared izquierda | verde ⊕ azul (damero de 2/0) | sala con mezcla de color por damero |
-| Techo y pared del fondo | azul; en la vista con paneo, oliva (**damero de 1/2**) | fondo de la escena (referencia central), con la mezcla de color del damero |
+| Suelo y pared derecha | marrón (sólido; damero 1×1 de 1/0 con `-DK080_PATTERN`) | sala; su borde con el techo/fondo fija la referencia del paneo |
+| Pared izquierda | verde (sólido; damero de 2/0 con `-DK080_PATTERN`) | sala |
+| Techo y pared del fondo | azul (sólido; oliva con damero en la vista con paneo) | fondo de la escena (referencia central) |
 | Panel (x=-100) y (x=+60) | cian (rango 8-11) | columnas verticales |
 | Panel (x=-60) | amarillo (rango 4-7) | columna vertical |
 | **Panel (x=+100)** | **naranja único (rango 12-15)** | marcador de movimiento: color único que sigue el paneo |

@@ -151,11 +151,12 @@ enum : eng::u8 {
 // la sala llevan el damero y su inverso construidos con `fill_dither_plane_cpu` (2 filas
 // por plano, periodo 2), y el backend los aplica por fases (`D = A & B`) tras el fill.
 // Los paneles quedan SÓLIDOS (el marcador naranja conserva su color único).
-// `K080_NO_PATTERN`: sala sólida (A/B de medida del coste del paso de patrón).
-#if defined(K080_NO_PATTERN)
-constexpr bool kRoomDither = false;
-#else
+// POR DEFECTO la sala va SÓLIDA (colores planos, más simple y mejor coste de relleno);
+// `K080_PATTERN` activa el damero de mezcla A/B como opción.
+#if defined(K080_PATTERN)
 constexpr bool kRoomDither = true;
+#else
+constexpr bool kRoomDither = false;
 #endif
 constexpr eng::u8 kRoomDitherA = 1u; // índice base A (marrón) de la mezcla
 constexpr eng::u8 kRoomDitherB = 2u; // índice base B (verde)
@@ -331,6 +332,19 @@ struct PanWindowDemo {
 		m_scene.takeover(backend); // muestra el buffer 0; el primer Full dibuja el 1
 		m_show_buf = 0u;
 		m_draw_buf = 1u;
+
+		// Guarda de la emisión (DT-040/DT-032): el slot de BPLCON1 debe apuntar a su MOVE
+		// en la lista MATERIALIZADA. Si el Plan reordena/inserta al materializar, el parche
+		// por frame escribiria la palabra equivocada (p. ej. el opcode de otro MOVE) y el
+		// Copper ejecutaria basura. Falla en init ANTES de corromper nada.
+		{
+			const eng::Span<u16> words = m_scene.plan().active_span();
+			if (!m_bplcon1_slot.valid() || m_bplcon1_slot.opcode_word() >= words.size() ||
+			    words[m_bplcon1_slot.opcode_word()] != 0x0102u) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00008007u);
+				return;
+			}
+		}
 		ENG_PROF_INIT(10u);
 		// Controlador de presentación (F2): política + pacing + publicación diferida; el
 		// camino asíncrono (cola IRQ) se aconseja solo con Fast RAM (`eng::hw`).
