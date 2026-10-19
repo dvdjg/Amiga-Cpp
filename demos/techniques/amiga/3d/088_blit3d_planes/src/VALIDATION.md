@@ -17,7 +17,7 @@ Evolución (debug): 12.5 fps (módulos por variable en el clip) → 16.7 (cullin
 
 **Culling general**: ace_visible (mesh_traits) descarta caras traseras antes de proyectar/recortar; sirve para cualquier poliedro convexo irregular (probado en HOST-481 con un tetraedro irregular bajo 64 rotaciones: coincide con el signo del área proyectada). En el modo kDrift (cruces de borde) sube de 20.3 a **26.5 fps** (ventanas 22.6–30.9).
 
-**Cadencia**: alterna frames de 1 y 2 campos (30–37 fps, dispersión ~4). No hay frames de 3+ campos; el suelo de 25 fps se cumple en todas las ventanas, sin bloqueo a 50 Hz. El relleno (65 %) es el coste dominante y su varianza (93k–169k) explica la alternancia.
+**Cadencia**: alterna frames de 1 y 2 campos (33–41 fps, dispersión ~4). No hay frames de 3+ campos; el suelo de 25 fps se cumple en todas las ventanas, sin bloqueo a 50 Hz. El relleno (65 %) es el coste dominante y su varianza (93k–169k) explica la alternancia.
 
 ## Relleno CPU de referencia
 
