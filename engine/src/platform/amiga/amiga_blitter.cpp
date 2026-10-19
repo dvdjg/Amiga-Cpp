@@ -896,7 +896,8 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 					continue;
 				}
 				for (u8 i = 0; i < face.count; ++i) {
-					const u8 j = static_cast<u8>((i + 1u) % face.count);
+					// Sin `%` por variable: en 68000 es `__modsi3` y este bucle es caliente.
+					const u8 j = static_cast<u8>((i + 1u == face.count) ? 0u : (i + 1u));
 					LineEorParams eor;
 					if (blitter_line_eor_prepare(eor, row_bytes, face.xs[i],
 								     face.ys[i], face.xs[j],
@@ -906,11 +907,40 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 				}
 			}
 		}
-		// 3) area fill (FILL_XOR) del plano in situ (un fill por plano). Se acota al
-		//    plano (`blitter_area_fill_rect`): `blitter_area_fill` barre 1024 filas
-		//    (pensado para el bitmap multicapa contiguo de 116) y desbordaria el plano.
-		blitter_area_fill_rect(plane, row_bytes, 0, 0, static_cast<u16>(width / 16u), height,
-				       true);
+		// 3) area fill (FILL_XOR) acotado al bbox de las caras de este plano: barrer
+		//    320x232 por plano cuesta ~9k ciclos y el objeto suele ocupar una fraccion;
+		//    el contorno queda dentro del bbox por construccion. Se acota al plano
+		//    (`blitter_area_fill_rect`): `blitter_area_fill` barre 1024 filas (pensado
+		//    para el bitmap multicapa contiguo de 116) y desbordaria el plano.
+		s16 bx0 = 32767, by0 = 32767, bx1 = -32768, by1 = -32768;
+		for (u32 f = 0u; f < n_faces; ++f) {
+			const graphics::PlanePolygon& face = faces[f];
+			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
+				continue;
+			}
+			for (u8 i = 0u; i < face.count; ++i) {
+				if (face.xs[i] < bx0) bx0 = face.xs[i];
+				if (face.xs[i] > bx1) bx1 = face.xs[i];
+				if (face.ys[i] < by0) by0 = face.ys[i];
+				if (face.ys[i] > by1) by1 = face.ys[i];
+			}
+		}
+		if (bx1 >= bx0 && by1 >= by0) {
+			const s16 mx = static_cast<s16>(width - 1u);
+			const s16 my = static_cast<s16>(height - 1u);
+			if (bx0 < 0) bx0 = 0;
+			if (by0 < 0) by0 = 0;
+			if (bx1 > mx) bx1 = mx;
+			if (by1 > my) by1 = my;
+			if (bx1 >= bx0 && by1 >= by0) {
+				const u16 wx0 = static_cast<u16>(bx0) & 0xfff0u;
+				const u16 wx1 = static_cast<u16>(bx1) | 0x000fu;
+				const u16 words =
+					static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
+				blitter_area_fill_rect(plane, row_bytes, wx0, by0, words,
+						       static_cast<u16>(by1 - by0 + 1), true);
+			}
+		}
 		// 4) patrón del plano: por fases (filas uniformes del catálogo / damero de mezcla)
 		//    o en un pase genérico `D = A & B` con el plano de patrón completo.
 		const eng::MaskBytes& pat = patterns[p];
@@ -925,7 +955,9 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 			}
 		}
 	}
-	return true;
+	// El area fill (y el patron) son asincronos: sin esta espera el siguiente frame absorbe
+	// el coste del Blitter (y la atribucion del perfil lo carga a otro tramo).
+	return wait_blitter();
 }
 
 bool AmigaBackend::fill_polygons_by_plane_spans(const graphics::PlanePolygon* faces, u32 n_faces,
@@ -942,56 +974,70 @@ bool AmigaBackend::fill_polygons_by_plane_spans(const graphics::PlanePolygon* fa
 	const s16 max_y = static_cast<s16>(height - 1u);
 	for (u8 p = 0u; p < planes; ++p) {
 		eng::u8* plane = dest.data() + static_cast<u32>(p) * plane_bytes;
-		// 1) Limpia el plano UNA vez; el clear es asíncrono y la máscara se toca justo después.
-		blitter_clear(dest.subspan(static_cast<u32>(p) * plane_bytes, plane_bytes), 1u, row_bytes,
-			      plane_bytes, width, height);
-		if (!wait_blitter()) {
-			return false;
-		}
-		// 2) Estampa cada cara cuyo bit `p` esté a 1: spans CPU en la máscara + cookie-cut.
-		//    Sin contorno ni paridad: dos caras que se solapen en el mismo plano se unen (OR),
-		//    no se cancelan, y el winding no importa (mismo generador convexo que la referencia CPU).
+		// 1) BBox de las caras de este plano: acota mascara y cookie-cut (el clear del
+		//    plano sigue siendo completo para borrar el frame anterior).
+		s16 bx0 = 32767, by0 = 32767, bx1 = -32768, by1 = -32768;
 		for (u32 f = 0u; f < n_faces; ++f) {
 			const graphics::PlanePolygon& face = faces[f];
 			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
 				continue;
 			}
-			s16 xmin = face.xs[0], xmax = face.xs[0];
-			s16 ymin = face.ys[0], ymax = face.ys[0];
-			for (u8 i = 1u; i < face.count; ++i) {
-				if (face.xs[i] < xmin) xmin = face.xs[i];
-				if (face.xs[i] > xmax) xmax = face.xs[i];
-				if (face.ys[i] < ymin) ymin = face.ys[i];
-				if (face.ys[i] > ymax) ymax = face.ys[i];
+			for (u8 i = 0u; i < face.count; ++i) {
+				if (face.xs[i] < bx0) bx0 = face.xs[i];
+				if (face.xs[i] > bx1) bx1 = face.xs[i];
+				if (face.ys[i] < by0) by0 = face.ys[i];
+				if (face.ys[i] > by1) by1 = face.ys[i];
 			}
-			if (xmax < 0 || ymax < 0 || xmin > max_x || ymin > max_y) {
-				continue;
-			}
-			if (xmin < 0) xmin = 0;
-			if (ymin < 0) ymin = 0;
-			if (xmax > max_x) xmax = max_x;
-			if (ymax > max_y) ymax = max_y;
-			const u16 wx0 = static_cast<u16>(xmin) & 0xfff0u;
-			const u16 wx1 = static_cast<u16>(xmax) | 0x000fu;
-			const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
-			const u16 h = static_cast<u16>(ymax - ymin + 1);
-
-			blit_clear_region(mask.data(), row_bytes, wx0, ymin, words, h);
+		}
+		blitter_clear(dest.subspan(static_cast<u32>(p) * plane_bytes, plane_bytes), 1u, row_bytes,
+			      plane_bytes, width, height);
+		if (bx1 < bx0 || by1 < by0) {
 			if (!wait_blitter()) {
 				return false;
 			}
-			eng::s32 vx[16] {};
-			eng::s32 vy[16] {};
+			continue;
+		}
+		if (bx0 < 0) bx0 = 0;
+		if (by0 < 0) by0 = 0;
+		if (bx1 > max_x) bx1 = max_x;
+		if (by1 > max_y) by1 = max_y;
+		if (bx1 < bx0 || by1 < by0) {
+			if (!wait_blitter()) {
+				return false;
+			}
+			continue;
+		}
+		const u16 wx0 = static_cast<u16>(bx0) & 0xfff0u;
+		const u16 wx1 = static_cast<u16>(bx1) | 0x000fu;
+		const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
+		const u16 h = static_cast<u16>(by1 - by0 + 1);
+		// 2) UNA mascara por plano: spans CPU de todas las caras (union OR, sin paridad;
+		//    el winding no importa). Un solo cookie-cut lleva la mascara al plano: 3 blits
+		//    por plano en total (clear + mascara + cookie) en vez de 2 blits por cara.
+		if (!wait_blitter()) {
+			return false;
+		}
+		blit_clear_region(mask.data(), row_bytes, wx0, by0, words, h);
+		if (!wait_blitter()) {
+			return false;
+		}
+		eng::s32 vx[16] {};
+		eng::s32 vy[16] {};
+		const eng::s32 x_end = static_cast<eng::s32>(wx0) + static_cast<eng::s32>(words) * 16 - 1;
+		for (u32 f = 0u; f < n_faces; ++f) {
+			const graphics::PlanePolygon& face = faces[f];
+			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
+				continue;
+			}
 			for (u8 k = 0u; k < face.count && k < 16u; ++k) {
 				vx[k] = face.xs[k];
 				vy[k] = face.ys[k];
 			}
-			const eng::s32 x_end = static_cast<eng::s32>(wx0) + static_cast<eng::s32>(words) * 16 - 1;
 			eng::math3d::convex_spans(
 				eng::Span<const eng::s32>(vx, face.count),
 				eng::Span<const eng::s32>(vy, face.count),
 				[&](eng::s32 y, eng::s32 xl, eng::s32 xr) {
-					if (y < ymin || y > ymax) {
+					if (y < by0 || y > by1) {
 						return;
 					}
 					if (xl < static_cast<eng::s32>(wx0)) xl = wx0;
@@ -1003,11 +1049,10 @@ bool AmigaBackend::fill_polygons_by_plane_spans(const graphics::PlanePolygon* fa
 								  static_cast<s16>(xr));
 					}
 				});
-			blit_mask_to_plane(plane, row_bytes, mask.data(), row_bytes, wx0, ymin, words, h,
-					   true);
-			if (!wait_blitter()) {
-				return false;
-			}
+		}
+		blit_mask_to_plane(plane, row_bytes, mask.data(), row_bytes, wx0, by0, words, h, true);
+		if (!wait_blitter()) {
+			return false;
 		}
 	}
 	return true;

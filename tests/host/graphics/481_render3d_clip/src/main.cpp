@@ -14,6 +14,7 @@
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/481_render3d_clip
 
+#include <eng/core/math/fixed.hpp>
 #include <eng/graphics/render3d.hpp>
 #include <eng/memory/mem_bank.hpp>
 
@@ -34,7 +35,15 @@ void check(bool ok, const char* what) {
 	}
 }
 
-constexpr Camera3D kCam {4096, 160, 100, 64, 160, 100};
+using CS = float;
+using Cam3 = Camera3D<CS>;
+using CV = CamVertex<CS>;
+constexpr Cam3 kCam {4096.0f, 160, 100, 64.0f, 160.0f, 100.0f};
+using CC = eng::math::scalar_traits<eng::coord>;
+using MF = eng::math::Fixed<eng::s16, 0>;
+using CTF = eng::math::scalar_traits<MF>;
+constexpr Camera3D<MF> kCamF {CTF::from_int(4096), 160, 100, CTF::from_int(64),
+			      CTF::from_int(160), CTF::from_int(100)};
 
 /// Playfield de prueba con relleno observable: captura los polígonos que `Surface`
 /// delega (el mismo borde que usa el Blitter en Amiga).
@@ -95,12 +104,11 @@ struct RecordingPlayfield : Playfield {
 };
 
 /// Invariante del contrato en el otro sentido: |x|·focal <= z·half (sin ambigüedad).
-bool plane_ok(const CamVertex& v) {
+bool plane_ok(const CV& v) {
 	if (v.z < kCam.near_z) return false;
-	const s32 ax = v.x >= 0 ? v.x : -static_cast<s32>(v.x);
-	const s32 ay = v.y >= 0 ? v.y : -static_cast<s32>(v.y);
-	return ax * kCam.focal <= static_cast<s32>(v.z) * kCam.half_w &&
-	       ay * kCam.focal <= static_cast<s32>(v.z) * kCam.half_h;
+	const CS ax = v.x >= 0.0f ? v.x : -v.x;
+	const CS ay = v.y >= 0.0f ? v.y : -v.y;
+	return ax * kCam.focal <= v.z * kCam.half_w && ay * kCam.focal <= v.z * kCam.half_h;
 }
 
 } // namespace
@@ -108,8 +116,8 @@ bool plane_ok(const CamVertex& v) {
 int main() {
 	// 1) Polígono interior: el clip no lo toca (mismo nº y coordenadas).
 	{
-		const CamVertex in[4] = {{-20, -20, 1000}, {20, -20, 1000}, {20, 20, 1000}, {-20, 20, 1000}};
-		CamVertex out[16] {};
+		const CV in[4] = {{-20, -20, 1000}, {20, -20, 1000}, {20, 20, 1000}, {-20, 20, 1000}};
+		CV out[16] {};
 		const u8 n = clip_camera_polygon(in, 4u, kCam, out, 16u);
 		check(n == 4u, "interior: 4 vértices");
 		bool same = true;
@@ -121,15 +129,15 @@ int main() {
 
 	// 2) Cruce del near: el vértice de atrás se sustituye por dos cortes a z = near.
 	{
-		const CamVertex in[3] = {{-10, -10, 1000}, {10, -10, 1000}, {0, 10, -500}};
-		CamVertex out[16] {};
+		const CV in[3] = {{-10, -10, 1000}, {10, -10, 1000}, {0, 10, -500}};
+		CV out[16] {};
 		const u8 n = clip_camera_polygon(in, 3u, kCam, out, 16u);
 		check(n >= 3u, "near: queda polígono recortado");
 		bool ok = true;
 		bool saw_near = false;
 		for (u8 i = 0u; i < n; ++i) {
 			ok = ok && plane_ok(out[i]);
-			if (out[i].z <= kCam.near_z + 64) saw_near = true;
+			if (out[i].z <= kCam.near_z + 64.0f) saw_near = true;
 		}
 		check(ok, "near: invariantes");
 		check(saw_near, "near: vértices nuevos en el plano");
@@ -137,8 +145,8 @@ int main() {
 
 	// 3) Cruce del plano lateral izquierdo: todo el resultado queda dentro.
 	{
-		const CamVertex in[3] = {{-10000, -10, 1000}, {10, -10, 1000}, {10, 10, 1000}};
-		CamVertex out[16] {};
+		const CV in[3] = {{-10000, -10, 1000}, {10, -10, 1000}, {10, 10, 1000}};
+		CV out[16] {};
 		const u8 n = clip_camera_polygon(in, 3u, kCam, out, 16u);
 		check(n >= 3u, "lateral: queda polígono");
 		bool ok = true;
@@ -148,8 +156,8 @@ int main() {
 
 	// 4) Cruce de esquina (izquierda + arriba): sale dentro de ambos planos.
 	{
-		const CamVertex in[3] = {{-9000, -9000, 800}, {10, -10, 800}, {10, 10, 800}};
-		CamVertex out[16] {};
+		const CV in[3] = {{-9000, -9000, 800}, {10, -10, 800}, {10, 10, 800}};
+		CV out[16] {};
 		const u8 n = clip_camera_polygon(in, 3u, kCam, out, 16u);
 		check(n >= 3u, "esquina: queda polígono");
 		bool ok = true;
@@ -159,10 +167,10 @@ int main() {
 
 	// 5) Todo detrás / todo fuera: 0 vértices.
 	{
-		const CamVertex behind[3] = {{0, 0, -100}, {10, 0, -200}, {0, 10, -50}};
-		CamVertex out[16] {};
+		const CV behind[3] = {{0, 0, -100}, {10, 0, -200}, {0, 10, -50}};
+		CV out[16] {};
 		check(clip_camera_polygon(behind, 3u, kCam, out, 16u) == 0u, "detrás: vacío");
-		const CamVertex outside[3] = {{20000, 0, 500}, {20010, 0, 500}, {20000, 10, 500}};
+		const CV outside[3] = {{20000, 0, 500}, {20010, 0, 500}, {20000, 10, 500}};
 		check(clip_camera_polygon(outside, 3u, kCam, out, 16u) == 0u, "fuera: vacío");
 		check(clip_camera_polygon(behind, 0u, kCam, out, 16u) == 0u, "n=0: vacío");
 		check(clip_camera_polygon(behind, 3u, kCam, out, 4u) == 0u, "cap insuficiente: vacío");
@@ -177,13 +185,13 @@ int main() {
 		};
 		bool ok = true;
 		for (int t = 0; t < 200 && ok; ++t) {
-			CamVertex in[6] {};
+			CV in[6] {};
 			for (u8 i = 0u; i < 6u; ++i) {
-				in[i].x = static_cast<s16>(static_cast<s32>(next() % 40001u) - 20000);
-				in[i].y = static_cast<s16>(static_cast<s32>(next() % 40001u) - 20000);
-				in[i].z = static_cast<s16>(static_cast<s32>(next() % 60001u) - 15000);
+				in[i].x = static_cast<CS>(static_cast<s32>(next() % 40001u) - 20000);
+				in[i].y = static_cast<CS>(static_cast<s32>(next() % 40001u) - 20000);
+				in[i].z = static_cast<CS>(static_cast<s32>(next() % 60001u) - 15000);
 			}
-			CamVertex out[16] {};
+			CV out[16] {};
 			const u8 n = clip_camera_polygon(in, 6u, kCam, out, 16u);
 			for (u8 i = 0u; i < n; ++i) ok = ok && plane_ok(out[i]);
 			// Proyección acotada (si sobrevive) y sin división inválida.
@@ -199,27 +207,28 @@ int main() {
 	}
 
 	// 7) `render_mesh`: una cara interior se emite; trasera se culla; doble cara la pinta;
-	//    cruzando near emite con ≥ 3 vértices dentro del viewport.
+	//    cruzando near emite con >= 3 vertices dentro del viewport. Escalar de la maquina
+	//    (`Fixed<s16,0>`): ejercita el camino crudo del corte (precision sub-unidad).
 	{
-		using Aff = math::Affine<3, eng::coord, eng::coord>;
-		eng::util::Array<math3d::Vec3t<eng::coord>, 3> verts {};
-		verts[0] = math3d::vec3<eng::coord>(-20, -20, 800);
-		verts[1] = math3d::vec3<eng::coord>(20, -20, 800);
-		verts[2] = math3d::vec3<eng::coord>(0, 20, 800);
+		using Aff = math::Affine<3, MF, MF>;
+		eng::util::Array<math3d::Vec3t<MF>, 3> verts {};
+		verts[0] = math3d::vec3<MF>(-20, -20, 800);
+		verts[1] = math3d::vec3<MF>(20, -20, 800);
+		verts[2] = math3d::vec3<MF>(0, 20, 800);
 		math3d::Face faces[1] = {{0u, 1u, 2u}};
-		math3d::MeshViewT<eng::coord> mesh {
-			Span<const math3d::Vec3t<eng::coord>>(verts.data(), 3u),
+		math3d::MeshViewT<MF> mesh {
+			Span<const math3d::Vec3t<MF>>(verts.data(), 3u),
 			Span<const math3d::Face>(faces, 1u)};
 
 		RecordingPlayfield pf;
 		pf.init(320, 200, 4);
 		Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
-		math3d::Vec3t<eng::coord> world[3] {};
-		CamVertex scratch[16] {};
+		math3d::Vec3t<MF> world[3] {};
+		CamVertex<MF> scratch[16] {};
 		s16 xs[16] {};
 		s16 ys[16] {};
 		const Aff ident = Aff::identity();
-		const u32 drawn = render_mesh(mesh, ident, kCam, surf, [](u32) { return u8 {5u}; },
+		const u32 drawn = render_mesh(mesh, ident, kCamF, surf, [](u32) { return u8 {5u}; },
 					      world, scratch, xs, ys);
 		check(drawn == 1u && pf.polys.size() == 1u, "render: cara interior emitida");
 		bool inside = true;
@@ -233,25 +242,25 @@ int main() {
 
 		// Winding invertido = trasera -> culled por defecto; con doble cara se pinta.
 		math3d::Face rev[1] = {{0u, 2u, 1u}};
-		math3d::MeshViewT<eng::coord> mesh_rev {
-			Span<const math3d::Vec3t<eng::coord>>(verts.data(), 3u),
+		math3d::MeshViewT<MF> mesh_rev {
+			Span<const math3d::Vec3t<MF>>(verts.data(), 3u),
 			Span<const math3d::Face>(rev, 1u)};
 		RecordingPlayfield pf2;
 		pf2.init(320, 200, 4);
 		Surface surf2 {pf2, SurfaceRect {0, 0, 320, 200}};
-		check(render_mesh(mesh_rev, ident, kCam, surf2, [](u32) { return u8 {1u}; }, world, scratch,
+		check(render_mesh(mesh_rev, ident, kCamF, surf2, [](u32) { return u8 {1u}; }, world, scratch,
 				  xs, ys) == 0u,
 		      "render: trasera culled");
-		check(render_mesh(mesh_rev, ident, kCam, surf2, [](u32) { return u8 {1u}; }, world, scratch,
+		check(render_mesh(mesh_rev, ident, kCamF, surf2, [](u32) { return u8 {1u}; }, world, scratch,
 				  xs, ys, true) == 1u,
 		      "render: doble cara pinta");
 
-		// Cruzando near: queda una cara con al menos 3 vértices, todos dentro.
-		verts[2] = math3d::vec3<eng::coord>(0, 20, -400);
+		// Cruzando near: queda una cara con al menos 3 vertices, todos dentro.
+		verts[2] = math3d::vec3<MF>(0, 20, -400);
 		RecordingPlayfield pf3;
 		pf3.init(320, 200, 4);
 		Surface surf3 {pf3, SurfaceRect {0, 0, 320, 200}};
-		const u32 drew = render_mesh(mesh, ident, kCam, surf3, [](u32) { return u8 {2u}; }, world,
+		const u32 drew = render_mesh(mesh, ident, kCamF, surf3, [](u32) { return u8 {2u}; }, world,
 					     scratch, xs, ys, true);
 		check(drew == 1u && !pf3.polys.empty(), "render: cara que cruza near se emite recortada");
 		check(!pf3.polys.empty() && pf3.polys[0].n >= 3u, "render: recorte con n>=3");
@@ -270,27 +279,29 @@ int main() {
 		check(kf > kn, "profundidad: el lejano tiene clave mayor");
 	}
 
-	// 9) Pentágono (n-gon) interior: se emite SIN triangular (5 vértices).
+	// 9) Pentagono (n-gon) interior: se emite SIN triangular (5 vertices).
 	{
-		using Aff = math::Affine<3, eng::coord, eng::coord>;
-		eng::util::Array<math3d::Vec3t<eng::coord>, 5> verts {};
-		// Pentágono regular aproximado a radio 20 en el plano z = 800.
+		using Aff = math::Affine<3, MF, MF>;
+		eng::util::Array<math3d::Vec3t<MF>, 5> verts {};
+		// Pentagono regular aproximado a radio 20 en el plano z = 1000.
 		static constexpr s16 kPX[5] = {0, 19, 12, -12, -19};
 		static constexpr s16 kPY[5] = {-20, -6, 16, 16, -6};
-		for (u8 i = 0u; i < 5u; ++i) verts[i] = math3d::vec3<eng::coord>(kPX[i], kPY[i], 1000);
+		for (u8 i = 0u; i < 5u; ++i) {
+			verts[i] = math3d::vec3<MF>(kPX[i], kPY[i], 1000);
+		}
 		const u16 idx[5] = {0u, 1u, 2u, 3u, 4u};
 		const math3d::FaceSpan span {0u, 5u};
-		math3d::PolyMeshViewT<eng::coord> mesh {
-			Span<const math3d::Vec3t<eng::coord>>(verts.data(), 5u),
+		math3d::PolyMeshViewT<MF> mesh {
+			Span<const math3d::Vec3t<MF>>(verts.data(), 5u),
 			Span<const u16>(idx, 5u), Span<const math3d::FaceSpan>(&span, 1u)};
 		RecordingPlayfield pf;
 		pf.init(320, 200, 4);
 		Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
-		math3d::Vec3t<eng::coord> world[5] {};
-		CamVertex scratch[16] {};
+		math3d::Vec3t<MF> world[5] {};
+		CamVertex<MF> scratch[16] {};
 		s16 xs[16] {};
 		s16 ys[16] {};
-		const u32 drawn = render_solid(mesh, Aff::identity(), kCam, surf,
+		const u32 drawn = render_solid(mesh, Aff::identity(), kCamF, surf,
 					       [](u32) { return u8 {7u}; }, world, scratch, xs, ys);
 		check(drawn == 1u && pf.polys.size() == 1u && pf.polys[0].n == 5u,
 		      "pentagono: emitido con 5 vertices (sin triangular)");

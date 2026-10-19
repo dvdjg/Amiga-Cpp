@@ -72,6 +72,7 @@ enum : eng::u32 {
 constexpr u8 kTriCount = 7u;
 constexpr u8 kTriVerts = 3u;
 constexpr u8 kMaxFaceVerts = 8u; // contrato de render3d
+constexpr eng::coord cam_i(int v) { return eng::math::scalar_traits<eng::coord>::from_int(v); }
 constexpr u8 kClipScratch = 16u;
 
 struct Triangle {
@@ -100,13 +101,13 @@ constexpr Triangle kTrisIniciales[kTriCount] = {
 
 /// Vértice de pantalla -> espacio de cámara a profundidad `z` (crudo 4.12).
 /// `sx = cx + (x*focal)/z`  =>  `x = (sx-cx)*z/focal` (sin `__mulsi3`: 16x16).
-s16 screen_to_cam_x(s16 sx, s16 z, const eng::graphics::Camera3D& cam) {
-	return static_cast<s16>(eng::math::div_wide(
-		eng::math::mul_wide(static_cast<s16>(sx - cam.cx), z), cam.focal));
+int screen_to_cam_x(s16 sx, s16 z, const eng::graphics::Camera3D<eng::coord>& cam) {
+	using T = eng::math::scalar_traits<eng::coord>;
+	return T::to_int(T::mul_div(T::from_int(sx - cam.cx), T::from_int(z), cam.focal));
 }
-s16 screen_to_cam_y(s16 sy, s16 z, const eng::graphics::Camera3D& cam) {
-	return static_cast<s16>(eng::math::div_wide(
-		eng::math::mul_wide(static_cast<s16>(sy - cam.cy), z), cam.focal));
+int screen_to_cam_y(s16 sy, s16 z, const eng::graphics::Camera3D<eng::coord>& cam) {
+	using T = eng::math::scalar_traits<eng::coord>;
+	return T::to_int(T::mul_div(T::from_int(sy - cam.cy), T::from_int(z), cam.focal));
 }
 
 static bool null_fill(void*, eng::u8*, eng::u8, eng::u32, eng::u32, eng::u16, eng::u16,
@@ -266,7 +267,7 @@ private:
 			eng::Span<const u16>(ids, 3u),
 			eng::Span<const math3d::FaceSpan>(&span, 1u)};
 		math3d::Vec3t<eng::coord> world[3] {};
-		eng::graphics::CamVertex scratch[kClipScratch] {};
+		eng::graphics::CamVertex<eng::coord> scratch[kClipScratch] {};
 		s16 xs[kClipScratch] {};
 		s16 ys[kClipScratch] {};
 		const eng::math::Affine<3, eng::coord, eng::coord> ident =
@@ -333,7 +334,7 @@ private:
 	eng::Block<eng::MaskTag, eng::MemoryKind::Chip> m_mask {};
 	Triangle m_tris[kTriCount] {};
 	u8 m_paint_order[kTriCount] {};
-	eng::graphics::Camera3D m_cam {4096, 160, 116, 64, 160, 116};
+	eng::graphics::Camera3D<eng::coord> m_cam {cam_i(4096), 160, 116, cam_i(64), cam_i(160), cam_i(116)};
 	playfield::DiffText<16> m_frame_diff {};
 
 };

@@ -546,6 +546,30 @@ struct scalar_traits<Fixed<R, E, P>> {
 	}
 	static constexpr int to_int(scalar a) { return static_cast<int>(a.template rescale<0>().v); }
 
+	/// `(a·b)/c` con el producto en ancho (s32): el intermedio `a·b` NO se normaliza
+	/// antes de dividir (hacerlo saturaría/truncaría en `R` y la proyección saldría mal).
+	/// El cociente se satura a `R` y se calcula con `divs.w` en 68000, sin libcalls.
+	static constexpr scalar mul_div(scalar a, scalar b, scalar c) {
+		if (c.v == 0) {
+			return zero();
+		}
+		if constexpr (sizeof(R) <= 2u) {
+			const eng::s32 prod = static_cast<eng::s32>(a.v) * static_cast<eng::s32>(b.v);
+			const eng::s32 den = c.v;
+			const eng::s32 lim = (den < 0 ? -den : den) * 32767;
+			if (prod > lim) {
+				return scalar {32767};
+			}
+			if (prod < -lim) {
+				return scalar {-32768};
+			}
+			return scalar {eng::math::arith<eng::s16>::div(prod, static_cast<eng::s16>(den))};
+		} else {
+			using W = typename wide<R>::type;
+			return scalar {static_cast<R>((static_cast<W>(a.v) * static_cast<W>(b.v)) / c.v)};
+		}
+	}
+
 	/// Normaliza un producto (de cualquier exponente) a este escalar. Un redondeo.
 	template <typename Prod>
 	static constexpr scalar norm_from(Prod p) {

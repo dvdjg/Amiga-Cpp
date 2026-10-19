@@ -73,6 +73,13 @@ struct scalar_traits {
 		return static_cast<S>(p);
 	}
 	static constexpr bool needs_normalize = false;
+	/// `(a·b)/c` con el producto INTERMEDIO sin normalizar (no se pierde por redondear
+	/// `a·b` antes de dividir). Es la operación de la proyección perspectiva y del límite
+	/// lateral del clip: `focal·x/z`. El default sirve a escalares sin representación
+	/// cruda; `Fixed` la especializa con el intermedio ancho (s32) y `divs.w`.
+	static constexpr S mul_div(S a, S b, S c) {
+		return static_cast<S>((a * b) / c);
+	}
 };
 
 template <>
@@ -92,6 +99,8 @@ struct scalar_traits<float> {
 	static constexpr float norm_from(Prod p) {
 		return static_cast<float>(p);
 	}
+
+	static constexpr float mul_div(float a, float b, float c) { return (a * b) / c; }
 
 	static constexpr bool needs_normalize = false;
 };

@@ -130,14 +130,16 @@ struct Blit3dPlanesDemo {
 			draw_hud_static();
 		}
 		m_ready = true;
-		ENG_PROF_INIT(2u);
+		ENG_PROF_INIT(3u);
 		eng::amiga::mark_ready();
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_ready) return;
+		ENG_PROF_FRAME();
 		// **Publicacion diferida al INICIO del update**: el raster muestra siempre el buffer
 		// completo anterior; el trasero se pinta despues (evita ver buffers en construccion).
+		ENG_PROF_BEGIN(0u);
 		m_scene.commit();
 		const eng::PlaneBytes planes = m_scene.back();
 		(void)m_pf.bind_raw(planes.data(), static_cast<u32>(kPlaneBytes) * kPlanes, kWidth, kHeight,
@@ -154,42 +156,48 @@ struct Blit3dPlanesDemo {
 		eng::math3d::mesh_transform(eng::Span<const CamVec>(kCube, 8u), model,
 					    eng::Span<CamVec>(world, 8u));
 		// Centro en camara: +z0 y la camara con focal/centro de pantalla.
-		eng::graphics::Camera3D cam {};
-		cam.focal = kFocal;
+		using CT = eng::math::scalar_traits<eng::coord>;
+		eng::graphics::Camera3D<eng::coord> cam {};
+		cam.focal = CT::from_int(kFocal);
 		cam.cx = 160;
 		cam.cy = 116;
-		cam.near_z = 64;
-		cam.half_w = 160;
-		cam.half_h = 116;
+		cam.near_z = CT::from_int(64);
+		cam.half_w = CT::from_int(160);
+		cam.half_h = CT::from_int(116);
 
+		// Vértices por cara: el builder guarda VISTAS, no copia; deben vivir hasta el fill.
+		s16 xs[6][16] {};
+		s16 ys[6][16] {};
+		ENG_PROF_END(0u);
+		ENG_PROF_BEGIN(1u);
 		eng::graphics::PlaneFillBuilder<6> fb {};
 		m_submitted = 0u;
 		for (u8 fi = 0u; fi < 6u; ++fi) {
-			eng::graphics::CamVertex cv[4] {};
+			eng::graphics::CamVertex<eng::coord> cv[4] {};
 			for (u8 k = 0u; k < 4u; ++k) {
 				const CamVec& v = world[kCubeFaces[fi][k]];
-				cv[k].x = static_cast<s16>(eng::math::scalar_traits<eng::coord>::to_int(v.v[0]));
-				cv[k].y = static_cast<s16>(eng::math::scalar_traits<eng::coord>::to_int(v.v[1]));
-				cv[k].z = static_cast<s16>(eng::math::scalar_traits<eng::coord>::to_int(v.v[2]) +
-							 kZ0);
+				cv[k].x = v.v[0];
+				cv[k].y = v.v[1];
+				cv[k].z = v.v[2] + CT::from_int(kZ0);
 			}
-			eng::graphics::CamVertex cl[16] {};
+			eng::graphics::CamVertex<eng::coord> cl[16] {};
 			const u8 m = eng::graphics::clip_camera_polygon(cv, 4u, cam, cl, 16u);
 			if (m < 3u) continue;
-			s16 xs[16] {};
-			s16 ys[16] {};
 			bool ok = true;
 			for (u8 k = 0u; k < m; ++k) {
-				ok = ok && eng::graphics::project_camera_vertex(cl[k], cam, xs[k], ys[k]);
+				ok = ok && eng::graphics::project_camera_vertex(cl[k], cam, xs[fi][k], ys[fi][k]);
 			}
 			if (!ok) continue;
 			// Back-face culling por winding proyectado: en este sistema (+y abajo) una cara que mira a la camara proyecta area NEGATIVA (HOST-481); area >= 0 es trasera o degenerada.
-			if (eng::graphics::screen_area2(xs, ys, m) >= 0) continue;
-			if (fb.submit(xs, ys, m, kCubeColors[fi])) ++m_submitted;
+			if (eng::graphics::screen_area2(xs[fi], ys[fi], m) >= 0) continue;
+			if (fb.submit(xs[fi], ys[fi], m, kCubeColors[fi])) ++m_submitted;
 		}
-		(void)backend.fill_polygons_by_plane_spans(fb.faces().data(), fb.count(), planes, kRowBytes,
-						     kPlaneBytes, kPlanes, kWidth, kWorldH, m_mask.view);
+		ENG_PROF_END(1u);
+		ENG_PROF_BEGIN(2u);
+		(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), planes, kRowBytes,
+						     kPlaneBytes, kPlanes, kWidth, kWorldH);
 		g_eng_run_status.detail = fb.count();
+		ENG_PROF_END(2u);
 		draw_hud_dynamic(frame);
 		eng::debug::probe_when_ready(g_eng_run_status, frame);
 	}
