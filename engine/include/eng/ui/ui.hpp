@@ -22,6 +22,7 @@
 #include <eng/ui/list.hpp>
 #include <eng/ui/msg_adapter.hpp>
 #include <eng/ui/painter.hpp>
+#include <eng/ui/pointer.hpp>
 #include <eng/ui/scroll.hpp>
 #include <eng/ui/slider.hpp>
 #include <eng/ui/text.hpp>

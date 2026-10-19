@@ -342,6 +342,8 @@ struct HudCrpgDemo {
 		eng::debug::DebugPeripheral::counter_name(3u, reinterpret_cast<eng::u32>("iconset"));
 		// Operaciones del modelo aplicadas por frame (telemetria HudStats, H4).
 		eng::debug::DebugPeripheral::counter_name(4u, reinterpret_cast<eng::u32>("hud_ops"));
+		eng::debug::DebugPeripheral::counter_name(5u, reinterpret_cast<eng::u32>("vbl"));
+		eng::debug::DebugPeripheral::counter_name(6u, reinterpret_cast<eng::u32>("frame"));
 		eng::amiga::mark_ready();
 	}
 
@@ -353,6 +355,12 @@ struct HudCrpgDemo {
 		eng::amiga::poll_mouse(m_mouse, m_mouse_poll);
 		eng::amiga::poll_input(m_input_agg);
 		const eng::input::PadState& pad = m_input_agg.pad0;
+		// **Puntero de hardware** (GUI, `GameDisplay::hardware_cursor`): sigue al ratón con
+		// sus deltas; el recorte a pantalla lo hace el propio puntero. El cursor lógico de
+		// la banda (m_mx/m_my) se calcula abajo, más restringido.
+		if (auto* cursor = app.cursor()) {
+			cursor->move_by(m_mouse.dx, m_mouse.dy);
+		}
 
 		// (2) Raton: el cursor vive en la banda (x 0..319, y 208..255); solo se emiten
 		// eventos cuando algo cambia (el raton de Amiga da deltas por contador).
@@ -425,6 +433,10 @@ struct HudCrpgDemo {
 				1u, static_cast<u32>(bar.active) * 100u +
 					    static_cast<u32>(sel == eng::hud::kHudNoSlot ? 99u : sel));
 			eng::debug::DebugPeripheral::counter_value(2u, m_attract_frame);
+			// Cadencia honesta (DT-036): latidos de VBlank del mini-SO y frames del motor;
+			// el ratio `frame`/`vbl` no depende del reloj de pared del periférico.
+			eng::debug::DebugPeripheral::counter_value(5u, eng::os::frame_count());
+			eng::debug::DebugPeripheral::counter_value(6u, app.frame());
 		}
 		(void)app;
 	}
@@ -1038,6 +1050,11 @@ int main() {
 	// Interleaved: la escena expone su `CanvasPlayfield` y `band_from_view` lo compone.
 	display.layout = eng::graphics::PlaneLayout::Interleaved;
 	display.palette = kGamePalette;
+	// Colores del par de sprites 0/1 (COLOR16/17): cuerpo blanco y contorno negro del puntero
+	// de hardware (la flecha clásica de `eng::ui::Pointer`).
+	display.palette.color[16] = 0xfffu;
+	display.palette.color[17] = 0x000u;
+	display.hardware_cursor = true;
 	// **Espera de VBlank activa** (familia 212/DT-011, receta DT-042): con la espera por
 	// senal el planificador del SO vivo apagaba el latido en ciertas fases y la tarea
 	// quedaba dormida para siempre (frame clavado a los ~262, ver DT-036); la espera

@@ -13,6 +13,8 @@ Demo de **inventario de iconos con selección y foco** sobre Amiga 500 (fase **H
 
 ## Elementos en pantalla
 
+- **Puntero de ratón**: flecha clásica (cuerpo blanco + contorno negro) como **sprite de hardware** (sprite 0), sigue al ratón por toda la pantalla con recorte; no toca el framebuffer (no genera *damage*).
+
 - **Campo de juego (líneas 0–207)**: fondo negro con unos bloques estáticos de color (backdrop; no es interactivo).
 - **Franja HUD (líneas 208–255)**: marco blanco de 1 px; etiqueta `ITEMS`; **rejilla 6×2** en (8,8) con celdas de 16×16: **objeto** = cuadro amarillo de 12×12 (los slots vacíos no tienen objeto); **hover** (ratón encima) = marco blanco; **foco** = marco rojo; **selección** = celda blanca con el objeto en rojo; texto de estado `SEL nn FOC nn` en x=112 (amarillo); línea de depuración `HUD ICONS vX.Y.BBBB F NNNNN FPS NN.N` en blanco.
 

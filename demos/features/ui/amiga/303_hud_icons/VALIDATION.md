@@ -18,7 +18,11 @@ El `fps10` de pared subestima (40-42) porque el reloj del periférico no es de i
 
 ## Evidencia de memoria
 
-El gate `analyze-sequence.sh` exige `vbl >= 500` (la app viva) y ratio `frame`/`vbl >= 950/1000` (sin pérdida de campos), además de la verificación visual por secuencia por intervalos (DT-035: la captura por paso puede servir vídeo congelado).
+El gate `analyze-sequence.sh` exige `vbl >= 500` (la app viva) y ratio `frame`/`vbl >= 950/1000` (sin pérdida de campos), además de la verificación visual por secuencia por intervalos (DT-035: la captura por paso puede servir vídeo congelado). Última ventana con **cursor de hardware**: `vbl=432`, `frame=431` (ratio 0,998) y `fps10=389` (reloj de pared).
+
+## Puntero de ratón (sprite de hardware)
+
+La demo activa el **puntero de GUI** (`display.hardware_cursor = true`): la flecha clásica (cuerpo blanco + contorno negro) sobre el sprite 0, movida con los deltas de `poll_mouse` (`app.cursor()->move_by`). No toca el framebuffer ni genera *damage*. La estructura DMA, la emisión (`SPR0PT`/`SPREN`), la flecha y el controlador están verificados en **HOST-301**; la captura PNG del runner **no incluye sprites** (por eso no aparece en la visión), y el arranque/avance se comprueba por contadores (`run-demo ok` + ratio de latidos).
 
 ## Visión (prompt canónico; `qwen3-vl:8b-instruct-q8_0`)
 

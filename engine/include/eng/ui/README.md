@@ -41,6 +41,7 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `compositor.hpp` | `Compositor` (add/raise/move/resize/damage/`present`; `present_blit` copia por `Surface::blit` con vuelta a CPU). **Implementado** (HOST-230/300). |
 | `double_buffer.hpp` | `DoubleBufferScreen`: dos buffers de pantalla; compose en el trasero y `flip()` publica el delantero (flicker-free). **Implementado** (HOST-310). |
 | `hardware_cursor.hpp` | `HardwareCursor`: cursor de ratón por sprite de hardware (estructura DMA 16×16 + `SPR0PT`/`SPREN`). **Implementado** (HOST-301). |
+| `pointer.hpp` | `Pointer`: puntero de GUI sobre `HardwareCursor` con la **flecha clásica** (cuerpo + contorno calculado), recorte a pantalla, movimiento relativo/absoluto y ocultación por bitmap. Integrado en `App` (`GameDisplay::hardware_cursor` → `App::cursor()`). **Implementado** (HOST-301; demos 215/303/306). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 | `msg_adapter.hpp` | `dispatch_msg`: `os::Msg` de entrada → `UiContext` (traduce con `ctx.layout` y compone con `ctx.dead`). **Implementado** (HOST-261/263/265). |
 

@@ -6,6 +6,7 @@ Pantalla de **CRPG / aventura gráfica** sobre la franja inferior (líneas 208..
 
 - **Barra de verbos** (`LOOK TAKE USE OPEN TALK`, 5 verbos de 40 px en (112,3)): el verbo **activo** se pinta con fondo amarillo y el texto en negro; los demás, fondo negro y texto blanco. Los botones y su geometría viven en el **modelo** (`add_verb_bar`): el pintado, el *hit-test* y el anillo de foco comparten la misma caja.
 - **Rejilla de inventario** (6x2 celdas de 16x16 en (8,3)): alimentada por el **puente RPG** (`hud_slots_from_bag`): `ItemBag`/`ItemStore`/`Equipment` del kernel `eng::rpg` se convierten en vistas `HudSlotView` (icono por tipo, cantidad y marca de equipado) sin que el HUD conozca el RPG. La tira del objeto usa un color por tipo; con cantidad > 1 se pinta una barra amarilla de 2 px por unidad en el borde inferior.
+- **Puntero de ratón**: flecha clásica (cuerpo blanco + contorno negro) como **sprite de hardware** (sprite 0), sigue al ratón por toda la pantalla con recorte; no toca el framebuffer (no genera *damage*).
 - **Tooltip** con TTL (`tooltip_show`/`tooltip_tick`, 150 frames): al cambiar verbo o celda se muestra `VERB:<nombre> ITEM:<n>` en (112,27); al expirar, la línea vuelve al fondo.
 
 Además: línea de estado `V:n S:nn` en (112,17) (validable sin decodificar píxeles) y la franja de depuración obligatoria (nombre + versión + frames + fps) en y=40.

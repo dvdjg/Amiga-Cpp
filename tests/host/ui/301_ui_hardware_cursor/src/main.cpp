@@ -1,12 +1,16 @@
 // ============================================================================
-// Test HOST-301: cursor por sprite de hardware (`eng::ui::HardwareCursor`).
+// Test HOST-301: cursor por sprite de hardware (`eng::ui::HardwareCursor`) y
+// puntero de GUI (`eng::ui::Pointer`).
 // ============================================================================
 //
-// Valida en host (sin Amiga) la estructura DMA y la emisión del cursor:
+// Valida en host (sin Amiga) la estructura DMA, la emisión del cursor, la flecha
+// clásica (cuerpo + contorno) y el controlador con recorte/ocultación:
 //   1) `bind` valida el buffer (nullptr/corto -> false).
 //   2) `set_bitmap` escribe DAT/DATB por línea y deja el terminador DMA nulo.
 //   3) `set_position` codifica POS/CTL (VSTART/VSTOP/HSTART y alineación a par).
 //   4) `emit_into` emite SPR0PTH/L -> estructura y DMACON con SPREN.
+//   5) `Pointer`: flecha precalculada (contorno sin solapar el cuerpo), recorte a
+//      los límites, movimiento relativo y ocultación fuera de pantalla.
 //
 // Ejecucion:
 //   bash tools/run-host-tests.sh tests/host/ui/301_ui_hardware_cursor
@@ -18,6 +22,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/ui/hardware_cursor.hpp>
+#include <eng/ui/pointer.hpp>
 
 namespace {
 
@@ -101,8 +106,48 @@ int main() {
 	check(spr0h && spr0l, "SPR0PTH/L -> estructura del cursor");
 	check(spren, "DMACON con SPREN");
 
+	// --- flecha clásica (cuerpo + contorno) ---
+	const eng::ui::PointerBits arrow = eng::ui::kPointerArrow;
+	check(arrow.dat[0] == 0x8000u, "cuerpo: primera fila (punta izquierda)");
+	check(arrow.dat[8] == 0xff80u, "cuerpo: fila de union (8)");
+	for (eng::u16 r = 0u; r < eng::ui::kPointerSize; ++r) {
+		check((arrow.dat[r] & arrow.datb[r]) == 0u, "contorno sin solapar el cuerpo");
+	}
+	// El contorno rodea la punta: píxel a la derecha (fila 0) y debajo (fila 15).
+	check((arrow.datb[0] & 0x4000u) != 0u, "contorno a la derecha de la punta");
+	check(arrow.datb[15] != 0u, "contorno bajo la cola");
+
+	// --- puntero de GUI (recorte, movimiento relativo y ocultación) ---
+	eng::ui::Pointer ptr;
+	check(!ptr.valid(), "puntero sin bind no es válido");
+	check(ptr.bind(blk.view.data(), eng::ui::HardwareCursor::kBytes), "puntero bind ok");
+	check(ptr.valid(), "puntero válido");
+	ptr.set_bounds(320, 256);
+	ptr.move_to(100, 50);
+	check(ptr.x == 100 && ptr.y == 50, "move_to absoluto");
+	ptr.move_by(5, -10);
+	check(ptr.x == 105 && ptr.y == 40, "move_by relativo");
+	ptr.move_to(-5, 300); // fuera por ambos lados: recorta
+	check(ptr.x == 0 && ptr.y == 255, "recorte a los límites");
+	ptr.move_to(100, 50);
+	ptr.set_hidden(true);
+	{
+		const eng::u16* w = ptr.cursor.words();
+		bool zero = true;
+		for (eng::u16 l = 0u; l < eng::ui::kPointerSize; ++l) {
+			zero = zero && w[2u + l * 2u] == 0u && w[2u + l * 2u + 1u] == 0u;
+		}
+		check(zero, "oculto: bitmap vaciado (sprite transparente)");
+	}
+	ptr.set_hidden(false);
+	{
+		const eng::u16* w = ptr.cursor.words();
+		check(w[2] == eng::ui::kPointerArrow.dat[0], "visible: flecha restaurada");
+	}
+	check(ptr.cursor.x() == 100 && ptr.cursor.y() == 50, "posición reflejada en el cursor");
+
 	if (g_fail == 0) {
-		std::printf("OK: cursor por sprite de hardware (estructura + emision) validado.\n");
+		std::printf("OK: cursor por sprite de hardware (estructura + emision + flecha + puntero) validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es)\n", g_fail);

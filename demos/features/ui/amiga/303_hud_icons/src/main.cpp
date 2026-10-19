@@ -205,6 +205,12 @@ struct HudIconsDemo {
 		eng::amiga::poll_mouse(m_mouse, m_mouse_poll);
 		eng::amiga::poll_input(m_input_agg);
 		const eng::input::PadState& pad = m_input_agg.pad0;
+		// **Puntero de hardware** (GUI, `GameDisplay::hardware_cursor`): sigue al ratón con
+		// sus deltas; el recorte a pantalla lo hace el propio puntero. El cursor lógico de
+		// la banda (m_mx/m_my) se calcula abajo, más restringido.
+		if (auto* cursor = app.cursor()) {
+			cursor->move_by(m_mouse.dx, m_mouse.dy);
+		}
 
 		// (2) Raton: el cursor vive en la banda (x 0..319, y 208..255); solo se emiten
 		// eventos cuando algo cambia (el raton de Amiga da deltas por contador).
@@ -586,6 +592,11 @@ int main() {
 	display.color_depth = 4u;
 	display.layout = eng::graphics::PlaneLayout::Interleaved;
 	display.palette = kGamePalette;
+	// Colores del par de sprites 0/1 (COLOR16/17): cuerpo blanco y contorno negro del puntero
+	// de hardware (la flecha clásica de `eng::ui::Pointer`).
+	display.palette.color[16] = 0xfffu;
+	display.palette.color[17] = 0x000u;
+	display.hardware_cursor = true;
 	// **Bucle por sondeo** (familia 212/DT-011, clase 119/400/303): bajo el SO vivo la
 	// espera por senal pierde el despertar y la espera activa tampoco salva a esta demo
 	// (paron determinista a los ~209 frames, medido 2026-10-19: vbl y frame congelados);

@@ -25,6 +25,7 @@
 
 #include <eng/api/device.hpp>
 #include <eng/api/display.hpp>
+#include <eng/ui/pointer.hpp>
 #include <eng/api/screen.hpp>
 #include <eng/api/world_render.hpp>
 #include <eng/core/types/box.hpp>
@@ -133,18 +134,38 @@ public:
 		// bus del A500, falla rápido antes de componer (ver `eng/hw/bus_budget.hpp`/`BUS_BUDGET.md`).
 		if (hw::amiga500_bus_budget(bus_budget_input(m_display)).remaining_slots < 0)
 			return util::unexpected(StartError::BusOverBudget);
+		// **Puntero de hardware** (`GameDisplay::hardware_cursor`): la estructura DMA vive en un
+		// buffer **estático alineado** del propio ejecutable (el binario de las demos se carga en
+		// Chip RAM), no en la arena de escena: reservarla ahí desplazaba las asignaciones de la
+		// escena y cambiaba la alineación de los bitplanes (coste medido: la 306 pasaba de ~41 a
+		// ~26 fps por la cuantización a 2 campos). El movimiento solo reescribe POS/CTL.
+		m_pointer = {};
+		if (m_display.hardware_cursor) {
+			if (!m_pointer.bind(s_cursor_chip, ui::HardwareCursor::kBytes)) {
+				return util::unexpected(StartError::OutOfMemory);
+			}
+			m_pointer.set_bounds(static_cast<s16>(m_display.width),
+					     static_cast<s16>(m_display.height));
+			m_pointer.move_to(static_cast<s16>(m_display.width / 2u),
+					  static_cast<s16>(m_display.height / 2u));
+		}
 		const auto display_stage = graphics::composition::display(resources);
 		const auto palette_stage = graphics::composition::palette(m_display.palette.words(),
 									  kPaletteFirstColor, kPaletteEntries);
+		// Etapa del **cursor** (siempre presente; no-op si el display no lo pidió): emite
+		// `SPR0PT` + `SPREN` una vez; el seguimiento del ratón solo reescribe POS/CTL.
+		const auto cursor_stage = [this](graphics::composition::Scene& sc) {
+			m_pointer.emit_into(sc.scheduler());
+		};
 		// El gradiente/efectos de copper por línea son opcionales: se añaden como etapa solo si
 		// el juego los declaró (`GameDisplay::intents`).
 		const bool composed = m_display.intents.empty()
 			? graphics::composition::compose(m_owned_scene, *m_memory.get(), resources,
 							 graphics::composition::ocs_a500, display_stage,
-							 palette_stage)
+							 palette_stage, cursor_stage)
 			: graphics::composition::compose(m_owned_scene, *m_memory.get(), resources,
 							 graphics::composition::ocs_a500, display_stage,
-							 palette_stage,
+							 palette_stage, cursor_stage,
 							 graphics::composition::intents(m_display.intents));
 		if (!composed) {
 			m_owned_scene.release();
@@ -168,6 +189,12 @@ public:
 		return true;
 	}
 	[[nodiscard]] const GameDisplay& display() const noexcept { return m_display; }
+	/// **Puntero de hardware** del display (`GameDisplay::hardware_cursor`); `nullptr` si no se
+	/// pidió. La app lo mueve con los deltas del ratón (`move_by`) o lo oculta (`set_hidden`).
+	[[nodiscard]] ui::Pointer* cursor() noexcept { return m_pointer.valid() ? &m_pointer : nullptr; }
+	[[nodiscard]] const ui::Pointer* cursor() const noexcept {
+		return m_pointer.valid() ? &m_pointer : nullptr;
+	}
 	[[nodiscard]] u32 remaining_chip() const noexcept {
 		return m_memory.valid() ? m_memory->chip().free_bytes() : 0u;
 	}
@@ -1095,6 +1122,11 @@ private:
 	Engine<Backend, Adapter> m_engine;
 	eng::Ref<MemoryManager> m_memory {};                 ///< composition root owns configured pools
 	graphics::composition::Scene m_owned_scene {};       ///< scene composed and owned by this App
+	ui::Pointer m_pointer {};                            ///< puntero de hardware (display)
+	/// Estructura DMA del puntero: **Chip** por construcción (el ejecutable de las demos se
+	/// carga en Chip) y alineada a 16 para el sprite hardware. Estática: no consume arena de
+	/// escena ni desplaza sus asignaciones.
+	alignas(16) inline static eng::u8 s_cursor_chip[ui::HardwareCursor::kBytes] {};
 	GameDisplay m_display {};
 	bool m_started = false;
 	bool m_shutdown = false;

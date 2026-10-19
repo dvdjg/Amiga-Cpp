@@ -17,6 +17,11 @@
 | `aframe` | frames de guion (se **reinicia con entrada real**: ratón/joystick); 726 en la ventana larga | contador 2 |
 | `iconset` | **2** — cambios de conjunto de iconos (dispara el ciclo de tema cada 300 frames) | contador 3 |
 | `hud_ops` | operaciones del modelo aplicadas en el **último frame** (0 en frames sin deltas; sube con los repintados completos por cambio de tema) — dogfooding de `HudStats` (H4, `budget.hpp`) | contador 4 |
+| `vbl` / `frame` | **601 / 503** en la última ventana (ratio 0,837: la demo está en el borde de 1↔2 campos; con la espera activa consume ~todo lo que produce) | contadores 5/6 |
+
+## Puntero de ratón (sprite de hardware)
+
+La demo activa el **puntero de GUI** (`display.hardware_cursor = true`): la flecha clásica (cuerpo blanco + contorno negro) sobre el sprite 0, movida con los deltas de `poll_mouse` (`app.cursor()->move_by`). La estructura DMA, la emisión (`SPR0PT`/`SPREN`), la flecha y el controlador están verificados en **HOST-301**; la captura PNG del runner **no incluye sprites** (por eso no aparece en la visión). Medido: la demo queda en su baseline (~41 fps, ratio 0,84); con el enlace de otro layout se midió el salto a 2 campos (~26 fps), así que el margen de esta demo es estrecho (candidato a optimización).
 
 Sin picos medidos con la instrumentación temporal (retirada): el frame repinta solo las celdas/verbos cuyo estado cambió + la línea del tooltip al expirar; el cambio de tema repinta la banda completa cada 300 frames. La pérdida de latidos de la familia DT-036 queda resuelta en esta demo con la espera activa.
 

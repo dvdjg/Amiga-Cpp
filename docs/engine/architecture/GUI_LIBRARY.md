@@ -615,20 +615,21 @@ atrás.
 
 ### 14.7 El cursor, como sprite de hardware
 
-El puntero del ratón no debe ensuciar el framebuffer: se dibuja como **sprite de hardware**, de modo
-que mover el ratón no genera *damage* ni obliga a recomponer. La utilidad reutilizable es
-**`eng::ui::HardwareCursor`** (`eng/ui/hardware_cursor.hpp`): un sprite 16×16 de 1 palabra por línea
-que encapsula la **estructura DMA** (POS, CTL, DAT/DATB y terminador) y la emisión de `SPRxPT` +
-`DMACON` (SPREN) a la copperlist. No posee memoria: el llamador le da un buffer de **Chip RAM** con
-`bind` (los sprites solo ven Chip RAM) y lo mueve con `set_position`. Ver HOST-301 y la demo 215.
+El puntero del ratón no debe ensuciar el framebuffer: se dibuja como **sprite de hardware**, de modo que mover el ratón no genera *damage* ni obliga a recomponer. La utilidad reutilizable es **`eng::ui::HardwareCursor`** (`eng/ui/hardware_cursor.hpp`): un sprite 16×16 de 1 palabra por línea que encapsula la **estructura DMA** (POS, CTL, DAT/DATB y terminador) y la emisión de `SPRxPT` + `DMACON` (SPREN) a la copperlist. No posee memoria: el llamador le da un buffer de **Chip RAM** con `bind` (los sprites solo ven Chip RAM) y lo mueve con `set_position`.
+
+Encima, **`eng::ui::Pointer`** (`eng/ui/pointer.hpp`) es el puntero del sistema de GUI: aplica la **flecha clásica** (cuerpo blanco + contorno negro de 8 vecinos, calculado del cuerpo para que no se desincronicen), recorta a los límites del display, acepta movimiento relativo (`move_by`, deltas del ratón) o absoluto, y se oculta vaciando el bitmap (VSTART/VSTOP son de 8 bits y la pantalla canónica ocupa las 256 líneas: no hay posición "fuera" vertical en el campo). `App` lo integra sin que la demo cablee copper: `GameDisplay::hardware_cursor = true` prepara la estructura (buffer estático alineado del propio ejecutable, que vive en Chip — **no** la arena de escena: desplazarla cambiaba la alineación de los bitplanes), compone la etapa que emite `SPR0PT` + `SPREN` una vez y lo expone con `App::cursor()`; el seguimiento por frame solo reescribe POS/CTL:
 
 ```cpp
-eng::ui::HardwareCursor cur;
-cur.bind(chip_bytes, eng::ui::HardwareCursor::kBytes); // Chip RAM del llamador
-cur.set_bitmap(dat, datb);                              // cuerpo (color 1) + contorno (color 2)
-cur.set_position(mx, my);                               // sigue al ratón (poll_mouse)
-// en la copperlist (etapa de compose): cur.emit_into(sc.scheduler());
+display.hardware_cursor = true;                 // GameDisplay: activa el puntero de hardware
+display.palette.color[16] = 0xfffu;             // cuerpo (COLOR16)
+display.palette.color[17] = 0x000u;             // contorno (COLOR17)
+// en update(), con los deltas de poll_mouse:
+if (auto* cursor = app.cursor()) {
+    cursor->move_by(mouse.dx, mouse.dy);        // recorte a pantalla incluido
+}
 ```
+
+Ver HOST-301 (estructura, emisión, flecha y controlador) y las demos 215/303/306.
 
 Con el Blitter, un puntero software solo se justificaría en un modo sin sprites libres. La captura
 PNG del runner **no incluye sprites**, así que el cursor se valida por registros/copperlist.

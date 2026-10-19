@@ -45,6 +45,10 @@ struct GameDisplay {
 	/// cabe en el bus del A500. Con `bands_count == 0` se usa una franja derivada del display
 	/// (ancho/alto/planos) para no aceptar a ciegas un modo que ya satura.
 	hw::BusBudgetInput bus {};
+	/// **Puntero de ratón por sprite de hardware** (`eng::ui::Pointer`): `App::start()` reserva
+	/// la estructura DMA en Chip RAM, compone la etapa de Copper (`SPR0PT` + `SPREN`) y lo expone
+	/// con `App::cursor()`. Usa los colores 16/17 de la paleta (cuerpo/contorno del sprite 0).
+	bool hardware_cursor = false;
 };
 
 /// Motivo por el que no pudo prepararse el display propio de `App`.
