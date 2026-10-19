@@ -2,7 +2,7 @@
 
 ## Alcance
 
-Cubo convexo rotando sobre 2 bitplanes, relleno por plano con Blitter (contorno ONEDOT + area fill acotado al bbox + patrón opcional), **culling por normal 3D general para cualquier convexo** (caras CCW desde fuera; cámara en el origen), **fast path de frustum por objeto** y **proyección única de los 8 vértices**, **clear del rectángulo sucio** (unión de los bbox N-1/N-2/actual) y **recorte de cada cara al rectángulo seguro del contorno** antes de planificar las aristas. Se verifica: cubo con 3 caras de colores y relleno limpio, coste debug, el **clip fino en hardware** con el modo deriva (`kDrift`) **sin residuo en el borde**, y la equivalencia Blitter/CPU del camino por plano. **No cubierto**: bloqueo a 50 Hz, solapes entre sólidos (painter, no z-buffer), la costura de 1 px de arista compartida entre planos y la escritura fantasma de la fila 0 (defectos conocidos, ver abajo).
+Cubo convexo rotando sobre 2 bitplanes, relleno por plano con Blitter (contorno ONEDOT + area fill acotado al bbox + patrón opcional), **culling por normal 3D general para cualquier convexo** (caras CCW desde fuera; cámara en el origen), **fast path de frustum por objeto** y **proyección única de los 8 vértices**, **clear del rectángulo sucio** (unión de los bbox N-1/N-2/actual) y **recorte de cada cara al rectángulo seguro del contorno** antes de planificar las aristas, con **palabra de descarte** para el primer píxel del trazador. Se verifica: cubo con 3 caras de colores y relleno limpio, coste debug, el **clip fino en hardware** con el modo deriva (`kDrift`) **sin residuo en el borde**, y la equivalencia Blitter/CPU del camino por plano. **No cubierto**: bloqueo a 50 Hz, solapes entre sólidos (painter, no z-buffer) y la costura de 1 px de arista compartida entre planos (defecto conocido).
 
 ## Medidas
 
@@ -10,11 +10,11 @@ Cubo convexo rotando sobre 2 bitplanes, relleno por plano con Blitter (contorno 
 
 | Config | fps | ciclos/frame | campos/frame | ventanas |
 |---|---|---|---|---|
-| `A500_debug` (centrado, defecto) | 32.44 | 218 668 | 1.54 | 29.1–37.0 |
+| `A500_debug` (centrado, defecto) | 32.33 | 219 435 | 1.55 | 28.3–37.0 |
 | `A500_release` (centrado, defecto) | 33.00 | 214 958 | 1.52 | 29.7–37.3 |
 | `A500_debug` (`kDrift = true`) | 27.28 | 260 049 | 1.83 | 25.2–29.5 |
 
-El recorte de caras cuesta ~0.4 % en debug (32.56 → 32.44, dentro del ruido del medidor; en release la ventana de 5 s dio 33.0 frente a 33.9 previos, también dentro de la dispersión de ±4 fps). **Cadencia**: alterna frames de 1 y 2 campos (29–37 fps, dispersión ~8 en la ventana de 5 s); no hay frames de 3+ campos; el suelo de 25 fps se cumple en la deriva. El relleno (≈65 %) sigue siendo el coste dominante.
+El recorte de caras y la palabra de descarte no tienen coste medible en debug (32.56 → 32.33, dentro del ruido del medidor; en release la ventana de 5 s dio 33.0 frente a 33.9 previos, también dentro de la dispersión de ±4 fps). **Cadencia**: alterna frames de 1 y 2 campos (29–37 fps, dispersión ~8 en la ventana de 5 s); no hay frames de 3+ campos; el suelo de 25 fps se cumple en la deriva. El relleno (≈65 %) sigue siendo el coste dominante.
 
 ## Bug del borde derecho (CERRADO)
 
@@ -32,9 +32,12 @@ El recorte de caras cuesta ~0.4 % en debug (32.56 → 32.44, dentro del ruido de
 - `L1-003` (`tests/amiga/l1_backend/003_plane_fill_bounds`): sonda **estática** con caras en `x=320`, `x=-1`, `y=232` y una fuera; compara contra la referencia CPU y publica 5 bits en `detail`. A/B: con `min_x=1` → `detail & 0x1f == 0x1f` (OK); con `min_x=0` (comportamiento anterior) → `detail == 2` (FAIL, con la vertical en `x≈width-1`).
 - Secuencia de la 088 con `kDrift`: los frames con el cubo a la izquierda ya **no tienen ningún píxel** en `x≥310`; los que cruzan el borde muestran el perfil triangular legítimo de la cara (2–4 px en `x=319`), sin columna aislada.
 
-## Defectos conocidos (abiertos, separados)
+## Escritura fantasma de la fila 0 (CERRADO)
 
-- **Escritura fantasma de la fila 0**: el primer píxel de cada línea va por el canal D, programado a la base del plano (`blitter_line_draw(eor, plane.data(), plane.data())`), y deposita una palabra de la fila de la línea en la fila 0 (`x≈0–15`). El clear por rectángulo sucio no la cubre. Fix propuesto: apuntar D a una palabra de descarte fuera del bitmap visible (scratch de 2 bytes Chip del backend) — requiere ampliar la API del fill con ese scratch. `L1-003` lo reporta como bit 5 (informativo).
+En modo línea el **primer píxel** de cada arista va por el canal **D**; con `D = plane.data()` la palabra modificada aterrizaba en la **fila 0** del bitmap visible (`x≈0–15`), fuera del rectángulo sucio, y quedaba como píxeles sueltos en la esquina superior izquierda (visto en los volcados de planos de la 088 y en `L1-003`). Fix: el backend reserva una **palabra de descarte de 2 B en Chip** (`m_line_trash`, en `configure_memory`) y el relleno por plano la pasa como `d_base` del trazador; se machaca en cada línea y no la lee nadie. `L1-003` la comprueba (bit 5: fila 0 limpia) y el test pasa `detail == 0x3f`.
+
+## Defectos conocidos (abiertos)
+
 - **Costura de 1 px magenta** entre caras que comparten arista y caen en planos distintos: cada plano posee el píxel del borde. Pendiente la regla top-left/half-open por cara.
 
 ## Visión (Ollama, prompt canónico)

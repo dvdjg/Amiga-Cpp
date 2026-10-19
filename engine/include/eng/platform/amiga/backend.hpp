@@ -958,6 +958,11 @@ private:
 	s16 m_q_amod = 0, m_q_bmod = 0, m_q_cmod = 0, m_q_dmod = 0;
 	bool m_q_cookie = false;
 	eng::Block<eng::WorkTag> m_blit_queue_mem {}; ///< cola en RAM CPU-privada (Fast o Slow) si hay
+	/// **Palabra de descarte** (2 B, Chip) para el primer píxel del trazador de líneas: en modo
+	/// línea el primer píxel va por el canal **D**, y con `D = base del plano` la palabra acaba en
+	/// la fila 0 del bitmap (visible). El relleno por plano la apunta aquí: se machaca en cada
+	/// línea y no la lee nadie. Ver `blitter-line-subpixel-fill.md` §2.1.
+	eng::Block<eng::MaskTag> m_line_trash {};
 	/// true una vez que la primera copperlist ha tomado el control completo del
 	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
 	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.

@@ -25,11 +25,12 @@
 //   bit 2: columnas del borde (x=0 y x=319) limpias (margen seguro del contorno)
 //   bit 3: los interiores de los cuatro casos están rellenos
 //   bit 4: nada perdido respecto a la referencia CPU (±1 px, el trazador va un paso detrás)
-//   bit 5: fila 0 limpia — INFORMATIVO: falla por la escritura fantasma del primer píxel
-//          de cada línea por el canal D (base del plano), defecto conocido y aparte
+//   bit 5: fila 0 limpia: el primer píxel de cada línea va por el canal D y el relleno
+//          por plano lo descarta en una palabra Chip fuera del bitmap (m_line_trash)
 //
-// `verify.sh` exige `detail & 0x1f == 0x1f` (bits 0..4). Con el motor sin recortar
-// las caras al rectángulo seguro del contorno los bits 0/2 fallan.
+// `verify.sh` exige `detail == 0x3f` (los seis bits). Con el motor sin recortar las
+// caras al rectángulo seguro del contorno fallan los bits 0/2; sin la palabra de
+// descarte falla el 5.
 // ============================================================================
 
 #include <eng/api/api.hpp>
@@ -207,8 +208,7 @@ private:
 		const u8* g = got.data();
 		const u8* w = want.data();
 		// bit 0: nada fuera de las cajas esperadas dilatadas 1 px (filas 1..231; la
-		// fila 0 queda para el bit 5 porque el trazador deja ahí la escritura fantasma
-		// del primer píxel por D, un defecto conocido y aparte).
+		// fila 0 tiene su propio bit porque el primer píxel de cada línea va por D).
 		bool outside = false;
 		for (u32 p = 0u; p < kPlanes && !outside; ++p) {
 			for (u32 y = 1u; y < kWorldH && !outside; ++y) {
@@ -304,8 +304,8 @@ private:
 		if (!lost) {
 			bits |= 1u << 4u;
 		}
-		// bit 5: fila 0 limpia. Falla por la escritura fantasma del primer píxel de cada
-		// línea por el canal D (base del plano): defecto conocido, separado de este test.
+		// bit 5: fila 0 limpia (el primer píxel de cada línea va por D y se descarta en la
+		// palabra Chip del backend).
 		bool row0_clean = true;
 		for (u32 p = 0u; p < kPlanes && row0_clean; ++p) {
 			for (u32 x = 0u; x < kWidth; ++x) {

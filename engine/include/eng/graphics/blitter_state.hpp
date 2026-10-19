@@ -48,6 +48,13 @@ inline constexpr u16 kBlitterSignFlag = 0x0040u; ///< `SIGN` (signo del error)
 inline constexpr u16 kBlitterLineOr = 0x0bcau;   ///< `BLTCON0` de línea (`BC0F_LINE_OR`)
 inline constexpr u16 kBlitterLineEor = 0x0b4au;  ///< `BLTCON0` de línea EOR (`BC0F_LINE_EOR`)
 
+/// **Margen seguro en x del contorno por Blitter**: el trazador de líneas escribe cada píxel un
+/// paso por detrás, así que una vertical dada en `x` se dibuja en `x-1`. El relleno por plano
+/// recorta el contorno a `[kBlitterLineSafeMarginX, width-1]` para que `x=0` no caiga en `-1`
+/// (que por `(u32(-1)>>3)&~1` acaba en la cola de la fila anterior). Ver
+/// `polygon_planes.hpp` (`clip_face_to_rect`) y `blitter-line-subpixel-fill.md` §2.1.
+inline constexpr eng::s16 kBlitterLineSafeMarginX = 1;
+
 /// **Operación de una racha de blits** (lote homogéneo de objetos sobre un bitmap). Es el
 /// vocabulario de dominio de `AmigaBackend::blitter_blob_run_*` (streaming, coste cero): el
 /// llamador describe objetos con la operación y el backend emite los registros. Evita que la

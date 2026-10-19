@@ -166,6 +166,9 @@ bool AmigaBackend::configure_memory(const MemoryConfig& in) {
 	// reservan del **banco**, no de la arena (la arena `frame` sigue siendo scratch).
 	(void)m_memmanager.configure(m_chip_alloc, m_chip_alloc_size, m_slow_alloc, m_slow_alloc_size,
 				     m_fast_alloc, m_fast_alloc_size);
+	// Palabra de descarte del trazador de líneas (2 B Chip, ver `m_line_trash`). No es fatal:
+	// sin ella el relleno por plano cae al comportamiento anterior (D = base del plano).
+	m_line_trash = m_memmanager.chip().reserve<eng::MaskTag>(2u, 2u);
 
 	// Caché de assets con el presupuesto de las arenas. El backend es estable, así que la
 	// `Ref` que guarda la caché es válida; el runtime posee su propio backend-copia.
@@ -230,6 +233,8 @@ void AmigaBackend::release_memory() {
 
 	m_memory = {};
 	m_memory_report = {};
+	// La palabra de descarte vive en el banco Chip: el bloque queda libre con el resto.
+	m_line_trash = {};
 }
 
 void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {

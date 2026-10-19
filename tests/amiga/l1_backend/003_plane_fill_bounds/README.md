@@ -27,9 +27,9 @@ El mismo conjunto se pinta con la referencia CPU (`fill_polygons_by_plane_cpu`, 
 | 2 | columnas del borde (x=0 y x=319) limpias (margen seguro del contorno) |
 | 3 | interiores de los cuatro casos rellenos |
 | 4 | nada perdido respecto a la CPU (±1 px por el desfase del trazador) |
-| 5 | fila 0 limpia — **informativo**: falla por la escritura fantasma del primer píxel de cada línea por el canal D (base del plano), defecto conocido y aparte |
+| 5 | fila 0 limpia: el primer píxel de cada línea va por el canal D y se descarta en una **palabra de descarte Chip** fuera del bitmap (m_line_trash) |
 
-`verify.sh` exige `detail & 0x1f == 0x1f` e informa del bit 5.
+`verify.sh` exige `detail == 0x3f` (los seis bits).
 
 ## Ejecución
 
@@ -40,13 +40,12 @@ bash tests/amiga/l1_backend/003_plane_fill_bounds/verify.sh
 Salida esperada:
 
 ```
-[L1-003] OK: relleno por plano con caras en x=320, x=-1 e y=232, sin residuo en el borde.
-[L1-003] aviso: fila 0 con la escritura fantasma del canal D (defecto conocido, ver README).
+[L1-003] OK: relleno por plano con caras en x=320, x=-1 e y=232, sin residuo en el borde ni escritura fantasma en la fila 0.
 ```
 
 ## Evidencia del A/B
 
-- Con el margen seguro (`min_x = 1`): `detail & 0x1f == 0x1f` → OK.
+- Con el margen seguro (`min_x = 1`) y la palabra de descarte: `detail == 0x3f` → OK.
 - Volviendo a `min_x = 0` (comportamiento anterior): `detail == 2` (solo el bit 1) → FAIL. La captura muestra la vertical de la cara izquierda pintada en `x≈width-1` de la fila anterior, exactamente el residuo de la 088.
 
 ## Inspección paso a paso

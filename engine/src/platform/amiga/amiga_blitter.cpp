@@ -899,8 +899,12 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 		//    borde derecho se queda en width-1 (el trazador lo dibuja en width-2, dentro).
 		const s16 max_x = static_cast<s16>(width - 1u);
 		const s16 max_y = static_cast<s16>(height - 1u);
-		const s16 min_x = 1;
+		const s16 min_x = eng::graphics::kBlitterLineSafeMarginX;
 		const s16 min_y = 0;
+		// Canal D del trazador: el primer píxel de cada línea va por D y con `D = base del
+		// plano` la palabra aterriza en la fila 0 visible (defecto aparte del recorte). La
+		// palabra de descarte Chip lo absorbe; sin ella se conserva el comportamiento anterior.
+		eng::u8* line_d_base = m_line_trash.valid() ? m_line_trash.data() : plane.data();
 		blitter_lines_begin(row_bytes);
 		graphics::PlaneEdge edges[64];
 		const u32 ne = graphics::plan_plane_edges_in_bounds(faces, n_faces, p, min_x, max_x,
@@ -910,7 +914,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 				LineEorParams eor;
 				if (blitter_line_eor_prepare(eor, row_bytes, edges[e].x0, edges[e].y0,
 							     edges[e].x1, edges[e].y1)) {
-					blitter_line_draw(eor, plane.data(), plane.data());
+					blitter_line_draw(eor, plane.data(), line_d_base);
 				}
 			}
 		} else {
@@ -932,7 +936,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 					LineEorParams eor;
 					if (blitter_line_eor_prepare(eor, row_bytes, cx[i], cy[i], cx[j],
 								     cy[j])) {
-						blitter_line_draw(eor, plane.data(), plane.data());
+						blitter_line_draw(eor, plane.data(), line_d_base);
 					}
 				}
 			}
