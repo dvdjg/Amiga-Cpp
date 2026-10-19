@@ -8,13 +8,13 @@ Campo en movimiento (fondo 640×256 con scroll por blit de ventana + actor en li
 
 | Métrica | Valor | Fuente |
 |---|---|---|
-| `fps10` | **335-353** (33-35 fps; 39 con menos carga) | contador 0 |
-| `ov_ok` / `ov_bad` | **178-225 / 0** (ops de ambos paneles aplicadas) | contadores 1/2 |
-| `bk_ok` / `bk_bad` | **178-207 / 0** (restauraciones del backing del panel B) | contadores 6/7 |
+| `vbl` / `frame` | **602 / 420** → ratio **0,70** (demo pesada: scroll + paneles + backing; la cadencia honesta se mide contra el reloj de VBlank del mini-SO, DT-036) | contadores 0/1 |
+| `ov_ok` / `ov_bad` | **178-225 / 0** (ops de ambos paneles aplicadas) | contadores 6/2 |
+| `bk_bad` | **0** (restauraciones del backing del panel B fallidas; el recuento de éxitos se retiró para liberar el slot de `ov_ok`) | contador 7 |
 | `blit_bad` | **0** (blits del juego) | contador 4 |
 | `deg_changes` | **351-420** (la escalera degrada/recupera con el coste real; no se queda clavada) | contador 5 |
 
-**Evidencia de memoria** (gate `analyze-sequence.sh`): `fps10 >= 250`, `ov_bad = bk_bad = blit_bad = 0` y `deg_changes >= 2` — todos los mecanismos (ops de overlay, restauración por *backing*, blits y degradación) funcionan, sin depender del vídeo.
+**Evidencia de memoria** (gate `analyze-sequence.sh`): `vbl >= 400`, ratio `frame`/`vbl >= 600/1000`, `ov_ok >= 1`, `ov_bad = bk_bad = blit_bad = 0` y `deg_changes >= 2` — todos los mecanismos (ops de overlay, restauración por *backing*, blits y degradación) funcionan, sin depender del vídeo.
 
 ## Visión
 

@@ -186,13 +186,13 @@ struct HudOverlayDemo {
 		m_bk_dirty = true; // el primer frame restaura el fondo del panel B y lo pinta
 
 		m_ready = true;
-		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
-		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("ov_ok"));
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("vbl"));
+		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("frame"));
 		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("ov_bad"));
 		eng::debug::DebugPeripheral::counter_name(3u, reinterpret_cast<eng::u32>("degraded"));
 		eng::debug::DebugPeripheral::counter_name(4u, reinterpret_cast<eng::u32>("blit_bad"));
 		eng::debug::DebugPeripheral::counter_name(5u, reinterpret_cast<eng::u32>("deg_changes"));
-		eng::debug::DebugPeripheral::counter_name(6u, reinterpret_cast<eng::u32>("bk_ok"));
+		eng::debug::DebugPeripheral::counter_name(6u, reinterpret_cast<eng::u32>("ov_ok"));
 		eng::debug::DebugPeripheral::counter_name(7u, reinterpret_cast<eng::u32>("bk_bad"));
 		m_ladder.configure(kBudgetCycles); // escalera del engine (H4) con este presupuesto
 		eng::amiga::mark_ready();
@@ -242,6 +242,10 @@ struct HudOverlayDemo {
 		}
 		eng::debug::DebugPeripheral::counter_value(3u, m_degraded ? 1u : 0u);
 		eng::debug::DebugPeripheral::counter_value(5u, m_deg_changes);
+		// Cadencia honesta (DT-036): latidos del mini-SO y frames del motor; el ratio
+		// `frame`/`vbl` no depende del reloj de pared del periférico.
+		eng::debug::DebugPeripheral::counter_value(0u, eng::os::frame_count());
+		eng::debug::DebugPeripheral::counter_value(1u, app.frame());
 	}
 
 	void render(auto& app) {
@@ -294,7 +298,7 @@ struct HudOverlayDemo {
 		eng::u32 fps10 = 0u;
 		if (m_fps_win.update(app.frame(), eng::debug::prof_clock(), fps10)) {
 			draw_fps(app, fps10);
-			eng::debug::DebugPeripheral::counter_value(0u, fps10);
+			// (fps10 de pared retirado: vbl/frame son la medida honesta)
 		}
 	}
 
@@ -465,7 +469,7 @@ private:
 		} else {
 			++m_ov_bad;
 		}
-		eng::debug::DebugPeripheral::counter_value(1u, m_ov_ok);
+		eng::debug::DebugPeripheral::counter_value(6u, m_ov_ok);
 		eng::debug::DebugPeripheral::counter_value(2u, m_ov_bad);
 		m_hud.clear_ops();
 		m_hud.clear_dirty();
@@ -479,7 +483,7 @@ private:
 		} else {
 			++m_bk_ok;
 		}
-		eng::debug::DebugPeripheral::counter_value(6u, m_bk_ok);
+		// (bk_ok retirado: el slot 6 lleva ov_ok; la restauracion se evidencia con bk_bad == 0)
 		eng::debug::DebugPeripheral::counter_value(7u, m_bk_bad);
 		push_fill(kPanelBX, kPanelBY, kPanelBW, kPanelBH, kHudBg);
 		push_frame(kPanelBX, kPanelBY, kPanelBW, kPanelBH, kHudFg);

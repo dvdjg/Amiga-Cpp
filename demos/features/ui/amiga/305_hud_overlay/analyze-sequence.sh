@@ -21,25 +21,36 @@ DEMO="demos/features/ui/amiga/305_hud_overlay"
 # --- 1) Evidencia de memoria -------------------------------------------------
 COUNTERS_OUT="$(bash "$ROOT/tools/run/run-demo.sh" "$DEMO" --settle-ms 12000 \
 	--read-debugperiph counters 2>&1)"
-echo "$COUNTERS_OUT" | grep -E 'name="(fps10|ov_bad|bk_bad|deg_changes|blit_bad)"' || true
+echo "$COUNTERS_OUT" | grep -E 'name="(vbl|frame|ov_bad|bk_bad|deg_changes|blit_bad|ov_ok)"' || true
 val() { echo "$COUNTERS_OUT" | grep "name=\"$1\"" | grep -o 'value=[0-9]*' | cut -d= -f2; }
-FPS10="$(val fps10)"; OV_BAD="$(val ov_bad)"; BK_BAD="$(val bk_bad)"
-DEG="$(val deg_changes)"; BLIT_BAD="$(val blit_bad)"
-FPS10="${FPS10:-0}"; OV_BAD="${OV_BAD:-0}"; BK_BAD="${BK_BAD:-0}"
-DEG="${DEG:-0}"; BLIT_BAD="${BLIT_BAD:-0}"
-if [ "$FPS10" -lt 250 ]; then
-	echo "FAIL: cadencia baja (fps10=$FPS10 < 250)" >&2
+VBL="$(val vbl)"; FRAME="$(val frame)"; OV_BAD="$(val ov_bad)"; BK_BAD="$(val bk_bad)"
+DEG="$(val deg_changes)"; BLIT_BAD="$(val blit_bad)"; OV_OK="$(val ov_ok)"
+VBL="${VBL:-0}"; FRAME="${FRAME:-0}"; OV_BAD="${OV_BAD:-0}"; BK_BAD="${BK_BAD:-0}"
+DEG="${DEG:-0}"; BLIT_BAD="${BLIT_BAD:-0}"; OV_OK="${OV_OK:-0}"
+if [ "$VBL" -lt 400 ]; then
+	echo "FAIL: el latido de VBlank no avanzo (vbl=$VBL; app muerta o ventana corta)" >&2
+	exit 1
+fi
+# Cadencia honesta (DT-036): ratio frame/vbl en mil. La demo es pesada (scroll +
+# paneles + backing) y su regimen medido es ~0,70; el umbral exige >= 0,60.
+RATIO=$((FRAME * 1000 / VBL))
+if [ "$RATIO" -lt 600 ]; then
+	echo "FAIL: cadencia baja (frame=$FRAME / vbl=$VBL = $RATIO/1000 < 600)" >&2
 	exit 1
 fi
 if [ "$OV_BAD" -ne 0 ] || [ "$BK_BAD" -ne 0 ] || [ "$BLIT_BAD" -ne 0 ]; then
 	echo "FAIL: fallos (ov_bad=$OV_BAD, bk_bad=$BK_BAD, blit_bad=$BLIT_BAD)" >&2
 	exit 1
 fi
+if [ "$OV_OK" -lt 1 ]; then
+	echo "FAIL: sin ops aplicadas (ov_ok=$OV_OK)" >&2
+	exit 1
+fi
 if [ "$DEG" -lt 2 ]; then
 	echo "FAIL: la escalera de degradacion no actua (deg_changes=$DEG < 2)" >&2
 	exit 1
 fi
-echo "[analyze] memoria OK: fps10=$FPS10, ov_bad=$OV_BAD, bk_bad=$BK_BAD, blit_bad=$BLIT_BAD, deg_changes=$DEG"
+echo "[analyze] memoria OK: vbl=$VBL, frame=$FRAME (ratio $RATIO/1000), ov_ok=$OV_OK, ov_bad=$OV_BAD, bk_bad=$BK_BAD, blit_bad=$BLIT_BAD, deg_changes=$DEG"
 
 # --- 2) Evidencia visual: secuencia por intervalos ---------------------------
 RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-frames 8 --sequence-interval-ms 900 \
