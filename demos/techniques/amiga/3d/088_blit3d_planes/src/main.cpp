@@ -205,6 +205,7 @@ struct Blit3dPlanesDemo {
 		ENG_PROF_BEGIN(1u);
 		eng::graphics::PlaneFillBuilder<6> fb {};
 		m_submitted = 0u;
+		s16 bx0 = 32767, by0 = 32767, bx1 = -32768, by1 = -32768;
 		const eng::math3d::Vec3t<eng::coord> cam_origin {};
 		for (u8 fi = 0u; fi < 6u; ++fi) {
 			// Culling por NORMAL 3D (camara en el origen): cara trasera fuera ANTES de
@@ -238,16 +239,38 @@ struct Blit3dPlanesDemo {
 			}
 			// Back-face culling por winding proyectado: en este sistema (+y abajo) una cara que mira a la camara proyecta area NEGATIVA (HOST-481); area >= 0 es trasera o degenerada.
 			if (eng::graphics::screen_area2(xs[fi], ys[fi], m) >= 0) continue;
-			if (fb.submit(xs[fi], ys[fi], m, kCubeColors[fi])) ++m_submitted;
+			if (fb.submit(xs[fi], ys[fi], m, kCubeColors[fi])) {
+				++m_submitted;
+				for (u8 k = 0u; k < m; ++k) {
+					if (xs[fi][k] < bx0) bx0 = xs[fi][k];
+					if (xs[fi][k] > bx1) bx1 = xs[fi][k];
+					if (ys[fi][k] < by0) by0 = ys[fi][k];
+					if (ys[fi][k] > by1) by1 = ys[fi][k];
+				}
+			}
 		}
 		ENG_PROF_END(1u);
 		ENG_PROF_BEGIN(2u);
-		if (fb.count() != 0u) {
-			(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), planes,
-							     kRowBytes, kPlaneBytes, kPlanes, kWidth, kWorldH);
-		} else {
-			(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kWorldH);
+		// Dirty rect = union del bbox actual y el del frame anterior (borra el rastro).
+		s16 dx0 = bx0, dy0 = by0, dx1 = bx1, dy1 = by1;
+		if (m_dirty_x1 >= m_dirty_x0 && m_dirty_y1 >= m_dirty_y0) {
+			if (m_dirty_x0 < dx0) dx0 = m_dirty_x0;
+			if (m_dirty_y0 < dy0) dy0 = m_dirty_y0;
+			if (m_dirty_x1 > dx1) dx1 = m_dirty_x1;
+			if (m_dirty_y1 > dy1) dy1 = m_dirty_y1;
 		}
+		if (dx1 >= dx0 && dy1 >= dy0) {
+			if (dx0 < 0) dx0 = 0;
+			if (dy0 < 0) dy0 = 0;
+			if (dx1 > static_cast<s16>(kWidth - 1u)) dx1 = static_cast<s16>(kWidth - 1u);
+			if (dy1 > static_cast<s16>(kWorldH - 1u)) dy1 = static_cast<s16>(kWorldH - 1u);
+			(void)backend.fill_polygons_by_plane_dirty(
+				fb.faces().data(), fb.count(), planes, kRowBytes, kPlaneBytes, kPlanes,
+				kWidth, kWorldH, static_cast<u16>(dx0), static_cast<u16>(dy0),
+				static_cast<u16>(dx1), static_cast<u16>(dy1));
+		}
+		if (bx1 >= bx0) { m_dirty_x0 = bx0; m_dirty_y0 = by0; m_dirty_x1 = bx1; m_dirty_y1 = by1; }
+		else { m_dirty_x0 = 1; m_dirty_y0 = 1; m_dirty_x1 = 0; m_dirty_y1 = 0; }
 		g_eng_run_status.detail = fb.count();
 		ENG_PROF_END(2u);
 		draw_hud_dynamic(frame);
@@ -290,6 +313,7 @@ private:
 	eng::Block<eng::MaskTag> m_mask {};
 	u32 m_submitted = 0u;
 	u32 m_phase = 0u;
+	s16 m_dirty_x0 = 1, m_dirty_y0 = 1, m_dirty_x1 = 0, m_dirty_y1 = 0;
 	bool m_ready = false;
 };
 

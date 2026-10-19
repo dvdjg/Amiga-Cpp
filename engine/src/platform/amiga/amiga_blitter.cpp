@@ -848,11 +848,15 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 						   u32 plane_bytes, u8 planes, u16 width,
 						   u16 height,
 						   eng::Span<const eng::MaskBytes> patterns,
-						   u8 pattern_period) {
-	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
+						   u8 pattern_period, u16 clear_x0, u16 clear_y0,
+						   u16 clear_x1, u16 clear_y1) {
+	if ((n_faces != 0u && faces == nullptr) || dest.data() == nullptr || planes == 0u ||
 	    row_bytes == 0u || plane_bytes == 0u || patterns.size() < planes) {
 		return false;
 	}
+	// El clear por rect usa `blit_clear_region`, que NO arma DMACON (el `blitter_clear`
+	// anterior sí): se arma UNA vez aquí o el Blitter no ejecuta el clear ni el relleno.
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	// Patrones opcionales: con `pattern_period` (filas uniformes) basta `row_bytes · periodo`
 	// por plano; sin él, el pase genérico lee la caja completa. Mejor rechazar que corromper.
 	for (u8 p = 0u; p < planes; ++p) {
@@ -870,8 +874,21 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 	for (u8 p = 0; p < planes; ++p) {
 		eng::PlaneBytes plane =
 			dest.subspan(static_cast<u32>(p) * plane_bytes, plane_bytes);
-		// 1) limpia el plano.
-		blitter_clear(plane, 1u, row_bytes, plane_bytes, width, height);
+		// 1) limpia SOLO el rectangulo sucio (por defecto, el plano entero).
+		u16 cx0 = clear_x0 < width ? clear_x0 : static_cast<u16>(width - 1u);
+		u16 cx1 = clear_x1 < width ? clear_x1 : static_cast<u16>(width - 1u);
+		u16 cy0 = clear_y0 < height ? clear_y0 : static_cast<u16>(height - 1u);
+		u16 cy1 = clear_y1 < height ? clear_y1 : static_cast<u16>(height - 1u);
+		if (cx0 > cx1) { const u16 sw = cx0; cx0 = cx1; cx1 = sw; }
+		if (cy0 > cy1) { const u16 sw = cy0; cy0 = cy1; cy1 = sw; }
+		{
+			const u16 cwx0 = cx0 & 0xfff0u;
+			const u16 cwx1 = static_cast<u16>(cx1 | 0x000fu);
+			const u16 cwords = static_cast<u16>((static_cast<u16>(cwx1 - cwx0) + 16u) >> 4);
+			blit_clear_region(plane.data(), row_bytes, cwx0, cy0, cwords,
+					  static_cast<u16>(cy1 - cy0 + 1u));
+			wait_blitter(); // el clear por rect depende de BLTDMOD: no pisarlo con las lineas
+		}
 		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1; las
 		//    aristas de multiplicidad PAR (compartidas por dos caras del mismo bit) se
 		//    SALTAN con el planificador de paridad (`plan_plane_edges`: dibujarlas dos
@@ -958,6 +975,16 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 	// El area fill (y el patron) son asincronos: sin esta espera el siguiente frame absorbe
 	// el coste del Blitter (y la atribucion del perfil lo carga a otro tramo).
 	return wait_blitter();
+}
+
+bool AmigaBackend::fill_polygons_by_plane_dirty(const graphics::PlanePolygon* faces, u32 n_faces,
+					  eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+					  u8 planes, u16 width, u16 height, u16 x0, u16 y0,
+					  u16 x1, u16 y1) {
+	eng::MaskBytes arr[8] = {};
+	return fill_polygons_by_plane_patterns(
+		faces, n_faces, dest, row_bytes, plane_bytes, planes, width, height,
+		eng::Span<const eng::MaskBytes>(arr, planes), 0u, x0, y0, x1, y1);
 }
 
 bool AmigaBackend::fill_polygons_by_plane_spans(const graphics::PlanePolygon* faces, u32 n_faces,

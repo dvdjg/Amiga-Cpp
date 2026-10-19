@@ -541,7 +541,18 @@ public:
 					     eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
 					     u8 planes, u16 width, u16 height,
 					     eng::Span<const eng::MaskBytes> patterns,
-					     u8 pattern_period);
+					     u8 pattern_period,
+					     u16 clear_x0 = 0u, u16 clear_y0 = 0u,
+					     u16 clear_x1 = 0xffffu, u16 clear_y1 = 0xffffu);
+
+	/// Igual que ill_polygons_by_plane, pero limpia por plano SOLO el rectangulo
+	/// [x0..x1]×[y0..y1] (union del bbox anterior y el actual): el barrido a pantalla
+	/// completa cuesta ~9k ciclos/plano y el objeto suele moverse poco. El rectangulo debe
+	/// cubrir todo pixel con contenido previo; el llamador lo garantiza (dirty tracking).
+	bool fill_polygons_by_plane_dirty(const graphics::PlanePolygon* faces, u32 n_faces,
+					  eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+					  u8 planes, u16 width, u16 height, u16 x0, u16 y0,
+					  u16 x1, u16 y1);
 
 	/// **Relleno por plano con spans CPU + cookie-cut** (sin contorno XOR ni área fill): por cada plano limpia una vez y estampa las caras cuyo bit `p` de color esté a 1 con máscara 1 bit y `D = (A & B) | D`. Es el camino validado por cara (087/089) aplicado por plano: inmune a paridad, winding y solapes (unión OR). `mask` debe ser Chip con al menos `row_bytes · height` bytes.
 	bool fill_polygons_by_plane_spans(const graphics::PlanePolygon* faces, u32 n_faces,
