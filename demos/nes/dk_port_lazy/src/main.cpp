@@ -627,7 +627,9 @@ struct DkXlGame {
 	// PAR de su subpaleta (attr&3), porque el par comparte COLOR16+s*4; el canal se rearma en el
 	// vstart de la siguiente franja. DATA: 8x8 DAT/DATB + terminador (D=1, MSB=izquierda).
 	void build_sprites() {
+
 		m_bob_count = 0u;
+		m_pre_hits_frame = 0u;
 		++m_frame_stamp;
 		m_sprite_tall = (n2a_ppu_ctrl() & 0x20u) != 0u;
 		m_sprite_height = m_sprite_tall ? 16u : 8u;
