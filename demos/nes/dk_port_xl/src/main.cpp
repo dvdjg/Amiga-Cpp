@@ -352,6 +352,7 @@ struct DkXlGame {
 	eng::u16 m_cache_key[kSpriteCacheSlots] {};
 	eng::u32 m_cache_stamp[kSpriteCacheSlots] {};
 	eng::u32 m_frame_stamp = 0u;
+	eng::u16 m_pre_hits_frame = 0u;
 	eng::Block<eng::BobTag, eng::MemoryKind::Chip> m_bob_data {};
 	eng::u8 m_bob_x[kMaxBobs] {};
 	eng::u8 m_bob_y[kMaxBobs] {};
@@ -442,10 +443,12 @@ struct DkXlGame {
 		const eng::u16 slot = static_cast<eng::u16>(o.tile * 4u +
 			((o.attr & 0x40u) ? 1u : 0u) + ((o.attr & 0x80u) ? 2u : 0u));
 		if (m_sprite_tall && m_pre16_ok) {
+			++m_pre_hits_frame;
 			return reinterpret_cast<const eng::u16*>(m_sprite_pre16.view.data() +
 				static_cast<eng::u32>(slot) * kSpriteMaxInstanceWords * 2u);
 		}
 		if (!m_sprite_tall && m_pre_ok && g_spr_chr == m_pre_chr) {
+			++m_pre_hits_frame;
 			return reinterpret_cast<const eng::u16*>(m_sprite_pre.view.data() +
 				static_cast<eng::u32>(slot) * kSprite8x8InstanceWords * 2u);
 		}
@@ -580,6 +583,7 @@ struct DkXlGame {
 	// PAR de su subpaleta (attr&3), porque el par comparte COLOR16+s*4; el canal se rearma en el
 	// vstart de la siguiente franja. DATA: 8x8 DAT/DATB + terminador (D=1, MSB=izquierda).
 	void build_sprites() {
+		m_pre_hits_frame = 0u;
 		m_bob_count = 0u;
 		++m_frame_stamp;
 		m_sprite_tall = (n2a_ppu_ctrl() & 0x20u) != 0u;
@@ -988,6 +992,10 @@ struct DkXlGame {
 			return;
 		}
 		g_eng_frame_telemetry.frame = g_dk_updates;
+		g_eng_frame_telemetry.blit_jobs = static_cast<eng::u16>(m_bob_count);
+		g_eng_frame_telemetry.blit_words = static_cast<eng::u16>(m_placement_count);
+		g_eng_frame_telemetry.copper_words = static_cast<eng::u16>(g_dk_spr_overflow);
+		g_eng_frame_telemetry.fillup_extra = static_cast<eng::u16>(m_pre_hits_frame);
 		// Diagnostico fps: m_frames en bits 8-23, m_rebuilds en 24-31.
 		g_eng_run_status.detail = 0xE0000000u | ((static_cast<eng::u32>(m_frames) & 0xffffu) << 8u) |
 					  ((static_cast<eng::u32>(m_rebuilds) & 0xffu) << 24u);
