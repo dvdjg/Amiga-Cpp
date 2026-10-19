@@ -11,9 +11,12 @@
 ///
 /// Verificación: **HOST-467** (modelo y validadores), **HOST-468** (franja y operaciones),
 /// **HOST-469** (entrada: hit-test, click, selección/foco, joystick, `capture_input`, anillo
-/// de foco) y **HOST-472** (H5: barra de verbos, tooltip/toast, panel y puente RPG→HUD);
-/// demo `302_hud_band` (franja con paleta propia, deltas y presupuesto de 1 campo).
+/// de foco), **HOST-471** (presupuesto: coste de *backing*, conflicto de canales y escalera
+/// de degradación determinista) y **HOST-472** (H5: barra de verbos, tooltip/toast, panel y
+/// puente RPG→HUD); demo `302_hud_band` (franja con paleta propia, deltas y presupuesto de
+/// 1 campo).
 
+#include <eng/hud/budget.hpp>
 #include <eng/hud/focus.hpp>
 #include <eng/hud/input.hpp>
 #include <eng/hud/model.hpp>

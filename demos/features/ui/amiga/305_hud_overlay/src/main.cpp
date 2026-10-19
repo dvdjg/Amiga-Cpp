@@ -194,6 +194,7 @@ struct HudOverlayDemo {
 		eng::debug::DebugPeripheral::counter_name(5u, reinterpret_cast<eng::u32>("deg_changes"));
 		eng::debug::DebugPeripheral::counter_name(6u, reinterpret_cast<eng::u32>("bk_ok"));
 		eng::debug::DebugPeripheral::counter_name(7u, reinterpret_cast<eng::u32>("bk_bad"));
+		m_ladder.configure(kBudgetCycles); // escalera del engine (H4) con este presupuesto
 		eng::amiga::mark_ready();
 	}
 
@@ -230,13 +231,14 @@ struct HudOverlayDemo {
 			++m_skin_changes;
 		}
 
-		// **Degradacion por presupuesto (HUD_SYSTEM §6.6)**: si el coste HUD del frame
-		// anterior supero el presupuesto, degradar (contador a 1/2, sin pulso); si va
-		// sobrado, volver. La politica es del juego; el modelo no cambia.
-		const bool over = m_last_hud_cycles > kBudgetCycles;
-		if (over != m_degraded) {
-			m_degraded = over;
-			++m_deg_changes;
+		// **Degradacion por presupuesto (HUD_SYSTEM §6.6/§6.7)**: la **escalera del engine**
+		// (`eng/hud/budget.hpp`, H4) decide el nivel con histeresis (sube al superar el
+		// presupuesto, baja por debajo de 7/8) para no oscilar con el ruido de la medida.
+		// Aqui se aplican 2 estados (nivel > 0 = degradado: contador a 1/2 y sin pulso);
+		// la politica visual es del juego; el modelo no cambia.
+		if (m_ladder.update(m_last_hud_cycles)) {
+			m_degraded = m_ladder.degraded();
+			m_deg_changes = m_ladder.changes();
 		}
 		eng::debug::DebugPeripheral::counter_value(3u, m_degraded ? 1u : 0u);
 		eng::debug::DebugPeripheral::counter_value(5u, m_deg_changes);
@@ -599,6 +601,7 @@ private:
 	u32 m_last_hud_cycles = 0u;
 	bool m_degraded = false;
 	u32 m_deg_changes = 0u;
+	eng::hud::HudDegradeLadder m_ladder {}; ///< escalera de degradacion del engine (H4)
 	u32 m_blit_bad = 0u;
 	u32 m_ov_ok = 0u;
 	u32 m_ov_bad = 0u;
