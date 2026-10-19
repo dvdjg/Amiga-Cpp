@@ -20,8 +20,8 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
 |---|---|
 | **Crear o arreglar una demo/juego** (procedimiento completo, fases F0–F5 y gates) | `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` |
 | **Validación visual / demos atractivas** (visión Ollama, secuencias, gate de render) | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
-| **Bug visual** (render que no cuadra sin causa de hardware clara) | `DEMO_VISUAL_DEBUG.md` + §1.5 (evidencia y alcance) |
-| **Hardware no cuadra** (Copper, sprites, Blitter, DMA, colisión, timers) | §1.12 y `docs/reference/emulators/winuae/README.md` — **PARAR antes de experimentar** |
+| **Bug visual** (render que no cuadra sin causa de hardware clara) | **§1.17 (sonda mínima primero)** + `DEMO_VISUAL_DEBUG.md` + §1.5 (evidencia y alcance) |
+| **Hardware no cuadra** (Copper, sprites, Blitter, DMA, colisión, timers) | **§1.17 (sonda mínima primero)** + §1.12 y `docs/reference/emulators/winuae/README.md` — **PARAR antes de experimentar** |
 | **Optimizar o escribir código nuevo** (todo código tiene impacto en rendimiento) | `docs/guides/optimization/METODO_OPTIMIZACION.md` + §1.15 |
 | **Escribir/tocar API pública o lógica de demo** | `docs/engine/architecture/PUBLIC_API.md` + `CODING_STYLE.md` + §1.10/§1.11 |
 | **Tests y verificación por demo** | `docs/testing/README.md` |
@@ -105,6 +105,7 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
 - Distinguir siempre entre indicios, validación parcial y evidencia concluyente; una compilación, un test host o una imagen que cambia no prueban por sí solos continuidad visual ni corrección del hardware.
 - Si faltan herramientas para observar el comportamiento real (por ejemplo, registros Copper efectivos, punteros BPL por frame o ciclos del Blitter), declararlo explícitamente y no presentar una hipótesis como resultado. Si una herramienta de observación da resultados no fiables (p. ej. la captura de ventana del MCP), **arreglar la herramienta** antes de seguir diagnosticando con ella.
 - Probar primero el caso límite relevante y solo después documentar o afirmar que el cambio está resuelto.
+- **Reproducir el fallo en una sonda mínima antes de arreglarlo** (§1.17): si no está aislado, no hay evidencia de que el arreglo sea el correcto.
 
 ### 1.6 Próximos pasos al final de cada turno
 
@@ -213,6 +214,17 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
   if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
   ```
   Ver también §1.13 (comentarios didácticos: **qué**, **por qué** y **qué haría mal** un lector).
+
+### 1.17 Depurar: aislar el fallo en una sonda mínima (obligatorio, antes de arreglar)
+
+- **No se depura sobre la demo/juego compleja.** Un programa que anima, rota, usa doble buffer y varias capas mezcla demasiadas variables para distinguir causas: **simplifica y reproduce EXCLUSIVAMENTE lo que falla**, sin ruido de todo lo demás.
+- **La sonda mínima** es una prueba pequeña, **estática y determinista** siempre que se pueda: una sola postura/instante, sin animación ni doble buffer si no es imprescindible, el menor número de elementos y una sola variable. Debe **fallar de la misma forma** que el caso real; si no reproduce el fallo, la sonda no es la correcta: se simplifica más, no se vuelve a la demo.
+- **Analiza la salida real en cada paso**: framebuffer/planos (volcado o captura), variables del programa, registros, contadores, telemetría, un test host/on-target con veredicto. No se «razona» sobre registros cuando se pueden mirar los píxeles.
+- **Arregla y verifica con A/B**: una sola constante o un pequeño cambio, y evidencia de que la sonda pasa (y de que **falla** con el comportamiento anterior, para demostrar que el test caza el fallo).
+- **Sube de peldaño**: cuando la sonda pasa, escribe otra prueba **un poco más compleja** (también estática si es posible) y repite el ciclo, hasta cubrir el caso real. La demo compleja es el **veredicto final**, nunca el banco de depuración.
+- **Cada experimento, una hipótesis y una variable.** Prohibido el prueba y error masivo sobre la demo: si un mismo error no se resuelve tras 3–4 iteraciones en la sonda, para y replantea (o pide orientación) en vez de seguir tocando la escena.
+- **Documenta el fallo en la sonda**: deja el test/la sonda en el repo (host u on-target con `detail`), de modo que el siguiente lo repita sin pensar.
+- Aplicación real (2026-10): el «residuo del borde derecho» de la 088 no se resolvió persiguiéndolo en la demo con deriva; se aisló con una sonda estática (`tests/amiga/l1_backend/003_plane_fill_bounds`: cinco caras sintéticas, una pasada), un modo «solo contornos» y un test CPU, y solo después se re-verificó la demo. Ver `PROTOCOLO_ETAPAS_GRAFICOS.md` §4 (primitiva aislada) y `DEMO_AND_DEBUG_LESSONS.md` §4.
 
 ---
 

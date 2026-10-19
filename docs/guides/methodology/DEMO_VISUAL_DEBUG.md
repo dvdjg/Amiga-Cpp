@@ -30,6 +30,7 @@ y estaba roto en plena animación (el fondo desaparecía al scrollear).
 
 ## 2. Cómo depurar a nivel visual (no basta una captura)
 
+- **Antes de capturar la demo, aísla el fallo en una sonda mínima.** Si el fallo no está reproducido fuera de la demo (postura/instante fijo, sin animación ni doble buffer si se puede), las capturas de la secuencia no te dirán la causa: estarás adivinando entre varias variables. Regla operativa: [AGENTS.md §1.17](../../../AGENTS.md); método: [DEMO_AND_DEBUG_LESSONS.md §4](DEMO_AND_DEBUG_LESSONS.md).
 - **Captura una SECUENCIA, no un frame.** Muchos fallos (desaparición de contenido, costuras,
   cortes al envolver) solo ocurren en **ciertas fases** de la animación. Una captura suelta
   puede caer en un frame "bueno" y dar falso OK.

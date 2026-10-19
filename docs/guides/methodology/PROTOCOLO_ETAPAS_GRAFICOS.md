@@ -47,6 +47,7 @@ Reglas de uso:
 
 ## 4. Reglas de actuación ante errores
 
+- **Depurar es aislar, no «tocar la demo».** Antes de cambiar código, reproducir el fallo en la **sonda mínima** (estática y determinista si se puede: una postura/instante, sin animación ni doble buffer), mirar la salida real (framebuffer/planos, variables, registros, telemetría) y subir de complejidad por peldaños hasta el caso real. La demo compleja es el veredicto final, no el banco de pruebas. Regla operativa y detalle del método: [AGENTS.md §1.17](../../../AGENTS.md) y [DEMO_AND_DEBUG_LESSONS.md §4](DEMO_AND_DEBUG_LESSONS.md).
 - Si algo falla, **no añadir más complejidad**: retroceder a la última etapa que funcionaba y aislar el cambio que introdujo el problema.
 - Cuando el error sea de hardware (registros, timing, Blitter), generar primero la **versión CPU equivalente** y comparar resultados píxel a píxel o frame a frame.
 - **Limitar los intentos.** Si tras **tres o cuatro** iteraciones un mismo error no se resuelve, detenerse, resumir el estado actual y **pedir orientación explícita** antes de continuar.
