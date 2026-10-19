@@ -268,6 +268,12 @@ struct PanWindowDemo {
 	// --- Setup -----------------------------------------------------------------------
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		// **Espera de VBlank ACTIVA** (`set_vblank_sleep(false)`, variante 2 de la ficha
+		// 212): bajo un SO vivo la ROM reescribe INTENA y apaga VERTB; con el `Wait()` por
+		// defecto la tarea se duerme para siempre (cuelgue intermitente ~50%, DT-011). La
+		// espera activa re-arma el latido en cada vuelta y es inmune. Mismo setup que
+		// 119/126/066/001_adv_walk.
+		backend.set_vblank_sleep(false);
 		// Chip: 2 buffers de escena de 4 planos (73 KB) + tira del HUD (2 KB) +
 		// 2 bloques de copperlist (8 KB) + margen.
 		if (!backend.configure_memory({160u * 1024u, 8u * 1024u, 8u * 1024u})) {
@@ -896,9 +902,12 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
-	PanWindowDemo game {};
-	eng::Engine engine {backend, game};
-	engine.set_blit_service_enabled(false);
-	engine.run_frames(0xffffu);
+	PanWindowDemo demo {};
+	eng::Engine engine {backend, demo};
+	// **Bucle por SONDO** (`run_frames_polling`): bajo un SO vivo (el runner) es el modo
+	// estable de la ficha 212 — sondea `VPOSR` en `wait_vblank` sin depender de IRQs ni de
+	// `Wait` (el planificador del OS reescribe INTENA y apaga VERTB; con frames largos el
+	// clobber es continuo y la espera por IRQ cuelga o arrastra). Mismo modo que la 119.
+	engine.run_frames_polling(0xffffu);
 	return 0;
 }

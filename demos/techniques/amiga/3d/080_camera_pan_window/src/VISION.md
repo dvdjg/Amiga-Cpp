@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-19T11:42:30.426Z
+- Fecha: 2026-10-19T12:20:25.774Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_002.png, frame_005.png, frame_007.png, frame_009.png (5)
+- Frames: frame_000.png, frame_010.png, frame_020.png, frame_029.png, frame_039.png (5)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,26 +15,34 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes muestran una secuencia de captura de pantalla de un programa de edición de video o animación, probablemente de una computadora antigua, que visualiza un efecto de cámara que se desplaza (pan) a través de una escena. El texto en la parte inferior proporciona parámetros técnicos del efecto.
+Las tres imágenes muestran una secuencia de captura de pantalla de un programa de animación 3D, probablemente de una computadora antigua, que muestra una escena con columnas y una interfaz de control en la parte inferior.
 
-**Descripción general de la escena:**
-- La escena es una representación 2D simplificada de un pasillo o espacio con paredes laterales y un suelo.
-- Las paredes laterales son de color verde oscuro (izquierda) y marrón (derecha).
-- El techo es de color azul oscuro.
-- El suelo es de color marrón claro.
-- En el centro de la escena, hay cinco barras verticales de colores: cian, amarillo, cian, azul, cian y naranja (de izquierda a derecha).
+**Elementos gráficos observables:**
 
-**Cambio entre imágenes:**
-- **Imagen 1:** La cámara está posicionada a la izquierda, mostrando la pared verde y las cinco barras.
-- **Imagen 2:** La cámara se ha desplazado hacia la derecha, mostrando menos de la pared verde y más de la pared marrón. Las barras están más centradas.
-- **Imagen 3:** La cámara se ha desplazado aún más hacia la derecha, casi completamente fuera de la pared verde. Las barras están más a la izquierda del encuadre.
+*   **Escena 3D:** En el centro de cada imagen, hay una representación de una escena en perspectiva. Contiene:
+    *   **Columnas:** Cuatro columnas verticales, dos a la izquierda y dos a la derecha. Las columnas de la izquierda son cian y amarillas; las de la derecha son cian y naranjas. Las columnas están dispuestas en una fila.
+    *   **Suelo y paredes:** El suelo es de color marrón. Las paredes laterales son de color verde oscuro. El fondo es de un azul oscuro.
+    *   **Líneas de referencia:** Hay dos líneas horizontales delgadas que cruzan la escena, una cerca del suelo y otra más arriba, que parecen ser líneas de referencia para la cámara o el sistema de coordenadas.
+*   **Interfaz de texto:** En la parte inferior de cada imagen, hay una línea de texto en blanco sobre fondo negro que muestra parámetros de la cámara y el estado de la animación.
 
-**Elementos gráficos y texto:**
-- **Texto en la parte inferior:** Muestra parámetros del efecto de cámara, como "FULL", "FAKE", "FRAME", "FAC", "VER", "PAN", y "K". Estos valores cambian entre las imágenes, indicando el progreso del efecto.
-- **Contorno de los objetos:** Los contornos de las barras y las paredes son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni restos de posiciones anteriores.
-- **Fondo:** El fondo inmediato alrededor de los objetos es uniforme y consistente con el color de las paredes y el suelo. No hay artefactos ni superposiciones.
+**Cambios entre imágenes:**
 
-**Observaciones:**
-- La secuencia muestra un desplazamiento progresivo de la cámara hacia la derecha.
-- El texto en la parte inferior cambia de forma coherente con el desplazamiento, reflejando el progreso del efecto.
-- No hay elementos extraños, defectuosos o incoherentes en la representación gráfica. La escena es consistente y bien definida en cada imagen.
+*   **Posición de la cámara (Pan):** La cámara se mueve horizontalmente (pan) hacia la derecha en la secuencia.
+    *   En la imagen 1, la cámara está más a la izquierda, mostrando más de la pared izquierda y menos de la derecha.
+    *   En la imagen 2, la cámara se ha movido hacia la derecha, mostrando más de la pared derecha y menos de la izquierda.
+    *   En la imagen 3, la cámara está aún más a la derecha, casi centrada en las columnas de la derecha.
+*   **Parámetros de la interfaz:**
+    *   **FRAME:** El número de fotogramas aumenta progresivamente: 96 → 250 → 352.
+    *   **PAN:** El valor de "PAN" cambia de +12K a +77K y luego a -87K, lo que indica un movimiento de la cámara hacia la derecha, luego hacia la izquierda, y nuevamente hacia la derecha.
+    *   **K:** El valor de "K" cambia de 1 a 2, lo que probablemente indica un cambio en la configuración de la cámara o el modo de renderizado.
+    *   **FAKE OFF:** El valor cambia de 0 a 12 y luego a -2, lo que sugiere un cambio en el modo de renderizado o en la configuración de la cámara.
+
+**Elementos extraños o incoherentes:**
+
+*   **Artefactos visuales:** Las imágenes muestran un ligero efecto de "banda" o "halo" alrededor de los bordes de los objetos, especialmente en las columnas y las líneas de referencia. Esto es típico de la resolución baja y la interpolación de píxeles de las computadoras de la época.
+*   **Recortes y píxeles cortados:** No hay recortes visibles de objetos, pero los bordes de los objetos y las líneas de referencia no son completamente limpios, lo que sugiere que el sistema de renderizado no es perfecto.
+*   **Fondo:** El fondo permanece uniforme en cada imagen, sin artefactos visibles.
+
+**Conclusión:**
+
+Las imágenes muestran una secuencia de animación 3D en la que la cámara se mueve horizontalmente (pan) a través de una escena con columnas. La interfaz de texto muestra los parámetros de la cámara y el estado de la animación, que cambian de forma coherente con el movimiento de la cámara. Los artefactos visuales son típicos de la tecnología de la época.
