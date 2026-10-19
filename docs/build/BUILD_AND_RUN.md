@@ -268,12 +268,7 @@ regresiones; el script `tools/input/mouse-path.sh` (`--from`, `--to`, `--control
 lineal/quadratic/cubic, `--click`, `--drag`) queda disponible para sesiones donde ya
 haya un servidor GDB aceptando conexiones. Ver `docs/emulation/MOUSE_AUTOMATION.md`.
 
-**Rutas naturales para probar la UI sin intervención** (`--mouse-route`): waypoints
-separados por `;`, un tramo curvo por par (arco perpendicular que alterna de signo),
-aceleración/desaceleración ease-in-out, pausa (`--mouse-dwell-ms`) y click opcional
-en cada llegada (`--mouse-click-waypoints`). La lectura de contadores
-(`--read-debugperiph counters`) ocurre **después** de inyectar la entrada, así que el
-estado de la UI refleja los clicks:
+**Rutas naturales para probar la UI sin intervención** (`--mouse-route`): waypoints separados por `;`, un tramo curvo por par (arco perpendicular que alterna de signo), aceleración/desaceleración ease-in-out, pausa (`--mouse-dwell-ms`) y click opcional en cada llegada (`--mouse-click-waypoints`). La lectura de contadores (`--read-debugperiph counters`) ocurre **después** de inyectar la entrada, así que el estado de la UI refleja los clicks:
 
 ```bash
 bash ./tools/run/run-demo.sh demos/features/ui/amiga/306_hud_crpg \
@@ -281,10 +276,7 @@ bash ./tools/run/run-demo.sh demos/features/ui/amiga/306_hud_crpg \
   --mouse-click-waypoints --read-debugperiph counters
 ```
 
-Ajustes: `--mouse-arc 0.18` (curvatura), `--mouse-ease inout|linear`,
-`--mouse-steps-per-segment 24`, `--mouse-step-delay-ms 16`, `--mouse-button 0|1`.
-El modo antiguo (`--mouse-from/--mouse-to` con `--mouse-control`, `--mouse-drag`,
-`--mouse-click`) sigue disponible.
+Ajustes: `--mouse-arc 0.18` (curvatura), `--mouse-ease inout|linear`, `--mouse-steps-per-segment 24`, `--mouse-step-delay-ms 16`, `--mouse-button 0|1`. El modo antiguo (`--mouse-from/--mouse-to` con `--mouse-control`, `--mouse-drag`, `--mouse-click`) sigue disponible.
 
 ## Protect/cheat de memoria durante el run (`--protect`, WinUAE-DBG v2.1)
 
