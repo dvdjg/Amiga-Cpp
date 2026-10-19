@@ -168,7 +168,7 @@ struct Blit3dPlanesDemo {
 		// Vertices en espacio de camara (z + kZ0) para el test de frustum del objeto.
 		// Deriva lateral: el cubo entra y sale por el borde derecho. Se deja ON: valida el
 		// clip fino y el contrato del Blitter (coordenadas dentro del bitmap) en cada frame.
-		constexpr bool kDrift = true;
+		constexpr bool kDrift = false;
 		s32 ox = 0;
 		if constexpr (kDrift) {
 			++m_phase;
@@ -242,6 +242,16 @@ struct Blit3dPlanesDemo {
 				if (!ok) continue;
 			}
 			// Back-face culling por winding proyectado: en este sistema (+y abajo) una cara que mira a la camara proyecta area NEGATIVA (HOST-481); area >= 0 es trasera o degenerada.
+			// Descarta slivers (1 px de ancho/alto): el contorno ONEDOT deja su arista
+			// como linea suelta en el borde.
+			s16 sx0 = xs[fi][0], sx1 = xs[fi][0], sy0 = ys[fi][0], sy1 = ys[fi][0];
+			for (u8 k = 1u; k < m; ++k) {
+				if (xs[fi][k] < sx0) sx0 = xs[fi][k];
+				if (xs[fi][k] > sx1) sx1 = xs[fi][k];
+				if (ys[fi][k] < sy0) sy0 = ys[fi][k];
+				if (ys[fi][k] > sy1) sy1 = ys[fi][k];
+			}
+			if (sx1 - sx0 < 2 || sy1 - sy0 < 2) continue;
 			if (eng::graphics::screen_area2(xs[fi], ys[fi], m) >= 0) continue;
 			if (fb.submit(xs[fi], ys[fi], m, kCubeColors[fi])) {
 				++m_submitted;
@@ -257,11 +267,19 @@ struct Blit3dPlanesDemo {
 		ENG_PROF_BEGIN(2u);
 		// Dirty rect = union del bbox actual y el del frame anterior (borra el rastro).
 		s16 dx0 = bx0, dy0 = by0, dx1 = bx1, dy1 = by1;
+		// Doble buffer: el buffer de este frame se uso hace DOS frames. Hay que limpiar
+		// la union de las dos posiciones anteriores (N-1 y N-2) ademas de la actual.
+		auto grow = [&](s16 x0, s16 y0, s16 x1, s16 y1) {
+			if (x0 < dx0) dx0 = x0;
+			if (y0 < dy0) dy0 = y0;
+			if (x1 > dx1) dx1 = x1;
+			if (y1 > dy1) dy1 = y1;
+		};
 		if (m_dirty_x1 >= m_dirty_x0 && m_dirty_y1 >= m_dirty_y0) {
-			if (m_dirty_x0 < dx0) dx0 = m_dirty_x0;
-			if (m_dirty_y0 < dy0) dy0 = m_dirty_y0;
-			if (m_dirty_x1 > dx1) dx1 = m_dirty_x1;
-			if (m_dirty_y1 > dy1) dy1 = m_dirty_y1;
+			grow(m_dirty_x0, m_dirty_y0, m_dirty_x1, m_dirty_y1);
+		}
+		if (m_prev2_x1 >= m_prev2_x0 && m_prev2_y1 >= m_prev2_y0) {
+			grow(m_prev2_x0, m_prev2_y0, m_prev2_x1, m_prev2_y1);
 		}
 		if (dx1 >= dx0 && dy1 >= dy0) {
 			if (dx0 < 0) dx0 = 0;
@@ -273,8 +291,11 @@ struct Blit3dPlanesDemo {
 				kWidth, kWorldH, static_cast<u16>(dx0), static_cast<u16>(dy0),
 				static_cast<u16>(dx1), static_cast<u16>(dy1));
 		}
-		if (bx1 >= bx0) { m_dirty_x0 = bx0; m_dirty_y0 = by0; m_dirty_x1 = bx1; m_dirty_y1 = by1; }
-		else { m_dirty_x0 = 1; m_dirty_y0 = 1; m_dirty_x1 = 0; m_dirty_y1 = 0; }
+		if (bx1 >= bx0) {
+			m_prev2_x0 = m_dirty_x0; m_prev2_y0 = m_dirty_y0;
+			m_prev2_x1 = m_dirty_x1; m_prev2_y1 = m_dirty_y1;
+			m_dirty_x0 = bx0; m_dirty_y0 = by0; m_dirty_x1 = bx1; m_dirty_y1 = by1;
+		}
 		g_eng_run_status.detail = fb.count();
 		ENG_PROF_END(2u);
 		draw_hud_dynamic(frame);
@@ -318,6 +339,7 @@ private:
 	u32 m_submitted = 0u;
 	u32 m_phase = 0u;
 	s16 m_dirty_x0 = 1, m_dirty_y0 = 1, m_dirty_x1 = 0, m_dirty_y1 = 0;
+	s16 m_prev2_x0 = 1, m_prev2_y0 = 1, m_prev2_x1 = 0, m_prev2_y1 = 0;
 	bool m_ready = false;
 };
 
