@@ -1,0 +1,16508 @@
+// ============================================================
+// Decompilado (port nativo, NO emulacion). nes_transpiler --decompile
+// Fase 1: C plano (RAM+HAL, sin n2a::CPU) + regiones con etiquetas/goto.
+// Ver docs/DECOMPILADOR.md (estructuracion, tipos, renderer).
+// ============================================================
+#include <eng/core/types/types.hpp>
+using eng::u8; using eng::u16; using eng::u32;
+
+static constexpr eng::usize kPrgSize = 16384;
+static constexpr bool kBlocksTickPpu = true;
+static constexpr eng::u8 PRG_ROM[kPrgSize] = {
+    0x20, 0x70, 0x06, 0x00, 0x20, 0x64, 0x06, 0x00, 0x20, 0x78, 0x06, 0x00, 0x20, 0xB7, 0x04, 0x00,
+    0x20, 0xBC, 0x01, 0x00, 0x01, 0x08, 0x02, 0x08, 0x02, 0x00, 0x05, 0x01, 0x00, 0x02, 0x01, 0x01,
+    0x01, 0x05, 0x01, 0x05, 0x01, 0x02, 0x01, 0x02, 0xDB, 0x60, 0xE2, 0x55, 0x14, 0x20, 0x01, 0xF9,
+    0xA0, 0xE0, 0x30, 0x10, 0x10, 0x01, 0x50, 0x01, 0x30, 0xD0, 0xFF, 0xFF, 0x3E, 0xC6, 0x57, 0xC6,
+    0xE1, 0xC6, 0x60, 0xC7, 0x7D, 0xC7, 0xE4, 0xC6, 0xF1, 0xC6, 0x53, 0xC7, 0x08, 0xC7, 0x19, 0xC7,
+    0x1C, 0xC7, 0x35, 0xC7, 0x4E, 0xC7, 0x8C, 0xC0, 0xCF, 0xC0, 0x61, 0xC1, 0x60, 0x04, 0xC3, 0xC0,
+    0xDF, 0xC0, 0x6E, 0xC1, 0xC4, 0xC2, 0xC8, 0xC2, 0x86, 0xC1, 0xB0, 0xC1, 0x92, 0xC1, 0xCF, 0xC1,
+    0xD5, 0xC1, 0xDB, 0xC1, 0xE1, 0xC1, 0x9E, 0xC1, 0xE7, 0xC1, 0x0C, 0xC6, 0x70, 0xC6, 0x89, 0xC6,
+    0x25, 0xC6, 0xA2, 0xC6, 0xCC, 0x00, 0x8E, 0xC1, 0x96, 0xC1, 0xA6, 0xC6, 0x00, 0xD8, 0x00, 0x00,
+    0x01, 0x00, 0x80, 0xD7, 0x04, 0x18, 0x06, 0xFE, 0xC8, 0xBC, 0x04, 0xE8, 0x09, 0xFE, 0x20, 0x9E,
+    0x04, 0x18, 0x09, 0xFE, 0xC8, 0x80, 0x04, 0xE8, 0x09, 0xFE, 0x20, 0x62, 0x04, 0x18, 0x09, 0xFE,
+    0xC8, 0x44, 0x04, 0xE8, 0x06, 0xFE, 0x80, 0x28, 0x04, 0x00, 0x01, 0xFE, 0xBC, 0x9E, 0x80, 0x62,
+    0x44, 0x28, 0xFF, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x10, 0x00, 0xE0,
+    0xBC, 0x00, 0x10, 0x9E, 0x00, 0xE0, 0x80, 0x00, 0x10, 0x62, 0x00, 0xE0, 0x44, 0x00, 0xFE, 0x00,
+    0x00, 0x10, 0x03, 0xC8, 0xBC, 0x08, 0xC8, 0x80, 0x04, 0xB8, 0x74, 0x10, 0x68, 0x58, 0x14, 0xC8,
+    0x44, 0x04, 0x60, 0xCF, 0x0C, 0x70, 0x9B, 0x00, 0x30, 0x9E, 0x04, 0x50, 0x85, 0x08, 0x80, 0x7D,
+    0x00, 0x30, 0x62, 0x04, 0x58, 0x60, 0x00, 0x90, 0x28, 0x18, 0xFE, 0x00, 0x00, 0x08, 0x1D, 0x00,
+    0x00, 0x08, 0x17, 0x00, 0x00, 0x08, 0x18, 0x00, 0x00, 0x08, 0x09, 0x00, 0x00, 0x08, 0x0B, 0x00,
+    0x00, 0x08, 0x07, 0x00, 0x00, 0x08, 0x19, 0xC8, 0xBC, 0x00, 0x70, 0x9B, 0x00, 0x30, 0x9E, 0x00,
+    0xC8, 0x80, 0x00, 0x80, 0x7D, 0x00, 0x30, 0x62, 0x00, 0x58, 0x60, 0x00, 0xC8, 0x44, 0x00, 0x90,
+    0x28, 0x00, 0xFE, 0x00, 0x00, 0x08, 0x0D, 0x24, 0x24, 0x54, 0x54, 0x60, 0x60, 0x64, 0x64, 0x60,
+    0x60, 0x24, 0x24, 0x68, 0x68, 0x68, 0x68, 0x68, 0x68, 0x24, 0x24, 0x24, 0x54, 0x54, 0x54, 0x00,
+    0x00, 0x60, 0xB7, 0x00, 0x50, 0x7B, 0x00, 0xB8, 0x5C, 0x00, 0x68, 0x40, 0x00, 0xFE, 0x00, 0x00,
+    0x08, 0x18, 0xCA, 0xA7, 0x8E, 0x6B, 0x51, 0x5C, 0x2C, 0x4C, 0x2C, 0x64, 0xC6, 0xAA, 0x8C, 0x6D,
+    0x4D, 0xC4, 0x6C, 0x7C, 0x54, 0xC4, 0x08, 0x11, 0x0A, 0x11, 0x08, 0x10, 0x0A, 0x11, 0x08, 0x0F,
+    0x0A, 0x11, 0x05, 0x01, 0x0C, 0x09, 0x05, 0x05, 0x0A, 0x0A, 0x08, 0x10, 0x08, 0x10, 0x04, 0x04,
+    0x0C, 0x0D, 0x0C, 0x14, 0x1C, 0x10, 0x18, 0x20, 0x03, 0x05, 0x02, 0x03, 0x00, 0x00, 0x03, 0x04,
+    0x00, 0x00, 0x08, 0x08, 0x10, 0xE0, 0x10, 0xE0, 0x0C, 0xE0, 0x08, 0xE8, 0x01, 0x02, 0x04, 0x08,
+    0x10, 0x20, 0x40, 0x80, 0x13, 0x30, 0x48, 0x60, 0x78, 0x90, 0xA8, 0xC0, 0xE0, 0x13, 0xDB, 0x4C,
+    0x6A, 0x88, 0xA6, 0xC5, 0xFE, 0x53, 0x6B, 0x8F, 0xA7, 0xCA, 0xFE, 0x52, 0x6E, 0x8C, 0xAC, 0xC5,
+    0xFE, 0x52, 0x6C, 0x8E, 0xA8, 0xCA, 0xFE, 0x00, 0x06, 0x08, 0x08, 0x19, 0x30, 0x34, 0x30, 0x34,
+    0x30, 0x34, 0x38, 0x3C, 0x3C, 0x3C, 0x02, 0x04, 0x02, 0x04, 0x07, 0x05, 0x07, 0x09, 0x03, 0x00,
+    0x00, 0x04, 0x08, 0x01, 0x02, 0x03, 0x04, 0x50, 0x60, 0x70, 0x80, 0x90, 0x0E, 0xD8, 0x18, 0x0E,
+    0xC8, 0x04, 0x86, 0xC8, 0x04, 0xA6, 0xC0, 0x00, 0xBE, 0xB8, 0x00, 0xD6, 0xB0, 0x04, 0x4E, 0xB0,
+    0x04, 0x0E, 0xA0, 0x04, 0xDE, 0xA0, 0x00, 0xC6, 0x98, 0x00, 0xAE, 0x90, 0x00, 0x96, 0x88, 0x14,
+    0xC6, 0x78, 0x0C, 0x0E, 0x70, 0x04, 0x46, 0x70, 0x08, 0x8E, 0x68, 0x04, 0xAE, 0x60, 0x00, 0xC6,
+    0x58, 0x00, 0xDE, 0x50, 0x00, 0x66, 0x40, 0x10, 0x86, 0x28, 0x00, 0xFE, 0xB0, 0x78, 0x60, 0x40,
+    0x28, 0xFF, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00,
+    0x2C, 0x00, 0x00, 0x00, 0x54, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00, 0xE4, 0x00, 0x18, 0xA0,
+    0x0C, 0x20, 0x70, 0x10, 0x50, 0x70, 0x14, 0x60, 0x70, 0x14, 0x98, 0x68, 0x08, 0xC8, 0x78, 0x08,
+    0xE0, 0xA0, 0x00, 0xE0, 0x50, 0x0C, 0xB0, 0x40, 0x08, 0x90, 0x28, 0x04, 0xFE, 0x00, 0x00, 0x08,
+    0x10, 0x00, 0x00, 0x08, 0x18, 0x00, 0x00, 0x08, 0x20, 0x00, 0x00, 0x08, 0x28, 0x00, 0x00, 0x08,
+    0x30, 0x00, 0x00, 0x08, 0x40, 0x18, 0xA0, 0x00, 0x20, 0x70, 0x00, 0x50, 0x70, 0x00, 0x60, 0x70,
+    0x00, 0x98, 0x68, 0x00, 0xC8, 0x78, 0x00, 0xE0, 0xA0, 0x00, 0xE0, 0x50, 0x00, 0xB0, 0x40, 0x00,
+    0x90, 0x28, 0x00, 0xFE, 0x04, 0x01, 0x1B, 0x0E, 0x00, 0x01, 0x12, 0x01, 0x30, 0x38, 0x40, 0x48,
+    0x50, 0x58, 0x00, 0x00, 0x09, 0x15, 0x18, 0x00, 0x4C, 0x5F, 0x03, 0x5C, 0x5F, 0x03, 0xC4, 0x67,
+    0x03, 0x4C, 0x9F, 0x13, 0x5C, 0x9F, 0x13, 0xC4, 0x87, 0x13, 0xDC, 0x3F, 0x03, 0xDC, 0x67, 0x13,
+    0x06, 0xD8, 0x00, 0x06, 0xB8, 0x00, 0x16, 0x90, 0x04, 0x1E, 0x68, 0x08, 0x26, 0x40, 0x0C, 0xFE,
+    0xB8, 0x90, 0x68, 0x40, 0x28, 0xFF, 0x00, 0x00, 0xF5, 0x00, 0x00, 0x00, 0xD5, 0x00, 0x00, 0x00,
+    0xC5, 0x00, 0x00, 0x00, 0xB5, 0x00, 0x10, 0xB8, 0x00, 0x78, 0xB8, 0x00, 0xE8, 0xB8, 0x00, 0x18,
+    0x90, 0x04, 0x60, 0x90, 0x04, 0x98, 0x90, 0x04, 0xE0, 0x90, 0x04, 0x20, 0x68, 0x04, 0x80, 0x68,
+    0x04, 0xD8, 0x68, 0x04, 0x28, 0x40, 0x04, 0x48, 0x40, 0x04, 0xB0, 0x40, 0x04, 0xD0, 0x40, 0x04,
+    0xFE, 0x00, 0x00, 0x08, 0x20, 0x00, 0x00, 0x08, 0x28, 0x10, 0xB8, 0x00, 0x78, 0xB8, 0x00, 0xE8,
+    0xB8, 0x00, 0x18, 0x90, 0x00, 0x60, 0x90, 0x00, 0x98, 0x90, 0x00, 0xE0, 0x90, 0x00, 0x20, 0x68,
+    0x00, 0x80, 0x68, 0x00, 0xD8, 0x68, 0x00, 0x28, 0x40, 0x00, 0x48, 0x40, 0x00, 0xB0, 0x40, 0x00,
+    0xD0, 0x40, 0x00, 0xFE, 0x00, 0x09, 0x1E, 0x33, 0x48, 0x54, 0x0C, 0xA7, 0x03, 0x74, 0xA7, 0x03,
+    0xE4, 0xA7, 0x03, 0x0C, 0xC7, 0x13, 0x74, 0xC7, 0x13, 0xE4, 0xC7, 0x13, 0x14, 0x7F, 0x03, 0x5C,
+    0x7F, 0x03, 0x94, 0x7F, 0x03, 0xDC, 0x7F, 0x03, 0x1C, 0x57, 0x03, 0x7C, 0x57, 0x03, 0xD4, 0x57,
+    0x03, 0x14, 0xA7, 0x13, 0x5C, 0xA7, 0x13, 0x94, 0xA7, 0x13, 0xDC, 0xA7, 0x13, 0x24, 0x2F, 0x03,
+    0x44, 0x2F, 0x03, 0xAC, 0x2F, 0x03, 0xCC, 0x2F, 0x03, 0x1C, 0x7F, 0x13, 0x7C, 0x7F, 0x13, 0xD4,
+    0x7F, 0x13, 0x24, 0x57, 0x13, 0x44, 0x57, 0x13, 0xAC, 0x57, 0x13, 0xCC, 0x57, 0x13, 0x08, 0xC7,
+    0x10, 0xA7, 0x18, 0x7F, 0x20, 0x57, 0xE8, 0xC7, 0xE0, 0xA7, 0xD8, 0x7F, 0xD0, 0x57, 0x34, 0xAC,
+    0x44, 0xBC, 0x05, 0x03, 0x0D, 0x0B, 0xD4, 0x0C, 0xE4, 0x0C, 0x5D, 0x4B, 0xCD, 0xC3, 0x5D, 0x43,
+    0xE5, 0xC3, 0xED, 0x03, 0x24, 0x49, 0x77, 0x77, 0x77, 0x77, 0xFF, 0xFF, 0x0B, 0x0C, 0x0D, 0x15,
+    0x16, 0x17, 0x18, 0x19, 0x1A, 0x1E, 0x1F, 0xFF, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0xFF, 0xFF,
+    0x01, 0x01, 0xE4, 0xE3, 0xE2, 0xD8, 0xD7, 0xD6, 0xD5, 0xD4, 0xD3, 0xD0, 0xCF, 0x48, 0x84, 0xC0,
+    0x50, 0x8D, 0xC7, 0x20, 0xC0, 0x78, 0x60, 0x28, 0x44, 0x6B, 0x20, 0x33, 0xC4, 0x37, 0xC4, 0x3B,
+    0xC4, 0x3F, 0xC4, 0x00, 0x00, 0x10, 0x08, 0x00, 0x00, 0x10, 0x08, 0x00, 0x00, 0x60, 0x10, 0x00,
+    0x00, 0x2A, 0x20, 0xB0, 0xA0, 0x78, 0x68, 0x68, 0x88, 0x88, 0x88, 0x88, 0x88, 0x48, 0x38, 0x28,
+    0x18, 0x18, 0xBB, 0xBB, 0x5E, 0x2F, 0x13, 0x88, 0x78, 0x64, 0x56, 0x49, 0x88, 0x88, 0x24, 0x55,
+    0x55, 0x88, 0x88, 0x49, 0x55, 0x55, 0x40, 0x20, 0x10, 0x08, 0x01, 0x8C, 0xC0, 0x0C, 0xC2, 0x0C,
+    0xC2, 0xF0, 0xC2, 0xC3, 0xC0, 0x0C, 0xC2, 0x52, 0xC2, 0x06, 0xC3, 0xE3, 0xC0, 0x0C, 0xC2, 0x6E,
+    0xC2, 0x16, 0xC3, 0x0B, 0xC1, 0x0C, 0xC2, 0x8D, 0xC2, 0x41, 0xC3, 0x27, 0xC1, 0x0C, 0xC2, 0xA5,
+    0xC2, 0x49, 0xC3, 0xBC, 0xC0, 0x0C, 0xC2, 0x4C, 0xC2, 0x00, 0xC3, 0x0C, 0xC2, 0xD2, 0xC2, 0x74,
+    0xC3, 0x0C, 0xC2, 0xD8, 0xC2, 0x7A, 0xC3, 0x5B, 0xF5, 0xD9, 0xF8, 0xCD, 0xF7, 0x1C, 0xF7, 0xD9,
+    0xF8, 0x1B, 0xFA, 0x00, 0x00, 0x01, 0x06, 0xE8, 0x04, 0x50, 0x18, 0xD5, 0x12, 0xE8, 0x00, 0x50,
+    0x20, 0xDB, 0x22, 0xF0, 0x00, 0x00, 0x00, 0x03, 0x2C, 0x30, 0x04, 0x20, 0x7F, 0xF6, 0x21, 0xD0,
+    0x00, 0x20, 0x46, 0xF6, 0x21, 0xD8, 0x00, 0x00, 0x00, 0x01, 0x04, 0xC0, 0x04, 0x00, 0x00, 0x00,
+    0x04, 0x00, 0x04, 0x30, 0xC7, 0x04, 0x22, 0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x10, 0x04, 0x00,
+    0x00, 0x02, 0x02, 0xE0, 0x04, 0xFE, 0x00, 0x00, 0x01, 0x06, 0xE8, 0x04, 0x50, 0x18, 0xD5, 0x12,
+    0xE8, 0x00, 0x50, 0x20, 0xDB, 0x22, 0xF0, 0x00, 0x00, 0x00, 0x03, 0x0C, 0x30, 0x04, 0x30, 0x78,
+    0xA0, 0x12, 0x30, 0x00, 0x30, 0xA8, 0xA0, 0x12, 0x38, 0x00, 0x30, 0x49, 0xA0, 0x12, 0x40, 0x00,
+    0x70, 0x70, 0xA0, 0x12, 0x48, 0x00, 0x70, 0xA0, 0xA0, 0x12, 0x50, 0x00, 0x70, 0xD7, 0xA0, 0x12,
+    0x58, 0x00, 0x00, 0x00, 0x23, 0x02, 0x40, 0x04, 0x00, 0x00, 0x23, 0x02, 0x58, 0x04, 0x00, 0x00,
+    0x00, 0x04, 0x00, 0x04, 0x10, 0xB7, 0x04, 0x22, 0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x10, 0x04,
+    0x4C, 0x9F, 0x98, 0x22, 0x10, 0x00, 0xCC, 0x67, 0x98, 0x22, 0x20, 0x00, 0x00, 0x00, 0x03, 0x0C,
+    0x60, 0x04, 0x00, 0x00, 0x01, 0x16, 0x90, 0x04, 0xFE, 0x00, 0x00, 0x01, 0x06, 0xE8, 0x04, 0x50,
+    0x18, 0xD5, 0x12, 0xE8, 0x00, 0x50, 0x20, 0xDB, 0x22, 0xF0, 0x00, 0x00, 0x00, 0x03, 0x04, 0xD0,
+    0x04, 0x14, 0x6E, 0xF6, 0x21, 0xD0, 0x00, 0x7C, 0x46, 0xF6, 0x21, 0xD8, 0x00, 0x00, 0x00, 0x01,
+    0x20, 0x50, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x04, 0x38, 0xC7, 0x04, 0x22, 0x00, 0x00, 0x00,
+    0x00, 0x02, 0x10, 0x10, 0x04, 0xFE, 0xB3, 0xC4, 0xF6, 0xC4, 0xF6, 0xC4, 0x69, 0xC5, 0x7F, 0x7F,
+    0x7F, 0x00, 0x5F, 0x3F, 0x00, 0x2F, 0x7F, 0x7F, 0x00, 0xA9, 0xA9, 0x81, 0x81, 0x59, 0x59, 0x31,
+    0x31, 0x00, 0x30, 0x4C, 0xD5, 0x00, 0x10, 0xE0, 0x00, 0x24, 0x50, 0xC0, 0x00, 0x3B, 0xB3, 0x3B,
+    0xB3, 0x3B, 0xB3, 0x38, 0xB3, 0x00, 0x22, 0x22, 0x22, 0x00, 0x21, 0x21, 0x00, 0x20, 0x22, 0x22,
+    0x00, 0x22, 0x22, 0x22, 0x22, 0x21, 0x21, 0x21, 0x21, 0x06, 0x0A, 0x1B, 0x00, 0x82, 0x1C, 0x00,
+    0xC5, 0x0A, 0x18, 0x00, 0xE8, 0xF7, 0x48, 0x57, 0xA8, 0xB7, 0x08, 0x17, 0x00, 0x04, 0x07, 0x0B,
+    0x01, 0x03, 0x05, 0x08, 0xD0, 0xD1, 0xD2, 0xD3, 0x84, 0x8D, 0x84, 0x8D, 0x46, 0x76, 0x77, 0x78,
+    0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x24, 0x24, 0x86,
+    0x87, 0x24, 0x24, 0x24, 0x88, 0x46, 0x24, 0x9C, 0x9D, 0x9E, 0x9F, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4,
+    0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0x24, 0xAF, 0xB0, 0xB1, 0x46, 0x24,
+    0x24, 0x24, 0x89, 0x24, 0x24, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F, 0x90, 0x91, 0x92, 0x93, 0x94,
+    0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9B, 0x46, 0x24, 0xB2, 0x68, 0x9E, 0xB5, 0xB6, 0x6C, 0xC7,
+    0xA3, 0xA4, 0x69, 0xA6, 0xA7, 0xA8, 0x6B, 0xAA, 0xC9, 0xCA, 0x6D, 0xBF, 0x24, 0xCD, 0x6A, 0xB1,
+    0x46, 0xC2, 0xC3, 0x24, 0x9E, 0xC4, 0xC5, 0xC6, 0xC7, 0xA3, 0xB9, 0xA5, 0xA6, 0xA7, 0xBB, 0x6B,
+    0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0x24, 0xCD, 0xCE, 0xCF, 0x46, 0x24, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6,
+    0xB7, 0xB8, 0xA3, 0xB9, 0x69, 0xBA, 0xA7, 0xBB, 0xA9, 0xAA, 0xBC, 0xBD, 0xBE, 0xBF, 0xC0, 0xC1,
+    0x24, 0xB1, 0x13, 0x2C, 0x16, 0x13, 0x13, 0x16, 0x30, 0x37, 0x23, 0xDB, 0x42, 0xA0, 0x21, 0xCA,
+    0x4C, 0x24, 0x21, 0xEA, 0x0C, 0x24, 0x24, 0x19, 0x15, 0x0A, 0x22, 0x0E, 0x1B, 0x24, 0x66, 0x24,
+    0x24, 0x00, 0x23, 0xE2, 0x04, 0x08, 0x0A, 0x0A, 0x02, 0x22, 0x0A, 0x4C, 0x24, 0x22, 0x2A, 0x0C,
+    0x24, 0x10, 0x0A, 0x16, 0x0E, 0x24, 0x24, 0x18, 0x1F, 0x0E, 0x1B, 0x24, 0x22, 0x4A, 0x4C, 0x24,
+    0x00, 0x12, 0x24, 0x24, 0x20, 0x63, 0x5B, 0x24, 0x20, 0x94, 0x4A, 0x24, 0x20, 0xB4, 0x4A, 0x24,
+    0x00, 0x21, 0x09, 0x4E, 0x24, 0x21, 0xA9, 0x4E, 0x24, 0x22, 0x49, 0x4E, 0x24, 0x22, 0xE9, 0x4E,
+    0x24, 0x3F, 0x1D, 0x03, 0x30, 0x36, 0x06, 0x00, 0x20, 0x8D, 0x46, 0x24, 0x20, 0xAD, 0x46, 0x24,
+    0x20, 0xCD, 0x46, 0x24, 0x20, 0xED, 0x46, 0x24, 0x00, 0x12, 0xAA, 0xAA, 0x46, 0x24, 0x24, 0xDC,
+    0xDD, 0xD4, 0xD5, 0xDE, 0xDF, 0xD6, 0xD7, 0xE0, 0xE1, 0xD8, 0xD9, 0xE2, 0xE3, 0xDA, 0xDB, 0xE4,
+    0xE5, 0x24, 0x24, 0xE6, 0xE7, 0x46, 0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF, 0x24, 0xF0,
+    0xF1, 0xF2, 0x24, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0x21, 0x08,
+    0x50, 0x62, 0x00, 0x23, 0x09, 0x4E, 0x62, 0x23, 0x29, 0x4E, 0x62, 0x23, 0x49, 0x4E, 0x62, 0x00,
+    0x20, 0xC5, 0x42, 0x24, 0x20, 0xCA, 0x42, 0x24, 0x20, 0xEA, 0x42, 0x24, 0x20, 0xE5, 0x42, 0x24,
+    0x22, 0x0A, 0x42, 0x24, 0x22, 0x2A, 0x42, 0x24, 0x22, 0x18, 0x42, 0x24, 0x00, 0x22, 0x38, 0x42,
+    0x24, 0x21, 0x29, 0xC4, 0x24, 0x21, 0x36, 0xC4, 0x24, 0x21, 0xD0, 0xC4, 0x24, 0x22, 0x6C, 0xC4,
+    0x24, 0x22, 0x73, 0xC4, 0x24, 0x23, 0x0F, 0xC3, 0x24, 0x00, 0xFF, 0x01, 0x01, 0xFF, 0x78, 0xD8,
+    0xA9, 0x10, 0x8D, 0x00, 0x20, 0xA2, 0xFF, 0x9A, 0xAD, 0x02, 0x20, 0x29, 0x80, 0xF0, 0xF9, 0xA0,
+    0x07, 0x84, 0x01, 0xA0, 0x00, 0x84, 0x00, 0xA9, 0x00, 0x91, 0x00, 0x88, 0xD0, 0xFB, 0xC6, 0x01,
+    0x10, 0xF7, 0x20, 0xE7, 0xC7, 0xA9, 0x7F, 0x8D, 0x11, 0x05, 0xA9, 0x18, 0x85, 0x51, 0xA9, 0x01,
+    0x85, 0x4E, 0x85, 0x55, 0xA9, 0x00, 0x85, 0x4F, 0xA5, 0x10, 0x49, 0x80, 0x8D, 0x00, 0x20, 0x85,
+    0x10, 0x20, 0xED, 0xF4, 0x4C, 0xE1, 0xC7, 0xA9, 0x10, 0x8D, 0x00, 0x20, 0x85, 0x10, 0xA9, 0x06,
+    0x8D, 0x01, 0x20, 0x85, 0x11, 0xA9, 0x00, 0x8D, 0x05, 0x20, 0x85, 0x12, 0x8D, 0x05, 0x20, 0x85,
+    0x13, 0x20, 0xAE, 0xCB, 0x4C, 0xB7, 0xCB, 0xAA, 0xBD, 0xA7, 0xC4, 0x85, 0x00, 0xBD, 0xA8, 0xC4,
+    0x85, 0x01, 0x4C, 0x28, 0xF2, 0xAA, 0xBD, 0x3C, 0xC0, 0x85, 0x02, 0xBD, 0x3D, 0xC0, 0x85, 0x03,
+    0x4C, 0xD7, 0xF2, 0xAA, 0xBD, 0x3C, 0xC0, 0x85, 0x00, 0xBD, 0x3D, 0xC0, 0x85, 0x01, 0x4C, 0x76,
+    0xCD, 0xAA, 0xBD, 0x3C, 0xC0, 0x85, 0x04, 0xBD, 0x3D, 0xC0, 0x85, 0x05, 0xBD, 0x44, 0xC0, 0x85,
+    0x06, 0xBD, 0x45, 0xC0, 0x85, 0x07, 0x60, 0xAA, 0xBD, 0x3C, 0xC0, 0x85, 0x02, 0xBD, 0x3D, 0xC0,
+    0x85, 0x03, 0x60, 0xAA, 0xBD, 0x3C, 0xC0, 0x85, 0x08, 0xBD, 0x3D, 0xC0, 0x85, 0x09, 0x60, 0x48,
+    0xA5, 0x10, 0x29, 0x7F, 0x8D, 0x00, 0x20, 0x85, 0x10, 0xA9, 0x00, 0x8D, 0x03, 0x20, 0xA9, 0x02,
+    0x8D, 0x14, 0x40, 0xA9, 0x31, 0x85, 0x00, 0xA9, 0x03, 0x85, 0x01, 0x20, 0x28, 0xF2, 0xA9, 0x00,
+    0x8D, 0x30, 0x03, 0x8D, 0x31, 0x03, 0x20, 0x0E, 0xF5, 0xA5, 0x11, 0x49, 0x18, 0x8D, 0x01, 0x20,
+    0x20, 0x48, 0xFA, 0xA5, 0x4E, 0xD0, 0x2A, 0xA5, 0x4F, 0xF0, 0x39, 0xA5, 0x9A, 0xD0, 0x06, 0x20,
+    0x7C, 0xCE, 0x4C, 0xD7, 0xC8, 0xAD, 0x4F, 0x04, 0xC9, 0x08, 0xD0, 0x28, 0x20, 0xF4, 0xCC, 0xA5,
+    0x43, 0xD0, 0x24, 0xA9, 0x00, 0x8D, 0x4F, 0x04, 0x85, 0x4F, 0xA9, 0x79, 0x85, 0x43, 0x4C, 0xD7,
+    0xC8, 0xA5, 0x55, 0xD0, 0x06, 0x20, 0x30, 0xCA, 0x4C, 0xD7, 0xC8, 0x20, 0xF3, 0xC8, 0x20, 0xAC,
+    0xF4, 0x4C, 0xD7, 0xC8, 0x20, 0xC9, 0xCA, 0xAD, 0x05, 0x05, 0xC9, 0x01, 0xD0, 0x0A, 0xA5, 0x51,
+    0x85, 0x00, 0x20, 0x3C, 0xF2, 0xCE, 0x05, 0x05, 0xA5, 0x10, 0x49, 0x80, 0x8D, 0x00, 0x20, 0x85,
+    0x10, 0x68, 0x40, 0xAD, 0x02, 0x01, 0xD0, 0x06, 0x8D, 0x15, 0x40, 0x8D, 0x00, 0x01, 0xAD, 0x18,
+    0x05, 0xD0, 0x11, 0xA9, 0x80, 0x85, 0xFD, 0xA9, 0x04, 0x8D, 0x18, 0x05, 0xA9, 0x0F, 0x8D, 0x15,
+    0x40, 0x8D, 0x00, 0x01, 0xAD, 0x10, 0x05, 0xD0, 0x27, 0x20, 0x9A, 0xD1, 0xA9, 0x08, 0x20, 0x07,
+    0xC8, 0xAD, 0x11, 0x05, 0x8D, 0x00, 0x02, 0xA9, 0xA2, 0x8D, 0x01, 0x02, 0xA9, 0x00, 0x8D, 0x02,
+    0x02, 0x85, 0x58, 0xA9, 0x38, 0x8D, 0x03, 0x02, 0x8D, 0x10, 0x05, 0xA9, 0x20, 0x85, 0x44, 0x60,
+    0xA5, 0x15, 0x29, 0x20, 0xD0, 0x17, 0xA5, 0x15, 0x29, 0x10, 0xD0, 0x3E, 0xA9, 0x00, 0x8D, 0x12,
+    0x05, 0xA5, 0x44, 0xD0, 0x07, 0xA9, 0x01, 0x85, 0x58, 0x4C, 0xB1, 0xC9, 0x60, 0xA9, 0x40, 0x85,
+    0x44, 0xAD, 0x12, 0x05, 0xD0, 0x1F, 0xA9, 0x40, 0x85, 0x35, 0xAD, 0x00, 0x02, 0x18, 0x69, 0x10,
+    0xC9, 0xBF, 0xD0, 0x02, 0xA9, 0x7F, 0x8D, 0x00, 0x02, 0x8D, 0x11, 0x05, 0xEE, 0x12, 0x05, 0xA9,
+    0x0A, 0x8D, 0x13, 0x05, 0x60, 0xA5, 0x35, 0xD0, 0x00, 0x60, 0x8D, 0x14, 0x05, 0xA2, 0x0A, 0xA9,
+    0x00, 0x95, 0x24, 0xCA, 0xD0, 0xFB, 0xAD, 0x11, 0x05, 0x4A, 0x4A, 0x4A, 0x4A, 0x38, 0xE9, 0x07,
+    0x85, 0x50, 0xC9, 0x02, 0x30, 0x07, 0xA9, 0x1C, 0x85, 0x51, 0x4C, 0xB1, 0xC9, 0xA9, 0x18, 0x85,
+    0x51, 0xA5, 0x50, 0x29, 0x01, 0x0A, 0xAA, 0xBD, 0x07, 0x05, 0x85, 0x21, 0xBD, 0x08, 0x05, 0x85,
+    0x22, 0xA9, 0x0F, 0x85, 0x18, 0xA9, 0x13, 0x85, 0x19, 0xA9, 0x00, 0x85, 0x4E, 0x8D, 0x06, 0x04,
+    0x8D, 0x07, 0x04, 0x85, 0x4F, 0x8D, 0x10, 0x05, 0x8D, 0x0B, 0x05, 0x8D, 0x12, 0x05, 0xA9, 0x01,
+    0x85, 0x53, 0x8D, 0x00, 0x04, 0x8D, 0x01, 0x04, 0xA9, 0x00, 0x85, 0x54, 0x8D, 0x02, 0x04, 0x8D,
+    0x03, 0x04, 0xA9, 0x00, 0x85, 0x52, 0x8D, 0x08, 0x04, 0x8D, 0x09, 0x04, 0x85, 0xFC, 0xA9, 0x03,
+    0xA6, 0x58, 0xF0, 0x02, 0xA9, 0x01, 0x85, 0x55, 0x8D, 0x04, 0x04, 0x8D, 0x05, 0x04, 0x8D, 0x0B,
+    0x04, 0xA5, 0x58, 0xD0, 0x11, 0xA9, 0x97, 0x85, 0x43, 0xA9, 0x01, 0x85, 0xFD, 0xA9, 0x0F, 0x8D,
+    0x15, 0x40, 0x8D, 0x00, 0x01, 0x60, 0xCE, 0x18, 0x05, 0xA9, 0x75, 0x85, 0x43, 0x4C, 0xAE, 0xCB,
+    0x20, 0xAC, 0xF4, 0xA5, 0x58, 0xD0, 0x13, 0xA5, 0x43, 0xC9, 0x75, 0xF0, 0x1D, 0xC9, 0x74, 0xF0,
+    0x1E, 0xC9, 0x73, 0xF0, 0x1F, 0xC9, 0x5F, 0xF0, 0x30, 0x60, 0x85, 0x55, 0xA9, 0x00, 0x85, 0x58,
+    0x8D, 0x10, 0x05, 0x20, 0xB7, 0xCB, 0x20, 0xAE, 0xCB, 0x60, 0xC6, 0x43, 0x4C, 0xAE, 0xCB, 0xC6,
+    0x43, 0x4C, 0xCA, 0xCB, 0xC6, 0x43, 0xA5, 0x50, 0x29, 0x01, 0x0A, 0xAA, 0xA5, 0x21, 0x9D, 0x07,
+    0x05, 0xA5, 0x22, 0x9D, 0x08, 0x05, 0x4C, 0xF5, 0xCB, 0xA6, 0x52, 0xA9, 0x01, 0x9D, 0x06, 0x04,
+    0x85, 0x4E, 0xA5, 0x51, 0xC9, 0x1C, 0xD0, 0x0C, 0xA5, 0x52, 0x49, 0x01, 0xAA, 0xBD, 0x06, 0x04,
+    0x85, 0x4E, 0xF0, 0x05, 0x85, 0x55, 0x4C, 0x53, 0xCA, 0xA9, 0x85, 0x85, 0x43, 0x8D, 0x0B, 0x04,
+    0xA0, 0x00, 0x84, 0x4F, 0x86, 0x52, 0x4C, 0xA9, 0xCA, 0xA0, 0x00, 0xBD, 0x00, 0x04, 0x99, 0x53,
+    0x00, 0xE8, 0xE8, 0xC8, 0xC0, 0x03, 0xD0, 0xF3, 0x60, 0xA0, 0x00, 0xB9, 0x53, 0x00, 0x9D, 0x00,
+    0x04, 0xE8, 0xE8, 0xC8, 0xC0, 0x03, 0xD0, 0xF3, 0x60, 0x20, 0xAC, 0xF4, 0xA5, 0x53, 0xC9, 0x01,
+    0xF0, 0x06, 0xA5, 0x43, 0xC9, 0x84, 0xF0, 0x2A, 0xA5, 0x43, 0xC9, 0x72, 0xB0, 0x3A, 0xC9, 0x6D,
+    0xF0, 0x05, 0xC9, 0x62, 0xF0, 0x14, 0x60, 0xAD, 0x0B, 0x04, 0xF0, 0x0A, 0xA9, 0x00, 0x8D, 0x0B,
+    0x04, 0xC6, 0x55, 0x20, 0xBD, 0xCB, 0x20, 0x34, 0xCC, 0x60, 0xA9, 0x01, 0x85, 0x4F, 0x20, 0x47,
+    0xCC, 0x60, 0xA6, 0x52, 0xA5, 0x53, 0xDD, 0x00, 0x04, 0xF0, 0x0A, 0xC9, 0x01, 0xF0, 0x06, 0x20,
+    0x24, 0xCC, 0x20, 0x04, 0xCC, 0xC6, 0x43, 0x60, 0x4C, 0x1B, 0xCB, 0xC9, 0x7A, 0xF0, 0x11, 0xC9,
+    0x75, 0xF0, 0x16, 0xC9, 0x74, 0xF0, 0x0F, 0xC9, 0x73, 0xF0, 0x2D, 0xC9, 0x72, 0xF0, 0x18, 0x60,
+    0x20, 0x53, 0xCA, 0x20, 0xCA, 0xCB, 0xC6, 0x43, 0x60, 0x20, 0xB7, 0xCB, 0xC6, 0x43, 0xA5, 0x58,
+    0xD0, 0x04, 0xA9, 0x08, 0x85, 0xFD, 0x60, 0xC6, 0x43, 0xA6, 0x53, 0xCA, 0xBD, 0x08, 0xC6, 0x85,
+    0x00, 0xA9, 0x20, 0x85, 0x01, 0x4C, 0xA6, 0xEB, 0x20, 0x9A, 0xD1, 0xA6, 0x53, 0xCA, 0x8A, 0x0A,
+    0x20, 0x07, 0xC8, 0xA9, 0x0A, 0x20, 0x07, 0xC8, 0xA5, 0x51, 0xC9, 0x1C, 0xF0, 0x0D, 0xA9, 0x76,
+    0x85, 0x00, 0xA9, 0x20, 0x85, 0x01, 0xA9, 0x04, 0x20, 0x15, 0xC8, 0xA9, 0x01, 0x8D, 0x05, 0x05,
+    0x20, 0x32, 0xD0, 0x20, 0xBD, 0xCB, 0xA9, 0xBC, 0x85, 0x00, 0xA4, 0x54, 0xC8, 0x20, 0xC2, 0xF4,
+    0xA9, 0x00, 0x85, 0x2C, 0xA9, 0x80, 0x88, 0xC0, 0x04, 0x10, 0x03, 0xB9, 0x07, 0xC2, 0x85, 0x2E,
+    0xA9, 0x0D, 0x85, 0x45, 0xA9, 0x02, 0x85, 0x00, 0x20, 0x3C, 0xF2, 0xC6, 0x43, 0x60, 0xA9, 0x00,
+    0x85, 0x04, 0xA9, 0xFF, 0x4C, 0x92, 0xF0, 0x20, 0x9A, 0xD1, 0x4C, 0xB4, 0xF1, 0xA9, 0xB5, 0x85,
+    0x00, 0xA9, 0x20, 0x85, 0x01, 0xA4, 0x55, 0x4C, 0xC2, 0xF4, 0xA5, 0x58, 0xD0, 0x26, 0xA5, 0x51,
+    0xC9, 0x1C, 0xD0, 0x20, 0xA6, 0x52, 0xA5, 0x53, 0xDD, 0x00, 0x04, 0xD0, 0x17, 0xA0, 0x00, 0xB9,
+    0xAA, 0xC6, 0x99, 0x31, 0x03, 0xF0, 0x04, 0xC8, 0x4C, 0xDF, 0xCB, 0xA5, 0x52, 0xF0, 0x05, 0xA9,
+    0x67, 0x8D, 0x45, 0x03, 0x60, 0xA0, 0x00, 0xB9, 0xC2, 0xC6, 0x99, 0x31, 0x03, 0xF0, 0x04, 0xC8,
+    0x4C, 0xF7, 0xCB, 0x60, 0xA5, 0x58, 0xD0, 0x1B, 0xA6, 0x52, 0xBD, 0x08, 0x04, 0xD0, 0x14, 0x8A,
+    0xA8, 0x18, 0x0A, 0x0A, 0xAA, 0xB5, 0x25, 0xC9, 0x02, 0x90, 0x08, 0x99, 0x08, 0x04, 0xE6, 0x55,
+    0x20, 0xBD, 0xCB, 0x60, 0xA5, 0x2E, 0x85, 0x00, 0xA5, 0x52, 0x09, 0x08, 0x85, 0x01, 0x20, 0x42,
+    0xF3, 0x4C, 0x32, 0xD0, 0xA9, 0x01, 0x8D, 0x05, 0x05, 0x20, 0x32, 0xD0, 0xA9, 0x00, 0x8D, 0x0B,
+    0x05, 0x20, 0xC1, 0xCC, 0x4C, 0xF2, 0xD7, 0xA9, 0x00, 0xAA, 0x95, 0x59, 0x9D, 0x0D, 0x04, 0xE8,
+    0xE0, 0x89, 0xD0, 0xF6, 0xA9, 0x01, 0x85, 0x59, 0x85, 0x96, 0x8D, 0x3E, 0x04, 0x8D, 0x51, 0x04,
+    0x8D, 0x52, 0x04, 0x85, 0x9F, 0x8D, 0x03, 0x05, 0xA9, 0x04, 0x85, 0x97, 0xA9, 0x58, 0x8D, 0x3D,
+    0x04, 0xA9, 0x20, 0x85, 0xA2, 0xA9, 0x80, 0x85, 0x18, 0xA9, 0x0A, 0x85, 0x34, 0xA6, 0x52, 0x20,
+    0xB9, 0xCA, 0xA9, 0xBB, 0x85, 0x39, 0xA9, 0x27, 0x85, 0x44, 0xA5, 0x53, 0xC9, 0x01, 0xF0, 0x09,
+    0xC9, 0x03, 0xF0, 0x12, 0xA9, 0x10, 0x85, 0xFC, 0x60, 0xA9, 0x38, 0x85, 0x36, 0xA9, 0x40, 0x85,
+    0x43, 0xA9, 0x02, 0x85, 0xFC, 0x60, 0xA9, 0x20, 0x85, 0x36, 0xA9, 0x50, 0x8D, 0x3F, 0x04, 0x8D,
+    0x41, 0x04, 0x8D, 0x43, 0x04, 0xA9, 0x03, 0x8D, 0x40, 0x04, 0x8D, 0x42, 0x04, 0x8D, 0x44, 0x04,
+    0x60, 0xA5, 0x53, 0x38, 0xE9, 0x01, 0x0A, 0xAA, 0xBD, 0xA6, 0xC5, 0x85, 0x09, 0xBD, 0xA7, 0xC5,
+    0x85, 0x0A, 0xA2, 0x00, 0xA0, 0x00, 0xB1, 0x09, 0xC9, 0xFE, 0xF0, 0x17, 0x95, 0x00, 0xC8, 0xE8,
+    0xE0, 0x05, 0xD0, 0xF2, 0x84, 0x86, 0xB1, 0x09, 0x20, 0x96, 0xF0, 0xA4, 0x86, 0xC8, 0xA2, 0x00,
+    0x4C, 0xD6, 0xCC, 0x60, 0xAD, 0x50, 0x04, 0xD0, 0x0E, 0xA9, 0x01, 0x8D, 0x50, 0x04, 0xA9, 0x0A,
+    0x85, 0x34, 0xA9, 0x10, 0x85, 0xFD, 0x60, 0xA5, 0x43, 0xC9, 0x58, 0x90, 0x06, 0x20, 0xAC, 0xF4,
+    0x4C, 0x22, 0xCD, 0x20, 0x24, 0xCC, 0x20, 0x04, 0xCC, 0xA9, 0x00, 0x85, 0x43, 0x85, 0x9A, 0x4C,
+    0x53, 0xCA, 0xA5, 0x43, 0xC9, 0x9F, 0xF0, 0x1D, 0xC9, 0x9E, 0xF0, 0x1E, 0xC9, 0x9D, 0xF0, 0x1F,
+    0xC9, 0x9C, 0xF0, 0x24, 0xC9, 0x9B, 0xF0, 0x29, 0xC9, 0x90, 0xB0, 0x2A, 0xC9, 0x86, 0xB0, 0x29,
+    0xC9, 0x70, 0xB0, 0x28, 0x60, 0xC6, 0x43, 0x4C, 0x6F, 0xCD, 0xC6, 0x43, 0x4C, 0x7F, 0xCD, 0xA0,
+    0x1C, 0xC6, 0x43, 0xA9, 0x06, 0x4C, 0x23, 0xC8, 0xA0, 0x1C, 0xC6, 0x43, 0xA9, 0x08, 0x4C, 0x23,
+    0xC8, 0xC6, 0x43, 0x4C, 0x89, 0xCD, 0x4C, 0x9D, 0xCD, 0x4C, 0xB1, 0xCD, 0x4C, 0x24, 0xCE, 0xA0,
+    0x0C, 0xA9, 0x0A, 0x4C, 0x23, 0xC8, 0xB1, 0x00, 0x99, 0x31, 0x03, 0x88, 0x10, 0xF8, 0x60, 0x20,
+    0xAE, 0xCB, 0xA0, 0x16, 0xA9, 0x0C, 0x4C, 0x23, 0xC8, 0xA0, 0x0C, 0xA9, 0x0E, 0x20, 0x23, 0xC8,
+    0xA9, 0x03, 0x85, 0x02, 0xA9, 0x18, 0x85, 0x03, 0xA9, 0x50, 0x4C, 0x8C, 0xF0, 0xA9, 0x8D, 0x85,
+    0x00, 0xA9, 0x20, 0x85, 0x01, 0xA5, 0x43, 0x29, 0x01, 0xF0, 0x03, 0x4C, 0x89, 0xEB, 0x4C, 0x92,
+    0xEB, 0xC9, 0x8F, 0xD0, 0x22, 0xC6, 0x43, 0xA0, 0x10, 0xA9, 0x10, 0x20, 0x23, 0xC8, 0xA9, 0x01,
+    0x85, 0xFE, 0xA9, 0x68, 0x85, 0x00, 0xA9, 0x3E, 0x85, 0x01, 0xA9, 0x40, 0x85, 0x02, 0xA9, 0x46,
+    0x85, 0x03, 0xA9, 0x50, 0x4C, 0x80, 0xF0, 0xAD, 0x50, 0x02, 0xC9, 0xA0, 0xF0, 0x11, 0xC9, 0xFF,
+    0xF0, 0x11, 0x18, 0x69, 0x02, 0x85, 0x01, 0xAD, 0x53, 0x02, 0x85, 0x00, 0x4C, 0xCA, 0xCD, 0xA9,
+    0x80, 0x85, 0xFE, 0xA9, 0x18, 0x85, 0x03, 0xA9, 0x50, 0x20, 0x8C, 0xF0, 0xA9, 0xEB, 0x85, 0x00,
+    0xA9, 0x23, 0x85, 0x01, 0xA9, 0x12, 0x20, 0x15, 0xC8, 0xA9, 0x01, 0x4C, 0x0E, 0xCE, 0x08, 0xA9,
+    0x8D, 0x85, 0x00, 0xA9, 0x22, 0x85, 0x01, 0x28, 0xD0, 0x05, 0xA9, 0x16, 0x4C, 0x15, 0xC8, 0xA9,
+    0x14, 0x4C, 0x15, 0xC8, 0xC9, 0x85, 0xF0, 0x07, 0xA5, 0x43, 0x29, 0x01, 0x4C, 0x0E, 0xCE, 0xA9,
+    0x04, 0x85, 0xFD, 0xA0, 0x04, 0xA9, 0x18, 0x20, 0x23, 0xC8, 0xA9, 0x78, 0x85, 0x00, 0xA9, 0x20,
+    0x85, 0x01, 0xA9, 0xC8, 0x85, 0x02, 0xA9, 0x22, 0x85, 0x03, 0xA9, 0xB0, 0x20, 0x80, 0xF0, 0xC6,
+    0x43, 0xA9, 0xA0, 0x85, 0x00, 0xA9, 0x30, 0x85, 0x01, 0xA9, 0x04, 0x20, 0xD4, 0xEA, 0xA9, 0x00,
+    0x20, 0x86, 0xF0, 0xA9, 0x28, 0x8D, 0xE8, 0x02, 0x8D, 0xEC, 0x02, 0xA9, 0x30, 0x8D, 0xF0, 0x02,
+    0x8D, 0xF8, 0x02, 0xA9, 0x38, 0x8D, 0xF4, 0x02, 0x8D, 0xFC, 0x02, 0x60, 0xA5, 0x58, 0xF0, 0x14,
+    0xAD, 0x02, 0x01, 0xD0, 0x06, 0x8D, 0x15, 0x40, 0x8D, 0x00, 0x01, 0xA5, 0x15, 0x29, 0x20, 0xF0,
+    0x03, 0x4C, 0x2B, 0xCF, 0xAD, 0x16, 0x05, 0xD0, 0x15, 0xAD, 0x17, 0x05, 0xF0, 0x04, 0xCE, 0x17,
+    0x05, 0x60, 0x20, 0x04, 0xCC, 0x20, 0xA8, 0xCF, 0xA5, 0x9A, 0xC9, 0x01, 0xD0, 0x03, 0x4C, 0x1C,
+    0xCF, 0xA5, 0xBF, 0xF0, 0x03, 0x4C, 0x13, 0xCF, 0xA5, 0x96, 0xC9, 0xFF, 0xD0, 0x03, 0x4C, 0x19,
+    0xCF, 0xC9, 0x08, 0xF0, 0x11, 0xC9, 0x04, 0xF0, 0x0D, 0xA5, 0x58, 0xF0, 0x06, 0x20, 0xDA, 0xEB,
+    0x4C, 0xD6, 0xCE, 0x20, 0x75, 0xD1, 0x20, 0x06, 0xEB, 0x20, 0xB6, 0xEB, 0x20, 0x41, 0xD0, 0x20,
+    0xA4, 0xD1, 0x20, 0x5F, 0xEA, 0x20, 0xE5, 0xE1, 0x20, 0x79, 0xEE, 0xA5, 0x53, 0xC9, 0x03, 0xF0,
+    0x10, 0xC9, 0x04, 0xF0, 0x18, 0x20, 0x16, 0xDA, 0x20, 0x9A, 0xE1, 0x20, 0x29, 0xEC, 0x4C, 0x1C,
+    0xCF, 0x20, 0x34, 0xE8, 0x20, 0x81, 0xE9, 0x20, 0x29, 0xEC, 0x4C, 0x1C, 0xCF, 0x20, 0x29, 0xEC,
+    0x4C, 0x1C, 0xCF, 0x20, 0x0C, 0xEE, 0x4C, 0x1C, 0xCF, 0x20, 0xC0, 0xD0, 0x20, 0x42, 0xCF, 0xAD,
+    0x16, 0x05, 0xD0, 0x06, 0x20, 0x4C, 0xD0, 0x20, 0xAC, 0xF4, 0x60, 0xA9, 0x01, 0x85, 0x4E, 0x8D,
+    0x12, 0x05, 0x85, 0x55, 0xA9, 0x20, 0x85, 0x44, 0xA9, 0x00, 0x85, 0x58, 0x8D, 0x10, 0x05, 0x4C,
+    0x53, 0xCA, 0xA5, 0x15, 0x29, 0x10, 0xF0, 0x47, 0xA5, 0x58, 0xF0, 0x09, 0xA9, 0x00, 0x85, 0x58,
+    0xA5, 0x15, 0x4C, 0x8A, 0xC9, 0xA5, 0x15, 0xCD, 0x14, 0x05, 0xF0, 0x36, 0x8D, 0x14, 0x05, 0xAD,
+    0x16, 0x05, 0xF0, 0x16, 0xAD, 0x17, 0x05, 0xD0, 0x10, 0x8D, 0x16, 0x05, 0xA5, 0x0F, 0x85, 0xFC,
+    0xA5, 0x11, 0x29, 0xEF, 0x85, 0x11, 0x4C, 0x87, 0xCF, 0x60, 0xA9, 0x01, 0x8D, 0x16, 0x05, 0xA5,
+    0xFC, 0x85, 0x0F, 0xA9, 0x00, 0x85, 0xFC, 0xA9, 0x40, 0x8D, 0x17, 0x05, 0x85, 0xFD, 0x60, 0x8D,
+    0x14, 0x05, 0xAD, 0x17, 0x05, 0xF0, 0x04, 0xCE, 0x17, 0x05, 0x60, 0xAD, 0x16, 0x05, 0xD0, 0x01,
+    0x60, 0xA5, 0x11, 0x09, 0x10, 0x85, 0x11, 0x60, 0xA2, 0x00, 0xA0, 0x00, 0xB5, 0x41, 0xD0, 0x08,
+    0xA9, 0xFF, 0x99, 0xC0, 0x02, 0x99, 0xC4, 0x02, 0xE8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8,
+    0xC8, 0xE0, 0x02, 0x30, 0xE7, 0x60, 0xA0, 0x00, 0x84, 0x0F, 0x20, 0x08, 0xD0, 0xB9, 0xC0, 0x02,
+    0xC9, 0xFF, 0xD0, 0x25, 0xA5, 0x05, 0x99, 0xC3, 0x02, 0x18, 0x69, 0x08, 0x99, 0xC7, 0x02, 0xA5,
+    0x06, 0x99, 0xC0, 0x02, 0x99, 0xC4, 0x02, 0xBD, 0x04, 0xC6, 0x99, 0xC1, 0x02, 0xA9, 0xD4, 0x99,
+    0xC5, 0x02, 0xA6, 0x0F, 0xA9, 0x03, 0x95, 0x41, 0x60, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8,
+    0xC8, 0xE6, 0x0F, 0xC0, 0x10, 0x30, 0xC6, 0x60, 0x8A, 0x48, 0x98, 0x48, 0xA5, 0x58, 0xD0, 0x1A,
+    0xA5, 0x52, 0x09, 0x18, 0x85, 0x01, 0xBD, 0x00, 0xC6, 0x85, 0x00, 0xA5, 0x05, 0x48, 0xA5, 0x06,
+    0x48, 0x20, 0x42, 0xF3, 0x68, 0x85, 0x06, 0x68, 0x85, 0x05, 0x20, 0x32, 0xD0, 0x68, 0xA8, 0x68,
+    0xAA, 0x60, 0xAD, 0x05, 0x05, 0x09, 0x01, 0x8D, 0x05, 0x05, 0xA9, 0xF9, 0x85, 0x00, 0x4C, 0x35,
+    0xF4, 0xA5, 0x2E, 0xC9, 0x10, 0x10, 0x04, 0xA9, 0x20, 0x85, 0xFC, 0x60, 0xA5, 0x9A, 0xD0, 0x42,
+    0xA6, 0x53, 0xE0, 0x04, 0xF0, 0x0D, 0xA5, 0x5A, 0xF0, 0x65, 0xCA, 0xBD, 0xFA, 0xC1, 0xC5, 0x59,
+    0xF0, 0x12, 0x60, 0xA2, 0x00, 0xB5, 0xC1, 0xF0, 0x56, 0xE8, 0x8E, 0x4F, 0x04, 0xE0, 0x08, 0xD0,
+    0xF4, 0x4C, 0x86, 0xD0, 0x20, 0xE1, 0xEA, 0xA9, 0x04, 0x20, 0xD4, 0xEA, 0x20, 0xCD, 0xEA, 0x20,
+    0x88, 0xF0, 0xA9, 0x02, 0x85, 0xFD, 0xA9, 0x00, 0x85, 0xFC, 0xA9, 0x01, 0x85, 0x9A, 0xA9, 0x00,
+    0x85, 0x3A, 0xA5, 0x3A, 0xD0, 0x29, 0xE6, 0x53, 0xA5, 0x53, 0xC9, 0x02, 0xF0, 0x07, 0xC9, 0x05,
+    0xB0, 0x08, 0x4C, 0xB5, 0xD0, 0xE6, 0x53, 0x4C, 0xB5, 0xD0, 0xA9, 0x01, 0x85, 0x53, 0xE6, 0x54,
+    0xA9, 0xA0, 0x85, 0x43, 0x60, 0xA9, 0x8D, 0x85, 0x43, 0xA9, 0x00, 0x85, 0x4F, 0x85, 0x9A, 0x60,
+    0xA9, 0x00, 0x85, 0xFC, 0xA9, 0x10, 0x20, 0xE6, 0xD9, 0xF0, 0x6D, 0xA5, 0x98, 0xC9, 0xFF, 0xF0,
+    0x5F, 0xA5, 0x98, 0xD0, 0x0F, 0xA5, 0x58, 0xD0, 0x04, 0xA9, 0x80, 0x85, 0xFE, 0xA9, 0x40, 0x85,
+    0x3A, 0xE6, 0x98, 0x60, 0xA5, 0x3A, 0xF0, 0x10, 0xC9, 0x0E, 0x90, 0x4C, 0xA5, 0x58, 0xD0, 0x04,
+    0xA9, 0x01, 0x85, 0xFF, 0xA9, 0x00, 0x85, 0x3A, 0xAD, 0x01, 0x02, 0xC9, 0x6C, 0xB0, 0x02, 0xA9,
+    0x6C, 0x18, 0x69, 0x04, 0xC9, 0x7C, 0x90, 0x17, 0xE6, 0x98, 0xA5, 0x98, 0xC9, 0x05, 0xF0, 0x05,
+    0xA9, 0x6C, 0x4C, 0x1F, 0xD1, 0xA5, 0x58, 0xF0, 0x04, 0xA9, 0x7D, 0x85, 0x3A, 0xA9, 0x7C, 0x85,
+    0x02, 0x20, 0xE1, 0xEA, 0x20, 0xCD, 0xEA, 0x20, 0x82, 0xF0, 0xA5, 0x98, 0xC9, 0x05, 0xD0, 0x08,
+    0xA9, 0xFF, 0x85, 0x98, 0xA5, 0x3A, 0xF0, 0x01, 0x60, 0xA6, 0x52, 0x20, 0xB9, 0xCA, 0xA5, 0x55,
+    0xD0, 0x09, 0xA9, 0x01, 0x85, 0x4E, 0xA9, 0x87, 0x85, 0x43, 0x60, 0xA5, 0x51, 0xC9, 0x1C, 0xD0,
+    0x18, 0xA5, 0x52, 0x49, 0x01, 0xAA, 0x86, 0x52, 0xBD, 0x06, 0x04, 0xF0, 0x09, 0x8A, 0x49, 0x01,
+    0xAA, 0x86, 0x52, 0x4C, 0x69, 0xD1, 0x20, 0xA9, 0xCA, 0xA9, 0x87, 0x85, 0x43, 0x8D, 0x0B, 0x04,
+    0xA9, 0x00, 0x85, 0x4F, 0x60, 0xA5, 0x52, 0x0A, 0xAA, 0xB5, 0x15, 0x29, 0x0F, 0x85, 0x56, 0xF0,
+    0x08, 0x4A, 0x4A, 0xD0, 0x04, 0xA5, 0x56, 0x85, 0x57, 0xA5, 0x96, 0xC9, 0x01, 0xD0, 0x0A, 0xB5,
+    0x15, 0x29, 0x80, 0xF0, 0x04, 0xA9, 0x04, 0x85, 0x96, 0x60, 0xA5, 0x11, 0x29, 0xE7, 0x8D, 0x01,
+    0x20, 0x85, 0x11, 0x60, 0xA5, 0x96, 0xC9, 0x01, 0xF0, 0x11, 0xC9, 0x02, 0xF0, 0x15, 0xC9, 0x04,
+    0xF0, 0x14, 0xC9, 0x08, 0xF0, 0x13, 0xC9, 0x0A, 0xF0, 0x12, 0x60, 0x20, 0xCF, 0xD1, 0xA5, 0x96,
+    0x4C, 0xAA, 0xD1, 0x4C, 0x7E, 0xD3, 0x4C, 0x47, 0xD5, 0x4C, 0x97, 0xD6, 0x4C, 0xC6, 0xD6, 0xA5,
+    0x56, 0xC9, 0x01, 0xF0, 0x10, 0xC9, 0x02, 0xF0, 0x0C, 0xC9, 0x04, 0xF0, 0x05, 0xC9, 0x08, 0xF0,
+    0x01, 0x60, 0x4C, 0x8B, 0xD2, 0xA9, 0xDB, 0x85, 0x0A, 0xA9, 0x36, 0x20, 0xE8, 0xD9, 0xD0, 0x03,
+    0x4C, 0x75, 0xD2, 0x20, 0x90, 0xD9, 0xF0, 0x01, 0x60, 0xA5, 0x56, 0xC9, 0x02, 0xF0, 0x06, 0xEE,
+    0x03, 0x02, 0x4C, 0x08, 0xD2, 0xCE, 0x03, 0x02, 0x20, 0xCB, 0xD2, 0x85, 0x5A, 0xAD, 0x00, 0x02,
+    0x20, 0x16, 0xE0, 0x85, 0x59, 0x20, 0xEB, 0xD8, 0xF0, 0x19, 0xA6, 0x53, 0xE0, 0x01, 0xD0, 0x07,
+    0x18, 0x6D, 0x00, 0x02, 0x8D, 0x00, 0x02, 0x20, 0x6A, 0xD3, 0xC9, 0x00, 0xF0, 0x05, 0xA9, 0x08,
+    0x85, 0x96, 0x60, 0xA5, 0x9B, 0xD0, 0x07, 0xA9, 0x01, 0x85, 0x9B, 0x4C, 0x75, 0xD2, 0xA9, 0x08,
+    0x85, 0xFF, 0xA9, 0x00, 0x85, 0x9B, 0xA5, 0x97, 0xF0, 0x18, 0xC9, 0x08, 0xF0, 0x1F, 0xA9, 0x04,
+    0x85, 0x97, 0xA5, 0x85, 0xF0, 0x05, 0xA9, 0x00, 0x4C, 0x5D, 0xD2, 0xA9, 0x08, 0x85, 0x97, 0x4C,
+    0x75, 0xD2, 0xA9, 0x04, 0x85, 0x97, 0xA9, 0x00, 0x85, 0x85, 0x4C, 0x75, 0xD2, 0xA9, 0x04, 0x85,
+    0x97, 0xA9, 0x01, 0x85, 0x85, 0x20, 0xE1, 0xEA, 0xA5, 0x97, 0x85, 0x02, 0x20, 0xCD, 0xEA, 0xA5,
+    0x56, 0xC9, 0x02, 0xF0, 0x03, 0x4C, 0x82, 0xF0, 0x4C, 0x88, 0xF0, 0x20, 0xE1, 0xEA, 0xA9, 0x86,
+    0x85, 0x02, 0xA9, 0xC1, 0x85, 0x03, 0x20, 0xEB, 0xEF, 0xA5, 0x53, 0x38, 0xE9, 0x01, 0x0A, 0xAA,
+    0xBD, 0x7B, 0xC4, 0x85, 0x04, 0xBD, 0x7C, 0xC4, 0x85, 0x05, 0xBD, 0x83, 0xC4, 0x85, 0x06, 0xBD,
+    0x84, 0xC4, 0x85, 0x07, 0x20, 0xAD, 0xD8, 0xF0, 0x11, 0xA5, 0x00, 0x38, 0xE9, 0x04, 0x85, 0xA1,
+    0xA9, 0x02, 0x85, 0x96, 0xA9, 0x00, 0x85, 0x5B, 0x85, 0x5C, 0x60, 0x20, 0xE1, 0xEA, 0xA5, 0x96,
+    0xC9, 0x04, 0xF0, 0x09, 0xC9, 0x08, 0xF0, 0x05, 0xA9, 0x2C, 0x4C, 0xDF, 0xD2, 0xA9, 0x4A, 0x20,
+    0xE8, 0xEF, 0xA5, 0x53, 0xC9, 0x01, 0xF0, 0x08, 0x38, 0xE9, 0x01, 0x0A, 0xAA, 0x4C, 0xFD, 0xD2,
+    0xA9, 0x1A, 0x20, 0x31, 0xC8, 0x20, 0x1A, 0xD9, 0x85, 0x0C, 0x4C, 0x23, 0xD3, 0xBD, 0x6B, 0xC4,
+    0x85, 0x04, 0xBD, 0x6C, 0xC4, 0x85, 0x05, 0xBD, 0x73, 0xC4, 0x85, 0x06, 0xBD, 0x74, 0xC4, 0x85,
+    0x07, 0x20, 0xAD, 0xD8, 0x85, 0x0C, 0xD0, 0x0B, 0xA5, 0x53, 0xC9, 0x03, 0xD0, 0x05, 0x20, 0x26,
+    0xD3, 0x85, 0x0C, 0xA5, 0x0C, 0x60, 0xA9, 0x2A, 0x20, 0x47, 0xC8, 0xA9, 0x00, 0x85, 0xD2, 0xA5,
+    0xD2, 0xC9, 0x06, 0xF0, 0x30, 0xAA, 0xBC, 0xCC, 0xC2, 0xB9, 0x00, 0x02, 0xC9, 0xFF, 0xF0, 0x0E,
+    0x85, 0x01, 0xB9, 0x03, 0x02, 0x85, 0x00, 0x20, 0xEF, 0xEF, 0xC9, 0x01, 0xF0, 0x05, 0xE6, 0xD2,
+    0x4C, 0x2F, 0xD3, 0xA5, 0xD2, 0xC9, 0x03, 0xB0, 0x05, 0xA9, 0x01, 0x4C, 0x60, 0xD3, 0xA9, 0x02,
+    0x85, 0xDA, 0xA9, 0x01, 0x60, 0xA9, 0x00, 0x85, 0xDA, 0x60, 0xA5, 0x53, 0xC9, 0x01, 0xF0, 0x03,
+    0x4C, 0x7B, 0xD3, 0xA9, 0x1C, 0x20, 0x31, 0xC8, 0x4C, 0xAD, 0xD8, 0xA9, 0x01, 0x60, 0xA5, 0x56,
+    0xC9, 0x08, 0xF0, 0x0A, 0xC9, 0x04, 0xF0, 0x03, 0x4C, 0xCF, 0xD4, 0x4C, 0x32, 0xD4, 0xA5, 0x5A,
+    0xF0, 0x0A, 0x20, 0xE1, 0xEA, 0xC6, 0x01, 0x20, 0x0A, 0xD5, 0xD0, 0x31, 0xA9, 0x24, 0x85, 0x0A,
+    0xA9, 0x49, 0x20, 0xE8, 0xD9, 0xD0, 0x08, 0xAD, 0x00, 0x02, 0x85, 0x01, 0x4C, 0xCF, 0xD4, 0x20,
+    0x0A, 0xD5, 0xF0, 0x33, 0xC9, 0x02, 0xD0, 0x03, 0x4C, 0xCF, 0xD4, 0xA5, 0x5B, 0xF0, 0x11, 0x18,
+    0x69, 0x01, 0xC9, 0x10, 0xF0, 0x0C, 0x90, 0x0A, 0xA9, 0x10, 0x4C, 0xD2, 0xD3, 0x4C, 0xCF, 0xD4,
+    0xA9, 0x01, 0x85, 0x5B, 0xAA, 0xCA, 0xBD, 0x47, 0xC1, 0x85, 0x02, 0xA9, 0x00, 0x85, 0x5A, 0x85,
+    0x5C, 0x20, 0xEE, 0xD4, 0x4C, 0x0D, 0xD4, 0xA5, 0x5C, 0xF0, 0x0E, 0x18, 0x69, 0x01, 0xC9, 0x06,
+    0xF0, 0x09, 0x90, 0x07, 0xA9, 0x01, 0x4C, 0xFB, 0xD3, 0xA9, 0x02, 0x85, 0x5C, 0xAA, 0xCA, 0xBD,
+    0x59, 0xC1, 0x85, 0x02, 0xA9, 0x00, 0x85, 0x5A, 0x85, 0x5B, 0x20, 0xEE, 0xD4, 0xA5, 0xA1, 0x85,
+    0x00, 0x8D, 0x03, 0x02, 0x20, 0xD1, 0xEA, 0xA9, 0x00, 0x85, 0x04, 0xA5, 0x02, 0xC9, 0x54, 0xF0,
+    0x05, 0xA9, 0x00, 0x4C, 0x2C, 0xD4, 0xA9, 0x24, 0x85, 0x02, 0xA9, 0x01, 0x20, 0x96, 0xF0, 0x4C,
+    0xCF, 0xD4, 0xA5, 0x5A, 0xF0, 0x0F, 0x20, 0xE1, 0xEA, 0xE6, 0x01, 0x20, 0x0A, 0xD5, 0xC9, 0x01,
+    0xF0, 0x03, 0x4C, 0xCF, 0xD4, 0xA9, 0x24, 0x85, 0x0A, 0xA9, 0x49, 0x85, 0x0B, 0x20, 0xE6, 0xD9,
+    0xD0, 0x08, 0xAD, 0x00, 0x02, 0x85, 0x01, 0x4C, 0xCF, 0xD4, 0x20, 0x0A, 0xD5, 0xF0, 0x2C, 0xC9,
+    0x02, 0xF0, 0x28, 0xA5, 0x5B, 0xF0, 0x0A, 0x38, 0xE9, 0x01, 0xC9, 0x01, 0x90, 0x08, 0x4C, 0x78,
+    0xD4, 0xA9, 0x0D, 0x4C, 0x78, 0xD4, 0xA9, 0x01, 0x85, 0x5B, 0xAA, 0xCA, 0xBD, 0x47, 0xC1, 0x85,
+    0x02, 0xA9, 0x03, 0x85, 0x5C, 0x20, 0xF9, 0xD4, 0x4C, 0xB1, 0xD4, 0xA5, 0x5C, 0xF0, 0x0E, 0x18,
+    0x69, 0x01, 0xC9, 0x06, 0xF0, 0x09, 0x90, 0x07, 0xA9, 0x01, 0x4C, 0x9F, 0xD4, 0xA9, 0x01, 0x85,
+    0x5C, 0x38, 0xE9, 0x01, 0xAA, 0xBD, 0x59, 0xC1, 0x85, 0x02, 0xA9, 0x00, 0x85, 0x5B, 0x20, 0xF9,
+    0xD4, 0xA5, 0xA1, 0x8D, 0x03, 0x02, 0x85, 0x00, 0x20, 0xCD, 0xEA, 0xA5, 0x02, 0xC9, 0x54, 0xF0,
+    0x05, 0xA9, 0x00, 0x4C, 0xCC, 0xD4, 0xA9, 0x24, 0x85, 0x02, 0xA9, 0x01, 0x20, 0x96, 0xF0, 0x20,
+    0xCB, 0xD2, 0x85, 0x5A, 0xF0, 0x17, 0xAD, 0x00, 0x02, 0x18, 0x69, 0x08, 0x20, 0x16, 0xE0, 0x85,
+    0x59, 0xA9, 0x01, 0x85, 0x96, 0xA9, 0x00, 0x85, 0x5C, 0x85, 0x5B, 0x85, 0x85, 0x60, 0xAD, 0x00,
+    0x02, 0x38, 0xE9, 0x01, 0x85, 0x01, 0x4C, 0x01, 0xD5, 0xAD, 0x00, 0x02, 0x18, 0x69, 0x01, 0x85,
+    0x01, 0x29, 0x06, 0xD0, 0x04, 0xA9, 0x08, 0x85, 0xFF, 0x60, 0x20, 0xE1, 0xEA, 0xA9, 0x2C, 0x20,
+    0xE8, 0xEF, 0xA5, 0x53, 0x38, 0xE9, 0x01, 0x0A, 0xAA, 0xBD, 0x8B, 0xC4, 0x85, 0x04, 0xBD, 0x8C,
+    0xC4, 0x85, 0x05, 0xA9, 0x43, 0x85, 0x06, 0xA9, 0xC1, 0x85, 0x07, 0x20, 0xAD, 0xD8, 0x85, 0x08,
+    0xA5, 0x53, 0xC9, 0x01, 0xD0, 0x0E, 0xA9, 0x1E, 0x20, 0x31, 0xC8, 0x20, 0xAD, 0xD8, 0xF0, 0x04,
+    0xA9, 0x02, 0x85, 0x08, 0xA5, 0x08, 0x60, 0xA9, 0xFF, 0x20, 0xE6, 0xD9, 0xC9, 0x00, 0xD0, 0x01,
+    0x60, 0xA5, 0x94, 0xC9, 0xF0, 0x90, 0x03, 0x4C, 0x0D, 0xD6, 0x20, 0x90, 0xD9, 0xF0, 0x11, 0xA5,
+    0x56, 0xC9, 0x01, 0xD0, 0x05, 0xA9, 0x02, 0x4C, 0x6C, 0xD5, 0xA9, 0x01, 0x85, 0x56, 0x85, 0x57,
+    0xAD, 0x00, 0x02, 0x85, 0x01, 0xA9, 0x00, 0x20, 0x72, 0xEF, 0xA5, 0x01, 0x8D, 0x00, 0x02, 0xA5,
+    0x56, 0xC9, 0x01, 0xF0, 0x07, 0xC9, 0x02, 0xF0, 0x18, 0x4C, 0xB3, 0xD5, 0xA5, 0x9E, 0xF0, 0x0A,
+    0xEE, 0x03, 0x02, 0xA9, 0x00, 0x85, 0x9E, 0x4C, 0xB3, 0xD5, 0xA9, 0x01, 0x85, 0x9E, 0x4C, 0xB3,
+    0xD5, 0xA5, 0x9E, 0xF0, 0x0A, 0xCE, 0x03, 0x02, 0xA9, 0x00, 0x85, 0x9E, 0x4C, 0xB3, 0xD5, 0xA9,
+    0x01, 0x85, 0x9E, 0xAD, 0x03, 0x02, 0x85, 0x00, 0x20, 0x00, 0xD8, 0xA5, 0x94, 0xF0, 0x23, 0xA5,
+    0x01, 0x38, 0xE9, 0x10, 0xC5, 0x95, 0x90, 0x04, 0xA9, 0xFF, 0x85, 0x95, 0x20, 0xCB, 0xD2, 0x85,
+    0x5A, 0xF0, 0x1E, 0xA5, 0x4B, 0x38, 0xE9, 0x11, 0x8D, 0x00, 0x02, 0xA9, 0x01, 0x85, 0x5A, 0x4C,
+    0xF6, 0xD5, 0xA9, 0x04, 0x85, 0xFF, 0xA9, 0x01, 0x85, 0x94, 0xA5, 0x01, 0x85, 0x95, 0x4C, 0xF1,
+    0xD5, 0xA9, 0x28, 0x4C, 0x70, 0xF0, 0x20, 0xE1, 0xEA, 0xA9, 0x2C, 0x85, 0x02, 0x20, 0xCD, 0xEA,
+    0xA5, 0x57, 0x29, 0x03, 0x4A, 0x20, 0x96, 0xF0, 0xA9, 0xF0, 0x85, 0x94, 0x60, 0xE6, 0x94, 0xA5,
+    0x94, 0xC9, 0xF4, 0xD0, 0x3A, 0xA5, 0x95, 0xC9, 0xFF, 0xF0, 0x27, 0xA9, 0x04, 0x20, 0x70, 0xF0,
+    0xA9, 0x00, 0x8D, 0x2C, 0x04, 0x85, 0x94, 0x85, 0x95, 0xA9, 0x01, 0x85, 0x96, 0xA5, 0xA0, 0xF0,
+    0x1E, 0xA9, 0x01, 0x85, 0x9F, 0xA9, 0x4B, 0x85, 0x3F, 0xA9, 0x0A, 0x85, 0x96, 0xA9, 0x40, 0x85,
+    0xFC, 0x60, 0xA9, 0x00, 0x8D, 0x2C, 0x04, 0x85, 0x94, 0x85, 0x95, 0xA9, 0xFF, 0x85, 0x96, 0x60,
+    0xA9, 0xFE, 0x8D, 0x72, 0x04, 0x8D, 0x73, 0x04, 0xA2, 0x00, 0xA0, 0x60, 0xB9, 0x00, 0x02, 0xC9,
+    0xFF, 0xF0, 0x0F, 0x9D, 0x61, 0x04, 0xB9, 0x03, 0x02, 0x38, 0xE9, 0x08, 0x9D, 0x60, 0x04, 0x4C,
+    0x7A, 0xD6, 0xA9, 0x00, 0x9D, 0x61, 0x04, 0x9D, 0x60, 0x04, 0x98, 0x18, 0x69, 0x08, 0xA8, 0xE8,
+    0xE8, 0xE8, 0xC0, 0x90, 0xD0, 0xD6, 0xA9, 0x20, 0x20, 0x31, 0xC8, 0x20, 0xAD, 0xD8, 0xF0, 0x06,
+    0xA9, 0x08, 0x85, 0x96, 0xA9, 0x01, 0x60, 0xA9, 0xFF, 0x20, 0xE6, 0xD9, 0xF0, 0x27, 0x20, 0xE1,
+    0xEA, 0xE6, 0x01, 0xE6, 0x01, 0xA5, 0x57, 0xC9, 0x02, 0xF0, 0x06, 0xAD, 0x01, 0x02, 0x4C, 0xB7,
+    0xD6, 0xAD, 0x01, 0x02, 0x38, 0xE9, 0x02, 0x85, 0x02, 0x20, 0x75, 0xF0, 0x20, 0xCB, 0xD2, 0xF0,
+    0x04, 0xA9, 0xFF, 0x85, 0x96, 0x60, 0xA5, 0x3F, 0xD0, 0x03, 0x4C, 0xBF, 0xD7, 0xA9, 0xDB, 0x85,
+    0x0A, 0xA9, 0x36, 0x20, 0xE8, 0xD9, 0xD0, 0x01, 0x60, 0x20, 0x90, 0xD9, 0xD0, 0x0A, 0xA5, 0x56,
+    0xC9, 0x01, 0xF0, 0x26, 0xC9, 0x02, 0xF0, 0x28, 0xA5, 0xA2, 0x0A, 0x85, 0xA2, 0xF0, 0x03, 0x4C,
+    0x53, 0xD7, 0xA9, 0x20, 0x85, 0xA2, 0xA5, 0x9F, 0xF0, 0x04, 0xC9, 0x04, 0x90, 0x05, 0xA9, 0x02,
+    0x4C, 0x05, 0xD7, 0xA9, 0x05, 0x85, 0x9F, 0x4C, 0x53, 0xD7, 0xEE, 0x03, 0x02, 0x4C, 0x13, 0xD7,
+    0xCE, 0x03, 0x02, 0x20, 0xCB, 0xD2, 0x85, 0x5A, 0xAD, 0x00, 0x02, 0x20, 0x16, 0xE0, 0x85, 0x59,
+    0x20, 0xEB, 0xD8, 0xF0, 0x19, 0xA6, 0x53, 0xE0, 0x01, 0xD0, 0x07, 0x18, 0x6D, 0x00, 0x02, 0x8D,
+    0x00, 0x02, 0x20, 0x6A, 0xD3, 0xF0, 0x07, 0xA9, 0x08, 0x85, 0x96, 0x4C, 0xBF, 0xD7, 0xA9, 0x08,
+    0x85, 0xFF, 0xA5, 0x9F, 0xF0, 0x09, 0xC9, 0x06, 0xB0, 0x05, 0xE6, 0x9F, 0x4C, 0x53, 0xD7, 0xA9,
+    0x01, 0x85, 0x9F, 0xA6, 0x9F, 0xCA, 0xBD, 0xA2, 0xC1, 0x20, 0x70, 0xF0, 0xA5, 0x9F, 0x4A, 0x4A,
+    0xF0, 0x05, 0xA9, 0x00, 0x4C, 0x69, 0xD7, 0xA9, 0x01, 0xF0, 0x1B, 0xA9, 0x04, 0x18, 0x6D, 0x03,
+    0x02, 0x85, 0x00, 0xAD, 0x00, 0x02, 0x38, 0xE9, 0x0E, 0x85, 0x01, 0xA9, 0x21, 0x85, 0x03, 0xA9,
+    0xF6, 0x85, 0x02, 0x4C, 0xAD, 0xD7, 0xA5, 0x57, 0xC9, 0x01, 0xD0, 0x09, 0xA9, 0x0E, 0x18, 0x6D,
+    0x03, 0x02, 0x4C, 0x9B, 0xD7, 0xAD, 0x03, 0x02, 0x38, 0xE9, 0x0E, 0x85, 0x00, 0xA9, 0x06, 0x18,
+    0x6D, 0x00, 0x02, 0x85, 0x01, 0xA9, 0x12, 0x85, 0x03, 0xA9, 0xFA, 0x85, 0x02, 0xA5, 0xA0, 0xC9,
+    0x01, 0xF0, 0x05, 0xA9, 0xD8, 0x4C, 0xBA, 0xD7, 0xA9, 0xD0, 0x85, 0x04, 0x4C, 0x78, 0xF0, 0xA9,
+    0x12, 0x85, 0x03, 0xA5, 0xA0, 0xC9, 0x01, 0xF0, 0x0A, 0xA9, 0x00, 0x8D, 0x52, 0x04, 0xA9, 0xD8,
+    0x4C, 0xDA, 0xD7, 0xA9, 0x00, 0x8D, 0x51, 0x04, 0xA9, 0xD0, 0x85, 0x04, 0x20, 0x94, 0xF0, 0x20,
+    0xF2, 0xD7, 0xA9, 0x01, 0x85, 0x96, 0xA9, 0x00, 0x85, 0xA0, 0x85, 0x9F, 0xAD, 0x19, 0x05, 0x85,
+    0xFC, 0x60, 0xA9, 0x19, 0x85, 0x00, 0xA9, 0x3F, 0x85, 0x01, 0xA9, 0x4E, 0x20, 0x15, 0xC8, 0x60,
+    0xA5, 0xA0, 0xF0, 0x01, 0x60, 0xA4, 0x53, 0xC0, 0x03, 0xD0, 0x03, 0x4C, 0xA8, 0xD8, 0xAD, 0x03,
+    0x02, 0xC0, 0x01, 0xF0, 0x09, 0xC9, 0x88, 0xF0, 0x0E, 0x90, 0x0C, 0x4C, 0xA8, 0xD8, 0xC9, 0x28,
+    0xF0, 0x05, 0x90, 0x03, 0x4C, 0xA8, 0xD8, 0xAD, 0x00, 0x02, 0x18, 0x69, 0x08, 0x20, 0x16, 0xE0,
+    0x85, 0x59, 0xA5, 0x53, 0x38, 0xE9, 0x01, 0x0A, 0xAA, 0xA5, 0x59, 0xDD, 0xA8, 0xC1, 0xF0, 0x09,
+    0xE8, 0xDD, 0xA8, 0xC1, 0xF0, 0x03, 0x4C, 0xA8, 0xD8, 0x8A, 0x29, 0x01, 0xF0, 0x19, 0xAD, 0x52,
+    0x04, 0xD0, 0x03, 0x4C, 0xA8, 0xD8, 0xA9, 0x02, 0x85, 0xA0, 0xAD, 0xD8, 0x02, 0x85, 0x01, 0xAD,
+    0xDB, 0x02, 0x85, 0x00, 0x4C, 0x7D, 0xD8, 0xAD, 0x51, 0x04, 0xD0, 0x03, 0x4C, 0xA8, 0xD8, 0xA9,
+    0x01, 0x85, 0xA0, 0xAD, 0xD0, 0x02, 0x85, 0x01, 0xAD, 0xD3, 0x02, 0x85, 0x00, 0xA9, 0x2E, 0x20,
+    0xE8, 0xEF, 0x20, 0xE1, 0xEA, 0xA9, 0x30, 0x20, 0x47, 0xC8, 0x20, 0xEF, 0xEF, 0xF0, 0x19, 0xA5,
+    0xFC, 0x8D, 0x19, 0x05, 0xA5, 0x53, 0xC9, 0x04, 0xD0, 0x0D, 0xA9, 0x19, 0x85, 0x00, 0xA9, 0x3F,
+    0x85, 0x01, 0xA9, 0x46, 0x20, 0x15, 0xC8, 0x60, 0xA9, 0x00, 0x85, 0xA0, 0x60, 0xA9, 0xF3, 0x85,
+    0x0B, 0xA9, 0x00, 0x85, 0x86, 0xA0, 0x00, 0xB1, 0x04, 0x85, 0x00, 0xC8, 0xB1, 0x04, 0x85, 0x01,
+    0xC8, 0xB1, 0x04, 0x18, 0x65, 0x06, 0x85, 0x02, 0xA5, 0x07, 0x69, 0x00, 0x85, 0x03, 0x84, 0x86,
+    0x20, 0xF3, 0xEF, 0xD0, 0x0C, 0xA4, 0x86, 0xC8, 0xB1, 0x04, 0xC9, 0xFE, 0xF0, 0x08, 0x4C, 0xB9,
+    0xD8, 0xA9, 0x01, 0x4C, 0xE8, 0xD8, 0xA9, 0x00, 0x85, 0x0C, 0x60, 0xA5, 0x5A, 0xD0, 0x28, 0xA5,
+    0x59, 0xF0, 0x24, 0x29, 0x01, 0xD0, 0x0D, 0xA5, 0x56, 0xC9, 0x01, 0xF0, 0x17, 0xC9, 0x02, 0xF0,
+    0x10, 0x4C, 0x17, 0xD9, 0xA5, 0x56, 0xC9, 0x01, 0xF0, 0x07, 0xC9, 0x02, 0xF0, 0x06, 0x4C, 0x17,
+    0xD9, 0xA9, 0xFF, 0x60, 0xA9, 0x01, 0x60, 0xA9, 0x00, 0x60, 0xAD, 0x00, 0x02, 0x18, 0x69, 0x08,
+    0x20, 0x16, 0xE0, 0x85, 0x59, 0xC9, 0x01, 0xF0, 0x0F, 0xA2, 0x02, 0xA9, 0x0C, 0xE4, 0x59, 0xF0,
+    0x0A, 0x18, 0x69, 0x06, 0xE8, 0x4C, 0x2D, 0xD9, 0x38, 0xE9, 0x01, 0xAA, 0xA9, 0x00, 0x85, 0x86,
+    0xBD, 0x8C, 0xC0, 0x85, 0x00, 0xE8, 0xBD, 0x8C, 0xC0, 0x85, 0x01, 0xE8, 0xBD, 0x8C, 0xC0, 0x18,
+    0x65, 0x06, 0x85, 0x02, 0xA5, 0x07, 0x85, 0x03, 0xE8, 0xBD, 0x8C, 0xC0, 0x85, 0x08, 0xE8, 0xBD,
+    0x8C, 0xC0, 0x85, 0x09, 0x20, 0xEF, 0xEF, 0xD0, 0x22, 0xA5, 0x00, 0x18, 0x65, 0x08, 0x85, 0x00,
+    0xC6, 0x01, 0xE6, 0x86, 0xA5, 0x09, 0xC5, 0x86, 0xD0, 0xEA, 0xE8, 0xBD, 0x8C, 0xC0, 0xC9, 0xFE,
+    0xF0, 0x04, 0xE8, 0x4C, 0x3C, 0xD9, 0xA9, 0x00, 0x4C, 0x8D, 0xD9, 0xA9, 0x01, 0x85, 0x5A, 0x60,
+    0xA5, 0x56, 0xC9, 0x01, 0xF0, 0x07, 0xC9, 0x02, 0xF0, 0x15, 0x4C, 0xE3, 0xD9, 0xA5, 0x53, 0x0A,
+    0xAA, 0xCA, 0xBD, 0xB4, 0xC1, 0xCD, 0x03, 0x02, 0xF0, 0x36, 0x90, 0x34, 0x4C, 0xE3, 0xD9, 0xA5,
+    0x53, 0x0A, 0xAA, 0xCA, 0xCA, 0xBD, 0xB4, 0xC1, 0xCD, 0x03, 0x02, 0xB0, 0x23, 0xA5, 0x53, 0xC9,
+    0x04, 0xF0, 0x20, 0xA6, 0x59, 0xC9, 0x03, 0xF0, 0x07, 0xE0, 0x06, 0xD0, 0x16, 0x4C, 0xD4, 0xD9,
+    0xE0, 0x05, 0xD0, 0x0F, 0xAD, 0x03, 0x02, 0xC9, 0x68, 0xF0, 0x05, 0x90, 0x03, 0x4C, 0xE3, 0xD9,
+    0xA9, 0x01, 0x60, 0xA9, 0x00, 0x60, 0x85, 0x0A, 0x85, 0x0B, 0xE6, 0x88, 0xA5, 0x88, 0xC9, 0x0F,
+    0xB0, 0x03, 0x4C, 0xF9, 0xD9, 0xA9, 0x00, 0x85, 0x88, 0xC9, 0x08, 0xB0, 0x09, 0xAA, 0xBD, 0xBC,
+    0xC1, 0x25, 0x0A, 0x4C, 0x0F, 0xDA, 0x38, 0xE9, 0x08, 0xAA, 0xBD, 0xBC, 0xC1, 0x25, 0x0B, 0xF0,
+    0x02, 0xA9, 0x01, 0x85, 0xBE, 0x60, 0x20, 0x66, 0xE1, 0xA9, 0x00, 0x85, 0x5D, 0x20, 0xD5, 0xEF,
+    0xBD, 0x00, 0x02, 0xC9, 0xFF, 0xD0, 0x16, 0xA5, 0x36, 0xD0, 0x15, 0xA9, 0x80, 0xA6, 0x5D, 0x95,
+    0x5E, 0xA9, 0x10, 0x85, 0x37, 0x20, 0xF7, 0xEA, 0xBD, 0x43, 0xC4, 0x85, 0x36, 0x20, 0x4C, 0xDA,
+    0xA5, 0x5D, 0x18, 0x69, 0x01, 0x85, 0x5D, 0xC9, 0x09, 0xD0, 0xD2, 0x60, 0xA6, 0x5D, 0xB5, 0x5E,
+    0xC9, 0x80, 0xF0, 0x29, 0xC9, 0x81, 0xF0, 0x28, 0xC9, 0x01, 0xF0, 0x27, 0xC9, 0x02, 0xF0, 0x26,
+    0xC9, 0xC0, 0xF0, 0x25, 0xC9, 0xC1, 0xF0, 0x21, 0xC9, 0xC2, 0xF0, 0x1D, 0xC9, 0x08, 0xF0, 0x1F,
+    0xC9, 0x10, 0xF0, 0x1E, 0xC9, 0x20, 0xF0, 0x1D, 0xC9, 0x40, 0xF0, 0x1C, 0x60, 0x4C, 0x9C, 0xDA,
+    0x4C, 0x00, 0xDB, 0x4C, 0x2C, 0xDB, 0x4C, 0x30, 0xDC, 0xBD, 0x21, 0x04, 0x4C, 0x8B, 0xDD, 0x4C,
+    0x69, 0xDC, 0x4C, 0xD0, 0xDC, 0x4C, 0x32, 0xDD, 0x20, 0x07, 0xDF, 0x60, 0x20, 0xD5, 0xEF, 0xA9,
+    0x30, 0x85, 0x00, 0x85, 0x01, 0xA9, 0x90, 0x85, 0x02, 0x86, 0x04, 0x20, 0xDB, 0xEA, 0xA5, 0x37,
+    0xD0, 0x4D, 0xA9, 0x81, 0xA6, 0x5D, 0x95, 0x5E, 0xA9, 0x00, 0x95, 0x8A, 0xA5, 0xAD, 0xF0, 0x03,
+    0x4C, 0xD5, 0xDA, 0xA5, 0x5D, 0xD0, 0x38, 0xA9, 0xC0, 0xA6, 0x5D, 0x95, 0x5E, 0xA9, 0x01, 0x9D,
+    0x21, 0x04, 0x4C, 0xF7, 0xDA, 0xA5, 0x43, 0xD0, 0x26, 0xA5, 0x5D, 0xD0, 0x22, 0xA9, 0xC0, 0xA6,
+    0x5D, 0x95, 0x5E, 0xBD, 0x21, 0x04, 0xC9, 0x01, 0xD0, 0x08, 0xA9, 0x03, 0x9D, 0x21, 0x04, 0x4C,
+    0xF7, 0xDA, 0xA9, 0x01, 0x9D, 0x21, 0x04, 0x20, 0xF7, 0xEA, 0xBD, 0x4D, 0xC4, 0x85, 0x43, 0x60,
+    0xA9, 0x55, 0x20, 0xE4, 0xDF, 0xD0, 0x1A, 0x20, 0xD5, 0xEF, 0xA9, 0x4D, 0x85, 0x00, 0xA9, 0x32,
+    0x85, 0x01, 0xA9, 0x84, 0x85, 0x02, 0x86, 0x04, 0x20, 0xDB, 0xEA, 0xEE, 0x15, 0x05, 0x4C, 0x2B,
+    0xDB, 0xA6, 0x5D, 0xA9, 0x01, 0x95, 0x5E, 0xA9, 0x84, 0x95, 0x72, 0x60, 0xA9, 0xFF, 0x20, 0xE4,
+    0xDF, 0xD0, 0x01, 0x60, 0x20, 0xD5, 0xEF, 0x48, 0x20, 0xEC, 0xEA, 0xA5, 0x01, 0x20, 0x16, 0xE0,
+    0xA4, 0x5D, 0x99, 0x68, 0x00, 0x29, 0x01, 0xD0, 0x05, 0xE6, 0x00, 0x4C, 0x50, 0xDB, 0xC6, 0x00,
+    0xA5, 0x00, 0x20, 0x5A, 0xE0, 0x85, 0x7D, 0x20, 0x48, 0xE0, 0x18, 0x65, 0x01, 0x85, 0x01, 0x20,
+    0xEE, 0xDB, 0xA6, 0x5D, 0xB5, 0x72, 0x20, 0xD4, 0xEA, 0x68, 0xAA, 0x20, 0x80, 0xF0, 0xA5, 0x00,
+    0x20, 0xAE, 0xE0, 0xF0, 0x37, 0x20, 0xF7, 0xEA, 0xBD, 0x48, 0xC4, 0x25, 0x19, 0xD0, 0x2D, 0xA6,
+    0x5D, 0xB5, 0x68, 0xAA, 0xCA, 0xB5, 0x7E, 0xC9, 0x04, 0xB0, 0x21, 0xA5, 0x96, 0xC9, 0x02, 0xD0,
+    0x12, 0xA6, 0x04, 0xBD, 0x00, 0x02, 0xCD, 0x00, 0x02, 0xB0, 0x08, 0x18, 0x69, 0x0F, 0xCD, 0x00,
+    0x02, 0xB0, 0x09, 0xA9, 0x02, 0xA6, 0x5D, 0x95, 0x5E, 0xD6, 0x68, 0x60, 0xA5, 0x00, 0x20, 0x90,
+    0xE0, 0xF0, 0x03, 0x4C, 0xE7, 0xDB, 0x20, 0x40, 0xDF, 0xA6, 0x5D, 0xB5, 0x68, 0xC9, 0x01, 0xD0,
+    0x2C, 0x20, 0xC3, 0xDF, 0xA5, 0x00, 0xC9, 0x20, 0xF0, 0x03, 0x90, 0x01, 0x60, 0xA9, 0x03, 0x85,
+    0x02, 0xA9, 0x04, 0x85, 0x03, 0x20, 0x8E, 0xF0, 0xA9, 0x01, 0x85, 0xAD, 0xA9, 0x00, 0xA6, 0x5D,
+    0x95, 0x68, 0xA9, 0x80, 0x85, 0xFE, 0x60, 0xA6, 0x5D, 0xA9, 0x08, 0x95, 0x5E, 0x60, 0xA6, 0x5D,
+    0xFE, 0x0D, 0x04, 0xBD, 0x0D, 0x04, 0xC9, 0x06, 0xB0, 0x01, 0x60, 0xA9, 0x00, 0x9D, 0x0D, 0x04,
+    0xB5, 0x68, 0x29, 0x01, 0xF0, 0x15, 0xB5, 0x72, 0x18, 0x69, 0x04, 0xC9, 0x80, 0x90, 0x07, 0xC9,
+    0x90, 0xB0, 0x03, 0x4C, 0x2D, 0xDC, 0xA9, 0x80, 0x4C, 0x2D, 0xDC, 0xB5, 0x72, 0x38, 0xE9, 0x04,
+    0xC9, 0x80, 0x90, 0x07, 0xC9, 0x90, 0xB0, 0x03, 0x4C, 0x2D, 0xDC, 0xA9, 0x8C, 0x95, 0x72, 0x60,
+    0xA9, 0x55, 0x20, 0xE4, 0xDF, 0xF0, 0x31, 0x20, 0xD5, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xE6,
+    0x01, 0xA4, 0x5D, 0xB9, 0x72, 0x00, 0xC9, 0x90, 0xD0, 0x05, 0xA9, 0x94, 0x4C, 0x51, 0xDC, 0xA9,
+    0x90, 0x85, 0x02, 0xA6, 0x5D, 0x95, 0x72, 0x20, 0xDB, 0xEA, 0xA5, 0x01, 0xA6, 0x5D, 0xD5, 0xA3,
+    0xD0, 0x06, 0xA6, 0x5D, 0xA9, 0x01, 0x95, 0x5E, 0x60, 0xA9, 0xFF, 0x20, 0xE4, 0xDF, 0xD0, 0x01,
+    0x60, 0x20, 0xD5, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xE6, 0x01, 0xA5, 0x01, 0x29, 0x01, 0xF0,
+    0x0F, 0xA6, 0x5D, 0xB5, 0x68, 0x29, 0x01, 0xF0, 0x05, 0xC6, 0x00, 0x4C, 0x90, 0xDC, 0xE6, 0x00,
+    0x20, 0xEE, 0xDB, 0xA6, 0x5D, 0xB5, 0x72, 0x85, 0x02, 0x20, 0xDB, 0xEA, 0xA9, 0x32, 0x20, 0x53,
+    0xC8, 0xA5, 0x01, 0x20, 0x12, 0xE1, 0xF0, 0x27, 0xA6, 0x5D, 0xA9, 0x10, 0x95, 0x5E, 0x20, 0x30,
+    0xE1, 0xF0, 0x09, 0xA5, 0x19, 0x29, 0x01, 0xF0, 0x03, 0x4C, 0xC9, 0xDC, 0xA6, 0x5D, 0xB5, 0x68,
+    0xAA, 0xCA, 0xB5, 0x7E, 0xC9, 0x04, 0xB0, 0x01, 0x60, 0xA6, 0x5D, 0xA9, 0x20, 0x95, 0x5E, 0x60,
+    0xA9, 0x77, 0x20, 0xE4, 0xDF, 0xD0, 0x01, 0x60, 0x20, 0xD5, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA,
+    0xA5, 0x01, 0x20, 0x16, 0xE0, 0xA6, 0x5D, 0x95, 0x68, 0x29, 0x01, 0xD0, 0x13, 0xE6, 0x00, 0xA5,
+    0x00, 0xA2, 0x00, 0xDD, 0xFC, 0xC3, 0xF0, 0x1B, 0xE8, 0xE0, 0x0B, 0xF0, 0x28, 0x4C, 0xF3, 0xDC,
+    0xC6, 0x00, 0xA5, 0x00, 0xA2, 0x00, 0xDD, 0x12, 0xC4, 0xF0, 0x08, 0xE8, 0xE0, 0x0B, 0xF0, 0x15,
+    0x4C, 0x06, 0xDD, 0xA5, 0x01, 0x18, 0x7D, 0x07, 0xC4, 0x85, 0x01, 0xE0, 0x0A, 0xD0, 0x06, 0xA6,
+    0x5D, 0xA9, 0x01, 0x95, 0x5E, 0x20, 0xEE, 0xDB, 0xA6, 0x5D, 0xB5, 0x72, 0x85, 0x02, 0x20, 0xDB,
+    0xEA, 0x60, 0xA9, 0x55, 0x20, 0xE4, 0xDF, 0xD0, 0x01, 0x60, 0x20, 0xD5, 0xEF, 0x86, 0x04, 0x20,
+    0xEC, 0xEA, 0xA5, 0x01, 0x20, 0x16, 0xE0, 0xA6, 0x5D, 0x95, 0x68, 0x29, 0x01, 0xD0, 0x11, 0xC6,
+    0x00, 0xA5, 0x01, 0xC9, 0x14, 0xD0, 0x02, 0xC6, 0x01, 0xA5, 0x00, 0xD0, 0x16, 0x4C, 0x7F, 0xDD,
+    0xE6, 0x00, 0xA5, 0x01, 0xC9, 0xEC, 0xD0, 0x02, 0xC6, 0x01, 0xA5, 0x00, 0xC9, 0xF4, 0xD0, 0x03,
+    0x4C, 0x7F, 0xDD, 0x20, 0xEE, 0xDB, 0xA6, 0x5D, 0xB5, 0x72, 0x85, 0x02, 0x4C, 0xDB, 0xEA, 0xA9,
+    0x22, 0x20, 0x92, 0xF0, 0xA9, 0x00, 0xA6, 0x5D, 0x95, 0x68, 0x60, 0x85, 0x07, 0xA6, 0x5D, 0xB5,
+    0x5E, 0xC9, 0xC2, 0xD0, 0x03, 0x4C, 0x82, 0xDE, 0xC9, 0xC1, 0xF0, 0x3B, 0xA5, 0x07, 0xC9, 0x02,
+    0xF0, 0x09, 0xC9, 0x03, 0xF0, 0x0A, 0xA9, 0x34, 0x4C, 0xB2, 0xDD, 0xA9, 0x36, 0x4C, 0xB2, 0xDD,
+    0xA9, 0x38, 0x20, 0x53, 0xC8, 0x20, 0xD5, 0xEF, 0x86, 0x04, 0xBD, 0x00, 0x02, 0x20, 0x12, 0xE1,
+    0xA4, 0x0A, 0xC0, 0x04, 0xD0, 0x03, 0x4C, 0x73, 0xDE, 0xC9, 0x00, 0xF0, 0x0A, 0xA6, 0x5D, 0xA9,
+    0x01, 0x95, 0x8A, 0xA9, 0xC1, 0x95, 0x5E, 0x20, 0xD5, 0xEF, 0x86, 0x04, 0xA6, 0x5D, 0xB5, 0x5E,
+    0xC9, 0xC1, 0xD0, 0x2F, 0xA9, 0x20, 0x20, 0xE4, 0xDF, 0xD0, 0x0A, 0xA6, 0x04, 0xBD, 0x00, 0x02,
+    0x85, 0x01, 0x4C, 0x27, 0xDE, 0xA6, 0x5D, 0xA9, 0xC0, 0x95, 0x5E, 0xA5, 0x07, 0xC9, 0x03, 0xD0,
+    0x0F, 0xBD, 0x17, 0x04, 0xF0, 0x05, 0xA9, 0x00, 0x4C, 0x0D, 0xDE, 0xA9, 0x01, 0x9D, 0x17, 0x04,
+    0x4C, 0x1A, 0xDE, 0xA9, 0xFF, 0x20, 0xE4, 0xDF, 0xF0, 0x6B, 0xA6, 0x04, 0xA9, 0x01, 0x18, 0x7D,
+    0x00, 0x02, 0x85, 0x01, 0x20, 0x86, 0xDE, 0xE8, 0xE8, 0xE8, 0xA5, 0x07, 0xC9, 0x02, 0xD0, 0x06,
+    0xFE, 0x00, 0x02, 0x4C, 0x56, 0xDE, 0xC9, 0x03, 0xD0, 0x1C, 0xA5, 0x01, 0x29, 0x01, 0xF0, 0x16,
+    0xA4, 0x5D, 0xB9, 0x17, 0x04, 0xD0, 0x09, 0xFE, 0x00, 0x02, 0xFE, 0x00, 0x02, 0x4C, 0x56, 0xDE,
+    0xDE, 0x00, 0x02, 0xDE, 0x00, 0x02, 0xBD, 0x00, 0x02, 0x85, 0x00, 0xA6, 0x5D, 0xB5, 0x72, 0xC9,
+    0x90, 0xD0, 0x05, 0xA9, 0x94, 0x4C, 0x6A, 0xDE, 0xA9, 0x90, 0x85, 0x02, 0xA6, 0x5D, 0x95, 0x72,
+    0x4C, 0xDB, 0xEA, 0xA9, 0xC2, 0xA6, 0x5D, 0x95, 0x5E, 0xA6, 0x04, 0xBD, 0x03, 0x02, 0x8D, 0x2B,
+    0x04, 0x60, 0x20, 0xA5, 0xDE, 0x60, 0xA5, 0x07, 0xC9, 0x01, 0xD0, 0x18, 0xA0, 0x00, 0xA5, 0x01,
+    0xD9, 0x1D, 0xC4, 0x90, 0x0A, 0xD9, 0x20, 0xC4, 0xB0, 0x05, 0xE6, 0x01, 0x4C, 0xA4, 0xDE, 0xC8,
+    0xC0, 0x03, 0xD0, 0xEC, 0x60, 0x20, 0xD5, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xC6, 0x00, 0xAD,
+    0x2B, 0x04, 0x38, 0xE9, 0x01, 0xC5, 0x00, 0xF0, 0x2F, 0x38, 0xE9, 0x01, 0xC5, 0x00, 0xF0, 0x28,
+    0x38, 0xE9, 0x01, 0xC5, 0x00, 0xF0, 0x2B, 0x38, 0xE9, 0x08, 0xC5, 0x00, 0xF0, 0x1F, 0x38, 0xE9,
+    0x01, 0xC5, 0x00, 0xF0, 0x18, 0x38, 0xE9, 0x01, 0xC5, 0x00, 0xD0, 0x1F, 0xA9, 0x01, 0xA6, 0x5D,
+    0x95, 0x5E, 0xA9, 0x00, 0x9D, 0x17, 0x04, 0x60, 0xC6, 0x01, 0x4C, 0xFB, 0xDE, 0xE6, 0x01, 0x4C,
+    0xFB, 0xDE, 0xA6, 0x5D, 0xBD, 0x21, 0x04, 0xC9, 0x01, 0xF0, 0xE1, 0xA9, 0x84, 0xA6, 0x5D, 0x95,
+    0x72, 0x85, 0x02, 0x20, 0xDB, 0xEA, 0x60, 0xA9, 0x55, 0x20, 0xE4, 0xDF, 0xD0, 0x01, 0x60, 0x20,
+    0xD5, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xE6, 0x01, 0xBD, 0x01, 0x02, 0xC9, 0x90, 0xF0, 0x05,
+    0xA9, 0x90, 0x4C, 0x27, 0xDF, 0xA9, 0x94, 0x85, 0x02, 0x20, 0xDB, 0xEA, 0xA5, 0xC0, 0xC5, 0x01,
+    0xF0, 0x03, 0x90, 0x01, 0x60, 0xA6, 0x5D, 0xA9, 0x01, 0x95, 0x5E, 0xA9, 0x00, 0x85, 0xC0, 0x60,
+    0xA5, 0xC0, 0xF0, 0x01, 0x60, 0xA5, 0x96, 0xC9, 0x0A, 0xF0, 0x01, 0x60, 0xA5, 0x59, 0xC9, 0x03,
+    0xF0, 0x03, 0x4C, 0x72, 0xDF, 0xA2, 0x03, 0xB5, 0x7E, 0xC9, 0x05, 0xB0, 0x01, 0x60, 0xA2, 0x00,
+    0xB5, 0x5E, 0xC9, 0x01, 0xD0, 0x06, 0xB5, 0x68, 0xC9, 0x03, 0xF0, 0x23, 0xE8, 0xE0, 0x0A, 0xD0,
+    0xEF, 0x60, 0xA2, 0x05, 0xB5, 0x7E, 0xC9, 0x05, 0xB0, 0x01, 0x60, 0xA2, 0x00, 0xB5, 0x5E, 0xC9,
+    0x01, 0xD0, 0x06, 0xB5, 0x68, 0xC9, 0x05, 0xF0, 0x06, 0xE8, 0xC9, 0x0A, 0xD0, 0xEF, 0x60, 0xA9,
+    0x40, 0x95, 0x5E, 0xD6, 0x68, 0x8A, 0x18, 0x69, 0x03, 0x0A, 0x0A, 0x0A, 0x0A, 0xA8, 0xB9, 0x00,
+    0x02, 0x85, 0x01, 0xB9, 0x03, 0x02, 0x85, 0x00, 0xAD, 0xEB, 0xC1, 0xA0, 0x00, 0xC5, 0x00, 0xB0,
+    0x07, 0x18, 0x69, 0x18, 0xC8, 0x4C, 0xAD, 0xDF, 0x98, 0x0A, 0x18, 0x69, 0x15, 0x18, 0x65, 0x01,
+    0x85, 0xC0, 0x60, 0xA6, 0x5D, 0xB5, 0x68, 0xC9, 0x01, 0xD0, 0x18, 0x20, 0xD5, 0xEF, 0xBD, 0x03,
+    0x02, 0xC9, 0x30, 0xB0, 0x0E, 0xA9, 0x23, 0x9D, 0x02, 0x02, 0x9D, 0x06, 0x02, 0x9D, 0x0A, 0x02,
+    0x9D, 0x0E, 0x02, 0x60, 0x85, 0x0A, 0x85, 0x0B, 0xA6, 0x5D, 0xF6, 0x8A, 0xB5, 0x8A, 0x30, 0x07,
+    0xC9, 0x10, 0xB0, 0x03, 0x4C, 0xFB, 0xDF, 0xA9, 0x00, 0x95, 0x8A, 0xC9, 0x08, 0xB0, 0x09, 0xAA,
+    0xBD, 0xBC, 0xC1, 0x25, 0x0A, 0x4C, 0x11, 0xE0, 0x38, 0xE9, 0x08, 0xAA, 0xBD, 0xBC, 0xC1, 0x25,
+    0x0B, 0xF0, 0x02, 0xA9, 0x01, 0x60, 0x85, 0x0A, 0xA5, 0x53, 0x38, 0xE9, 0x01, 0x0A, 0xAA, 0xBD,
+    0x93, 0xC4, 0x85, 0x08, 0xBD, 0x94, 0xC4, 0x85, 0x09, 0xA0, 0x00, 0xA9, 0x01, 0x85, 0x0B, 0xB1,
+    0x08, 0xC9, 0xFF, 0xF0, 0x0C, 0xC5, 0x0A, 0xF0, 0x0C, 0x90, 0x0A, 0xE6, 0x0B, 0xC8, 0x4C, 0x2F,
+    0xE0, 0xA9, 0x07, 0x85, 0x0B, 0xA5, 0x0B, 0x60, 0xA6, 0x5D, 0xB5, 0x5E, 0xC9, 0x01, 0xD0, 0x07,
+    0xA5, 0x7D, 0xD0, 0x03, 0xA9, 0x01, 0x60, 0xA9, 0x00, 0x60, 0x85, 0x0C, 0xA6, 0x5D, 0xB5, 0x68,
+    0xC9, 0x01, 0xF0, 0x15, 0xC9, 0x06, 0xF0, 0x11, 0xA2, 0x00, 0xBD, 0xC4, 0xC1, 0xC5, 0x0C, 0xF0,
+    0x19, 0xE8, 0xE0, 0x09, 0xF0, 0x17, 0x4C, 0x6A, 0xE0, 0xA2, 0x04, 0xBD, 0xC4, 0xC1, 0xC5, 0x0C,
+    0xF0, 0x08, 0xE8, 0xE0, 0x09, 0xF0, 0x06, 0x4C, 0x7B, 0xE0, 0xA9, 0x00, 0x60, 0xA9, 0x01, 0x60,
+    0x85, 0x0C, 0xA6, 0x5D, 0xB5, 0x68, 0x29, 0x01, 0xF0, 0x05, 0xA2, 0x00, 0x4C, 0xA1, 0xE0, 0xA2,
+    0x01, 0xBD, 0xCD, 0xC1, 0xC5, 0x0C, 0xF0, 0x03, 0xA9, 0x00, 0x60, 0xA9, 0x01, 0x60, 0x85, 0x0C,
+    0xA6, 0x5D, 0xB5, 0x68, 0xC9, 0x02, 0xF0, 0x13, 0xC9, 0x03, 0xF0, 0x0F, 0xC9, 0x04, 0xF0, 0x11,
+    0xC9, 0x05, 0xF0, 0x19, 0xC9, 0x06, 0xF0, 0x21, 0x4C, 0xEC, 0xE0, 0x20, 0xF1, 0xE0, 0x4C, 0xEC,
+    0xE0, 0x20, 0xF1, 0xE0, 0xA0, 0x89, 0xC9, 0xC4, 0xF0, 0x2F, 0x4C, 0xEC, 0xE0, 0x20, 0xF1, 0xE0,
+    0xA0, 0x71, 0xC9, 0xB4, 0xF0, 0x23, 0x4C, 0xEC, 0xE0, 0x20, 0xF1, 0xE0, 0xA9, 0x00, 0x4C, 0x0F,
+    0xE1, 0xAA, 0xCA, 0xCA, 0xA5, 0x0C, 0xBC, 0x72, 0xC1, 0xDD, 0x77, 0xC1, 0xF0, 0x09, 0xBC, 0x7C,
+    0xC1, 0xDD, 0x81, 0xC1, 0xF0, 0x01, 0x60, 0x68, 0x68, 0xA6, 0x5D, 0x94, 0xA3, 0xA9, 0x01, 0x85,
+    0x0C, 0x60, 0x85, 0x0B, 0xA0, 0x00, 0xB1, 0x08, 0xC9, 0xFE, 0xF0, 0x0D, 0xC5, 0x0B, 0xF0, 0x04,
+    0xC8, 0x4C, 0x16, 0xE1, 0xA9, 0x01, 0x4C, 0x2B, 0xE1, 0xA9, 0x00, 0x85, 0x0C, 0x84, 0x0A, 0x60,
+    0xA6, 0x5D, 0xB5, 0x68, 0x38, 0xE5, 0x59, 0xF0, 0x05, 0x30, 0x03, 0x4C, 0x41, 0xE1, 0xA9, 0x01,
+    0x60, 0xA9, 0x00, 0x60, 0xA2, 0x00, 0xA0, 0x20, 0xB9, 0x00, 0x02, 0xC9, 0xFF, 0xF0, 0x08, 0x20,
+    0x16, 0xE0, 0x95, 0x68, 0x4C, 0x5B, 0xE1, 0xA9, 0x00, 0x95, 0x68, 0x98, 0x18, 0x69, 0x10, 0xA8,
+    0xE8, 0xE0, 0x0A, 0xD0, 0xE3, 0x60, 0xA9, 0x00, 0xA0, 0x06, 0x99, 0x7E, 0x00, 0x88, 0x10, 0xFA,
+    0xA0, 0x00, 0xB9, 0x68, 0x00, 0xF0, 0x08, 0xAA, 0xB5, 0x7E, 0x18, 0x69, 0x01, 0x95, 0x7E, 0xC0,
+    0x09, 0xF0, 0x04, 0xC8, 0x4C, 0x72, 0xE1, 0xA6, 0x59, 0xE0, 0x07, 0xF0, 0x0C, 0xF6, 0x7E, 0xA5,
+    0x96, 0xC9, 0x0A, 0xD0, 0x04, 0xA6, 0x59, 0xF6, 0x7E, 0x60, 0xA5, 0xAD, 0xD0, 0x01, 0x60, 0xC9,
+    0x01, 0xD0, 0x1C, 0xA9, 0x20, 0x85, 0x00, 0xA9, 0xC0, 0x85, 0x01, 0xA9, 0xFC, 0x85, 0x02, 0xA9,
+    0x12, 0x85, 0x03, 0xA9, 0xE0, 0x20, 0x80, 0xF0, 0xA9, 0x02, 0x85, 0xAD, 0x4C, 0xE0, 0xE1, 0xA5,
+    0x38, 0xD0, 0x21, 0xA9, 0x03, 0x85, 0xAD, 0xA2, 0xE1, 0xBD, 0x00, 0x02, 0xC9, 0xFC, 0xF0, 0x05,
+    0xA9, 0xFC, 0x4C, 0xD7, 0xE1, 0xA9, 0xFE, 0x9D, 0x00, 0x02, 0x18, 0x69, 0x01, 0x9D, 0x04, 0x02,
+    0xA9, 0x10, 0x85, 0x38, 0x60, 0xA9, 0x00, 0x85, 0xAE, 0x20, 0xDD, 0xEF, 0xBD, 0x00, 0x02, 0xC9,
+    0xFF, 0xD0, 0x32, 0xA5, 0x53, 0xC9, 0x01, 0xF0, 0x07, 0xC9, 0x04, 0xF0, 0x16, 0x4C, 0x25, 0xE2,
+    0xA5, 0x40, 0xD0, 0x24, 0xA5, 0xAD, 0xF0, 0x20, 0xC9, 0x02, 0xD0, 0x1C, 0xA9, 0x19, 0x85, 0x40,
+    0x4C, 0x1F, 0xE2, 0xA5, 0x40, 0xD0, 0x11, 0x20, 0xF7, 0xEA, 0xBD, 0x66, 0xC4, 0x85, 0x40, 0xA9,
+    0x06, 0xA6, 0xAE, 0x95, 0xAF, 0x20, 0x50, 0xE2, 0xA6, 0x53, 0xCA, 0xE6, 0xAE, 0xA5, 0xAE, 0xDD,
+    0xF6, 0xC1, 0xF0, 0x03, 0x4C, 0xE9, 0xE1, 0xA5, 0x53, 0xC9, 0x03, 0xF0, 0x12, 0xA5, 0x3B, 0xD0,
+    0x0E, 0xA9, 0x00, 0x85, 0xD2, 0x85, 0xD3, 0x85, 0xD4, 0x85, 0xD5, 0xA9, 0xBC, 0x85, 0x3B, 0x60,
+    0xA6, 0xAE, 0xB5, 0xAF, 0x29, 0x0F, 0xF0, 0x3A, 0xC9, 0x06, 0xF0, 0x33, 0xC9, 0x08, 0xF0, 0x2F,
+    0xC9, 0x01, 0xF0, 0x31, 0xC9, 0x02, 0xF0, 0x32, 0xC9, 0x03, 0xF0, 0x35, 0xA5, 0x53, 0xC9, 0x03,
+    0xF0, 0x06, 0x20, 0xB6, 0xE2, 0x4C, 0x80, 0xE2, 0xB5, 0x19, 0x29, 0x03, 0xA6, 0xAE, 0x95, 0xAF,
+    0xB5, 0xAF, 0xC9, 0x01, 0xF0, 0x04, 0xC9, 0x02, 0xD0, 0x02, 0x95, 0xB3, 0x4C, 0x54, 0xE2, 0x4C,
+    0x38, 0xE5, 0x4C, 0xF9, 0xE2, 0xA9, 0x00, 0x4C, 0x9C, 0xE2, 0xA9, 0x01, 0x85, 0x99, 0x4C, 0x68,
+    0xE3, 0xA5, 0x53, 0xC9, 0x01, 0xD0, 0x0C, 0x20, 0x26, 0xE6, 0xA6, 0xAE, 0xB5, 0xAF, 0xD0, 0x03,
+    0x4C, 0x92, 0xE2, 0x4C, 0x1B, 0xE4, 0xA6, 0xAE, 0xB5, 0xD2, 0xD0, 0x21, 0xA9, 0x01, 0x95, 0xD2,
+    0xA5, 0xAE, 0x18, 0x69, 0x01, 0x0A, 0x0A, 0x0A, 0x0A, 0xA8, 0xB9, 0x03, 0x02, 0xCD, 0x03, 0x02,
+    0xB0, 0x07, 0xA9, 0x01, 0x95, 0xEC, 0x4C, 0xDD, 0xE2, 0xA9, 0x02, 0x95, 0xEC, 0xB5, 0x19, 0x29,
+    0x07, 0x95, 0xAF, 0xA8, 0xC9, 0x04, 0xB0, 0x03, 0x4C, 0xF6, 0xE2, 0xB4, 0xEC, 0xC9, 0x07, 0xB0,
+    0x03, 0x4C, 0xF6, 0xE2, 0xA0, 0x03, 0x94, 0xAF, 0x60, 0xA9, 0x55, 0x85, 0x0A, 0x85, 0x0B, 0x20,
+    0x06, 0xE8, 0xD0, 0x01, 0x60, 0x20, 0xDD, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xA6, 0xAE, 0xB5,
+    0xAF, 0xC9, 0x20, 0xD0, 0x05, 0xA9, 0xFF, 0x95, 0xAF, 0x60, 0xC9, 0x10, 0xF0, 0x05, 0xC6, 0x01,
+    0x4C, 0x25, 0xE3, 0xE6, 0x01, 0xA5, 0x04, 0xA8, 0xC8, 0xB9, 0x00, 0x02, 0xA6, 0x53, 0xE0, 0x04,
+    0xF0, 0x0E, 0xC9, 0x9C, 0xF0, 0x05, 0xA9, 0x9C, 0x4C, 0x4B, 0xE3, 0xA9, 0x98, 0x4C, 0x4B, 0xE3,
+    0xC9, 0xAC, 0xF0, 0x05, 0xA9, 0xAC, 0x4C, 0x4B, 0xE3, 0xA9, 0xA8, 0x20, 0xD4, 0xEA, 0xA6, 0xAE,
+    0xB5, 0xB3, 0x4A, 0x20, 0x96, 0xF0, 0xA6, 0xAE, 0xB5, 0xAF, 0xC9, 0x10, 0xF0, 0x05, 0xA9, 0x10,
+    0x4C, 0x65, 0xE3, 0xA9, 0x20, 0x95, 0xAF, 0x60, 0xA9, 0x55, 0x85, 0x0A, 0x85, 0x0B, 0x20, 0x06,
+    0xE8, 0xD0, 0x01, 0x60, 0x20, 0xDD, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xA5, 0x99, 0xD0, 0x05,
+    0xE6, 0x00, 0x4C, 0x87, 0xE3, 0xC6, 0x00, 0xA5, 0x00, 0x29, 0x0F, 0xC9, 0x04, 0xF0, 0x07, 0xC9,
+    0x0C, 0xF0, 0x03, 0x4C, 0x9B, 0xE3, 0xE6, 0x01, 0x4C, 0xAF, 0xE3, 0xA6, 0x99, 0xDD, 0xE2, 0xC3,
+    0xF0, 0x08, 0xDD, 0xE4, 0xC3, 0xF0, 0x03, 0x4C, 0xAF, 0xE3, 0xC6, 0x01, 0x4C, 0xC0, 0xE3, 0xC9,
+    0x04, 0xF0, 0x07, 0xC9, 0x0C, 0xF0, 0x03, 0x4C, 0xC0, 0xE3, 0xA6, 0xAE, 0xA9, 0xFF, 0x95, 0xAF,
+    0xA4, 0x99, 0x20, 0xA5, 0xE6, 0xD0, 0x07, 0xA9, 0x00, 0xA6, 0xAE, 0x95, 0xAF, 0x60, 0xA5, 0x99,
+    0xF0, 0x1B, 0xA5, 0x00, 0xC9, 0x0C, 0xF0, 0x05, 0x90, 0x0C, 0x4C, 0xED, 0xE3, 0xA9, 0x00, 0xA6,
+    0xAE, 0x95, 0xAF, 0x4C, 0xED, 0xE3, 0xA9, 0x00, 0xA6, 0xAE, 0x95, 0xAF, 0x60, 0xA5, 0x04, 0xA8,
+    0xC8, 0xB9, 0x00, 0x02, 0xA6, 0x53, 0xE0, 0x04, 0xF0, 0x0E, 0xC9, 0x9C, 0xB0, 0x05, 0xA9, 0x9C,
+    0x4C, 0x13, 0xE4, 0xA9, 0x98, 0x4C, 0x13, 0xE4, 0xC9, 0xAC, 0xB0, 0x05, 0xA9, 0xAC, 0x4C, 0x13,
+    0xE4, 0xA9, 0xA8, 0x20, 0xD4, 0xEA, 0xA5, 0x99, 0x4C, 0x96, 0xF0, 0xA6, 0xAE, 0xB5, 0xAF, 0x4A,
+    0x4A, 0x4A, 0xAA, 0xA5, 0x53, 0xC9, 0x04, 0xF0, 0x0D, 0xBD, 0xF4, 0xC3, 0x85, 0x0A, 0xBD, 0xF5,
+    0xC3, 0x85, 0x0B, 0x4C, 0x4B, 0xE4, 0xA5, 0x50, 0x29, 0x01, 0x18, 0x65, 0x54, 0xC9, 0x03, 0x90,
+    0xE8, 0xBD, 0xF8, 0xC3, 0x85, 0x0A, 0xBD, 0xF9, 0xC3, 0x85, 0x0B, 0x20, 0x06, 0xE8, 0xD0, 0x01,
+    0x60, 0x20, 0xDD, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xA6, 0xAE, 0xB5, 0xE8, 0xF0, 0x0E, 0xC9,
+    0x03, 0xF0, 0x03, 0x4C, 0x6D, 0xE4, 0xA9, 0x00, 0x95, 0xE8, 0x4C, 0x7A, 0xE4, 0xA5, 0x01, 0x29,
+    0x03, 0xD0, 0x07, 0xA9, 0x01, 0xF6, 0xE8, 0x4C, 0x0C, 0xE5, 0xA5, 0x53, 0xC9, 0x01, 0xF0, 0x35,
+    0x20, 0xA3, 0xE7, 0xC9, 0x03, 0xF0, 0x07, 0xC9, 0x13, 0xF0, 0x10, 0x4C, 0x0C, 0xE5, 0xC6, 0x01,
+    0xA5, 0x01, 0xA6, 0xAE, 0xD5, 0xDB, 0xF0, 0x10, 0x4C, 0x0C, 0xE5, 0xE6, 0x01, 0xA5, 0x01, 0xA6,
+    0xAE, 0xD5, 0xDB, 0xF0, 0x03, 0x4C, 0x0C, 0xE5, 0xA9, 0x01, 0xA6, 0xAE, 0x95, 0xAF, 0xA9, 0x00,
+    0x95, 0xDB, 0x4C, 0x0C, 0xE5, 0xA6, 0xAE, 0xB5, 0xAF, 0xC9, 0x13, 0xF0, 0x03, 0x4C, 0xD6, 0xE4,
+    0xE6, 0x01, 0xA5, 0xAE, 0x0A, 0xAA, 0xE8, 0xB5, 0xB9, 0xC5, 0x01, 0xD0, 0x06, 0xA9, 0x01, 0xA6,
+    0xAE, 0x95, 0xAF, 0x4C, 0x0C, 0xE5, 0xC6, 0x01, 0xA6, 0xAE, 0xE0, 0x00, 0xD0, 0x1B, 0xA6, 0xAE,
+    0xB5, 0xE0, 0xC9, 0x02, 0xF0, 0x13, 0xA5, 0xAE, 0x0A, 0xAA, 0xB5, 0xB9, 0xC5, 0x01, 0xD0, 0x1C,
+    0xA9, 0x02, 0xA6, 0xAE, 0x95, 0xAF, 0x4C, 0x0C, 0xE5, 0xA5, 0xAE, 0x0A, 0xAA, 0xB5, 0xB9, 0x18,
+    0x69, 0x0D, 0xC5, 0x01, 0xD0, 0x06, 0xA9, 0x13, 0xA6, 0xAE, 0x95, 0xAF, 0xA5, 0x04, 0xA8, 0xC8,
+    0xB9, 0x00, 0x02, 0xA6, 0x53, 0xE0, 0x04, 0xF0, 0x0E, 0xC9, 0x9C, 0xB0, 0x05, 0xA9, 0x9C, 0x4C,
+    0x32, 0xE5, 0xA9, 0x98, 0x4C, 0x32, 0xE5, 0xC9, 0xAC, 0xB0, 0x05, 0xA9, 0xAC, 0x4C, 0x32, 0xE5,
+    0xA9, 0xA8, 0x20, 0xD4, 0xEA, 0x4C, 0x88, 0xF0, 0xA6, 0xAE, 0xB5, 0xAF, 0xC9, 0x06, 0xF0, 0x08,
+    0xC9, 0x08, 0xF0, 0x01, 0x60, 0x4C, 0x9F, 0xE5, 0xA5, 0x53, 0xC9, 0x01, 0xF0, 0x05, 0xC9, 0x04,
+    0xF0, 0x12, 0x60, 0xA9, 0x20, 0x85, 0x00, 0xA9, 0xB8, 0x85, 0x01, 0xA6, 0xAE, 0xA9, 0x08, 0x95,
+    0xAF, 0x4C, 0x92, 0xE5, 0xAD, 0x03, 0x02, 0xC9, 0x78, 0x90, 0x05, 0xA0, 0x00, 0x4C, 0x72, 0xE5,
+    0xA0, 0x08, 0x84, 0x0C, 0xA5, 0x19, 0x29, 0x03, 0x0A, 0x18, 0x65, 0x0C, 0xAA, 0xBD, 0xCE, 0xC3,
+    0x85, 0x00, 0xBD, 0xCF, 0xC3, 0x85, 0x01, 0xA6, 0xAE, 0xA9, 0x00, 0x95, 0xAF, 0xA9, 0xA8, 0x4C,
+    0x94, 0xE5, 0xA9, 0x98, 0x20, 0xD4, 0xEA, 0x20, 0xDD, 0xEF, 0x85, 0x04, 0x4C, 0x82, 0xF0, 0x20,
+    0xDD, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xBD, 0x01, 0x02, 0x20, 0xD4, 0xEA, 0xA5, 0x53, 0xC9,
+    0x01, 0xF0, 0x01, 0x60, 0xE6, 0x00, 0xA5, 0x00, 0xC9, 0x2C, 0xF0, 0x02, 0x90, 0x27, 0xE6, 0x01,
+    0xA5, 0x01, 0xC9, 0xC5, 0xD0, 0x1F, 0xA9, 0x00, 0xA6, 0xAE, 0x95, 0xAF, 0xC6, 0x00, 0xA5, 0x00,
+    0xC9, 0x68, 0xB0, 0x05, 0xE6, 0x01, 0x4C, 0xDB, 0xE5, 0xC6, 0x01, 0xC9, 0x60, 0xD0, 0x06, 0xA6,
+    0xAE, 0xA9, 0x00, 0x95, 0xAF, 0x4C, 0x82, 0xF0, 0x85, 0x0C, 0xA6, 0xAE, 0xB5, 0xE0, 0xC9, 0x01,
+    0xF0, 0x1D, 0xC9, 0x06, 0xF0, 0x19, 0xA2, 0x00, 0xA9, 0x18, 0xC5, 0x0C, 0xF0, 0x0B, 0xE8, 0xE0,
+    0x09, 0xF0, 0x09, 0xBD, 0xC4, 0xC1, 0x4C, 0xFA, 0xE5, 0xA9, 0x00, 0x60, 0xA9, 0x01, 0x60, 0xA2,
+    0x04, 0xBD, 0xC4, 0xC1, 0xC5, 0x0C, 0xF0, 0x08, 0xE8, 0xE0, 0x09, 0xF0, 0x06, 0x4C, 0x11, 0xE6,
+    0xA9, 0x00, 0x60, 0xA9, 0x01, 0x60, 0xA6, 0xAE, 0xB5, 0xAF, 0xC9, 0x13, 0xD0, 0x01, 0x60, 0x20,
+    0xDD, 0xEF, 0x20, 0xEC, 0xEA, 0xA6, 0xAE, 0xB5, 0xE0, 0xC9, 0x01, 0xF0, 0x03, 0x4C, 0x6D, 0xE6,
+    0xA5, 0x00, 0xC9, 0x5C, 0xF0, 0x07, 0xC9, 0xC4, 0xF0, 0x13, 0x4C, 0x9E, 0xE6, 0xA5, 0xAE, 0x0A,
+    0xAA, 0xA9, 0xA6, 0x95, 0xB9, 0xE8, 0xA9, 0xC7, 0x95, 0xB9, 0x4C, 0x97, 0xE6, 0xA5, 0xAE, 0x0A,
+    0xAA, 0xA9, 0xAB, 0x95, 0xB9, 0xE8, 0xA9, 0xC3, 0x95, 0xB9, 0x4C, 0x97, 0xE6, 0xA5, 0x00, 0xC9,
+    0x2C, 0xF0, 0x07, 0xC9, 0x6C, 0xF0, 0x13, 0x4C, 0x9E, 0xE6, 0xA5, 0xAE, 0x0A, 0xAA, 0xA9, 0x8D,
+    0x95, 0xB9, 0xE8, 0xA9, 0xA4, 0x95, 0xB9, 0x4C, 0x97, 0xE6, 0xA5, 0xAE, 0x0A, 0xAA, 0xA9, 0x8A,
+    0x95, 0xB9, 0xE8, 0xA9, 0xA7, 0x95, 0xB9, 0xA9, 0x03, 0xA6, 0xAE, 0x95, 0xAF, 0x60, 0xA9, 0x00,
+    0xA6, 0xAE, 0x95, 0xAF, 0x60, 0xA5, 0x01, 0x18, 0x69, 0x0B, 0x20, 0x16, 0xE0, 0xA4, 0x99, 0xA6,
+    0xAE, 0x95, 0xE0, 0xA5, 0x53, 0xC9, 0x01, 0xD0, 0x03, 0x4C, 0xC6, 0xE6, 0xC9, 0x03, 0xD0, 0x03,
+    0x4C, 0x02, 0xE7, 0x4C, 0x3C, 0xE7, 0xA5, 0x00, 0x20, 0xE8, 0xE5, 0xD0, 0x16, 0xA6, 0xAE, 0xB5,
+    0xE0, 0x29, 0x01, 0xF0, 0x06, 0xB9, 0x9A, 0xC7, 0x4C, 0xDE, 0xE6, 0xB9, 0x9C, 0xC7, 0x18, 0x65,
+    0x01, 0x85, 0x01, 0xA6, 0xAE, 0xB5, 0xE0, 0xC9, 0x01, 0xF0, 0x08, 0xA5, 0x00, 0xD9, 0xE6, 0xC3,
+    0xF0, 0x09, 0x60, 0xA5, 0x00, 0xD9, 0xE8, 0xC3, 0xF0, 0x01, 0x60, 0xA9, 0x00, 0xA6, 0xAE, 0x95,
+    0xAF, 0x60, 0xA6, 0xAE, 0xB5, 0xE0, 0xC9, 0x02, 0xD0, 0x0F, 0xA5, 0x00, 0xD9, 0xEA, 0xC3, 0xF0,
+    0x24, 0xD9, 0xEC, 0xC3, 0xF0, 0x1F, 0x4C, 0x2D, 0xE7, 0xC0, 0x01, 0xD0, 0x04, 0xC9, 0x04, 0xF0,
+    0x0D, 0xA5, 0x00, 0xD9, 0xEE, 0xC3, 0xF0, 0x0D, 0xD9, 0xF0, 0xC3, 0xF0, 0x08, 0x60, 0xA5, 0x00,
+    0xC9, 0xDB, 0xF0, 0x01, 0x60, 0xA6, 0xAE, 0xA9, 0x00, 0x95, 0xAF, 0x60, 0xA6, 0xAE, 0xB5, 0xE0,
+    0xA8, 0x88, 0xA6, 0x99, 0xBD, 0xF2, 0xC3, 0xC0, 0x00, 0xF0, 0x11, 0xE0, 0x00, 0xF0, 0x06, 0x18,
+    0x69, 0x08, 0x4C, 0x58, 0xE7, 0x38, 0xE9, 0x08, 0x88, 0x4C, 0x47, 0xE7, 0xC5, 0x00, 0xF0, 0x09,
+    0xA5, 0x99, 0x0A, 0x20, 0x70, 0xE7, 0xF0, 0x01, 0x60, 0xA6, 0xAE, 0xA9, 0x00, 0x95, 0xAF, 0x60,
+    0x85, 0x09, 0x20, 0xDD, 0xEF, 0xBD, 0x03, 0x02, 0x85, 0x0A, 0xA6, 0xAE, 0xB5, 0xE0, 0x38, 0xE9,
+    0x02, 0x0A, 0xAA, 0xB5, 0xC1, 0xF0, 0x09, 0xA4, 0x09, 0xB9, 0xDE, 0xC3, 0xC5, 0x0A, 0xF0, 0x0D,
+    0xB5, 0xC2, 0xF0, 0x0C, 0xA4, 0x09, 0xB9, 0xDF, 0xC3, 0xC5, 0x0A, 0xD0, 0x03, 0xA9, 0x00, 0x60,
+    0xA9, 0x01, 0x60, 0xA6, 0xAE, 0xB5, 0xDB, 0xF0, 0x05, 0xA6, 0xAE, 0xB5, 0xAF, 0x60, 0xA5, 0x53,
+    0x38, 0xE9, 0x02, 0x0A, 0xA8, 0xB9, 0x9B, 0xC4, 0x85, 0x07, 0xB9, 0x9C, 0xC4, 0x85, 0x08, 0xA6,
+    0xAE, 0xB4, 0xE0, 0xF0, 0x2D, 0x88, 0xB1, 0x07, 0x85, 0x09, 0xC8, 0xB1, 0x07, 0x85, 0x0A, 0xA5,
+    0x53, 0x38, 0xE9, 0x02, 0x0A, 0xA8, 0xB9, 0xA1, 0xC4, 0x85, 0x07, 0xB9, 0xA2, 0xC4, 0x85, 0x08,
+    0xA4, 0x09, 0xC4, 0x0A, 0xF0, 0x0C, 0xB1, 0x07, 0xC5, 0x00, 0xF0, 0x0D, 0xC8, 0xC8, 0xC8, 0x4C,
+    0xE2, 0xE7, 0xA9, 0x00, 0xA6, 0xAE, 0x95, 0xAF, 0x60, 0xC8, 0xB1, 0x07, 0xA6, 0xAE, 0x95, 0xDB,
+    0xC8, 0xB1, 0x07, 0x95, 0xAF, 0x60, 0xA6, 0xAE, 0xF6, 0xE4, 0xB5, 0xE4, 0x30, 0x07, 0xC9, 0x10,
+    0xB0, 0x03, 0x4C, 0x19, 0xE8, 0xA9, 0x00, 0x95, 0xE4, 0xC9, 0x08, 0xB0, 0x09, 0xAA, 0xBD, 0xBC,
+    0xC1, 0x25, 0x0A, 0x4C, 0x2F, 0xE8, 0x38, 0xE9, 0x08, 0xAA, 0xBD, 0xBC, 0xC1, 0x25, 0x0B, 0xF0,
+    0x02, 0xA9, 0x01, 0x60, 0x20, 0xF7, 0xEA, 0xBD, 0x5C, 0xC4, 0x85, 0x0A, 0xBD, 0x61, 0xC4, 0x85,
+    0x0B, 0xA9, 0x00, 0x85, 0x5D, 0x20, 0xE8, 0xDF, 0xD0, 0x01, 0x60, 0xA9, 0x00, 0x85, 0xD2, 0xA5,
+    0xD2, 0xC9, 0x03, 0xB0, 0x54, 0xAA, 0xD0, 0x12, 0xA5, 0xDA, 0xC9, 0x01, 0xD0, 0x0C, 0xCE, 0x00,
+    0x02, 0xCE, 0x04, 0x02, 0xCE, 0x08, 0x02, 0xCE, 0x0C, 0x02, 0xBC, 0xCC, 0xC2, 0xB9, 0x00, 0x02,
+    0xC9, 0xFF, 0xF0, 0x30, 0x98, 0xAA, 0xDE, 0x00, 0x02, 0xDE, 0x04, 0x02, 0xBD, 0x00, 0x02, 0xC9,
+    0x50, 0xD0, 0x06, 0x20, 0x68, 0xE9, 0x4C, 0x90, 0xE8, 0xC9, 0xC8, 0xD0, 0x03, 0x20, 0x71, 0xE9,
+    0xB9, 0x00, 0x02, 0xC9, 0x70, 0xD0, 0x04, 0xA9, 0x01, 0x85, 0xD8, 0xB9, 0x00, 0x02, 0xC9, 0x48,
+    0xF0, 0x5F, 0x90, 0x5D, 0xE6, 0xD2, 0x4C, 0x4F, 0xE8, 0xC9, 0x06, 0xF0, 0x61, 0xAA, 0xC9, 0x03,
+    0xD0, 0x12, 0xA5, 0xDA, 0xC9, 0x02, 0xD0, 0x0C, 0xEE, 0x00, 0x02, 0xEE, 0x04, 0x02, 0xEE, 0x08,
+    0x02, 0xEE, 0x0C, 0x02, 0xBC, 0xCC, 0xC2, 0xB9, 0x00, 0x02, 0xC9, 0xFF, 0xF0, 0x2E, 0x98, 0xAA,
+    0xFE, 0x00, 0x02, 0xFE, 0x04, 0x02, 0xBD, 0x00, 0x02, 0xC9, 0x50, 0xD0, 0x06, 0x20, 0x71, 0xE9,
+    0x4C, 0xEA, 0xE8, 0xC9, 0xC8, 0xD0, 0x03, 0x20, 0x68, 0xE9, 0xB9, 0x00, 0x02, 0xC9, 0xA8, 0xD0,
+    0x07, 0xA9, 0x01, 0x85, 0xD9, 0xB9, 0x00, 0x02, 0xC9, 0xD0, 0xB0, 0x05, 0xE6, 0xD2, 0x4C, 0x4F,
+    0xE8, 0xA9, 0xFF, 0x99, 0x00, 0x02, 0x99, 0x04, 0x02, 0xE6, 0xD2, 0x4C, 0x4F, 0xE8, 0xA5, 0xD8,
+    0xC9, 0x01, 0xD0, 0x27, 0xA9, 0x00, 0x85, 0xD2, 0xA5, 0xD2, 0xC9, 0x03, 0xF0, 0x49, 0xAA, 0xBC,
+    0xCC, 0xC2, 0xB9, 0x00, 0x02, 0xC9, 0xFF, 0xF0, 0x05, 0xE6, 0xD2, 0x4C, 0x18, 0xE9, 0xA9, 0xD0,
+    0x20, 0x7A, 0xE9, 0x20, 0x68, 0xE9, 0xA9, 0x00, 0x85, 0xD8, 0x60, 0xA5, 0xD9, 0xC9, 0x01, 0xD0,
+    0x26, 0xA9, 0x03, 0x85, 0xD2, 0xA5, 0xD2, 0xC9, 0x06, 0xF0, 0x1C, 0xAA, 0xBC, 0xCC, 0xC2, 0xB9,
+    0x00, 0x02, 0xC9, 0xFF, 0xF0, 0x05, 0xE6, 0xD2, 0x4C, 0x45, 0xE9, 0xA9, 0x48, 0x20, 0x7A, 0xE9,
+    0x20, 0x68, 0xE9, 0xA9, 0x00, 0x85, 0xD9, 0x60, 0xA9, 0x23, 0x99, 0x02, 0x02, 0x99, 0x06, 0x02,
+    0x60, 0xA9, 0x03, 0x99, 0x02, 0x02, 0x99, 0x06, 0x02, 0x60, 0x99, 0x00, 0x02, 0x99, 0x04, 0x02,
+    0x60, 0xA9, 0x00, 0x8D, 0x45, 0x04, 0xAD, 0x45, 0x04, 0x20, 0xD7, 0xEF, 0x8A, 0x18, 0x69, 0x30,
+    0xAA, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xC9, 0xFF, 0xF0, 0x56, 0xAE, 0x45, 0x04, 0xBD, 0x46, 0x04,
+    0x18, 0x69, 0xB0, 0xC5, 0x00, 0x90, 0x0D, 0xA5, 0x01, 0xC9, 0x26, 0xB0, 0x11, 0xA9, 0xC0, 0x85,
+    0x02, 0x4C, 0xDA, 0xE9, 0x20, 0x01, 0xEA, 0xC9, 0xFF, 0xF0, 0x38, 0x4C, 0xEA, 0xE9, 0xA9, 0xC4,
+    0x85, 0x02, 0xA5, 0x01, 0xC9, 0x2E, 0x90, 0x12, 0xA9, 0x02, 0x85, 0xFE, 0xA9, 0x2E, 0x85, 0x01,
+    0xAD, 0x45, 0x04, 0x0A, 0xAA, 0xA9, 0x00, 0x9D, 0x2E, 0x04, 0xA5, 0x00, 0x18, 0x69, 0x02, 0x85,
+    0x00, 0xAD, 0x45, 0x04, 0x18, 0x69, 0x01, 0x20, 0x72, 0xEF, 0x20, 0xDB, 0xEA, 0x4C, 0xF3, 0xE9,
+    0x20, 0x34, 0xEA, 0xEE, 0x45, 0x04, 0xAD, 0x45, 0x04, 0xC9, 0x03, 0xF0, 0x03, 0x4C, 0x86, 0xE9,
+    0x60, 0xA5, 0x01, 0xE6, 0x01, 0xE6, 0x01, 0xE6, 0x01, 0xC9, 0x26, 0xD0, 0x04, 0xA2, 0x01, 0x86,
+    0xFE, 0xC9, 0x50, 0x90, 0x15, 0xC9, 0x90, 0x90, 0x16, 0xC9, 0xC0, 0x90, 0x0D, 0xC9, 0xD8, 0x90,
+    0x0E, 0x20, 0xD1, 0xEA, 0x20, 0x94, 0xF0, 0xA9, 0xFF, 0x60, 0xA9, 0xC4, 0x85, 0x02, 0x60, 0xA9,
+    0xC0, 0x85, 0x02, 0x60, 0xA5, 0x36, 0xD0, 0x26, 0xA5, 0x19, 0x29, 0x03, 0xAA, 0xBD, 0xFF, 0xC1,
+    0x18, 0x69, 0x10, 0xAE, 0x45, 0x04, 0x9D, 0x46, 0x04, 0x85, 0x00, 0xA9, 0x30, 0x85, 0x01, 0xA9,
+    0xC4, 0x85, 0x02, 0x20, 0xDB, 0xEA, 0x20, 0xF7, 0xEA, 0xBD, 0x57, 0xC4, 0x85, 0x36, 0x60, 0xA5,
+    0x39, 0xF0, 0x01, 0x60, 0xA9, 0x08, 0x85, 0x0A, 0xA9, 0x00, 0x85, 0x0B, 0x20, 0xA1, 0xEA, 0xD0,
+    0x01, 0x60, 0xA9, 0x50, 0x85, 0x00, 0xA9, 0x20, 0x85, 0x01, 0xAD, 0xF1, 0x02, 0xC9, 0xDB, 0xF0,
+    0x07, 0xE6, 0xB7, 0xA9, 0xDB, 0x4C, 0x8A, 0xEA, 0xA9, 0xD7, 0x20, 0xD4, 0xEA, 0xA9, 0xF0, 0x20,
+    0x80, 0xF0, 0xA5, 0xB7, 0xC9, 0x04, 0xD0, 0x08, 0xA9, 0x00, 0x85, 0xB7, 0xA9, 0xBB, 0x85, 0x39,
+    0x60, 0xE6, 0xB8, 0xA5, 0xB8, 0x30, 0x07, 0xC9, 0x10, 0xB0, 0x03, 0x4C, 0xB2, 0xEA, 0xA9, 0x00,
+    0x85, 0xB8, 0xC9, 0x08, 0xB0, 0x09, 0xAA, 0xBD, 0xBC, 0xC1, 0x25, 0x0A, 0x4C, 0xC8, 0xEA, 0x38,
+    0xE9, 0x08, 0xAA, 0xBD, 0xBC, 0xC1, 0x25, 0x0B, 0xF0, 0x02, 0xA9, 0x01, 0x60, 0xA9, 0x00, 0x85,
+    0x04, 0x4C, 0xD6, 0xEA, 0x85, 0x02, 0xA9, 0x22, 0x85, 0x03, 0x60, 0x20, 0xD1, 0xEA, 0x4C, 0x82,
+    0xF0, 0xAD, 0x03, 0x02, 0x85, 0x00, 0xAD, 0x00, 0x02, 0x85, 0x01, 0x60, 0xBD, 0x03, 0x02, 0x85,
+    0x00, 0xBD, 0x00, 0x02, 0x85, 0x01, 0x60, 0xA5, 0x50, 0x29, 0x01, 0x18, 0x65, 0x54, 0xAA, 0xE0,
+    0x04, 0x90, 0x02, 0xA2, 0x04, 0x60, 0xAD, 0x03, 0x05, 0xD0, 0x01, 0x60, 0xAD, 0x05, 0x05, 0x29,
+    0x0F, 0x8D, 0x05, 0x05, 0xA5, 0x53, 0xAA, 0xA8, 0xCA, 0xBD, 0x08, 0xC6, 0x85, 0x00, 0xA9, 0x20,
+    0x85, 0x01, 0x98, 0xC9, 0x02, 0x30, 0x2D, 0xA5, 0x44, 0xF0, 0x24, 0xC9, 0x13, 0xD0, 0x03, 0x4C,
+    0x85, 0xEB, 0xC9, 0x0F, 0xD0, 0x03, 0x4C, 0x8E, 0xEB, 0xC9, 0x0B, 0xD0, 0x03, 0x4C, 0x85, 0xEB,
+    0xC9, 0x08, 0xD0, 0x03, 0x4C, 0x8E, 0xEB, 0xC9, 0x04, 0xD0, 0x03, 0x20, 0xA6, 0xEB, 0x60, 0xA9,
+    0x25, 0x85, 0x44, 0x60, 0xA5, 0x36, 0xC9, 0x18, 0xF0, 0x1A, 0xC9, 0x00, 0xF0, 0x1D, 0xAD, 0x15,
+    0x05, 0xF0, 0x0C, 0x20, 0xA1, 0xEB, 0xA9, 0x00, 0x8D, 0x15, 0x05, 0xA9, 0x1A, 0x85, 0x44, 0xA5,
+    0x44, 0x4C, 0x2B, 0xEB, 0xA9, 0x30, 0x85, 0x44, 0x4C, 0x9C, 0xEB, 0xA9, 0x1A, 0x85, 0x44, 0x20,
+    0x97, 0xEB, 0x4C, 0x2B, 0xEB, 0xA9, 0x80, 0x85, 0xFE, 0xA9, 0x40, 0x4C, 0xA8, 0xEB, 0xA9, 0x80,
+    0x85, 0xFE, 0xA9, 0x42, 0x4C, 0xA8, 0xEB, 0xA9, 0x44, 0x4C, 0xA8, 0xEB, 0xA9, 0x3E, 0x4C, 0xA8,
+    0xEB, 0xA9, 0x00, 0x4C, 0xA8, 0xEB, 0xA9, 0x02, 0x20, 0x15, 0xC8, 0xC6, 0x44, 0xAD, 0x05, 0x05,
+    0x09, 0x10, 0x8D, 0x05, 0x05, 0x60, 0xA5, 0x45, 0xF0, 0x01, 0x60, 0xA5, 0x2E, 0xD0, 0x05, 0xA9,
+    0xFF, 0x85, 0x96, 0x60, 0xA9, 0x0B, 0x85, 0x45, 0xA9, 0x01, 0x85, 0x00, 0xA9, 0x0A, 0x85, 0x01,
+    0x20, 0x3E, 0xF3, 0xA9, 0x02, 0x85, 0x00, 0x4C, 0x3C, 0xF2, 0xAD, 0x0B, 0x05, 0xD0, 0x0E, 0xA9,
+    0x01, 0x8D, 0x0B, 0x05, 0xA9, 0x00, 0x8D, 0x0E, 0x05, 0x8D, 0x0C, 0x05, 0x60, 0xAD, 0x0C, 0x05,
+    0xF0, 0x24, 0xAD, 0x0D, 0x05, 0xC9, 0x05, 0xD0, 0x11, 0xA5, 0x96, 0xC9, 0x0A, 0xD0, 0x04, 0xA9,
+    0x00, 0xF0, 0x07, 0xA9, 0x04, 0x85, 0x96, 0x4C, 0x12, 0xEC, 0x85, 0x56, 0x29, 0x03, 0xF0, 0x02,
+    0x85, 0x57, 0xCE, 0x0C, 0x05, 0x60, 0xAE, 0x0E, 0x05, 0xBD, 0x28, 0xC0, 0x8D, 0x0C, 0x05, 0xBD,
+    0x14, 0xC0, 0x8D, 0x0D, 0x05, 0xEE, 0x0E, 0x05, 0x60, 0x20, 0xE1, 0xEA, 0xA9, 0x4C, 0x20, 0xE8,
+    0xEF, 0xA5, 0x53, 0xC9, 0x03, 0xF0, 0x04, 0xC9, 0x01, 0xD0, 0x03, 0x20, 0x44, 0xEC, 0x20, 0x8A,
+    0xED, 0x4C, 0xC5, 0xED, 0xA9, 0x00, 0x85, 0x5D, 0xA9, 0x3A, 0x20, 0x47, 0xC8, 0x20, 0xD5, 0xEF,
+    0xA5, 0x53, 0xC9, 0x01, 0xF0, 0x05, 0x8A, 0x18, 0x69, 0x30, 0xAA, 0x20, 0xEC, 0xEA, 0x20, 0xEF,
+    0xEF, 0xD0, 0x44, 0xA5, 0x96, 0xC9, 0x04, 0xD0, 0x2E, 0xA5, 0x56, 0x29, 0x03, 0xD0, 0x07, 0xA5,
+    0x9C, 0xF0, 0x0D, 0x4C, 0x97, 0xEC, 0xA5, 0x9C, 0xC9, 0x03, 0xB0, 0x1B, 0xA5, 0x9E, 0xD0, 0x17,
+    0xA5, 0x9D, 0xC9, 0x18, 0xB0, 0x11, 0xA5, 0x00, 0x85, 0x05, 0xA5, 0x01, 0x85, 0x06, 0xA2, 0x00,
+    0x20, 0xC6, 0xCF, 0xA9, 0x20, 0x85, 0xFD, 0xE6, 0x5D, 0xA5, 0x53, 0x4A, 0xAA, 0xA5, 0x5D, 0xDD,
+    0xFD, 0xC1, 0xF0, 0x0B, 0x4C, 0x48, 0xEC, 0x20, 0x51, 0xEF, 0xA9, 0xFF, 0x85, 0x96, 0x60, 0xA5,
+    0x53, 0xC9, 0x03, 0xF0, 0x09, 0xA5, 0x96, 0xC9, 0x0A, 0xD0, 0x03, 0x4C, 0xBF, 0xEC, 0x60, 0xA5,
+    0xA0, 0xD0, 0x03, 0x4C, 0x87, 0xED, 0xA5, 0x9F, 0x4A, 0x4A, 0xF0, 0x05, 0xA9, 0x00, 0x4C, 0xD3,
+    0xEC, 0xA9, 0x01, 0xF0, 0x13, 0xA9, 0x04, 0x18, 0x6D, 0x03, 0x02, 0x85, 0x00, 0xAD, 0x00, 0x02,
+    0x38, 0xE9, 0x10, 0x85, 0x01, 0x4C, 0x07, 0xED, 0xA5, 0x57, 0xC9, 0x01, 0xF0, 0x09, 0xAD, 0x03,
+    0x02, 0x38, 0xE9, 0x10, 0x4C, 0xFD, 0xEC, 0xAD, 0x03, 0x02, 0x18, 0x69, 0x10, 0x85, 0x00, 0xAD,
+    0x00, 0x02, 0x18, 0x69, 0x06, 0x85, 0x01, 0xA9, 0x3C, 0x20, 0xE8, 0xEF, 0xA5, 0x53, 0xC9, 0x01,
+    0xD0, 0x22, 0xA9, 0x00, 0x85, 0x5D, 0x20, 0xD5, 0xEF, 0x20, 0xEC, 0xEA, 0xA9, 0x3A, 0x20, 0x47,
+    0xC8, 0x20, 0xEF, 0xEF, 0xD0, 0x31, 0xA5, 0x5D, 0x18, 0x69, 0x01, 0x85, 0x5D, 0xC9, 0x09, 0xF0,
+    0x54, 0x4C, 0x16, 0xED, 0xA9, 0x00, 0x85, 0xAE, 0x20, 0xDD, 0xEF, 0x20, 0xEC, 0xEA, 0xA9, 0x3A,
+    0x20, 0x47, 0xC8, 0x20, 0xEF, 0xEF, 0xD0, 0x0F, 0xE6, 0xAE, 0xA5, 0xAE, 0xA6, 0x53, 0xCA, 0xDD,
+    0xF6, 0xC1, 0xF0, 0x31, 0x4C, 0x38, 0xED, 0xA9, 0x02, 0x85, 0xFF, 0xA5, 0x00, 0x85, 0x05, 0xA5,
+    0x01, 0x85, 0x06, 0xA5, 0x53, 0xC9, 0x01, 0xD0, 0x0B, 0xA9, 0x00, 0xA6, 0x5D, 0x95, 0x68, 0xA9,
+    0x01, 0x4C, 0x87, 0xED, 0xA9, 0x10, 0x85, 0x40, 0xA9, 0x00, 0xA6, 0xAE, 0x95, 0xE0, 0x95, 0xDB,
+    0xA9, 0x01, 0x4C, 0x87, 0xED, 0xA9, 0x00, 0x85, 0xBF, 0x60, 0xA9, 0x00, 0x85, 0xAE, 0xA9, 0x3A,
+    0x20, 0x47, 0xC8, 0x20, 0xDD, 0xEF, 0x20, 0xEC, 0xEA, 0x20, 0xEF, 0xEF, 0xD0, 0x0F, 0xE6, 0xAE,
+    0xA5, 0xAE, 0xA6, 0x53, 0xCA, 0xDD, 0xF6, 0xC1, 0xF0, 0x0B, 0x4C, 0x93, 0xED, 0x20, 0x51, 0xEF,
+    0xA9, 0xFF, 0x85, 0x96, 0x60, 0xA5, 0x96, 0xC9, 0x0A, 0xD0, 0x09, 0xA5, 0x53, 0xC9, 0x01, 0xF0,
+    0x03, 0x20, 0xBF, 0xEC, 0x60, 0xA5, 0x53, 0xC9, 0x03, 0xD0, 0x07, 0xA4, 0x96, 0xC0, 0x01, 0xF0,
+    0x01, 0x60, 0x38, 0xE9, 0x01, 0x0A, 0xAA, 0xBD, 0x2B, 0xC4, 0x85, 0x02, 0xBD, 0x2C, 0xC4, 0x85,
+    0x03, 0xBD, 0x23, 0xC4, 0x85, 0x00, 0xBD, 0x24, 0xC4, 0x85, 0x01, 0x20, 0xEF, 0xEF, 0xD0, 0x17,
+    0xA5, 0x53, 0xC9, 0x03, 0xD0, 0x15, 0xA5, 0x01, 0xC9, 0xC9, 0xF0, 0x0F, 0xA9, 0x70, 0x85, 0x00,
+    0xA9, 0xC9, 0x85, 0x01, 0x4C, 0xEB, 0xED, 0xA9, 0xFF, 0x85, 0x96, 0x60, 0xA9, 0x80, 0x85, 0x0A,
+    0xA9, 0x80, 0x85, 0x0B, 0x20, 0xE4, 0xDF, 0xD0, 0x01, 0x60, 0xA5, 0x53, 0xC9, 0x01, 0xD0, 0x06,
+    0x20, 0xD5, 0xEF, 0x4C, 0x29, 0xEE, 0x20, 0xDD, 0xEF, 0x86, 0x04, 0x20, 0xEC, 0xEA, 0xA5, 0xBF,
+    0xC9, 0x01, 0xD0, 0x04, 0xA0, 0x02, 0x84, 0xFF, 0xC9, 0x0B, 0xF0, 0x15, 0xA6, 0xBF, 0xCA, 0xBD,
+    0xEC, 0xC1, 0x85, 0x02, 0x20, 0xDB, 0xEA, 0xA6, 0x04, 0xA9, 0x02, 0x20, 0x6C, 0xEE, 0xE6, 0xBF,
+    0x60, 0xA5, 0x53, 0xC9, 0x01, 0xD0, 0x05, 0xA9, 0x03, 0x20, 0x6C, 0xEE, 0x20, 0xD1, 0xEA, 0x20,
+    0x94, 0xF0, 0xA2, 0x02, 0x20, 0xC6, 0xCF, 0xA9, 0x00, 0x85, 0xBF, 0x60, 0x9D, 0x02, 0x02, 0x9D,
+    0x06, 0x02, 0x9D, 0x0A, 0x02, 0x9D, 0x0E, 0x02, 0x60, 0xA4, 0x53, 0xC0, 0x01, 0xD0, 0x01, 0x60,
+    0xA5, 0xBE, 0xF0, 0x54, 0xC0, 0x04, 0xD0, 0x68, 0xA0, 0x00, 0xAE, 0xFF, 0xC5, 0xBD, 0xC2, 0xC5,
+    0xCD, 0x03, 0x02, 0xD0, 0x52, 0xBD, 0xAE, 0xC5, 0xCD, 0x00, 0x02, 0x90, 0x4A, 0x38, 0xE9, 0x11,
+    0xCD, 0x00, 0x02, 0xB0, 0x42, 0xB9, 0xC1, 0x00, 0xC9, 0x00, 0xD0, 0x2D, 0xA5, 0x96, 0xC9, 0x08,
+    0xF0, 0x26, 0xC9, 0xFF, 0xF0, 0x22, 0xA9, 0x11, 0x85, 0xCC, 0xA9, 0x01, 0x99, 0xC1, 0x00, 0x20,
+    0x38, 0xEF, 0xAD, 0x00, 0x02, 0x18, 0x69, 0x10, 0x85, 0x06, 0xAD, 0x03, 0x02, 0x85, 0x05, 0xA2,
+    0x00, 0x20, 0xC6, 0xCF, 0xA9, 0x20, 0x85, 0xFD, 0x60, 0xA5, 0x96, 0xC9, 0x04, 0xF0, 0x07, 0x20,
+    0x51, 0xEF, 0xA9, 0x08, 0x85, 0x96, 0x60, 0xC0, 0x07, 0xF0, 0x05, 0xE8, 0xC8, 0x4C, 0x8D, 0xEE,
+    0xA4, 0x53, 0xBE, 0xFA, 0xC5, 0xA0, 0x00, 0xBD, 0xAE, 0xC5, 0xCD, 0x00, 0x02, 0xD0, 0x30, 0xBD,
+    0xC2, 0xC5, 0xCD, 0x03, 0x02, 0xD0, 0x28, 0xB9, 0xC9, 0x00, 0xD0, 0x23, 0xA9, 0x22, 0x85, 0xCC,
+    0xA9, 0x01, 0x99, 0xC9, 0x00, 0x20, 0x38, 0xEF, 0xAD, 0x00, 0x02, 0x38, 0xE9, 0x08, 0x85, 0x06,
+    0xAD, 0x03, 0x02, 0x85, 0x05, 0xA2, 0x03, 0x20, 0xC6, 0xCF, 0xA9, 0x20, 0x85, 0xFD, 0x60, 0xC0,
+    0x02, 0xF0, 0xFB, 0xE8, 0xC8, 0x4C, 0xF7, 0xEE, 0xA9, 0x24, 0x85, 0xCD, 0x85, 0xCE, 0x85, 0xCF,
+    0x85, 0xD0, 0xBD, 0xD6, 0xC5, 0x85, 0x01, 0xBD, 0xE9, 0xC5, 0x85, 0x00, 0xA9, 0x48, 0x4C, 0x15,
+    0xC8, 0xA5, 0x96, 0xC9, 0x0A, 0xD0, 0x1A, 0xA5, 0xA0, 0xF0, 0x16, 0x38, 0xE9, 0x01, 0xAA, 0xA9,
+    0x00, 0x9D, 0x51, 0x04, 0x8A, 0x0A, 0x0A, 0x0A, 0xAA, 0xA9, 0xFF, 0x9D, 0xD0, 0x02, 0x9D, 0xD4,
+    0x02, 0x60, 0x86, 0x0F, 0x0A, 0xAA, 0xBD, 0x2C, 0x04, 0xD0, 0x19, 0x9D, 0x36, 0x04, 0xE0, 0x00,
+    0xD0, 0x05, 0xA9, 0x08, 0x4C, 0x89, 0xEF, 0xA9, 0x80, 0x9D, 0x35, 0x04, 0xA9, 0xF0, 0x9D, 0x2D,
+    0x04, 0x4C, 0xAD, 0xEF, 0xBD, 0x35, 0x04, 0xE0, 0x00, 0xD0, 0x05, 0x69, 0x10, 0x4C, 0xA2, 0xEF,
+    0x69, 0x30, 0x9D, 0x35, 0x04, 0xBD, 0x36, 0x04, 0x69, 0x00, 0x9D, 0x36, 0x04, 0xBD, 0x2D, 0x04,
+    0x38, 0xFD, 0x3D, 0x04, 0x9D, 0x2D, 0x04, 0xA5, 0x01, 0xFD, 0x3E, 0x04, 0x85, 0x01, 0x18, 0xBD,
+    0x2D, 0x04, 0x7D, 0x35, 0x04, 0x9D, 0x2D, 0x04, 0xA5, 0x01, 0x7D, 0x36, 0x04, 0x85, 0x01, 0xFE,
+    0x2C, 0x04, 0xA6, 0x0F, 0x60, 0xA5, 0x5D, 0x18, 0x69, 0x03, 0x4C, 0xE2, 0xEF, 0xA5, 0xAE, 0x18,
+    0x69, 0x01, 0x0A, 0x0A, 0x0A, 0x0A, 0xAA, 0x60, 0x20, 0x47, 0xC8, 0xA9, 0x00, 0xF0, 0x06, 0xA9,
+    0x01, 0xD0, 0x02, 0xA9, 0x02, 0x85, 0x0C, 0x8A, 0x48, 0x98, 0x48, 0xA0, 0x00, 0xA5, 0x0C, 0xD0,
+    0x17, 0x20, 0x63, 0xF0, 0x85, 0x46, 0x20, 0x69, 0xF0, 0x85, 0x47, 0x20, 0x62, 0xF0, 0x85, 0x48,
+    0x20, 0x69, 0xF0, 0x85, 0x49, 0x4C, 0x59, 0xF0, 0x20, 0x63, 0xF0, 0x85, 0x4A, 0x20, 0x69, 0xF0,
+    0x85, 0x4B, 0x20, 0x62, 0xF0, 0x85, 0x4C, 0x20, 0x69, 0xF0, 0x85, 0x4D, 0xA5, 0x4A, 0x38, 0xE5,
+    0x46, 0x85, 0x9C, 0xA5, 0x4B, 0x38, 0xE5, 0x47, 0x85, 0x9D, 0xA5, 0x49, 0xC5, 0x4B, 0x90, 0x17,
+    0xA5, 0x4D, 0xC5, 0x47, 0x90, 0x11, 0xA5, 0x4C, 0xC5, 0x46, 0x90, 0x0B, 0xA5, 0x48, 0xC5, 0x4A,
+    0x90, 0x05, 0xA9, 0x01, 0x4C, 0x59, 0xF0, 0xA9, 0x00, 0x85, 0x0C, 0x68, 0xA8, 0x68, 0xAA, 0xA5,
+    0x0C, 0x60, 0xC8, 0xB1, 0x02, 0x18, 0x65, 0x00, 0x60, 0xC8, 0xB1, 0x02, 0x18, 0x65, 0x01, 0x60,
+    0x85, 0x02, 0x20, 0xE1, 0xEA, 0x20, 0xCD, 0xEA, 0xA5, 0x57, 0x29, 0x03, 0x4A, 0x4C, 0x96, 0xF0,
+    0x85, 0x04, 0xA9, 0x00, 0xF0, 0x10, 0x85, 0x04, 0xA9, 0x01, 0xD0, 0x0A, 0x85, 0x04, 0xA9, 0x04,
+    0xD0, 0x04, 0x85, 0x03, 0xA9, 0x0F, 0x48, 0x85, 0x0F, 0x8A, 0x48, 0x98, 0x48, 0xA5, 0x00, 0x48,
+    0xA5, 0x05, 0x48, 0xA5, 0x06, 0x48, 0xA5, 0x07, 0x48, 0xA5, 0x08, 0x48, 0xA5, 0x09, 0x48, 0xA9,
+    0x02, 0x85, 0x05, 0xA5, 0x0F, 0xC9, 0x04, 0xF0, 0x36, 0xA9, 0x0F, 0x25, 0x03, 0x85, 0x07, 0xA5,
+    0x03, 0x4A, 0x4A, 0x4A, 0x4A, 0x85, 0x06, 0xAA, 0xA9, 0x00, 0x18, 0x65, 0x07, 0xCA, 0xD0, 0xFB,
+    0x85, 0x08, 0xA5, 0x0F, 0xD0, 0x06, 0x20, 0x1E, 0xF1, 0x4C, 0xE9, 0xF0, 0xC9, 0x01, 0xF0, 0x06,
+    0x20, 0x95, 0xF1, 0x4C, 0xF2, 0xF0, 0x20, 0x61, 0xF1, 0x20, 0x39, 0xF1, 0x4C, 0xF2, 0xF0, 0x20,
+    0x0A, 0xF1, 0x68, 0x85, 0x09, 0x68, 0x85, 0x08, 0x68, 0x85, 0x07, 0x68, 0x85, 0x06, 0x68, 0x85,
+    0x05, 0x68, 0x85, 0x00, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x60, 0xA6, 0x03, 0xA0, 0x00, 0xA9, 0xFF,
+    0x91, 0x04, 0xC8, 0xC8, 0xA5, 0x02, 0x91, 0x04, 0xC8, 0xC8, 0xCA, 0xD0, 0xF1, 0x60, 0xA5, 0x02,
+    0xA6, 0x08, 0xA0, 0x01, 0x91, 0x04, 0x18, 0x69, 0x01, 0xC8, 0x48, 0xB1, 0x04, 0x29, 0x3F, 0x91,
+    0x04, 0x68, 0xC8, 0xC8, 0xC8, 0xCA, 0xD0, 0xEC, 0x60, 0xA0, 0x00, 0xA6, 0x06, 0xA5, 0x01, 0x85,
+    0x09, 0xA5, 0x09, 0x91, 0x04, 0x18, 0x69, 0x08, 0x85, 0x09, 0xC8, 0xC8, 0xC8, 0xA5, 0x00, 0x91,
+    0x04, 0xC8, 0xCA, 0xD0, 0xEC, 0xA5, 0x00, 0x18, 0x69, 0x08, 0x85, 0x00, 0xC6, 0x07, 0xD0, 0xDB,
+    0x60, 0xA0, 0x01, 0x84, 0x0A, 0xA5, 0x08, 0x38, 0xE5, 0x06, 0xA8, 0x85, 0x0B, 0xA6, 0x06, 0x98,
+    0x48, 0x18, 0x98, 0x65, 0x02, 0xA4, 0x0A, 0x91, 0x04, 0xC8, 0xB1, 0x04, 0x29, 0x3F, 0x49, 0x40,
+    0x91, 0x04, 0xC8, 0xC8, 0xC8, 0x84, 0x0A, 0x68, 0xA8, 0xC8, 0xCA, 0xD0, 0xE2, 0xA5, 0x0B, 0x38,
+    0xE5, 0x06, 0x10, 0xD6, 0x60, 0xA0, 0x00, 0xA6, 0x06, 0xA5, 0x01, 0x85, 0x09, 0xA9, 0xFF, 0x91,
+    0x04, 0xC8, 0xC8, 0xC8, 0xC8, 0xCA, 0xD0, 0xF7, 0xA5, 0x00, 0x18, 0x69, 0x08, 0x85, 0x00, 0xC6,
+    0x07, 0xD0, 0xE4, 0x60, 0xAD, 0x02, 0x20, 0xA5, 0x10, 0x29, 0xFB, 0x8D, 0x00, 0x20, 0xA9, 0x20,
+    0x8D, 0x06, 0x20, 0xA9, 0x00, 0x8D, 0x06, 0x20, 0xA2, 0x04, 0xA0, 0x00, 0xA9, 0x24, 0x8D, 0x07,
+    0x20, 0x88, 0xD0, 0xFA, 0xCA, 0xD0, 0xF7, 0xA9, 0x23, 0x8D, 0x06, 0x20, 0xA9, 0xC0, 0x8D, 0x06,
+    0x20, 0xA0, 0x40, 0xA9, 0x00, 0x8D, 0x07, 0x20, 0x88, 0xD0, 0xFA, 0x60, 0x8D, 0x06, 0x20, 0xC8,
+    0xB1, 0x00, 0x8D, 0x06, 0x20, 0xC8, 0xB1, 0x00, 0x0A, 0x48, 0xA5, 0x10, 0x09, 0x04, 0xB0, 0x02,
+    0x29, 0xFB, 0x8D, 0x00, 0x20, 0x85, 0x10, 0x68, 0x0A, 0x90, 0x03, 0x09, 0x02, 0xC8, 0x4A, 0x4A,
+    0xAA, 0xB0, 0x01, 0xC8, 0xB1, 0x00, 0x8D, 0x07, 0x20, 0xCA, 0xD0, 0xF5, 0x38, 0x98, 0x65, 0x00,
+    0x85, 0x00, 0xA9, 0x00, 0x65, 0x01, 0x85, 0x01, 0xAE, 0x02, 0x20, 0xA0, 0x00, 0xB1, 0x00, 0xD0,
+    0xBB, 0xA5, 0x12, 0x8D, 0x05, 0x20, 0xA5, 0x13, 0x8D, 0x05, 0x20, 0x60, 0xD8, 0xA9, 0x04, 0x46,
+    0x00, 0x90, 0x05, 0x48, 0x20, 0x4E, 0xF2, 0x68, 0x18, 0xE9, 0x00, 0x10, 0xF2, 0x60, 0x0A, 0x0A,
+    0xA8, 0x85, 0x01, 0xAE, 0x30, 0x03, 0xB9, 0x00, 0xC0, 0x9D, 0x31, 0x03, 0x20, 0x2D, 0xF3, 0xC8,
+    0xB9, 0x00, 0xC0, 0x9D, 0x31, 0x03, 0x20, 0x2D, 0xF3, 0xC8, 0xB9, 0x00, 0xC0, 0x29, 0x87, 0x9D,
+    0x31, 0x03, 0x29, 0x07, 0x85, 0x02, 0x8A, 0x38, 0x65, 0x02, 0x20, 0x2F, 0xF3, 0xAA, 0x8E, 0x30,
+    0x03, 0xA9, 0x00, 0x9D, 0x31, 0x03, 0xC8, 0xB9, 0x00, 0xC0, 0x85, 0x03, 0xCA, 0x18, 0xB9, 0x20,
+    0x00, 0x29, 0x0F, 0xF0, 0x01, 0x18, 0x90, 0x02, 0xA9, 0x24, 0x9D, 0x31, 0x03, 0xCA, 0xC6, 0x02,
+    0xF0, 0x22, 0xB9, 0x20, 0x00, 0x29, 0xF0, 0x08, 0x4A, 0x4A, 0x4A, 0x4A, 0x28, 0xF0, 0x01, 0x18,
+    0x90, 0x02, 0xA9, 0x24, 0x9D, 0x31, 0x03, 0xA5, 0x03, 0x29, 0x01, 0xF0, 0x01, 0x38, 0x88, 0xCA,
+    0xC6, 0x02, 0xD0, 0xCA, 0xA5, 0x03, 0x29, 0x10, 0xF0, 0x0C, 0xE8, 0xA4, 0x01, 0x18, 0xB9, 0x20,
+    0x00, 0x69, 0x37, 0x9D, 0x31, 0x03, 0x60, 0xA0, 0x00, 0xB1, 0x02, 0x29, 0x0F, 0x85, 0x05, 0xB1,
+    0x02, 0x4A, 0x4A, 0x4A, 0x4A, 0x85, 0x04, 0xAE, 0x30, 0x03, 0xA5, 0x01, 0x9D, 0x31, 0x03, 0x20,
+    0x2D, 0xF3, 0xA5, 0x00, 0x9D, 0x31, 0x03, 0x20, 0x2D, 0xF3, 0xA5, 0x04, 0x85, 0x06, 0x09, 0x80,
+    0x9D, 0x31, 0x03, 0x20, 0x2D, 0xF3, 0xC8, 0xB1, 0x02, 0x9D, 0x31, 0x03, 0xC6, 0x06, 0xD0, 0xF3,
+    0x20, 0x2D, 0xF3, 0x18, 0xA9, 0x01, 0x65, 0x00, 0x85, 0x00, 0xA9, 0x00, 0x65, 0x01, 0x85, 0x01,
+    0x8E, 0x30, 0x03, 0xC6, 0x05, 0xD0, 0xC3, 0xA9, 0x00, 0x9D, 0x31, 0x03, 0x60, 0xE8, 0x8A, 0xC9,
+    0x3F, 0x90, 0x0A, 0xAE, 0x30, 0x03, 0xA9, 0x00, 0x9D, 0x31, 0x03, 0x68, 0x68, 0x60, 0xA2, 0xFF,
+    0xD0, 0x02, 0xA2, 0x00, 0x86, 0x04, 0xA2, 0x00, 0x86, 0x05, 0x86, 0x06, 0x86, 0x07, 0xA5, 0x01,
+    0x29, 0x08, 0xD0, 0x01, 0xE8, 0xA5, 0x00, 0x95, 0x06, 0xA5, 0x01, 0x4C, 0x5E, 0xF3, 0x29, 0x07,
+    0x0A, 0x0A, 0xAA, 0xA5, 0x04, 0xF0, 0x27, 0xB5, 0x24, 0xF0, 0x27, 0x18, 0xB5, 0x27, 0x85, 0x03,
+    0xA5, 0x07, 0x20, 0xE3, 0xF3, 0x95, 0x27, 0xB5, 0x26, 0x85, 0x03, 0xA5, 0x06, 0x20, 0xE3, 0xF3,
+    0x95, 0x26, 0xB5, 0x25, 0x85, 0x03, 0xA5, 0x05, 0x20, 0xE3, 0xF3, 0x95, 0x25, 0x60, 0xB5, 0x24,
+    0xF0, 0xD9, 0x38, 0xB5, 0x27, 0x85, 0x03, 0xA5, 0x07, 0x20, 0x04, 0xF4, 0x95, 0x27, 0xB5, 0x26,
+    0x85, 0x03, 0xA5, 0x06, 0x20, 0x04, 0xF4, 0x95, 0x26, 0xB5, 0x25, 0x85, 0x03, 0xA5, 0x05, 0x20,
+    0x04, 0xF4, 0x95, 0x25, 0xB5, 0x25, 0xD0, 0x08, 0xB5, 0x26, 0xD0, 0x04, 0xB5, 0x27, 0xF0, 0x06,
+    0xB0, 0x20, 0xB5, 0x24, 0x49, 0xFF, 0x95, 0x24, 0x38, 0xA9, 0x00, 0x85, 0x03, 0xB5, 0x27, 0x20,
+    0x04, 0xF4, 0x95, 0x27, 0xB5, 0x26, 0x20, 0x04, 0xF4, 0x95, 0x26, 0xB5, 0x25, 0x20, 0x04, 0xF4,
+    0x95, 0x25, 0x60, 0x20, 0x26, 0xF4, 0x65, 0x01, 0xC9, 0x0A, 0x90, 0x02, 0x69, 0x05, 0x18, 0x65,
+    0x02, 0x85, 0x02, 0xA5, 0x03, 0x29, 0xF0, 0x65, 0x02, 0x90, 0x04, 0x69, 0x5F, 0x38, 0x60, 0xC9,
+    0xA0, 0xB0, 0xF8, 0x60, 0x20, 0x26, 0xF4, 0xE5, 0x01, 0x85, 0x01, 0xB0, 0x0A, 0x69, 0x0A, 0x85,
+    0x01, 0xA5, 0x02, 0x69, 0x0F, 0x85, 0x02, 0xA5, 0x03, 0x29, 0xF0, 0x38, 0xE5, 0x02, 0xB0, 0x03,
+    0x69, 0xA0, 0x18, 0x05, 0x01, 0x60, 0x48, 0x29, 0x0F, 0x85, 0x01, 0x68, 0x29, 0xF0, 0x85, 0x02,
+    0xA5, 0x03, 0x29, 0x0F, 0x60, 0xA9, 0x00, 0x85, 0x04, 0x18, 0xA5, 0x00, 0x69, 0x10, 0x29, 0xF0,
+    0x4A, 0x4A, 0xA8, 0xA5, 0x00, 0x29, 0x07, 0x0A, 0x0A, 0xAA, 0xB9, 0x20, 0x00, 0xF0, 0x51, 0xB5,
+    0x24, 0xF0, 0x26, 0x38, 0xB9, 0x23, 0x00, 0x85, 0x03, 0xB5, 0x27, 0x20, 0x04, 0xF4, 0xB9, 0x22,
+    0x00, 0x85, 0x03, 0xB5, 0x26, 0x20, 0x04, 0xF4, 0xB9, 0x21, 0x00, 0x85, 0x03, 0xB5, 0x25, 0x20,
+    0x04, 0xF4, 0xB0, 0x30, 0xB9, 0x20, 0x00, 0xD0, 0x30, 0xA9, 0xFF, 0x85, 0x04, 0x38, 0x98, 0xD0,
+    0x1E, 0x90, 0x10, 0xB5, 0x24, 0x85, 0x20, 0xB5, 0x25, 0x85, 0x21, 0xB5, 0x26, 0x85, 0x22, 0xB5,
+    0x27, 0x85, 0x23, 0xA5, 0x00, 0x29, 0x08, 0xF0, 0x06, 0xCA, 0xCA, 0xCA, 0xCA, 0x10, 0xAB, 0x60,
+    0xB5, 0x24, 0xF0, 0xAF, 0xB9, 0x20, 0x00, 0xD0, 0xD0, 0x18, 0x90, 0xD2, 0xA2, 0x09, 0xC6, 0x34,
+    0x10, 0x06, 0xA9, 0x0A, 0x85, 0x34, 0xA2, 0x10, 0xB5, 0x35, 0xF0, 0x02, 0xD6, 0x35, 0xCA, 0x10,
+    0xF7, 0x60, 0xAE, 0x30, 0x03, 0xA5, 0x01, 0x9D, 0x31, 0x03, 0x20, 0x2D, 0xF3, 0xA5, 0x00, 0x9D,
+    0x31, 0x03, 0x20, 0x2D, 0xF3, 0xA9, 0x01, 0x9D, 0x31, 0x03, 0x20, 0x2D, 0xF3, 0x98, 0x9D, 0x31,
+    0x03, 0x20, 0x2D, 0xF3, 0xA9, 0x00, 0x9D, 0x31, 0x03, 0x8E, 0x30, 0x03, 0x60, 0xA5, 0x18, 0x29,
+    0x02, 0x85, 0x00, 0xA5, 0x19, 0x29, 0x02, 0x45, 0x00, 0x18, 0xF0, 0x01, 0x38, 0x66, 0x18, 0x66,
+    0x19, 0x66, 0x1A, 0x66, 0x1B, 0x66, 0x1C, 0x66, 0x1D, 0x66, 0x1E, 0x66, 0x1F, 0x60, 0xA9, 0x01,
+    0x8D, 0x16, 0x40, 0xA2, 0x00, 0xA9, 0x00, 0x8D, 0x16, 0x40, 0x20, 0x22, 0xF5, 0xE8, 0x20, 0x22,
+    0xF5, 0x60, 0xA0, 0x08, 0x48, 0xBD, 0x16, 0x40, 0x85, 0x00, 0x4A, 0x05, 0x00, 0x4A, 0x68, 0x2A,
+    0x88, 0xD0, 0xF1, 0x86, 0x00, 0x06, 0x00, 0xA6, 0x00, 0xB4, 0x14, 0x84, 0x00, 0x95, 0x14, 0x29,
+    0xFF, 0x10, 0x06, 0x24, 0x00, 0x10, 0x02, 0x29, 0x7F, 0xB4, 0x15, 0x95, 0x15, 0x98, 0x29, 0x0F,
+    0x35, 0x15, 0xF0, 0x06, 0x09, 0xF0, 0x35, 0x15, 0x95, 0x15, 0x60, 0x3F, 0x00, 0x20, 0x0F, 0x15,
+    0x2C, 0x12, 0x0F, 0x27, 0x02, 0x17, 0x0F, 0x30, 0x36, 0x06, 0x0F, 0x30, 0x2C, 0x24, 0x0F, 0x02,
+    0x36, 0x16, 0x0F, 0x30, 0x27, 0x24, 0x0F, 0x16, 0x30, 0x37, 0x0F, 0x06, 0x27, 0x02, 0x23, 0xC0,
+    0x48, 0xFF, 0x23, 0xC8, 0x03, 0x55, 0xAA, 0x22, 0x23, 0xCD, 0x43, 0x0F, 0x20, 0x2C, 0xC7, 0x3F,
+    0x20, 0x81, 0x84, 0x50, 0x51, 0x52, 0x53, 0x20, 0x82, 0x84, 0x54, 0x55, 0x56, 0x57, 0x20, 0x83,
+    0x84, 0x58, 0x59, 0x5A, 0x5B, 0x20, 0x2A, 0xC7, 0x3F, 0x20, 0xAD, 0x46, 0x30, 0x20, 0xCA, 0x43,
+    0x30, 0x20, 0xD2, 0xC2, 0x3F, 0x21, 0x02, 0x4E, 0x30, 0x21, 0x10, 0x0C, 0x3E, 0x3E, 0x45, 0x3D,
+    0x3D, 0x3D, 0x3C, 0x3C, 0x3C, 0x3B, 0x3B, 0x3B, 0x21, 0x2D, 0x0F, 0x3F, 0x24, 0x24, 0x37, 0x37,
+    0x37, 0x36, 0x36, 0x36, 0x35, 0x35, 0x35, 0x49, 0x34, 0x34, 0x21, 0x59, 0x01, 0x3F, 0x21, 0x6D,
+    0x11, 0x40, 0x38, 0x38, 0x39, 0x39, 0x39, 0x3A, 0x3A, 0x3A, 0x3B, 0x3B, 0x3B, 0x43, 0x3C, 0x3C,
+    0x3D, 0x3D, 0x21, 0x84, 0x1A, 0x3D, 0x3D, 0x3D, 0x3E, 0x3E, 0x3E, 0x30, 0x30, 0x30, 0x31, 0x31,
+    0x31, 0x32, 0x32, 0x32, 0x33, 0x33, 0x33, 0x34, 0x49, 0x34, 0x35, 0x35, 0x35, 0x36, 0x36, 0x21,
+    0xA4, 0x06, 0x36, 0x36, 0x4B, 0x37, 0x37, 0x37, 0x21, 0xC6, 0x01, 0x3F, 0x21, 0xE2, 0x17, 0x30,
+    0x30, 0x3E, 0x3E, 0x45, 0x3D, 0x3D, 0x3D, 0x3C, 0x43, 0x3C, 0x3B, 0x3B, 0x3B, 0x3A, 0x3A, 0x3A,
+    0x39, 0x39, 0x39, 0x38, 0x40, 0x38, 0x21, 0xAB, 0xC2, 0x3F, 0x22, 0x04, 0x18, 0x37, 0x37, 0x37,
+    0x36, 0x36, 0x36, 0x4A, 0x35, 0x35, 0x34, 0x34, 0x34, 0x48, 0x33, 0x33, 0x32, 0x32, 0x32, 0x31,
+    0x31, 0x31, 0x30, 0x30, 0x30, 0x22, 0x30, 0xC2, 0x3F, 0x22, 0x39, 0x01, 0x3F, 0x22, 0x4A, 0x01,
+    0x3F, 0x22, 0x59, 0x05, 0x40, 0x38, 0x38, 0x39, 0x39, 0x22, 0x64, 0x1A, 0x39, 0x39, 0x39, 0x3A,
+    0x3A, 0x3A, 0x42, 0x3B, 0x3B, 0x3C, 0x3C, 0x3C, 0x44, 0x3D, 0x3D, 0x3E, 0x3E, 0x3E, 0x30, 0x30,
+    0x30, 0x31, 0x31, 0x31, 0x32, 0x32, 0x22, 0x84, 0x12, 0x32, 0x32, 0x47, 0x33, 0x33, 0x33, 0x34,
+    0x34, 0x34, 0x35, 0x4A, 0x35, 0x36, 0x36, 0x36, 0x37, 0x37, 0x37, 0x22, 0xA6, 0x01, 0x3F, 0x22,
+    0xAE, 0xC2, 0x3F, 0x22, 0xC2, 0x0B, 0x3B, 0x3B, 0x3A, 0x3A, 0x41, 0x39, 0x39, 0x39, 0x38, 0x38,
+    0x38, 0x22, 0xE2, 0x1A, 0x34, 0x34, 0x33, 0x33, 0x33, 0x32, 0x32, 0x32, 0x31, 0x31, 0x46, 0x30,
+    0x30, 0x30, 0x3E, 0x3E, 0x3E, 0x3D, 0x3D, 0x3D, 0x3C, 0x3C, 0x3C, 0x3B, 0x3B, 0x3B, 0x23, 0x0C,
+    0x10, 0x3F, 0x24, 0x24, 0x24, 0x37, 0x37, 0x37, 0x36, 0x36, 0x36, 0x35, 0x35, 0x35, 0x49, 0x34,
+    0x34, 0x23, 0x39, 0x01, 0x3F, 0x23, 0x4C, 0x13, 0x3F, 0x24, 0x24, 0x24, 0x38, 0x38, 0x38, 0x39,
+    0x39, 0x39, 0x3A, 0x3A, 0x3A, 0x42, 0x3B, 0x3B, 0x3C, 0x3C, 0x3C, 0x23, 0x61, 0x4F, 0x30, 0x23,
+    0x70, 0x0F, 0x31, 0x31, 0x31, 0x32, 0x32, 0x32, 0x33, 0x33, 0x33, 0x34, 0x34, 0x34, 0x35, 0x35,
+    0x35, 0x23, 0x24, 0x82, 0x4C, 0x4D, 0x23, 0x25, 0x82, 0x4E, 0x4F, 0x00, 0x3F, 0x00, 0x08, 0x0F,
+    0x2C, 0x27, 0x02, 0x0F, 0x30, 0x12, 0x24, 0x3F, 0x1D, 0x03, 0x06, 0x30, 0x12, 0x23, 0xC0, 0x48,
+    0xFF, 0x23, 0xC9, 0x07, 0x55, 0x00, 0xAA, 0xAA, 0x0F, 0x0F, 0x0F, 0x23, 0xE2, 0x05, 0x04, 0x00,
+    0x00, 0x00, 0x01, 0x20, 0xC5, 0x02, 0x70, 0x72, 0x20, 0xE5, 0x02, 0x71, 0x73, 0x20, 0xCA, 0x42,
+    0x62, 0x21, 0x05, 0x56, 0x62, 0x21, 0xA4, 0x58, 0x62, 0x22, 0x43, 0x5A, 0x62, 0x22, 0xE2, 0x5C,
+    0x62, 0x23, 0x61, 0x5E, 0x62, 0x21, 0x08, 0x01, 0x63, 0x21, 0x17, 0x01, 0x63, 0x21, 0xA8, 0x01,
+    0x63, 0x21, 0xB7, 0x01, 0x63, 0x22, 0x48, 0x01, 0x63, 0x22, 0x57, 0x01, 0x63, 0x22, 0xE8, 0x01,
+    0x63, 0x22, 0xF7, 0x01, 0x63, 0x21, 0x25, 0xC4, 0x3F, 0x21, 0x29, 0xC4, 0x3F, 0x21, 0x36, 0xC4,
+    0x3F, 0x21, 0x3A, 0xC4, 0x3F, 0x21, 0xC4, 0xC4, 0x3F, 0x21, 0xD0, 0xC4, 0x3F, 0x21, 0xDB, 0xC4,
+    0x3F, 0x22, 0x63, 0xC4, 0x3F, 0x22, 0x6C, 0xC4, 0x3F, 0x22, 0x73, 0xC4, 0x3F, 0x22, 0x7C, 0xC4,
+    0x3F, 0x23, 0x02, 0xC3, 0x3F, 0x23, 0x0F, 0xC3, 0x3F, 0x23, 0x1D, 0xC3, 0x3F, 0x22, 0x0A, 0x82,
+    0x6E, 0x6F, 0x22, 0x18, 0x82, 0x70, 0x71, 0x22, 0x19, 0x82, 0x72, 0x73, 0x00, 0x3F, 0x00, 0x08,
+    0x0F, 0x15, 0x2C, 0x06, 0x0F, 0x30, 0x27, 0x16, 0x3F, 0x1D, 0x03, 0x12, 0x37, 0x15, 0x23, 0xC0,
+    0x48, 0xFF, 0x23, 0xC9, 0x02, 0xAA, 0x22, 0x23, 0xCD, 0x43, 0x0F, 0x23, 0xD1, 0x82, 0x84, 0x48,
+    0x23, 0xD7, 0x05, 0x03, 0x0C, 0x88, 0x00, 0x88, 0x23, 0xE1, 0x03, 0x88, 0x00, 0x88, 0x23, 0xE9,
+    0x03, 0x88, 0x00, 0x88, 0x23, 0xD3, 0x82, 0x84, 0x48, 0x20, 0x2C, 0xC7, 0x3F, 0x20, 0x2A, 0xC7,
+    0x3F, 0x20, 0xCA, 0x43, 0x30, 0x20, 0xAD, 0x46, 0x30, 0x20, 0xD2, 0xC2, 0x3F, 0x21, 0x02, 0x55,
+    0x30, 0x21, 0x06, 0x02, 0x5E, 0x5F, 0x21, 0x26, 0x02, 0x5C, 0x5D, 0x21, 0x0E, 0x02, 0x5E, 0x5F,
+    0x21, 0x2E, 0x02, 0x5C, 0x5D, 0x23, 0x61, 0x5E, 0x30, 0x23, 0x46, 0x02, 0x5C, 0x5D, 0x23, 0x66,
+    0x02, 0x60, 0x61, 0x23, 0x4E, 0x02, 0x5C, 0x5D, 0x23, 0x6E, 0x02, 0x60, 0x61, 0x21, 0x46, 0xD0,
+    0x74, 0x21, 0x47, 0xD0, 0x75, 0x21, 0x5C, 0x42, 0x30, 0x21, 0x79, 0x42, 0x30, 0x21, 0x96, 0x42,
+    0x30, 0x21, 0xB2, 0x43, 0x30, 0x21, 0xC2, 0x43, 0x30, 0x21, 0xC9, 0x44, 0x30, 0x21, 0xF9, 0x45,
+    0x30, 0x22, 0x33, 0x42, 0x30, 0x22, 0x56, 0x42, 0x30, 0x22, 0x79, 0x42, 0x30, 0x22, 0x9C, 0x42,
+    0x30, 0x22, 0x82, 0x43, 0x30, 0x22, 0xCA, 0x43, 0x30, 0x22, 0xDB, 0x43, 0x30, 0x22, 0xF8, 0x42,
+    0x30, 0x23, 0x15, 0x42, 0x30, 0x23, 0x22, 0x43, 0x30, 0x23, 0x31, 0x43, 0x30, 0x21, 0x36, 0xC3,
+    0x3F, 0x21, 0x7C, 0xC4, 0x3F, 0x21, 0xD3, 0xC3, 0x3F, 0x21, 0xE4, 0xC5, 0x3F, 0x21, 0xEA, 0xC7,
+    0x3F, 0x21, 0xEC, 0xC7, 0x3F, 0x22, 0x19, 0xC3, 0x3F, 0x22, 0xA3, 0xC4, 0x3F, 0x22, 0xBC, 0x01,
+    0x3F, 0x21, 0x82, 0x82, 0x70, 0x71, 0x21, 0x83, 0x82, 0x72, 0x73, 0x21, 0x1D, 0x82, 0x6E, 0x6F,
+    0x21, 0x4E, 0xD0, 0x74, 0x21, 0x4F, 0xD0, 0x75, 0x00, 0x3F, 0x00, 0x0D, 0x0F, 0x2C, 0x38, 0x12,
+    0x0F, 0x27, 0x27, 0x27, 0x0F, 0x30, 0x30, 0x30, 0x0F, 0x3F, 0x11, 0x01, 0x25, 0x23, 0xE0, 0x50,
+    0x55, 0x23, 0xF0, 0x48, 0xAA, 0x20, 0x83, 0xC5, 0x62, 0x20, 0x84, 0xC5, 0x62, 0x20, 0x85, 0x01,
+    0x62, 0x21, 0x05, 0x01, 0x62, 0x20, 0xA6, 0xC3, 0x62, 0x20, 0x88, 0xC5, 0x62, 0x20, 0x89, 0x01,
+    0x62, 0x21, 0x09, 0x01, 0x62, 0x20, 0x8A, 0xC5, 0x62, 0x20, 0x8C, 0xC5, 0x62, 0x20, 0xAD, 0xC2,
+    0x62, 0x20, 0xCE, 0xC2, 0x62, 0x20, 0x8F, 0xC5, 0x62, 0x20, 0x91, 0xC5, 0x62, 0x20, 0xB2, 0xC2,
+    0x62, 0x20, 0xB3, 0x01, 0x62, 0x20, 0x94, 0x01, 0x62, 0x20, 0xF3, 0x01, 0x62, 0x21, 0x14, 0x01,
+    0x62, 0x20, 0x96, 0xC5, 0x62, 0x20, 0x97, 0x42, 0x62, 0x20, 0xD7, 0x42, 0x62, 0x21, 0x17, 0x42,
+    0x62, 0x20, 0x9A, 0xC3, 0x62, 0x20, 0xDB, 0xC3, 0x62, 0x20, 0x9C, 0xC3, 0x62, 0x21, 0x47, 0xC5,
+    0x62, 0x21, 0x68, 0xC2, 0x62, 0x21, 0x69, 0x01, 0x62, 0x21, 0x4A, 0x01, 0x62, 0x21, 0xA9, 0x01,
+    0x62, 0x21, 0xCA, 0x01, 0x62, 0x21, 0x4C, 0xC5, 0x62, 0x21, 0x4D, 0x01, 0x62, 0x21, 0xCD, 0x01,
+    0x62, 0x21, 0x4E, 0xC5, 0x62, 0x21, 0x50, 0xC5, 0x62, 0x21, 0x71, 0xC2, 0x62, 0x21, 0x92, 0xC2,
+    0x62, 0x21, 0x53, 0xC5, 0x62, 0x21, 0x55, 0xC5, 0x62, 0x21, 0x56, 0x43, 0x62, 0x21, 0xD6, 0x43,
+    0x62, 0x21, 0x98, 0xC2, 0x62, 0x21, 0x97, 0x01, 0x62, 0x22, 0x09, 0x0F, 0x01, 0x24, 0x19, 0x15,
+    0x0A, 0x22, 0x0E, 0x1B, 0x24, 0x10, 0x0A, 0x16, 0x0E, 0x24, 0x0A, 0x22, 0x49, 0x0F, 0x01, 0x24,
+    0x19, 0x15, 0x0A, 0x22, 0x0E, 0x1B, 0x24, 0x10, 0x0A, 0x16, 0x0E, 0x24, 0x0B, 0x22, 0x89, 0x0F,
+    0x02, 0x24, 0x19, 0x15, 0x0A, 0x22, 0x0E, 0x1B, 0x24, 0x10, 0x0A, 0x16, 0x0E, 0x24, 0x0A, 0x22,
+    0xC9, 0x0F, 0x02, 0x24, 0x19, 0x15, 0x0A, 0x22, 0x0E, 0x1B, 0x24, 0x10, 0x0A, 0x16, 0x0E, 0x24,
+    0x0B, 0x23, 0x05, 0x16, 0xD3, 0x01, 0x09, 0x08, 0x01, 0x24, 0x17, 0x12, 0x17, 0x1D, 0x0E, 0x17,
+    0x0D, 0x18, 0x24, 0x0C, 0x18, 0x65, 0x15, 0x1D, 0x0D, 0x64, 0x23, 0x4B, 0x0D, 0x16, 0x0A, 0x0D,
+    0x0E, 0x24, 0x12, 0x17, 0x24, 0x13, 0x0A, 0x19, 0x0A, 0x17, 0x00, 0x20, 0x63, 0x01, 0xFF, 0x20,
+    0x6D, 0x03, 0xD0, 0xD1, 0xD2, 0x20, 0x76, 0x02, 0xFE, 0xFF, 0x20, 0x94, 0x0A, 0x25, 0x16, 0x2A,
+    0x26, 0x27, 0x28, 0x29, 0x2A, 0x15, 0x2D, 0x20, 0xB4, 0x0A, 0x2B, 0x24, 0x2C, 0x24, 0x24, 0x24,
+    0x24, 0x2C, 0x24, 0x2F, 0x00, 0xFF, 0xFF, 0xFF, 0xA9, 0xC0, 0x8D, 0x17, 0x40, 0x20, 0xF2, 0xFB,
+    0xA2, 0x00, 0x86, 0xFF, 0x86, 0xFE, 0x86, 0xFD, 0xAD, 0xF0, 0x06, 0xC9, 0x90, 0xB0, 0x05, 0xA2,
+    0x00, 0x8E, 0xF1, 0x06, 0xC9, 0xD8, 0x90, 0x03, 0xEE, 0xF1, 0x06, 0xA8, 0x4A, 0x4A, 0x4A, 0x4A,
+    0x4A, 0x4A, 0x85, 0x00, 0x98, 0xAE, 0xF1, 0x06, 0xD0, 0x05, 0x38, 0x65, 0x00, 0xD0, 0x03, 0x18,
+    0xE5, 0x00, 0x8D, 0xF0, 0x06, 0x60, 0xA0, 0x07, 0x0A, 0xB0, 0x03, 0x88, 0xD0, 0xFA, 0x60, 0x85,
+    0xF1, 0x84, 0xF2, 0xA0, 0x7F, 0x8E, 0x00, 0x40, 0x8C, 0x01, 0x40, 0x60, 0x20, 0x95, 0xFA, 0xA2,
+    0x00, 0xA8, 0xB9, 0x01, 0xFB, 0xF0, 0x0B, 0x9D, 0x02, 0x40, 0xB9, 0x00, 0xFB, 0x09, 0x08, 0x9D,
+    0x03, 0x40, 0x60, 0x8C, 0x05, 0x40, 0xA2, 0x04, 0xD0, 0xE7, 0x8D, 0x08, 0x40, 0x8A, 0x29, 0x3E,
+    0xA2, 0x08, 0xD0, 0xDD, 0xAA, 0x6A, 0x8A, 0x2A, 0x2A, 0x2A, 0x29, 0x07, 0x18, 0x6D, 0x8D, 0x06,
+    0xA8, 0xB9, 0x4C, 0xFB, 0x60, 0x98, 0x4A, 0x4A, 0x4A, 0x85, 0x00, 0x98, 0x38, 0xE5, 0x00, 0x60,
+    0xA9, 0x90, 0x8D, 0x00, 0x40, 0x60, 0x8D, 0x8D, 0x8C, 0x8C, 0x8B, 0x8C, 0x83, 0x83, 0x8F, 0x8F,
+    0x8F, 0x8F, 0x8D, 0x85, 0x84, 0x85, 0x7F, 0x85, 0x85, 0x85, 0x7F, 0x8D, 0x8D, 0x8D, 0x8D, 0x8D,
+    0x07, 0xF0, 0x00, 0x00, 0x00, 0x69, 0x00, 0x53, 0x00, 0x46, 0x00, 0xD4, 0x00, 0xBD, 0x00, 0xA8,
+    0x00, 0x9F, 0x00, 0x8D, 0x00, 0x7E, 0x01, 0xAB, 0x01, 0x7C, 0x01, 0x52, 0x01, 0x3F, 0x01, 0x1C,
+    0x00, 0xFD, 0x00, 0xEE, 0x00, 0xE1, 0x03, 0x57, 0x02, 0xF9, 0x02, 0xCF, 0x02, 0xA6, 0x02, 0x80,
+    0x02, 0x3A, 0x02, 0x1A, 0x01, 0xFC, 0x01, 0xDF, 0x01, 0xC4, 0x06, 0xAE, 0x05, 0x9E, 0x05, 0x4D,
+    0x05, 0x01, 0x04, 0x75, 0x04, 0x35, 0x03, 0xF8, 0x03, 0xBF, 0x03, 0x89, 0x05, 0x0A, 0x14, 0x28,
+    0x50, 0x1E, 0x3C, 0x0B, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x24, 0x48, 0x07, 0x0D, 0x1A, 0x34, 0x78,
+    0x27, 0x4E, 0x0A, 0x08, 0x05, 0x0A, 0x09, 0x50, 0x40, 0x46, 0x4A, 0x50, 0x56, 0x5C, 0x64, 0x6C,
+    0x74, 0x7C, 0x88, 0x90, 0x9A, 0x85, 0xF0, 0x85, 0xFB, 0xA0, 0x08, 0x4C, 0x67, 0xFD, 0x84, 0xF0,
+    0xA9, 0x71, 0xA0, 0x00, 0xA2, 0x9F, 0x20, 0x8F, 0xFA, 0xA6, 0xF2, 0xBC, 0x67, 0xFB, 0xC6, 0xF1,
+    0xA5, 0xF1, 0xF0, 0xE1, 0x29, 0x07, 0xD0, 0x08, 0x98, 0x4A, 0x7D, 0x67, 0xFB, 0xA8, 0xD0, 0x07,
+    0x29, 0x03, 0xD0, 0x0E, 0xE6, 0xF2, 0x18, 0x8C, 0x02, 0x40, 0xA0, 0x28, 0x90, 0x01, 0xC8, 0x8C,
+    0x03, 0x40, 0xA9, 0x00, 0x4C, 0x00, 0xFE, 0x84, 0xF0, 0xA9, 0x54, 0xA0, 0x6A, 0xA2, 0x9C, 0x20,
+    0x8F, 0xFA, 0xA4, 0xF2, 0xA5, 0xF1, 0x29, 0x03, 0xF0, 0x0A, 0xC9, 0x03, 0xD0, 0x0B, 0x20, 0xD5,
+    0xFA, 0x85, 0xF2, 0xA8, 0x98, 0x4A, 0x65, 0xF2, 0xA8, 0x98, 0x2A, 0x2A, 0x2A, 0x8D, 0x02, 0x40,
+    0x2A, 0x8D, 0x03, 0x40, 0xA5, 0xF1, 0xC9, 0x18, 0xB0, 0x5A, 0x4A, 0x09, 0x90, 0x8D, 0x00, 0x40,
+    0xD0, 0x52, 0xA4, 0xFF, 0xA5, 0xF0, 0x4A, 0xB0, 0x90, 0x46, 0xFF, 0xB0, 0x81, 0xA6, 0xFA, 0xD0,
+    0x4A, 0x4A, 0xB0, 0xBE, 0x46, 0xFF, 0xB0, 0xAF, 0x4A, 0xB0, 0x1D, 0x46, 0xFF, 0xB0, 0x0A, 0x4A,
+    0xB0, 0x50, 0x46, 0xFF, 0xB0, 0x3B, 0x4C, 0x90, 0xFC, 0x84, 0xF0, 0xA9, 0x22, 0x85, 0xF1, 0xA0,
+    0x0B, 0x84, 0xF2, 0xA9, 0x20, 0x20, 0x9F, 0xFA, 0xC6, 0xF2, 0xD0, 0x04, 0xA9, 0x07, 0x85, 0xF2,
+    0xA6, 0xF2, 0xBC, 0xF5, 0xFA, 0xA2, 0x5A, 0xA5, 0xF1, 0xC9, 0x14, 0xB0, 0x04, 0x4A, 0x09, 0x50,
+    0xAA, 0x20, 0x95, 0xFA, 0xC6, 0xF1, 0xD0, 0xCE, 0x20, 0xE0, 0xFA, 0xA9, 0x00, 0x85, 0xF0, 0xF0,
+    0xC5, 0x84, 0xF0, 0xA9, 0x0A, 0x85, 0xF1, 0xAC, 0xF0, 0x06, 0x8C, 0x02, 0x40, 0xA9, 0x88, 0x8D,
+    0x03, 0x40, 0xA5, 0x18, 0x29, 0x08, 0x18, 0x65, 0xF1, 0x69, 0xFE, 0xAA, 0xBC, 0xE5, 0xFA, 0xA2,
+    0x41, 0xD0, 0xCE, 0xA9, 0x0E, 0x8D, 0xA5, 0x06, 0xA0, 0x85, 0xA9, 0x46, 0x20, 0xB3, 0xFA, 0xCE,
+    0xA5, 0x06, 0xF0, 0x19, 0xAD, 0xA5, 0x06, 0x09, 0x90, 0xA8, 0x88, 0x8C, 0x04, 0x40, 0xD0, 0x0D,
+    0xA5, 0xF3, 0xD0, 0x09, 0xAD, 0xA5, 0x06, 0xD0, 0xE6, 0xA4, 0xFE, 0x30, 0xD6, 0xA5, 0xFC, 0xD0,
+    0x6A, 0xA5, 0xF9, 0xD0, 0x66, 0xA4, 0xFE, 0xAD, 0xA1, 0x06, 0x46, 0xFE, 0xB0, 0x0C, 0x4A, 0xB0,
+    0x0D, 0x4A, 0xB0, 0x3C, 0x46, 0xFE, 0xB0, 0x23, 0x90, 0x51, 0xA9, 0x28, 0xD0, 0x1F, 0xA5, 0xF5,
+    0xD0, 0x04, 0x46, 0xFE, 0xB0, 0x15, 0xA5, 0xF6, 0x4A, 0x4A, 0x4A, 0x4A, 0x4A, 0x65, 0xF6, 0x90,
+    0x2F, 0xA9, 0x00, 0x8D, 0xA1, 0x06, 0x8D, 0x08, 0x40, 0xF0, 0x30, 0xA9, 0xFE, 0x8C, 0xA1, 0x06,
+    0xA2, 0x0E, 0x86, 0xF5, 0xA0, 0xFF, 0x8C, 0x08, 0x40, 0xA0, 0x08, 0x8C, 0x0B, 0x40, 0xD0, 0x10,
+    0xA9, 0xFE, 0xA4, 0xF5, 0xF0, 0xDB, 0xC0, 0x07, 0xF0, 0x06, 0xA5, 0xF6, 0xA8, 0x20, 0xD7, 0xFA,
+    0x85, 0xF6, 0x8D, 0x0A, 0x40, 0xA5, 0xF5, 0xF0, 0x02, 0xC6, 0xF5, 0xA6, 0xFA, 0xD0, 0x49, 0xA5,
+    0xFC, 0xD0, 0x05, 0x8D, 0xA3, 0x06, 0xF0, 0x40, 0x4D, 0xA3, 0x06, 0xF0, 0x18, 0xA5, 0xFC, 0x8D,
+    0xA3, 0x06, 0x20, 0x86, 0xFA, 0xB9, 0xCD, 0xFF, 0x8D, 0x80, 0x06, 0xA9, 0xD4, 0x85, 0xF5, 0xA9,
+    0xFF, 0x85, 0xF6, 0xD0, 0x05, 0xCE, 0x98, 0x06, 0xD0, 0x1E, 0xAC, 0x80, 0x06, 0xEE, 0x80, 0x06,
+    0xB1, 0xF5, 0xF0, 0xD9, 0xAA, 0x6A, 0x8A, 0x2A, 0x2A, 0x2A, 0x29, 0x07, 0xA8, 0xB9, 0x62, 0xFB,
+    0x8D, 0x98, 0x06, 0xA9, 0x10, 0x20, 0xBA, 0xFA, 0xA5, 0xFD, 0xD0, 0x06, 0xAD, 0x02, 0x01, 0xD0,
+    0x3A, 0x60, 0x20, 0x86, 0xFA, 0x84, 0xFB, 0xB9, 0x59, 0xFE, 0xA8, 0xB9, 0x59, 0xFE, 0x8D, 0x8D,
+    0x06, 0xB9, 0x5A, 0xFE, 0x85, 0xF7, 0xB9, 0x5B, 0xFE, 0x85, 0xF8, 0xB9, 0x5C, 0xFE, 0x85, 0xF9,
+    0xB9, 0x5D, 0xFE, 0x85, 0xFA, 0xA9, 0x01, 0x8D, 0x95, 0x06, 0x8D, 0x96, 0x06, 0x8D, 0x98, 0x06,
+    0x8D, 0x02, 0x01, 0xA0, 0x00, 0x84, 0xF3, 0xA5, 0xFB, 0xF0, 0x09, 0xA4, 0xFA, 0xF0, 0x39, 0xCE,
+    0x96, 0x06, 0xD0, 0x34, 0xE6, 0xFA, 0xB1, 0xF7, 0xF0, 0x3F, 0x10, 0x0C, 0x20, 0xCA, 0xFA, 0x8D,
+    0x91, 0x06, 0xA4, 0xFA, 0xE6, 0xFA, 0xB1, 0xF7, 0x20, 0x9F, 0xFA, 0xD0, 0x04, 0xA0, 0x10, 0xD0,
+    0x0E, 0xA2, 0x9F, 0xA5, 0xFB, 0xF0, 0x08, 0xA2, 0x06, 0xA5, 0xF9, 0xD0, 0x02, 0xA2, 0x86, 0x20,
+    0x93, 0xFA, 0xAD, 0x91, 0x06, 0x8D, 0x96, 0x06, 0xA5, 0xFB, 0xF0, 0x55, 0xCE, 0x95, 0x06, 0xD0,
+    0x50, 0xA4, 0xF3, 0xE6, 0xF3, 0xB1, 0xF7, 0xD0, 0x20, 0x20, 0xE0, 0xFA, 0xA9, 0x00, 0x85, 0xFA,
+    0x85, 0xF3, 0x85, 0xF9, 0x8D, 0x02, 0x01, 0xA4, 0xFB, 0xF0, 0x05, 0xAC, 0xA1, 0x06, 0xD0, 0x03,
+    0x8D, 0x08, 0x40, 0xA9, 0x10, 0x8D, 0x04, 0x40, 0x60, 0x20, 0xC4, 0xFA, 0x8D, 0x95, 0x06, 0x8A,
+    0x29, 0x3E, 0xA0, 0x7F, 0x20, 0xB3, 0xFA, 0xD0, 0x04, 0xA2, 0x10, 0xD0, 0x11, 0xA2, 0x89, 0xAD,
+    0x95, 0x06, 0xC9, 0x18, 0xB0, 0x08, 0xA2, 0x86, 0xC9, 0x10, 0xB0, 0x02, 0xA2, 0x84, 0x8E, 0x04,
+    0x40, 0xA4, 0xF9, 0xF0, 0x23, 0xCE, 0x98, 0x06, 0xD0, 0x1E, 0xE6, 0xF9, 0xB1, 0xF7, 0x20, 0xC4,
+    0xFA, 0x8D, 0x98, 0x06, 0x18, 0x69, 0xFE, 0x0A, 0x0A, 0xC9, 0x38, 0x90, 0x02, 0xA9, 0x38, 0xA4,
+    0xFB, 0xD0, 0x02, 0xA9, 0xFF, 0x20, 0xBA, 0xFA, 0x60, 0x09, 0x0E, 0x13, 0x18, 0x1D, 0x22, 0x27,
+    0x2C, 0x31, 0x00, 0x8F, 0xFE, 0x1B, 0x00, 0x08, 0xB0, 0xFE, 0x00, 0x0C, 0x00, 0xCF, 0xFE, 0x00,
+    0x1A, 0x08, 0x05, 0xFF, 0x00, 0x0B, 0x00, 0xAD, 0xFF, 0x00, 0x03, 0x00, 0xBE, 0xFF, 0x00, 0x00,
+    0x00, 0xC4, 0xFF, 0x00, 0x00, 0x0F, 0x20, 0xFF, 0x21, 0x3E, 0x00, 0xA1, 0xFF, 0x08, 0x00, 0x86,
+    0x46, 0x82, 0x4A, 0x83, 0x26, 0x46, 0x80, 0x34, 0x32, 0x34, 0x32, 0x34, 0x32, 0x34, 0x32, 0x34,
+    0x32, 0x34, 0x32, 0x34, 0x32, 0x34, 0x32, 0x84, 0x34, 0x00, 0xA9, 0xAC, 0xEE, 0xE8, 0x33, 0x35,
+    0x16, 0x16, 0x57, 0x1E, 0x20, 0x64, 0x9E, 0x1E, 0x20, 0x64, 0x9E, 0x00, 0x80, 0x30, 0x30, 0x85,
+    0x30, 0x80, 0x1A, 0x1C, 0x81, 0x1E, 0x82, 0x1A, 0x80, 0x1A, 0x1C, 0x81, 0x1E, 0x82, 0x1A, 0x5E,
+    0x5E, 0x5C, 0x5C, 0x5A, 0x5A, 0x58, 0x58, 0x57, 0x16, 0x18, 0x9A, 0x96, 0x59, 0x18, 0x1A, 0x9C,
+    0x98, 0x5F, 0x5E, 0x60, 0x5E, 0x5C, 0x5A, 0x1F, 0x00, 0x81, 0x1A, 0x1A, 0x18, 0x18, 0x16, 0x16,
+    0x38, 0x38, 0x82, 0x26, 0x42, 0x26, 0x42, 0x28, 0x46, 0x28, 0x46, 0x30, 0x28, 0x30, 0x28, 0x81,
+    0x3A, 0x85, 0x3C, 0x84, 0x3A, 0x5E, 0x02, 0x20, 0x42, 0x4A, 0x42, 0x60, 0x5E, 0x60, 0x1D, 0x00,
+    0x82, 0x26, 0x42, 0x26, 0x42, 0x81, 0x40, 0x80, 0x42, 0x44, 0x48, 0x26, 0x28, 0x2C, 0x83, 0x2E,
+    0x56, 0x56, 0xE0, 0x42, 0x5A, 0x5E, 0x5C, 0x99, 0x58, 0x58, 0xE2, 0x42, 0x5E, 0x60, 0x5E, 0x9B,
+    0x5A, 0x5A, 0xCA, 0x42, 0x60, 0x62, 0x4A, 0x8D, 0x5C, 0x5E, 0xE0, 0x42, 0x5A, 0x5C, 0x5E, 0x1D,
+    0x00, 0x82, 0x6F, 0x6E, 0xEE, 0x71, 0x70, 0xF0, 0x77, 0x76, 0xF6, 0x57, 0x56, 0xD6, 0xA0, 0x9A,
+    0x96, 0xB4, 0xA2, 0x9C, 0x98, 0xB6, 0x5C, 0x9C, 0x96, 0x57, 0x5C, 0x96, 0x74, 0x2F, 0x85, 0x02,
+    0x81, 0x2E, 0x34, 0x2E, 0x83, 0x34, 0x81, 0x48, 0x28, 0x30, 0x28, 0x30, 0x28, 0x85, 0x30, 0x81,
+    0x30, 0x36, 0x30, 0x83, 0x36, 0x81, 0x26, 0x2C, 0x30, 0x2C, 0x30, 0x2C, 0x16, 0x16, 0x1A, 0x16,
+    0x34, 0x16, 0x1A, 0x16, 0x34, 0x16, 0x1C, 0x18, 0x36, 0x18, 0x1C, 0x18, 0x36, 0x18, 0x16, 0x2E,
+    0x80, 0x16, 0x36, 0x34, 0x36, 0x83, 0x16, 0x81, 0x02, 0x2E, 0x80, 0x16, 0x36, 0x34, 0x30, 0x86,
+    0x2E, 0x81, 0x1A, 0x82, 0x1E, 0x30, 0x83, 0x16, 0x00, 0x42, 0x96, 0xB0, 0xE6, 0x03, 0x83, 0x00,
+    0x87, 0x42, 0x3E, 0x42, 0x3E, 0x42, 0x3E, 0x42, 0x3E, 0x42, 0x3E, 0x42, 0x82, 0x3E, 0x0A, 0x0C,
+    0x0E, 0x54, 0x90, 0x00, 0x04, 0x12, 0x04, 0x12, 0x04, 0x12, 0x04, 0x92, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x09, 0x0E, 0x12, 0x16, 0x02, 0x02, 0x1A, 0x02, 0x1E, 0x20, 0x1E, 0x00, 0x5A, 0x42, 0x56,
+    0x56, 0x00, 0x09, 0x07, 0x05, 0x00, 0xCA, 0x8A, 0x8A, 0xCA, 0xCA, 0xCE, 0xCA, 0xCE, 0xCA, 0xCE,
+    0x8E, 0x8E, 0xCE, 0xCE, 0xD2, 0xCE, 0xD2, 0xCE, 0x00, 0xFF, 0x5F, 0xC8, 0x9E, 0xC7, 0xF0, 0xFF,
+};
+
+static constexpr eng::usize kChrSize = 8192;
+static constexpr eng::u8 CHR_ROM[kChrSize > 0u ? kChrSize : 1u] = {
+    0x00, 0x03, 0x07, 0x07, 0x09, 0x09, 0x1C, 0x00, 0x00, 0x03, 0x07, 0x00, 0x06, 0x06, 0x03, 0x03,
+    0x0F, 0x0F, 0x0F, 0xFF, 0xFF, 0xFC, 0x81, 0x01, 0x00, 0x10, 0x3C, 0x3F, 0x3F, 0x3C, 0x00, 0x00,
+    0x00, 0xC0, 0xF8, 0x80, 0x20, 0x90, 0x3C, 0x00, 0x00, 0xC0, 0xF8, 0x60, 0xDC, 0x6E, 0xC0, 0xF8,
+    0xC0, 0xC0, 0xC0, 0xF0, 0xF0, 0xE0, 0xC0, 0xE0, 0x50, 0x38, 0x30, 0xF0, 0xF0, 0xE0, 0x00, 0x00,
+    0x07, 0x0F, 0x0F, 0x12, 0x13, 0x38, 0x00, 0x0F, 0x07, 0x0F, 0x00, 0x0D, 0x0C, 0x07, 0x07, 0x00,
+    0x1F, 0x1F, 0x1F, 0x18, 0x19, 0x1E, 0x1C, 0x1E, 0x01, 0x03, 0x01, 0x17, 0x1F, 0x1E, 0x00, 0x00,
+    0x80, 0xF0, 0x00, 0x40, 0x20, 0x78, 0x00, 0xC0, 0x80, 0xF0, 0xC0, 0xB8, 0xDC, 0x80, 0xF0, 0x00,
+    0xE0, 0x60, 0xF0, 0xF0, 0xF0, 0xE0, 0xE0, 0xF0, 0x80, 0xE0, 0xF0, 0xF0, 0xF0, 0xE0, 0x00, 0x00,
+    0x07, 0x0F, 0x0F, 0x12, 0x13, 0x38, 0x00, 0x3F, 0x07, 0x0F, 0x00, 0x0D, 0x0C, 0x07, 0x07, 0x03,
+    0x3F, 0x0E, 0x0F, 0x1F, 0x3F, 0x7C, 0x70, 0x38, 0xC3, 0xE3, 0xCF, 0x1F, 0x3F, 0x0C, 0x00, 0x00,
+    0x80, 0xF0, 0x00, 0x40, 0x20, 0x78, 0x00, 0xC0, 0x80, 0xF0, 0xC0, 0xB8, 0xDC, 0x80, 0xF0, 0x06,
+    0xF0, 0xF8, 0xE4, 0xFC, 0xFC, 0x7C, 0x00, 0x00, 0x8E, 0xE6, 0xE0, 0xF0, 0xF0, 0x70, 0x00, 0x00,
+    0x00, 0x02, 0x06, 0x07, 0x09, 0x09, 0x1D, 0x03, 0x01, 0x03, 0x07, 0x00, 0x06, 0x06, 0x02, 0x00,
+    0x0F, 0x0F, 0x0F, 0xFF, 0xFF, 0xFC, 0x81, 0x01, 0x00, 0x00, 0x0C, 0x3F, 0x3F, 0x3C, 0x00, 0x00,
+    0x00, 0x00, 0x38, 0xC0, 0xE0, 0xD0, 0xFC, 0xC0, 0xC0, 0xC0, 0xF8, 0x20, 0x1C, 0x2E, 0x00, 0x38,
+    0xE0, 0xE0, 0xB0, 0xF0, 0xF0, 0xE0, 0xC0, 0xE0, 0x00, 0x60, 0xF0, 0xF0, 0xF0, 0xE0, 0x00, 0x00,
+    0x00, 0x03, 0x07, 0x07, 0x09, 0x09, 0x1C, 0x00, 0x00, 0x03, 0x07, 0x00, 0x06, 0x06, 0x03, 0x03,
+    0x0F, 0x0F, 0x0F, 0xFF, 0xFF, 0xFC, 0x81, 0x01, 0x00, 0x00, 0x0C, 0x3F, 0x3F, 0x3C, 0x00, 0x00,
+    0x00, 0xC0, 0xF8, 0x80, 0x20, 0x90, 0x3C, 0x00, 0x00, 0xC0, 0xF8, 0x60, 0xDC, 0x6E, 0xC0, 0xF8,
+    0xE0, 0xF0, 0xF0, 0xF0, 0xF0, 0xE0, 0xC0, 0xE0, 0x47, 0x0F, 0x0E, 0xF0, 0xF0, 0xE0, 0x00, 0x00,
+    0x04, 0x0C, 0x0C, 0x13, 0x13, 0x3B, 0x07, 0x0F, 0x07, 0x0F, 0x03, 0x0C, 0x0C, 0x04, 0x00, 0x00,
+    0x0F, 0x0F, 0x0F, 0x1F, 0x1F, 0x1E, 0x1C, 0x1E, 0x00, 0x01, 0x0F, 0x1F, 0x1F, 0x1E, 0x00, 0x00,
+    0x00, 0x70, 0x00, 0xC0, 0xA0, 0xF8, 0x80, 0xC0, 0x80, 0xF0, 0xC0, 0x38, 0x5C, 0x00, 0x70, 0x40,
+    0xE0, 0x60, 0xF0, 0xF0, 0xF0, 0xE0, 0xE0, 0xF0, 0xC0, 0xE0, 0xF0, 0xF0, 0xF0, 0xE0, 0x00, 0x00,
+    0x07, 0x0F, 0x0F, 0x12, 0x13, 0x38, 0x00, 0x0F, 0x07, 0x0F, 0x00, 0x0D, 0x0C, 0x07, 0x07, 0x01,
+    0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1E, 0x1C, 0x1E, 0x00, 0x00, 0x13, 0x1F, 0x1F, 0x1E, 0x00, 0x00,
+    0x80, 0xF0, 0x00, 0x40, 0x20, 0x78, 0x00, 0xC0, 0x80, 0xF0, 0xC0, 0xB8, 0xDC, 0x80, 0xF0, 0x80,
+    0xF8, 0xF8, 0xF0, 0xF0, 0xF0, 0xE0, 0xE0, 0xF0, 0x07, 0x07, 0xFE, 0xF0, 0xF0, 0xE0, 0x00, 0x00,
+    0x04, 0x0C, 0x0C, 0x13, 0x13, 0x3F, 0x07, 0x0F, 0x07, 0x0F, 0x03, 0x0C, 0x0C, 0x00, 0x00, 0x00,
+    0x0F, 0x0F, 0x0F, 0x1F, 0x3F, 0x7C, 0x70, 0x38, 0x01, 0x01, 0x0F, 0x1F, 0x3F, 0x1C, 0x00, 0x00,
+    0x00, 0x70, 0x00, 0xC0, 0xA0, 0xF8, 0x80, 0xC0, 0x80, 0xF0, 0xC0, 0x38, 0x5C, 0x00, 0x70, 0x40,
+    0xC0, 0x60, 0xE4, 0xFC, 0xFC, 0x7C, 0x00, 0x00, 0xC0, 0xE0, 0xE0, 0xF0, 0xF0, 0x70, 0x00, 0x00,
+    0x07, 0x0F, 0x0F, 0x12, 0x13, 0x38, 0x00, 0x07, 0x07, 0x0F, 0x00, 0x0D, 0x0C, 0x07, 0x07, 0x01,
+    0x0F, 0x0F, 0x0F, 0x1F, 0x3F, 0x7C, 0x70, 0x38, 0x00, 0x00, 0x09, 0x1F, 0x3F, 0x1C, 0x00, 0x00,
+    0x80, 0xF0, 0x00, 0x40, 0x20, 0x78, 0x00, 0xC0, 0x80, 0xF0, 0xC0, 0xB8, 0xDC, 0x80, 0xF0, 0x80,
+    0xF8, 0xF8, 0xE0, 0xFC, 0xFC, 0x7C, 0x00, 0x00, 0x07, 0x07, 0xEE, 0xF0, 0xF0, 0x70, 0x00, 0x00,
+    0x00, 0x07, 0x07, 0x0F, 0x0F, 0x38, 0x7F, 0x7F, 0x00, 0x07, 0x03, 0x00, 0x00, 0x07, 0x04, 0x04,
+    0x1F, 0x1F, 0x1F, 0x1F, 0x0F, 0x0F, 0x0F, 0x07, 0x1E, 0x1F, 0x1F, 0x1F, 0x0F, 0x08, 0x00, 0x00,
+    0x00, 0xE0, 0xF8, 0xFC, 0xFC, 0x1C, 0xF8, 0xF8, 0x38, 0xF8, 0xC0, 0x00, 0x00, 0xE0, 0x20, 0x20,
+    0xF8, 0xFC, 0xFC, 0xF8, 0x78, 0x80, 0xC0, 0xC0, 0x78, 0xFC, 0xFC, 0xF8, 0x00, 0x80, 0x00, 0x00,
+    0x00, 0x03, 0x07, 0x07, 0x09, 0x09, 0x1C, 0x00, 0x00, 0x03, 0x07, 0x00, 0x06, 0x06, 0x03, 0x63,
+    0x1F, 0x0F, 0x07, 0x37, 0x7F, 0xDF, 0x0F, 0x06, 0xE0, 0x21, 0x01, 0x07, 0x07, 0x1F, 0x0F, 0x06,
+    0x00, 0xC0, 0xF8, 0x80, 0x20, 0x90, 0x3C, 0x00, 0x00, 0xC0, 0xF8, 0x60, 0xDC, 0x6E, 0xC0, 0xFB,
+    0xE4, 0xFE, 0x70, 0xF1, 0xFF, 0xFF, 0x00, 0x00, 0x83, 0xC0, 0xF0, 0xF0, 0xFC, 0xFC, 0x00, 0x00,
+    0x07, 0x0F, 0x0F, 0x12, 0x13, 0x38, 0x70, 0xFF, 0x07, 0x0F, 0x00, 0x0D, 0x0C, 0x07, 0x0F, 0x02,
+    0xDF, 0x1E, 0x1F, 0x1F, 0x1F, 0x0F, 0x07, 0x01, 0x01, 0xF3, 0x5F, 0x1F, 0x1F, 0x4F, 0x37, 0xC0,
+    0x80, 0xF0, 0x00, 0x40, 0x20, 0x78, 0x00, 0xFC, 0x80, 0xF0, 0xC0, 0xB8, 0xDC, 0x80, 0xF0, 0x00,
+    0xF0, 0xE0, 0xE0, 0xF0, 0xFA, 0xFE, 0xFC, 0xD8, 0x8F, 0xE7, 0xE0, 0xF0, 0xC8, 0x88, 0x10, 0x00,
+    0x00, 0x00, 0x07, 0x08, 0x10, 0x20, 0x40, 0x40, 0x00, 0x00, 0x00, 0x07, 0x08, 0x10, 0x20, 0x20,
+    0x40, 0x40, 0x20, 0x10, 0x08, 0x07, 0x00, 0x00, 0x20, 0x20, 0x10, 0x08, 0x07, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0xE0, 0x10, 0x08, 0x04, 0x02, 0x02, 0x00, 0x00, 0x00, 0xE0, 0x10, 0x08, 0x04, 0x04,
+    0x02, 0x02, 0x04, 0x08, 0x10, 0xE0, 0x00, 0x00, 0x04, 0x04, 0x08, 0x10, 0xE0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x04, 0x08, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x04, 0x08,
+    0x10, 0x08, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00, 0x08, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xC0, 0x20, 0x10, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x20, 0x10,
+    0x08, 0x10, 0x20, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x10, 0x20, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x21, 0x10, 0x00, 0x00, 0x00, 0x01, 0x01, 0x40, 0x00, 0x00, 0x00, 0x00,
+    0x60, 0x00, 0x00, 0x10, 0x21, 0x01, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x40, 0x01, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x08, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00,
+    0x0C, 0x00, 0x00, 0x10, 0x08, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+    0x04, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x07, 0x03, 0x00, 0x00, 0x01, 0x01, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03,
+    0x07, 0x07, 0x07, 0x03, 0x01, 0x00, 0x00, 0x00, 0x07, 0x07, 0x07, 0x07, 0x03, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x42, 0x39, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x7F, 0x3F, 0x1F, 0x0F, 0x1F, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x3F, 0x1F, 0x1F, 0xFF, 0xFF, 0xFF,
+    0xF8, 0xF7, 0xEF, 0xFF, 0xFF, 0xFE, 0x7E, 0x3E, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F,
+    0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x03, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xDB, 0xF6, 0x00, 0x80, 0x80, 0xC0, 0xE0, 0xF0, 0xFF, 0xFF,
+    0xCB, 0xE0, 0xC4, 0x02, 0xD1, 0xE1, 0xD1, 0x83, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x0F, 0xFF, 0xE0, 0x8F, 0x6E, 0x44, 0xEE, 0x60, 0xFF, 0xFF, 0xFF, 0xF0, 0x80, 0x00, 0x00, 0x9F,
+    0x83, 0xE0, 0xE4, 0xC6, 0x61, 0x33, 0x1F, 0x0F, 0xFF, 0xFF, 0xF9, 0xF9, 0x7F, 0x3F, 0x1F, 0x0F,
+    0x00, 0x00, 0x00, 0x03, 0x07, 0x0F, 0x5B, 0xA7, 0x00, 0x01, 0x01, 0x03, 0x07, 0x0F, 0xFF, 0xFF,
+    0x73, 0x07, 0x27, 0x40, 0x8B, 0x87, 0x8B, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xF0, 0xFF, 0x0F, 0xE1, 0xEC, 0x44, 0xEE, 0x0C, 0xFF, 0xFF, 0xFF, 0x1F, 0x03, 0x01, 0x01, 0xF3,
+    0x80, 0x0E, 0x4E, 0xC6, 0x0C, 0x98, 0xF0, 0xE0, 0xFF, 0xFF, 0x3F, 0x3F, 0xFC, 0xF8, 0xF0, 0xE0,
+    0x00, 0x42, 0x9C, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFE, 0xFC, 0xF8, 0xF0, 0xF8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFC, 0xF8, 0xF8, 0xFF, 0xFF, 0xFF,
+    0x1F, 0xEF, 0xF7, 0xFF, 0xFF, 0xFE, 0x7C, 0x70, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFC,
+    0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x20, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0xE0, 0xC0, 0x00, 0x00, 0x80, 0x80, 0x80,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0,
+    0xE0, 0xE0, 0xE0, 0xC0, 0x80, 0x00, 0x00, 0x00, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00, 0x1F, 0x3F, 0x3F, 0x7F, 0x7F, 0x7F, 0x00, 0x0F, 0x28, 0x5C, 0x3F, 0x7F, 0x7F, 0x7F,
+    0x7F, 0x3E, 0x1F, 0x1F, 0x0F, 0x0F, 0x0F, 0x07, 0x7F, 0x3E, 0x1F, 0x1F, 0x08, 0x00, 0x00, 0x00,
+    0x00, 0x60, 0xF0, 0xF8, 0xF8, 0xF8, 0xFC, 0xFC, 0x00, 0x80, 0x40, 0xC4, 0xF6, 0xFE, 0xFC, 0xFC,
+    0xF8, 0xF0, 0xF0, 0xE0, 0x80, 0x80, 0xC0, 0xC0, 0xF8, 0xF0, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00,
+    0x00, 0x1F, 0x3F, 0x7F, 0xFF, 0xFF, 0x3E, 0x0F, 0x00, 0x1C, 0x3F, 0x7F, 0xFF, 0xFF, 0x3E, 0x70,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xE0, 0xF0, 0xFC, 0xFE, 0xFE, 0xFF, 0xFC, 0x00, 0x60, 0xF0, 0xF8, 0xFC, 0xFC, 0xFC, 0xFF,
+    0x7C, 0xFC, 0xF8, 0xF0, 0xE0, 0x00, 0x00, 0x00, 0x7C, 0xFC, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x07, 0x07, 0x0F, 0x0F, 0x00, 0x1F, 0x3F, 0x00, 0x07, 0x03, 0x00, 0x00, 0x07, 0x04, 0x04,
+    0x7F, 0x7F, 0x1F, 0x1F, 0x1F, 0x1E, 0x0F, 0x1F, 0x0C, 0x9E, 0xFF, 0x1F, 0x1F, 0x1E, 0x0F, 0x00,
+    0x00, 0xE0, 0xE0, 0xF0, 0xF0, 0x00, 0xF8, 0xFC, 0x00, 0xE0, 0xC0, 0x00, 0x00, 0xE0, 0x20, 0x20,
+    0xFE, 0xFE, 0xF8, 0xF8, 0xF8, 0x78, 0xF0, 0xF8, 0x30, 0x79, 0xFF, 0xF8, 0xF8, 0x78, 0xF0, 0x00,
+    0x03, 0x07, 0x05, 0x08, 0x1B, 0x19, 0x05, 0x3F, 0x03, 0x07, 0x02, 0x07, 0x04, 0x46, 0xE3, 0xC2,
+    0x3F, 0x0F, 0x05, 0x37, 0x3F, 0x3F, 0x3E, 0x1C, 0x42, 0x07, 0x07, 0x07, 0x07, 0x03, 0x02, 0x00,
+    0xE0, 0xF0, 0x50, 0x08, 0x6C, 0xCC, 0xD0, 0xFE, 0xE0, 0xF0, 0xA0, 0xF0, 0x90, 0x32, 0xE3, 0x21,
+    0xFE, 0xF8, 0xD0, 0xFB, 0xFF, 0xFF, 0x3E, 0x0C, 0x20, 0x70, 0xF0, 0xF8, 0xF8, 0xF0, 0x30, 0x00,
+    0x00, 0x00, 0x79, 0xF9, 0xF3, 0xFF, 0x7B, 0x3F, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1E, 0x7F, 0x3E,
+    0x3F, 0x3F, 0x7B, 0x7F, 0xFB, 0xF1, 0x79, 0x38, 0x3C, 0x3E, 0x7F, 0x7E, 0x18, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x80, 0xB0, 0xB8, 0xC6, 0x93, 0xF7, 0xC0, 0xE0, 0x40, 0x00, 0x00, 0x3A, 0xEF, 0x4B,
+    0xE3, 0xF7, 0x93, 0xC6, 0xB8, 0xB0, 0x80, 0x00, 0x5F, 0x4B, 0xEF, 0x3A, 0x00, 0x00, 0x60, 0xC0,
+    0x30, 0x7C, 0xFF, 0xFF, 0xDF, 0x0B, 0x1F, 0x7F, 0x00, 0x0C, 0x0F, 0x1F, 0x1F, 0x0F, 0x0E, 0x04,
+    0x7F, 0x0B, 0x33, 0x36, 0x10, 0x0A, 0x0F, 0x07, 0x84, 0xC7, 0x4C, 0x09, 0x0F, 0x05, 0x0F, 0x07,
+    0x38, 0x7C, 0xFC, 0xFC, 0xEC, 0xA0, 0xF0, 0xFC, 0x00, 0x40, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0x42,
+    0xFC, 0xA0, 0x98, 0xD8, 0x10, 0xA0, 0xE0, 0xC0, 0x43, 0xC7, 0x62, 0x20, 0xE0, 0x40, 0xE0, 0xC0,
+    0x00, 0x01, 0x0D, 0x1D, 0x63, 0xC9, 0xEF, 0xC7, 0x03, 0x04, 0x00, 0x00, 0x5C, 0xF7, 0xD2, 0xFA,
+    0xEF, 0xC9, 0x63, 0x1D, 0x0D, 0x01, 0x00, 0x00, 0xD2, 0xF7, 0x5C, 0x00, 0x00, 0x02, 0x07, 0x03,
+    0x1C, 0x9E, 0x8F, 0xDF, 0xFE, 0xDE, 0xFC, 0xFC, 0x00, 0x00, 0x00, 0x18, 0x7E, 0xFE, 0x7C, 0x3C,
+    0xFC, 0xDE, 0xFF, 0xCF, 0x9F, 0x9E, 0x00, 0x00, 0x7C, 0xFE, 0x78, 0x00, 0x00, 0x00, 0x80, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x1E, 0x3F, 0x7D, 0x78, 0x00, 0x00, 0x01, 0x00, 0x00, 0x20, 0x7C, 0x78,
+    0x7C, 0xFB, 0xFF, 0xFF, 0x5F, 0x1F, 0x1F, 0x1F, 0x7C, 0xFE, 0xFF, 0xFE, 0x7C, 0x60, 0xE0, 0xE1,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x80, 0x00, 0x7C, 0x82, 0x01, 0x82, 0x7C, 0x00, 0x00, 0x00,
+    0x00, 0x21, 0xA2, 0xA3, 0xB3, 0x8F, 0x27, 0xFE, 0x10, 0x19, 0x5A, 0xDF, 0x4F, 0x73, 0xDB, 0x02,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x0F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x03, 0x0C, 0x10, 0x22, 0x20,
+    0x1F, 0x1F, 0x0F, 0x03, 0x00, 0x00, 0x00, 0x00, 0x21, 0x23, 0x10, 0x0C, 0x03, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xC0, 0xF0, 0xF8, 0xF8, 0x00, 0x00, 0x00, 0xC0, 0x30, 0x08, 0x64, 0xC4,
+    0xF8, 0xF8, 0xF0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x84, 0x04, 0x08, 0x30, 0xC0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x0F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x03, 0x0C, 0x10, 0x26, 0x23,
+    0x1F, 0x1F, 0x0F, 0x03, 0x00, 0x00, 0x00, 0x00, 0x21, 0x20, 0x10, 0x0C, 0x03, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xC0, 0xF0, 0xF8, 0xF8, 0x00, 0x00, 0x00, 0xC0, 0x30, 0x08, 0x44, 0x04,
+    0xF8, 0xF8, 0xF0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x84, 0xC4, 0x08, 0x30, 0xC0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x0F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x03, 0x0C, 0x10, 0x20, 0x21,
+    0x1F, 0x1F, 0x0F, 0x03, 0x00, 0x00, 0x00, 0x00, 0x23, 0x26, 0x10, 0x0C, 0x03, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xC0, 0xF0, 0xF8, 0xF8, 0x00, 0x00, 0x00, 0xC0, 0x30, 0x08, 0xC4, 0x84,
+    0xF8, 0xF8, 0xF0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x04, 0x44, 0x08, 0x30, 0xC0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x0F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x03, 0x0C, 0x10, 0x23, 0x21,
+    0x1F, 0x1F, 0x0F, 0x03, 0x00, 0x00, 0x00, 0x00, 0x20, 0x22, 0x10, 0x0C, 0x03, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xC0, 0xF0, 0xF8, 0xF8, 0x00, 0x00, 0x00, 0xC0, 0x30, 0x08, 0x04, 0x84,
+    0xF8, 0xF8, 0xF0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0xC4, 0x64, 0x08, 0x30, 0xC0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0F, 0x30, 0x60, 0x3F, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x2F, 0x3F, 0x60, 0x20,
+    0x7F, 0x3F, 0x60, 0x30, 0x0F, 0x00, 0x00, 0x00, 0x20, 0x60, 0x3F, 0x2F, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xF8, 0x06, 0x03, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFA, 0xFE, 0x03, 0x02,
+    0xFF, 0xFE, 0x03, 0x06, 0xF8, 0x00, 0x00, 0x00, 0x02, 0x03, 0xFE, 0xFA, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x2F, 0x3F, 0x60, 0x20, 0x00, 0x00, 0x00, 0x0F, 0x30, 0x60, 0x3F, 0x7F,
+    0x20, 0x60, 0x3F, 0x2F, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x3F, 0x60, 0x30, 0x0F, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xFA, 0xFE, 0x03, 0x02, 0x00, 0x00, 0x00, 0xF8, 0x06, 0x03, 0xFE, 0xFF,
+    0x02, 0x03, 0xFE, 0xFA, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFE, 0x03, 0x06, 0xF8, 0x00, 0x00, 0x00,
+    0x00, 0x44, 0x00, 0x41, 0x20, 0x4B, 0x27, 0x1F, 0x00, 0x00, 0x00, 0x40, 0x20, 0x00, 0x00, 0x01,
+    0x0F, 0x1E, 0x1F, 0x1F, 0x1F, 0x0F, 0x0F, 0x03, 0x03, 0x07, 0x06, 0x06, 0x07, 0x03, 0x00, 0x00,
+    0x00, 0x20, 0x50, 0x20, 0x60, 0x48, 0xE0, 0xF0, 0x00, 0x00, 0x40, 0x00, 0x00, 0x08, 0x00, 0x40,
+    0xF8, 0x78, 0x3C, 0x3C, 0x3C, 0xFC, 0xF8, 0xE0, 0xE0, 0xF0, 0xD0, 0xD0, 0xF0, 0xE0, 0x00, 0x00,
+    0x10, 0x01, 0x2A, 0x0C, 0xA6, 0x17, 0x1F, 0x1F, 0x00, 0x00, 0x02, 0x00, 0x80, 0x00, 0x03, 0x07,
+    0x5E, 0x3C, 0x3D, 0x3D, 0x3E, 0x1F, 0x0F, 0x07, 0x07, 0x0F, 0x0E, 0x0E, 0x0F, 0x07, 0x03, 0x00,
+    0x00, 0x00, 0x80, 0xC8, 0x60, 0xE0, 0xF4, 0xF8, 0x00, 0x00, 0x00, 0x08, 0x00, 0x80, 0x24, 0xC0,
+    0x7C, 0x1C, 0x2E, 0x2E, 0x1E, 0xFC, 0xF8, 0xE0, 0xF0, 0xF8, 0xD8, 0xD8, 0xF8, 0xF0, 0xC0, 0x00,
+    0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF,
+    0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF,
+    0x92, 0x54, 0x38, 0xFE, 0x38, 0x54, 0x92, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x23, 0x97, 0x2F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03,
+    0x6E, 0xEF, 0xF7, 0xFF, 0x7F, 0x3F, 0x5F, 0x0F, 0x07, 0x07, 0x03, 0x27, 0x1F, 0x07, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xF8, 0xFC, 0xFE, 0x5E, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0xF8, 0xAC,
+    0x5E, 0x0C, 0x9E, 0xFE, 0xFE, 0xFE, 0xF8, 0xC0, 0xAC, 0xF8, 0xF8, 0xF8, 0xF0, 0xC0, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x07, 0x2F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03,
+    0x4E, 0x6E, 0xFE, 0x7F, 0x3F, 0x1F, 0x0F, 0x03, 0x07, 0x07, 0x07, 0x27, 0x1F, 0x07, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xF8, 0xFC, 0xFE, 0x56, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0xF8, 0xAC,
+    0x56, 0x0C, 0x0E, 0x1F, 0xFF, 0xFF, 0xFE, 0xF8, 0xAC, 0xF8, 0xF8, 0xFC, 0xFC, 0xF8, 0xF0, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x07, 0x08, 0x10, 0x10, 0x20, 0x20, 0x20, 0x00, 0x07, 0x08, 0x10, 0x10, 0x20, 0x20, 0x20,
+    0x1F, 0x2F, 0x37, 0x3A, 0x3D, 0x3E, 0x3F, 0x00, 0x1F, 0x3F, 0x3F, 0x3F, 0x3E, 0x3F, 0x3F, 0x00,
+    0x00, 0x05, 0x19, 0x33, 0x63, 0xC7, 0xC7, 0xC4, 0x00, 0x07, 0x1F, 0x3F, 0x7F, 0xFF, 0xFF, 0xDD,
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x00, 0x89, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x07,
+    0x00, 0x00, 0x0F, 0x00, 0x80, 0x63, 0x1E, 0x00, 0x0F, 0x0F, 0x00, 0x1F, 0x7F, 0x1C, 0x00, 0x00,
+    0x01, 0x03, 0x19, 0x3C, 0x19, 0x23, 0x51, 0x20, 0x01, 0x02, 0x19, 0x24, 0x19, 0x22, 0x11, 0x2C,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x07, 0x03, 0x03, 0x01, 0x01, 0x01, 0x00,
+    0x00, 0x3F, 0x1F, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x07, 0x0D, 0x19,
+    0x11, 0x00, 0x01, 0x00, 0x01, 0x00, 0x1F, 0x3F, 0x29, 0x19, 0x0D, 0x07, 0x03, 0x01, 0x00, 0x00,
+    0x00, 0xFC, 0xF8, 0x00, 0x80, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xE0, 0xB0, 0x98,
+    0x88, 0x00, 0x80, 0x00, 0x80, 0x00, 0xF8, 0xFC, 0x94, 0x98, 0xB0, 0xE0, 0xC0, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0x01, 0x01, 0x41, 0x01, 0x01, 0x00, 0x1F, 0x3F, 0x0F, 0x79, 0xA1, 0x79, 0x0F, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80,
+    0x80, 0x80, 0x82, 0x80, 0x80, 0x00, 0xF8, 0xFC, 0xF0, 0x9E, 0x85, 0x9E, 0xF0, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x1E, 0x3F, 0x3F, 0x3F, 0x3F, 0x00, 0x00, 0x00, 0x1E, 0x3F, 0x3F, 0x3F, 0x3F,
+    0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00, 0x00, 0x00, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x3C, 0x7E, 0xFE, 0xFE, 0xFE, 0x00, 0x00, 0x00, 0x3C, 0x7E, 0xFE, 0xFE, 0xFE,
+    0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80, 0x00, 0x00, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x08, 0x19, 0x09, 0x09, 0x09, 0x09, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x38, 0x05, 0x05, 0x19, 0x05, 0x05, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3C, 0x21, 0x21, 0x3D, 0x05, 0x05, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x18, 0x25, 0x25, 0x19, 0x25, 0x25, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0x29, 0x29, 0x29, 0x29, 0x29, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x63, 0x31, 0x1F,
+    0x00, 0x00, 0x00, 0x00, 0x3C, 0xB6, 0x7C, 0xF8, 0x00, 0x00, 0xFC, 0xFE, 0xC0, 0x40, 0x80, 0x00,
+    0x03, 0x03, 0x03, 0x07, 0x0C, 0x1B, 0x77, 0x07, 0x7F, 0x3F, 0x53, 0x07, 0x0C, 0x1B, 0x07, 0x07,
+    0x0F, 0x0F, 0x1F, 0x3F, 0x7F, 0x3F, 0x00, 0x00, 0x0F, 0x0F, 0x03, 0x38, 0x3F, 0x0E, 0x1C, 0x0E,
+    0xE0, 0xF0, 0xF0, 0xF0, 0x18, 0xFC, 0xFC, 0xFC, 0x00, 0x90, 0xF0, 0xF0, 0x18, 0xFC, 0xF0, 0xF8,
+    0xF8, 0xFC, 0xFF, 0xFF, 0xFE, 0xF0, 0x00, 0x00, 0xF8, 0xF0, 0x87, 0x3D, 0xFE, 0x1C, 0x08, 0x00,
+    0x03, 0x03, 0x03, 0x03, 0x01, 0x00, 0x07, 0x1F, 0x7F, 0x3F, 0x53, 0x03, 0x01, 0x00, 0x07, 0x1F,
+    0xFF, 0xFF, 0x7F, 0x3F, 0x0F, 0x03, 0x00, 0x00, 0xCF, 0x63, 0x38, 0x3E, 0x7B, 0x30, 0x18, 0x00,
+    0xE0, 0xF0, 0xF0, 0xE0, 0xFE, 0x3C, 0xF0, 0xFC, 0x00, 0x90, 0xF0, 0xE0, 0xF8, 0x38, 0xF0, 0xF0,
+    0xFC, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0x00, 0xF8, 0xF8, 0xF8, 0x38, 0x80, 0xF8, 0x00, 0x5C,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x01, 0x03, 0x33, 0x19, 0x0F, 0x3F, 0x1F, 0x00, 0x01, 0x03, 0x33, 0x19, 0x0F, 0x3F, 0x1F,
+    0x2B, 0x07, 0x05, 0x0D, 0x0B, 0x1B, 0x1B, 0x3B, 0x2B, 0x07, 0x05, 0x0D, 0x0B, 0x1B, 0x1B, 0x03,
+    0x09, 0x00, 0x07, 0x07, 0x0F, 0x0D, 0x01, 0x00, 0x01, 0x00, 0x03, 0x05, 0x0E, 0x0D, 0x01, 0x00,
+    0xF8, 0xFC, 0xF8, 0xEC, 0xF8, 0xF0, 0xC0, 0xC0, 0xF8, 0xFC, 0xC0, 0x40, 0x80, 0x80, 0x00, 0x80,
+    0xF0, 0xF8, 0xF8, 0xE8, 0xCC, 0xE6, 0xFB, 0xFF, 0xD0, 0xF8, 0xF8, 0xE8, 0xCC, 0xE6, 0xF8, 0xFE,
+    0xFF, 0xFE, 0xFE, 0xFE, 0xFE, 0x8F, 0x00, 0x00, 0xFE, 0xFE, 0x06, 0xF8, 0x0E, 0x80, 0x00, 0x00,
+    0x01, 0x0F, 0x00, 0x00, 0x04, 0x1E, 0x00, 0x03, 0x01, 0x0F, 0x07, 0x1D, 0x3B, 0x01, 0x0F, 0x02,
+    0x07, 0x0F, 0x1F, 0x0F, 0x07, 0x0F, 0x0F, 0x03, 0x02, 0x03, 0x02, 0x77, 0x17, 0x01, 0x00, 0x00,
+    0xE0, 0xF0, 0xF0, 0x48, 0xC8, 0x9C, 0x00, 0xF0, 0xE0, 0xF0, 0x00, 0xB0, 0x30, 0x60, 0xF0, 0x10,
+    0xF8, 0xFC, 0xFC, 0xF8, 0xF8, 0x78, 0x70, 0x60, 0x30, 0xF0, 0xD0, 0xFC, 0xFE, 0x08, 0x00, 0x00,
+    0x00, 0x00, 0x7C, 0x8A, 0xFE, 0xFE, 0xFE, 0xFE, 0x00, 0x10, 0x00, 0x74, 0x00, 0x00, 0x00, 0x00,
+    0xFE, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+    0x07, 0x0B, 0x0F, 0x0B, 0x0B, 0x0B, 0x0B, 0x07, 0x00, 0x04, 0x00, 0x14, 0x04, 0x04, 0x04, 0x00,
+    0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x03, 0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0x00,
+    0xE0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF0, 0xD0, 0xE0, 0x00, 0x20, 0x20, 0x28, 0x20, 0x00, 0x20, 0x00,
+    0x00, 0x01, 0x13, 0x37, 0x3B, 0x74, 0x7A, 0x3E, 0x00, 0x00, 0x08, 0x25, 0x12, 0x53, 0x33, 0x39,
+    0xD8, 0x98, 0xA8, 0xD8, 0xDA, 0x74, 0x28, 0xC8, 0x08, 0x80, 0x30, 0x9C, 0xCA, 0xB8, 0x98, 0x78,
+    0x08, 0x59, 0x30, 0x71, 0x79, 0x2B, 0x36, 0x16, 0x00, 0x08, 0x00, 0x40, 0x00, 0x31, 0x3D, 0x19,
+    0xC6, 0xC4, 0xCC, 0xCC, 0xB8, 0x7C, 0xEC, 0xC8, 0x00, 0x80, 0xC0, 0xC0, 0xC0, 0x88, 0xB8, 0xB8,
+    0x38, 0x4C, 0xC6, 0xC6, 0xC6, 0x64, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x18, 0x38, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7C, 0xC6, 0x0E, 0x3C, 0x78, 0xE0, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7E, 0x0C, 0x18, 0x3C, 0x06, 0xC6, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x1C, 0x3C, 0x6C, 0xCC, 0xFE, 0x0C, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFC, 0xC0, 0xFC, 0x06, 0x06, 0xC6, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3C, 0x60, 0xC0, 0xFC, 0xC6, 0xC6, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFE, 0xC6, 0x0C, 0x18, 0x30, 0x30, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x78, 0xC4, 0xE4, 0x78, 0x86, 0x86, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7C, 0xC6, 0xC6, 0x7E, 0x06, 0x0C, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x38, 0x6C, 0xC6, 0xC6, 0xFE, 0xC6, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFC, 0xC6, 0xC6, 0xFC, 0xC6, 0xC6, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3C, 0x66, 0xC0, 0xC0, 0xC0, 0x66, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xF8, 0xCC, 0xC6, 0xC6, 0xC6, 0xCC, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFE, 0xC0, 0xC0, 0xFC, 0xC0, 0xC0, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFE, 0xC0, 0xC0, 0xFC, 0xC0, 0xC0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3E, 0x60, 0xC0, 0xDE, 0xC6, 0x66, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xC6, 0xC6, 0xFE, 0xC6, 0xC6, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x1E, 0x06, 0x06, 0x06, 0xC6, 0xC6, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xCC, 0xD8, 0xF0, 0xF8, 0xDC, 0xCE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xEE, 0xFE, 0xFE, 0xD6, 0xC6, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xE6, 0xF6, 0xFE, 0xDE, 0xCE, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7C, 0xC6, 0xC6, 0xC6, 0xC6, 0xC6, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFC, 0xC6, 0xC6, 0xC6, 0xFC, 0xC0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7C, 0xC6, 0xC6, 0xC6, 0xDE, 0xCC, 0x7A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFC, 0xC6, 0xC6, 0xCE, 0xF8, 0xDC, 0xCE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x78, 0xCC, 0xC0, 0x7C, 0x06, 0xC6, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xC6, 0xC6, 0xC6, 0xC6, 0xC6, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xC6, 0xC6, 0xEE, 0x7C, 0x38, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xC6, 0xD6, 0xFE, 0xFE, 0xEE, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0xEE, 0x7C, 0x38, 0x7C, 0xEE, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x66, 0x66, 0x66, 0x3C, 0x18, 0x18, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFE, 0x0E, 0x1C, 0x38, 0x70, 0xE0, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x06, 0x0E, 0x08, 0x08, 0x08, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x78, 0x65, 0x79, 0x65, 0x65, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xE4, 0x96, 0x96, 0x97, 0x96, 0xE6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x59, 0x59, 0x59, 0x59, 0xD9, 0x4E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x3C, 0x70, 0x70, 0x3C, 0x0C, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0xC6, 0xEE, 0x28, 0x28, 0x28, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x08, 0x08, 0x08, 0x08, 0x0E, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x28, 0x28, 0x28, 0x28, 0xEE, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x60, 0x70, 0x10, 0x10, 0x10, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x1C, 0x3E, 0x3C, 0x38, 0x30, 0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x10, 0x10, 0x10, 0x10, 0x70, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x38, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0xFF, 0x81, 0x81, 0x81, 0xFF, 0x81, 0x81,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x81, 0xFF, 0x81, 0x81, 0x81, 0xFF, 0x81, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x38, 0x81, 0xFF, 0x81, 0x81, 0x81, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x38, 0x6C, 0x81, 0xFF, 0x81, 0x81, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x81, 0xFF, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0x81, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xFF, 0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81,
+    0x38, 0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x81,
+    0x6C, 0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x81, 0x81,
+    0xC6, 0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0xFF, 0x81, 0x81,
+    0x83, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x81, 0xFF, 0x81, 0x81,
+    0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x81, 0x81, 0xFF, 0x81, 0x81,
+    0xBF, 0x5F, 0x5F, 0x5F, 0x00, 0x5F, 0x51, 0x55, 0xFF, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F,
+    0x51, 0x5F, 0x00, 0x5F, 0x5F, 0x5F, 0x5F, 0xBF, 0x7F, 0x7F, 0x7F, 0x7F, 0x72, 0x7F, 0x7F, 0xFF,
+    0xFF, 0xFE, 0xFE, 0xFE, 0x00, 0xFE, 0x26, 0x26, 0xFF, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+    0x22, 0xFE, 0x00, 0xFE, 0xFE, 0xFE, 0xFE, 0xFF, 0xFE, 0xFE, 0xFE, 0xFE, 0x4A, 0xFE, 0xFE, 0xFF,
+    0x07, 0x00, 0x0F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x05, 0x0F, 0x0B, 0x1B, 0x13, 0x13, 0x13, 0x13,
+    0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x0F, 0x00, 0x07, 0x13, 0x13, 0x13, 0x13, 0x1B, 0x0B, 0x0F, 0x05,
+    0x07, 0x00, 0x0F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x05, 0x0F, 0x0B, 0x1B, 0x13, 0x13, 0x13, 0x13,
+    0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x0F, 0x00, 0x07, 0x13, 0x13, 0x13, 0x13, 0x1B, 0x0B, 0x0F, 0x05,
+    0xE0, 0x00, 0xF1, 0xFB, 0xFB, 0xFB, 0xFB, 0xFB, 0xA0, 0xF1, 0xD1, 0xDB, 0xCA, 0xCA, 0xCA, 0xCA,
+    0xFB, 0xFB, 0xFB, 0xFB, 0xFB, 0xF1, 0x00, 0xE0, 0xCA, 0xCA, 0xCA, 0xCA, 0xDB, 0xD1, 0xF1, 0xA0,
+    0xE0, 0x00, 0xF1, 0xFB, 0xFB, 0xFB, 0xFB, 0xFB, 0xA0, 0xF1, 0xD1, 0xDB, 0xCA, 0xCA, 0xCA, 0xCA,
+    0xFB, 0xFB, 0xFB, 0xFB, 0xFB, 0xF1, 0x00, 0xE0, 0xCA, 0xCA, 0xCA, 0xCA, 0xDB, 0xD1, 0xF0, 0xA0,
+    0xFC, 0x00, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xB4, 0xFE, 0x7A, 0x7B, 0x79, 0x79, 0x79, 0x79,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0x00, 0xFC, 0x79, 0x79, 0x79, 0x79, 0x7B, 0x7A, 0xFE, 0xB4,
+    0xFC, 0x00, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xB4, 0xFE, 0x7A, 0x7B, 0x79, 0x79, 0x79, 0x79,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0x00, 0xFC, 0x79, 0x79, 0x79, 0x79, 0x7B, 0x7A, 0xFE, 0xB4,
+    0x00, 0x00, 0x1F, 0x10, 0x10, 0x1F, 0x00, 0x00, 0x7F, 0xBF, 0xFF, 0xB2, 0xB1, 0xFF, 0xBF, 0x7F,
+    0x00, 0x00, 0xF8, 0x08, 0x08, 0xF8, 0x00, 0x00, 0xFE, 0xFD, 0xFF, 0xCD, 0x6D, 0xFF, 0xFD, 0xFE,
+    0x00, 0x01, 0x02, 0x02, 0xF1, 0x08, 0x04, 0x03, 0xFF, 0xFF, 0xAE, 0xFE, 0xFF, 0x0F, 0x07, 0x03,
+    0x00, 0x80, 0x40, 0x40, 0x8F, 0x10, 0x20, 0xC0, 0xFF, 0xFF, 0x75, 0x7F, 0xFF, 0xF0, 0xE0, 0xC0,
+    0x03, 0x04, 0x08, 0xF1, 0x02, 0x02, 0x01, 0x00, 0x03, 0x07, 0x0F, 0xFF, 0xFE, 0xAE, 0xFF, 0xFF,
+    0xC0, 0x20, 0x10, 0x8F, 0x40, 0x40, 0x80, 0x00, 0xC0, 0xE0, 0xF0, 0xFF, 0x7F, 0x75, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xC3, 0x81, 0x81, 0xC3, 0xFF, 0xFF, 0xFF, 0x00, 0xC3, 0x81, 0x81, 0xC3, 0xFF, 0x00,
+    0xFF, 0x99, 0x00, 0x00, 0x00, 0x81, 0x81, 0x81, 0x81, 0x66, 0x7E, 0x7E, 0x7E, 0xFF, 0xFF, 0x7E,
+    0x00, 0x00, 0x00, 0x00, 0x60, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x6C, 0x6C, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3C, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x83, 0xD1, 0xE1, 0xD1, 0x02, 0x84, 0xF0, 0xCE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xC0, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC1, 0x8B, 0x87, 0x8B, 0x40, 0x21, 0x0F, 0xD3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0x1F, 0x0F, 0x1E, 0x3F, 0x7F, 0xFF, 0xFF, 0xFF, 0x1F, 0x1F, 0x3F, 0x7F, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xF8, 0xF0, 0x78, 0xFC, 0xFE, 0xFF, 0xFF, 0xFF, 0xF8, 0xF8, 0xFC, 0xFE, 0xFF,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x3C, 0x42, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3C, 0x42, 0x81,
+    0x81, 0xBD, 0x7E, 0xFF, 0xE7, 0xFF, 0xFF, 0xFF, 0x81, 0xBD, 0x7E, 0xA5, 0xDB, 0xE7, 0xFF, 0xFF,
+    0x01, 0x07, 0x1F, 0x3F, 0x7F, 0xFF, 0xFF, 0xDD, 0x00, 0x05, 0x19, 0x33, 0x63, 0xC7, 0xC7, 0xC4,
+    0x89, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x80, 0x00, 0x00, 0x01, 0x01, 0x01, 0x00, 0x00,
+    0x80, 0xE0, 0xF8, 0xFC, 0xFE, 0xFF, 0xFF, 0x3B, 0x00, 0xA0, 0x98, 0xCC, 0xC6, 0xE3, 0xE3, 0x23,
+    0x11, 0x00, 0x00, 0x00, 0x00, 0x40, 0x80, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x40, 0x80, 0x00,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+    0x01, 0x03, 0x00, 0x00, 0x03, 0x19, 0x00, 0x00, 0x01, 0x03, 0x03, 0x07, 0x04, 0x1C, 0x3F, 0x7F,
+    0x00, 0x00, 0x7C, 0x02, 0x01, 0x00, 0x00, 0x00, 0x7F, 0xFF, 0xFF, 0x7F, 0x7F, 0x1F, 0x03, 0x00,
+    0x00, 0x00, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0F, 0x00, 0x00, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0F,
+    0x0F, 0x07, 0x0F, 0x07, 0x01, 0x10, 0x20, 0x00, 0xFF, 0xFF, 0x3F, 0x3F, 0x7F, 0xFE, 0xFC, 0x30,
+    0xF8, 0xFE, 0x7F, 0x1F, 0x0F, 0x19, 0x30, 0x70, 0xF8, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFB, 0x73, 0x27, 0x0F, 0x1F, 0x1F, 0x3F, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFD, 0xF8, 0xF6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xEF, 0xCF, 0x9F, 0x1F, 0x0F, 0x2D, 0x50, 0x40, 0xEF, 0xCF, 0x9F, 0x1F, 0x0F, 0x7F, 0xFF, 0xFF,
+    0x00, 0x00, 0x00, 0x00, 0xE0, 0xFE, 0xFF, 0xF3, 0x00, 0x00, 0x00, 0xF0, 0xFE, 0xFF, 0xFF, 0xFF,
+    0xFB, 0xFB, 0xFB, 0xFB, 0xFB, 0xF3, 0xF7, 0xE7, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xCF, 0x9F, 0x3F, 0x3F, 0x3F, 0x0F, 0x03, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xC0, 0xF0, 0xFC, 0xF0, 0xF0, 0x98, 0x08, 0x00, 0xFF, 0xFF, 0xFF, 0xF0, 0xF0, 0xF8, 0xF8, 0xF8,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xE0,
+    0xE0, 0xE0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF8, 0xF8, 0xF0, 0xF0, 0xF8, 0xF8, 0xF8, 0xFC, 0xFC, 0xFE,
+    0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x3F, 0x1F, 0x1F, 0x0F, 0x07, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x0F, 0x07, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF0, 0xF0, 0xF8, 0x00, 0x80, 0xC0, 0xE0, 0xF0, 0xF0, 0xF0, 0xFC,
+    0xF9, 0xFF, 0xFF, 0xFF, 0xFF, 0x0E, 0x02, 0x14, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F, 0x1F, 0x3F,
+    0x80, 0xA0, 0x20, 0x20, 0xA0, 0x80, 0x00, 0x00, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xC0, 0x80,
+    0x01, 0x05, 0x04, 0x04, 0x05, 0x01, 0x00, 0x00, 0x03, 0x07, 0x07, 0x07, 0x07, 0x03, 0x03, 0x01,
+    0x00, 0x00, 0x03, 0x07, 0x0F, 0x0F, 0x0F, 0x0F, 0x00, 0x01, 0x03, 0x07, 0x0F, 0x0F, 0x0F, 0x3F,
+    0x9F, 0xFF, 0xFF, 0xFF, 0xFF, 0x70, 0x40, 0x28, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0, 0xF8, 0xFC,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x07,
+    0x07, 0x07, 0x0F, 0x0F, 0x0F, 0x0F, 0x1F, 0x1F, 0x0F, 0x0F, 0x1F, 0x1F, 0x1F, 0x3F, 0x3F, 0x7F,
+    0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFC, 0xF8, 0xF8, 0xF0, 0xE0, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xF0, 0xE0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x07, 0x7F, 0xFF, 0xCF, 0x00, 0x00, 0x00, 0x0F, 0x7F, 0xFF, 0xFF, 0xFF,
+    0xDF, 0xDF, 0xDF, 0xDF, 0xDF, 0xCF, 0xEF, 0xE7, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xF3, 0xF9, 0xFC, 0xFC, 0xFC, 0xF0, 0xC0, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x03, 0x0F, 0x3F, 0x0F, 0x0F, 0x19, 0x10, 0x00, 0xFF, 0xFF, 0xFF, 0x0F, 0x0F, 0x1F, 0x1F, 0x1F,
+    0x1F, 0x7F, 0xFE, 0xF8, 0xF0, 0x98, 0x0C, 0x0E, 0x1F, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xDF, 0xCE, 0xE4, 0xF0, 0xF8, 0xF8, 0xFC, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
+    0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xBF, 0x1F, 0x6F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xF7, 0xF3, 0xF9, 0xF8, 0xF0, 0xB4, 0x0A, 0x02, 0xF7, 0xF3, 0xF9, 0xF8, 0xF0, 0xFE, 0xFF, 0xFF,
+    0x80, 0xC0, 0x00, 0x00, 0xC0, 0x98, 0x00, 0x00, 0x80, 0xC0, 0xC0, 0xE0, 0x20, 0x38, 0xFC, 0xFE,
+    0x00, 0x00, 0x3E, 0x40, 0x80, 0x00, 0x00, 0x00, 0xFE, 0xFF, 0xFF, 0xFE, 0xFC, 0xF8, 0xC0, 0x00,
+    0x00, 0x00, 0x80, 0x80, 0xC0, 0xE0, 0xE0, 0xF0, 0x00, 0x00, 0x80, 0x80, 0xC0, 0xE0, 0xE0, 0xF0,
+    0xF0, 0xE0, 0xF0, 0xE0, 0x80, 0x08, 0x04, 0x00, 0xFF, 0xFF, 0xFC, 0xFC, 0xFE, 0x7E, 0x3F, 0x0C,
+    0x00, 0x00, 0x01, 0x03, 0x03, 0x03, 0x07, 0x07, 0x00, 0x01, 0x03, 0x07, 0x07, 0x07, 0x0F, 0x0F,
+    0x07, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01, 0x0F, 0x0F, 0x07, 0x07, 0x07, 0x03, 0x03, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x04, 0x01, 0x01, 0x01, 0x00, 0x00, 0x03, 0x07, 0x0F,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1C, 0x3B, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x3F, 0x7F,
+    0x7E, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD, 0xF9, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD, 0xF9,
+    0xF3, 0xF7, 0xF6, 0xEE, 0xFD, 0xFC, 0xF8, 0xE1, 0xF3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xD3, 0xCB, 0xC3, 0xE1, 0xF9, 0x39, 0x42, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x07, 0x0F, 0x19, 0x30, 0x63, 0x72, 0x70, 0x01, 0x07, 0x0F, 0x1F, 0x3F, 0xFC, 0xFC, 0xFF, 0xFF,
+    0x00, 0x1F, 0x20, 0xC0, 0xC0, 0xF0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xAB, 0xC1, 0x81, 0x91, 0x82, 0xFC, 0xE0, 0xCE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xE5, 0xDA, 0xF0, 0xE0, 0xC0, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xF0, 0xE0, 0xC0, 0x80, 0x80, 0x00,
+    0xF0, 0xF8, 0xCC, 0x86, 0x62, 0x26, 0x06, 0xC0, 0xF0, 0xF8, 0xFC, 0xFE, 0x9F, 0x9F, 0xFF, 0xFF,
+    0x00, 0xFC, 0x06, 0x03, 0x01, 0x07, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xD5, 0x83, 0x81, 0x89, 0x41, 0x3F, 0x07, 0xD3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x6F, 0xDB, 0x0F, 0x07, 0x03, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x0F, 0x07, 0x03, 0x01, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x38, 0xDC, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xFC, 0xFE,
+    0x7E, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF, 0xBF, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF, 0x9F,
+    0xCF, 0xEF, 0x6F, 0x77, 0xBF, 0x3F, 0x1F, 0x87, 0xCF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xCB, 0xD3, 0xC3, 0x87, 0x9F, 0x9C, 0x42, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00, 0x80, 0xC0, 0xC0, 0xC0, 0xE0, 0xE0, 0x00, 0x80, 0xC0, 0xE0, 0xE0, 0xE0, 0xF0, 0xF0,
+    0xE0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0x80, 0xF0, 0xF0, 0xE0, 0xE0, 0xE0, 0xC0, 0xC0, 0x80,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x20, 0x80, 0x80, 0x80, 0x00, 0x00, 0xC0, 0xE0, 0xF0,
+    0x00, 0x00, 0x00, 0x01, 0x03, 0x07, 0x07, 0x07, 0x00, 0x00, 0x01, 0x03, 0x07, 0x07, 0x07, 0x07,
+    0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x03, 0x01, 0x00, 0x00, 0x00, 0x01, 0x03, 0x03,
+    0x01, 0x01, 0x07, 0x03, 0x04, 0x00, 0x00, 0x00, 0x03, 0x03, 0x07, 0x1F, 0x3F, 0x3F, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x03, 0x0F,
+    0x0E, 0x3E, 0x7F, 0xFF, 0xFF, 0xEF, 0xF7, 0xF8, 0x3F, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0x1F, 0x1F, 0x7F, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0x1F, 0x7F, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFC, 0xF8, 0x80, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFC, 0xF8, 0xF8, 0x00, 0x00,
+    0x30, 0x7F, 0x7F, 0x3F, 0x87, 0xF0, 0xFF, 0xFF, 0xCF, 0x88, 0xDD, 0xC8, 0xF8, 0xFF, 0xFF, 0xFF,
+    0xE5, 0xDA, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x06, 0xFF, 0xFF, 0xFE, 0xF1, 0x07, 0xFF, 0xFF, 0xF9, 0x88, 0xDD, 0x89, 0x0F, 0xFF, 0xFF, 0xFF,
+    0x00, 0x01, 0x02, 0x07, 0x00, 0x00, 0x20, 0xFF, 0x03, 0x07, 0x0F, 0x07, 0x87, 0xC3, 0xE0, 0xFF,
+    0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
+    0xFC, 0xB8, 0x78, 0x78, 0xB0, 0x78, 0xFC, 0xFE, 0xFC, 0xF8, 0xF8, 0xF8, 0xF8, 0xFC, 0xFE, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x9C, 0x42, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00, 0x20, 0x40, 0x8A, 0x1E, 0x7E, 0xBE, 0xC0, 0xF0, 0xFC, 0xFC, 0xFE, 0xFE, 0xFE, 0xFE,
+    0xDF, 0xFF, 0xFE, 0xFC, 0xF0, 0xE0, 0x80, 0x00, 0xFF, 0xFF, 0xFE, 0xFC, 0xF0, 0xE0, 0x80, 0x00,
+    0x00, 0x00, 0x04, 0x02, 0x51, 0x78, 0x7E, 0xFD, 0x03, 0x0F, 0x3F, 0x3F, 0x7F, 0x7F, 0x7E, 0xFF,
+    0xFB, 0xFF, 0x7F, 0x3F, 0x0F, 0x07, 0x01, 0x00, 0xFF, 0xFF, 0x7F, 0x3F, 0x0F, 0x07, 0x01, 0x00,
+    0x00, 0x80, 0x40, 0xE0, 0x00, 0x00, 0x04, 0xFF, 0xC0, 0xE0, 0xF0, 0xE0, 0xE1, 0xC3, 0x07, 0xFF,
+    0xFE, 0xFE, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F,
+    0x3F, 0x1D, 0x1E, 0x1E, 0x0D, 0x1E, 0x3F, 0x7F, 0x3F, 0x1F, 0x1F, 0x1F, 0x1F, 0x3F, 0x7F, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x39, 0x42, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x6F, 0xDB, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xC0, 0xF0,
+    0x70, 0x7C, 0x7E, 0xFF, 0xFF, 0xF7, 0xEF, 0x1F, 0xFC, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xF8, 0xF8, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF8, 0xFE, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0x3F, 0x1E, 0x01, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x3F, 0x1F, 0x1F, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x80, 0xC0, 0xE0, 0xE0, 0xE0, 0x00, 0x00, 0x80, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0,
+    0xC0, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0x80, 0xC0, 0x80, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xC0,
+    0x80, 0x80, 0xE0, 0xC0, 0x20, 0x00, 0x00, 0x00, 0xC0, 0xC0, 0xE0, 0xF8, 0xFC, 0xFC, 0x00, 0x00,
+    0x1F, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x39, 0x65, 0x65, 0x65, 0x65, 0x65, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xE0, 0xB0, 0xB0, 0xB6, 0xE6, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3C, 0x42, 0x99, 0xA1, 0xA1, 0x99, 0x42, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x03, 0x06, 0x00, 0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x03, 0x07, 0x03, 0x07,
+    0x0F, 0x1F, 0x3F, 0x7F, 0x7F, 0x7F, 0xFF, 0x7F, 0x1F, 0x3F, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F,
+    0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF0, 0xF8,
+    0xE0, 0xF0, 0xE0, 0xDD, 0xFA, 0xEB, 0x80, 0x00, 0xFC, 0xF8, 0xF0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00, 0x00, 0x03, 0x06, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x03, 0x07, 0x0F, 0x1F,
+    0x0B, 0x07, 0x03, 0x5D, 0xAF, 0x53, 0x00, 0x00, 0x3F, 0x1F, 0x07, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x60, 0xF0, 0x00, 0x00, 0x00, 0xC0, 0xC0, 0xC0, 0xE0, 0xF8,
+    0xF8, 0xFC, 0xFC, 0xFE, 0xFE, 0xFF, 0xFF, 0x7E, 0xFC, 0xFE, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x3F, 0x36, 0x36, 0x7E, 0x7F, 0x7F, 0x7F, 0x3F, 0x3F,
+    0x3F, 0x1F, 0x1F, 0x0F, 0x07, 0x03, 0x00, 0x00, 0x3F, 0x1F, 0x1F, 0x0F, 0x07, 0x03, 0x00, 0x00,
+    0x3E, 0x1E, 0x1E, 0x0E, 0x0F, 0x1F, 0x9F, 0x9F, 0x3F, 0x1F, 0xDF, 0xCF, 0xCF, 0x9F, 0xDF, 0xFF,
+    0xDF, 0xFF, 0xFF, 0xFF, 0xFF, 0xDF, 0xE7, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F,
+    0x20, 0x0F, 0x30, 0x40, 0x98, 0x3E, 0x1F, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x81, 0x36, 0x2E, 0xAF, 0xAE, 0xD1, 0xEF, 0x87, 0xFF, 0xF9, 0xF0, 0xF0, 0xB1, 0xDF, 0xEF, 0x87,
+    0x02, 0xF8, 0x06, 0x01, 0x0C, 0x3E, 0xFC, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xC0, 0x36, 0x3E, 0x7A, 0xB6, 0xCD, 0xFB, 0xF0, 0xFF, 0xCF, 0x87, 0x87, 0xCE, 0xFD, 0xFB, 0xF0,
+    0x3E, 0x3C, 0x3C, 0x38, 0xF8, 0x7C, 0x7E, 0x78, 0xFE, 0xFC, 0xFC, 0xF8, 0xFB, 0xFD, 0xFE, 0xFF,
+    0xF8, 0x7F, 0x7F, 0xFE, 0xFF, 0xFF, 0xF3, 0x81, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF9,
+    0x00, 0x00, 0x00, 0x10, 0x40, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0xFC, 0xFC, 0xFC, 0xFC,
+    0x06, 0x0E, 0x7E, 0xFE, 0xFE, 0xFC, 0xF8, 0xF0, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFC, 0xF8, 0xF0,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x00, 0x08, 0x01, 0x13, 0x01, 0x00, 0x00, 0x01, 0x0F, 0x1F, 0x1F, 0x3B, 0x33, 0x01, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x6C, 0xFD, 0xFF, 0xFF,
+    0x00, 0x43, 0x7F, 0x7F, 0x7F, 0x3F, 0x1F, 0x07, 0xFF, 0x7F, 0x7F, 0x7F, 0x7F, 0x3F, 0x1F, 0x07,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0,
+    0x10, 0x38, 0xBF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x7E, 0x1E, 0x1E, 0x0E, 0x0F, 0x1E, 0x1E, 0x3E, 0xFF, 0x7F, 0x1F, 0x0F, 0x0F, 0x9F, 0x9F, 0xBF,
+    0x7F, 0x7F, 0xBF, 0xFF, 0xFF, 0xFF, 0xE7, 0xC0, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xCF,
+    0x00, 0x00, 0x10, 0xFD, 0xFA, 0xEB, 0x80, 0x00, 0x00, 0x00, 0xF0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x20, 0x1F, 0x60, 0x8E, 0x3F, 0x7F, 0x7F, 0x7C, 0xFF, 0xFF, 0xFF, 0xF1, 0xC4, 0xEE, 0xC4, 0x83,
+    0x39, 0x36, 0x2E, 0xAF, 0xAE, 0xD1, 0xEF, 0x87, 0xC7, 0xF9, 0xF0, 0xF0, 0xB1, 0xDF, 0xEF, 0x87,
+    0x00, 0x00, 0x04, 0x5F, 0xAF, 0x53, 0x00, 0x00, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x02, 0xFC, 0x03, 0x38, 0xFE, 0xFF, 0xFF, 0x1E, 0xFF, 0xFF, 0xFF, 0xC7, 0x45, 0xEE, 0x44, 0xE1,
+    0xC0, 0x36, 0x3E, 0x7A, 0xB6, 0xCD, 0xFB, 0xF0, 0xFF, 0xCF, 0x87, 0x87, 0xCE, 0xFD, 0xFB, 0xF0,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x08, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x07, 0x0F,
+    0x1F, 0x3F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x3F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x3F, 0x3E, 0x3C, 0xB8, 0x78, 0x78, 0x7E, 0x7E, 0xFF, 0xFF, 0xFD, 0xF8, 0xFF, 0xFF, 0xFE, 0xFF,
+    0xFD, 0x79, 0x7B, 0xFF, 0xFF, 0xFF, 0xF3, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF8,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0xF0,
+    0x10, 0x84, 0xE0, 0xC0, 0x80, 0x80, 0x00, 0x00, 0xFC, 0xFE, 0xEC, 0xE0, 0xC0, 0xC0, 0x80, 0x80,
+    0x00, 0x48, 0x20, 0x00, 0x00, 0x04, 0x0E, 0xFE, 0x70, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFE, 0xFE,
+    0xFE, 0xFC, 0xFC, 0xF8, 0xF0, 0xE0, 0x80, 0x00, 0xFE, 0xFC, 0xFC, 0xF8, 0xF0, 0xE0, 0x80, 0x00,
+    0x0F, 0x06, 0x06, 0x06, 0x06, 0x06, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xF0, 0x60, 0x60, 0x66, 0x66, 0x60, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+static constexpr int kMapper = 0;
+static constexpr int kMirroring = 0;
+static constexpr eng::u32 kPrgBankCount = 1;
+static constexpr eng::u32 kPrgBankSize = 16384;
+static constexpr bool kPrgBanked = false;
+static constexpr bool kPrgModeSensitive = false;
+static constexpr eng::u16 kBankedTop = 0xC000;
+static constexpr eng::u8 kMapperKind = 0;
+
+[[nodiscard]] static inline eng::u16 n2a_ld16(const eng::u8* p) {
+    eng::u16 w; __builtin_memcpy(&w, p, 2u);
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    w = __builtin_bswap16(w);
+#endif
+    return w;
+}
+static inline void n2a_st16(eng::u8* p, eng::u16 w) {
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    w = __builtin_bswap16(w);
+#endif
+    __builtin_memcpy(p, &w, 2u);
+}
+
+static u8 ram[0x800];
+static u8 A = 0, X = 0, Y = 0, SP = 0xFD;
+static bool Cf=false, Zf=false, Nf=false, Vf=false, Df=false, If=false;
+static bool halted = false;
+// --- HAL: PPU ($2000-$2007, $2002, $4014) + hooks ---
+static u8 ppu_ctrl=0, ppu_mask=0, ppu_status=0, ppu_oam_addr=0, ppu_latch=0;
+static u16 ppu_scroll=0, ppu_addr=0;
+static u8 vram[0x1000]; static u8 palette[0x20]; static u8 oam[0x100];
+static u8 nt_dirty[0x1000];
+static u8 n2a_pad = 0, n2a_pad_shift = 0;
+static void n2a_set_pad(u8 v) { n2a_pad = v; }
+static u8 hanam = 0; // hook del app: 0 = no inferir intenciones
+static u8 (*hal_ppu_read_hook)(u16) = 0;
+static void (*hal_vblank_hook)(void) = 0;
+static __attribute__((always_inline)) inline u8 hal_ppu_read(u16 a) {
+    if (hal_ppu_read_hook != 0) { return hal_ppu_read_hook(a); }
+    if ((a & 7u) == 2u) { const u8 r = ppu_status; ppu_status = (u8)(ppu_status & 0x7Fu); ppu_latch = 0; return r; }
+    if (a == 0x4016u || a == 0x4017u) { const u8 r = (u8)(n2a_pad_shift & 1u); n2a_pad_shift = (u8)((n2a_pad_shift >> 1) | 0x80u); return r; }
+    return 0;
+}
+static __attribute__((always_inline)) inline void hal_ppu_write(u16 a, u8 v) {
+    switch (a) {
+    case 0x2000u: ppu_ctrl = v; break;
+    case 0x2001u: ppu_mask = v; break;
+    case 0x2003u: ppu_oam_addr = v; break;
+    case 0x2004u: oam[ppu_oam_addr++] = v; break;
+    case 0x2005u: if (ppu_latch == 0) { ppu_scroll = v; } else { ppu_scroll = (u16)((v << 8) | (ppu_scroll & 0xFFu)); } ppu_latch ^= 1u; break;
+    case 0x2006u: if (ppu_latch == 0) { ppu_addr = (u16)(v << 8); } else { ppu_addr = (u16)((ppu_addr & 0xFF00u) | v); } ppu_latch ^= 1u; break;
+    case 0x2007u: { const u16 x = (u16)(ppu_addr & 0x3FFFu); if (x >= 0x2000u && x < 0x3F00u) { vram[x & 0xFFFu] = v; nt_dirty[x & 0xFFFu] = 1u; } else if (x >= 0x3F00u) { palette[(x - 0x3F00u) & 0x1Fu] = v; } ppu_addr = (u16)(ppu_addr + ((ppu_ctrl & 0x04u) ? 32u : 1u)); } break;
+    case 0x4014u: { const u8* s = ram + ((u16)v << 8); for (int i = 0; i < 256; ++i) { oam[i] = s[i]; } } break;
+    case 0x4016u: if (v & 1u) { n2a_pad_shift = n2a_pad; } break;
+    default: break;
+    }
+}
+// Scroll del BG (intencion: Layer.scroll_to).
+static u16 n2a_ppu_scroll_x(void) { return (u16)(ppu_scroll & 0xFFu); }
+static u16 n2a_ppu_scroll_y(void) { return (u16)(ppu_scroll >> 8); }
+static u8 n2a_ppu_ctrl(void) { return ppu_ctrl; }
+static u8 n2a_ppu_mask(void) { return ppu_mask; }
+// Celdas de nametable/atributo sucias (intencion: Layer.set_tile/set_attr).
+static int n2a_ppu_dirty_pop(u16* addr, u8* val) { for (u16 i = 0; i < 0x1000u; ++i) { if (nt_dirty[i]) { *addr = i; *val = vram[i]; nt_dirty[i] = 0u; return 1; } } return 0; }
+static u8 n2a_ppu_vram(u16 a) { return vram[a & 0xFFFu]; }
+// Sprites (intencion: SpriteScene) y paleta (intencion: palette.set).
+static u8 n2a_ppu_oam(u8 i) { return oam[i]; }
+static u8 n2a_ppu_pal(u8 i) { return palette[i & 0x1Fu]; }
+static void hal_vblank(void) { ppu_status = (u8)(ppu_status | 0x80u); }
+static void f_C85F(void); /* handler NMI */
+static u32 g_cyc = 0, g_frame_deadline = 29780u;
+static u8 g_engine_mode = 0, g_yield_req = 0;
+static u8 g_nmi_pending = 0; /* flat: `frame_event` marca NMI; `n2a_run` lo ejecuta inline */
+static u16 g_resume = 0;
+static void (*hal_frame_hook)(void) = 0;
+static void frame_event(void) { g_frame_deadline += 29780u; hal_vblank(); if (hal_frame_hook) { hal_frame_hook(); } g_nmi_pending = 1u; if (g_engine_mode) { g_yield_req = 1u; } }
+static void hal_wait_vblank(void) { frame_event(); }
+static void tick(u32 n) { (void)n; }
+static unsigned long g_steps = 0, g_step_limit = 0;
+static unsigned g_label = 0; /* diagnostico: ultima etiqueta ejecutada */
+static void (*hal_limit_hook)(void) = 0; /* diagnostico: corta al pasar g_steps */
+static __attribute__((always_inline)) inline u8 rd(u16 a) {
+    if (a < 0x2000u) { return ram[a & 0x7FFu]; }
+    if (a >= 0x8000u) { return PRG_ROM[(a - 0x8000u) & (kPrgSize - 1u)]; }
+    return hal_ppu_read(a);
+}
+static __attribute__((always_inline)) inline void wr(u16 a, u8 v) {
+    if (a < 0x2000u) { ram[a & 0x7FFu] = v; return; }
+    hal_ppu_write(a, v);
+}
+static __attribute__((always_inline)) inline void setnz(u8 v) { Zf = (v == 0); Nf = ((v & 0x80u) != 0); }
+
+static void f_C79E(void);
+static void f_C85F(void);
+static void f_FFF0(void);
+static void f_C7E7(void);
+static void f_F4ED(void);
+static void f_CBAE(void);
+static void f_F228(void);
+static void f_F50E(void);
+static void f_FA48(void);
+static void f_CE7C(void);
+static void f_CCF4(void);
+static void f_CA30(void);
+static void f_C8F3(void);
+static void f_F4AC(void);
+static void f_CAC9(void);
+static void f_F23C(void);
+static void f_D19A(void);
+static void f_C807(void);
+static void f_CBB7(void);
+static void f_CBBD(void);
+static void f_CC34(void);
+static void f_CC47(void);
+static void f_CC24(void);
+static void f_CC04(void);
+static void f_CA53(void);
+static void f_CBCA(void);
+static void f_C815(void);
+static void f_D032(void);
+static void f_F4C2(void);
+static void f_F342(void);
+static void f_CCC1(void);
+static void f_CAB9(void);
+static void f_F096(void);
+static void f_C823(void);
+static void f_F08C(void);
+static void f_F080(void);
+static void f_EAD4(void);
+static void f_F086(void);
+static void f_CFA8(void);
+static void f_EBDA(void);
+static void f_D175(void);
+static void f_EB06(void);
+static void f_EBB6(void);
+static void f_D041(void);
+static void f_D1A4(void);
+static void f_EA5F(void);
+static void f_E1E5(void);
+static void f_EE79(void);
+static void f_DA16(void);
+static void f_E19A(void);
+static void f_EC29(void);
+static void f_E834(void);
+static void f_E981(void);
+static void f_EE0C(void);
+static void f_D0C0(void);
+static void f_CF42(void);
+static void f_D04C(void);
+static void f_D008(void);
+static void f_EAE1(void);
+static void f_EACD(void);
+static void f_F088(void);
+static void f_D9E6(void);
+static void f_F082(void);
+static void f_CAA9(void);
+static void f_D1CF(void);
+static void f_D9E8(void);
+static void f_D990(void);
+static void f_D2CB(void);
+static void f_E016(void);
+static void f_D8EB(void);
+static void f_D36A(void);
+static void f_EFEB(void);
+static void f_D8AD(void);
+static void f_EFE8(void);
+static void f_C831(void);
+static void f_D91A(void);
+static void f_D326(void);
+static void f_C847(void);
+static void f_EFEF(void);
+static void f_D50A(void);
+static void f_D4EE(void);
+static void f_EAD1(void);
+static void f_D4F9(void);
+static void f_EF72(void);
+static void f_D800(void);
+static void f_F070(void);
+static void f_F075(void);
+static void f_F094(void);
+static void f_D7F2(void);
+static void f_EFF3(void);
+static void f_E166(void);
+static void f_EFD5(void);
+static void f_EAF7(void);
+static void f_DA4C(void);
+static void f_DF07(void);
+static void f_EADB(void);
+static void f_DFE4(void);
+static void f_EAEC(void);
+static void f_E05A(void);
+static void f_E048(void);
+static void f_DBEE(void);
+static void f_E0AE(void);
+static void f_E090(void);
+static void f_DF40(void);
+static void f_DFC3(void);
+static void f_F08E(void);
+static void f_C853(void);
+static void f_E112(void);
+static void f_E130(void);
+static void f_F092(void);
+static void f_DE86(void);
+static void f_DEA5(void);
+static void f_E0F1(void);
+static void f_EFDD(void);
+static void f_E250(void);
+static void f_E2B6(void);
+static void f_E626(void);
+static void f_E806(void);
+static void f_E6A5(void);
+static void f_E7A3(void);
+static void f_E5E8(void);
+static void f_E770(void);
+static void f_DFE8(void);
+static void f_E968(void);
+static void f_E971(void);
+static void f_E97A(void);
+static void f_EFD7(void);
+static void f_EA01(void);
+static void f_EA34(void);
+static void f_EAA1(void);
+static void f_EBA6(void);
+static void f_EBA1(void);
+static void f_EB97(void);
+static void f_F33E(void);
+static void f_EC44(void);
+static void f_ED8A(void);
+static void f_CFC6(void);
+static void f_EF51(void);
+static void f_ECBF(void);
+static void f_EE6C(void);
+static void f_EF38(void);
+static void f_F063(void);
+static void f_F069(void);
+static void f_F062(void);
+static void f_F11E(void);
+static void f_F195(void);
+static void f_F161(void);
+static void f_F139(void);
+static void f_F10A(void);
+static void f_F24E(void);
+static void f_F32D(void);
+static void f_F32F(void);
+static void f_F3E3(void);
+static void f_F404(void);
+static void f_F426(void);
+static void f_F522(void);
+static void f_FBF2(void);
+static void f_FA8F(void);
+static void f_FAD5(void);
+static void f_FA9F(void);
+static void f_FA95(void);
+static void f_FAE0(void);
+static void f_FAB3(void);
+static void f_FAD7(void);
+static void f_FA86(void);
+static void f_FABA(void);
+static void f_FACA(void);
+static void f_FA93(void);
+static void f_FAC4(void);
+
+[[gnu::used]] static void n2a_run(void) {
+    u8 A = 0u, X = 0u, Y = 0u, SP = 0xFD;
+    bool Cf = false, Zf = false, Nf = false, Vf = false, Df = false, If = false;
+    void* ret_lbl[64]; u16 ret_sp = 0u;
+    static const struct { u16 a; const void* l; } kRL[] = {
+        {0xC79Eu, &&L_C79E},         {0xC7A8u, &&L_C7A8},         {0xC7AFu, &&L_C7AF},         {0xC7B9u, &&L_C7B9},         {0xC7BEu, &&L_C7BE},         {0xC7C2u, &&L_C7C2},         {0xC7C5u, &&L_C7C5},         {0xC7E1u, &&L_C7E1},         {0xC7E4u, &&L_C7E4},         {0xC7E7u, &&L_C7E7},         {0xC804u, &&L_C804},         {0xC807u, &&L_C807},         {0xC815u, &&L_C815},         {0xC823u, &&L_C823},         {0xC831u, &&L_C831},         {0xC847u, &&L_C847},         {0xC853u, &&L_C853},         {0xC85Fu, &&L_C85F},         {0xC87Eu, &&L_C87E},         {0xC889u, &&L_C889},         {0xC893u, &&L_C893},         {0xC897u, &&L_C897},         {0xC89Bu, &&L_C89B},         {0xC89Fu, &&L_C89F},         {0xC8A2u, &&L_C8A2},         {0xC8A5u, &&L_C8A5},         {0xC8ACu, &&L_C8AC},         {0xC8AFu, &&L_C8AF},         {0xC8B3u, &&L_C8B3},         {0xC8C1u, &&L_C8C1},         {0xC8C5u, &&L_C8C5},         {0xC8C8u, &&L_C8C8},         {0xC8CBu, &&L_C8CB},         {0xC8CEu, &&L_C8CE},         {0xC8D1u, &&L_C8D1},         {0xC8D4u, &&L_C8D4},         {0xC8D7u, &&L_C8D7},         {0xC8DEu, &&L_C8DE},         {0xC8E5u, &&L_C8E5},         {0xC8E8u, &&L_C8E8},         {0xC8F3u, &&L_C8F3},         {0xC8F8u, &&L_C8F8},         {0xC8FEu, &&L_C8FE},         {0xC903u, &&L_C903},         {0xC914u, &&L_C914},         {0xC919u, &&L_C919},         {0xC91Cu, &&L_C91C},         {0xC921u, &&L_C921},         {0xC940u, &&L_C940},         {0xC946u, &&L_C946},         {0xC94Cu, &&L_C94C},         {0xC955u, &&L_C955},         {0xC95Cu, &&L_C95C},         {0xC95Du, &&L_C95D},         {0xC966u, &&L_C966},         {0xC974u, &&L_C974},         {0xC976u, &&L_C976},         {0xC985u, &&L_C985},         {0xC989u, &&L_C989},         {0xC98Au, &&L_C98A},         {0xC991u, &&L_C991},         {0xC996u, &&L_C996},         {0xC9A6u, &&L_C9A6},         {0xC9ADu, &&L_C9AD},         {0xC9B1u, &&L_C9B1},         {0xCA04u, &&L_CA04},         {0xCA06u, &&L_CA06},         {0xCA15u, &&L_CA15},         {0xCA26u, &&L_CA26},         {0xCA30u, &&L_CA30},         {0xCA33u, &&L_CA33},         {0xCA37u, &&L_CA37},         {0xCA3Du, &&L_CA3D},         {0xCA41u, &&L_CA41},         {0xCA45u, &&L_CA45},         {0xCA49u, &&L_CA49},         {0xCA4Au, &&L_CA4A},         {0xCA53u, &&L_CA53},         {0xCA56u, &&L_CA56},         {0xCA59u, &&L_CA59},         {0xCA5Au, &&L_CA5A},         {0xCA5Fu, &&L_CA5F},         {0xCA64u, &&L_CA64},         {0xCA79u, &&L_CA79},         {0xCA88u, &&L_CA88},         {0xCA94u, &&L_CA94},         {0xCA99u, &&L_CA99},         {0xCAA9u, &&L_CAA9},         {0xCAABu, &&L_CAAB},         {0xCAB8u, &&L_CAB8},         {0xCAB9u, &&L_CAB9},         {0xCABBu, &&L_CABB},         {0xCAC8u, &&L_CAC8},         {0xCAC9u, &&L_CAC9},         {0xCACCu, &&L_CACC},         {0xCAD2u, &&L_CAD2},         {0xCAD8u, &&L_CAD8},         {0xCADEu, &&L_CADE},         {0xCAE2u, &&L_CAE2},         {0xCAE6u, &&L_CAE6},         {0xCAE7u, &&L_CAE7},         {0xCAECu, &&L_CAEC},         {0xCAF6u, &&L_CAF6},         {0xCAF9u, &&L_CAF9},         {0xCAFAu, &&L_CAFA},         {0xCB01u, &&L_CB01},         {0xCB02u, &&L_CB02},         {0xCB0Bu, &&L_CB0B},         {0xCB0Fu, &&L_CB0F},         {0xCB12u, &&L_CB12},         {0xCB15u, &&L_CB15},         {0xCB18u, &&L_CB18},         {0xCB1Bu, &&L_CB1B},         {0xCB1Fu, &&L_CB1F},         {0xCB23u, &&L_CB23},         {0xCB27u, &&L_CB27},         {0xCB2Bu, &&L_CB2B},         {0xCB2Fu, &&L_CB2F},         {0xCB30u, &&L_CB30},         {0xCB33u, &&L_CB33},         {0xCB36u, &&L_CB36},         {0xCB39u, &&L_CB39},         {0xCB3Cu, &&L_CB3C},         {0xCB42u, &&L_CB42},         {0xCB46u, &&L_CB46},         {0xCB47u, &&L_CB47},         {0xCB58u, &&L_CB58},         {0xCB5Bu, &&L_CB5B},         {0xCB63u, &&L_CB63},         {0xCB68u, &&L_CB68},         {0xCB6Eu, &&L_CB6E},         {0xCB7Bu, &&L_CB7B},         {0xCB83u, &&L_CB83},         {0xCB86u, &&L_CB86},         {0xCB90u, &&L_CB90},         {0xCB9Bu, &&L_CB9B},         {0xCB9Eu, &&L_CB9E},         {0xCBABu, &&L_CBAB},         {0xCBAEu, &&L_CBAE},         {0xCBB7u, &&L_CBB7},         {0xCBBAu, &&L_CBBA},         {0xCBBDu, &&L_CBBD},         {0xCBCAu, &&L_CBCA},         {0xCBCEu, &&L_CBCE},         {0xCBD4u, &&L_CBD4},         {0xCBDDu, &&L_CBDD},         {0xCBDFu, &&L_CBDF},         {0xCBE7u, &&L_CBE7},         {0xCBEBu, &&L_CBEB},         {0xCBEFu, &&L_CBEF},         {0xCBF4u, &&L_CBF4},         {0xCBF5u, &&L_CBF5},         {0xCBF7u, &&L_CBF7},         {0xCBFFu, &&L_CBFF},         {0xCC03u, &&L_CC03},         {0xCC04u, &&L_CC04},         {0xCC08u, &&L_CC08},         {0xCC0Fu, &&L_CC0F},         {0xCC1Bu, &&L_CC1B},         {0xCC23u, &&L_CC23},         {0xCC24u, &&L_CC24},         {0xCC31u, &&L_CC31},         {0xCC34u, &&L_CC34},         {0xCC3Cu, &&L_CC3C},         {0xCC44u, &&L_CC44},         {0xCC47u, &&L_CC47},         {0xCC4Au, &&L_CC4A},         {0xCC54u, &&L_CC54},         {0xCC82u, &&L_CC82},         {0xCC90u, &&L_CC90},         {0xCC94u, &&L_CC94},         {0xCC99u, &&L_CC99},         {0xCCA6u, &&L_CCA6},         {0xCCC1u, &&L_CCC1},         {0xCCD6u, &&L_CCD6},         {0xCCDCu, &&L_CCDC},         {0xCCE4u, &&L_CCE4},         {0xCCEBu, &&L_CCEB},         {0xCCF3u, &&L_CCF3},         {0xCCF4u, &&L_CCF4},         {0xCCF9u, &&L_CCF9},         {0xCD07u, &&L_CD07},         {0xCD0Du, &&L_CD0D},         {0xCD10u, &&L_CD10},         {0xCD13u, &&L_CD13},         {0xCD16u, &&L_CD16},         {0xCD19u, &&L_CD19},         {0xCD22u, &&L_CD22},         {0xCD28u, &&L_CD28},         {0xCD2Cu, &&L_CD2C},         {0xCD30u, &&L_CD30},         {0xCD34u, &&L_CD34},         {0xCD38u, &&L_CD38},         {0xCD3Cu, &&L_CD3C},         {0xCD40u, &&L_CD40},         {0xCD44u, &&L_CD44},         {0xCD45u, &&L_CD45},         {0xCD4Au, &&L_CD4A},         {0xCD4Fu, &&L_CD4F},         {0xCD58u, &&L_CD58},         {0xCD61u, &&L_CD61},         {0xCD66u, &&L_CD66},         {0xCD69u, &&L_CD69},         {0xCD6Cu, &&L_CD6C},         {0xCD6Fu, &&L_CD6F},         {0xCD76u, &&L_CD76},         {0xCD7Eu, &&L_CD7E},         {0xCD7Fu, &&L_CD7F},         {0xCD82u, &&L_CD82},         {0xCD89u, &&L_CD89},         {0xCD90u, &&L_CD90},         {0xCD9Du, &&L_CD9D},         {0xCDABu, &&L_CDAB},         {0xCDAEu, &&L_CDAE},         {0xCDB1u, &&L_CDB1},         {0xCDB5u, &&L_CDB5},         {0xCDBEu, &&L_CDBE},         {0xCDCAu, &&L_CDCA},         {0xCDD7u, &&L_CDD7},         {0xCDDEu, &&L_CDDE},         {0xCDE2u, &&L_CDE2},         {0xCDEFu, &&L_CDEF},         {0xCDF3u, &&L_CDF3},         {0xCDFCu, &&L_CDFC},         {0xCE09u, &&L_CE09},         {0xCE0Eu, &&L_CE0E},         {0xCE1Au, &&L_CE1A},         {0xCE1Fu, &&L_CE1F},         {0xCE24u, &&L_CE24},         {0xCE28u, &&L_CE28},         {0xCE2Fu, &&L_CE2F},         {0xCE3Au, &&L_CE3A},         {0xCE4Fu, &&L_CE4F},         {0xCE5Eu, &&L_CE5E},         {0xCE63u, &&L_CE63},         {0xCE7Cu, &&L_CE7C},         {0xCE80u, &&L_CE80},         {0xCE85u, &&L_CE85},         {0xCE8Bu, &&L_CE8B},         {0xCE91u, &&L_CE91},         {0xCE94u, &&L_CE94},         {0xCE99u, &&L_CE99},         {0xCE9Eu, &&L_CE9E},         {0xCEA2u, &&L_CEA2},         {0xCEA5u, &&L_CEA5},         {0xCEA8u, &&L_CEA8},         {0xCEAEu, &&L_CEAE},         {0xCEB1u, &&L_CEB1},         {0xCEB5u, &&L_CEB5},         {0xCEB8u, &&L_CEB8},         {0xCEBEu, &&L_CEBE},         {0xCEC1u, &&L_CEC1},         {0xCEC5u, &&L_CEC5},         {0xCEC9u, &&L_CEC9},         {0xCECDu, &&L_CECD},         {0xCED0u, &&L_CED0},         {0xCED3u, &&L_CED3},         {0xCED6u, &&L_CED6},         {0xCED9u, &&L_CED9},         {0xCEDCu, &&L_CEDC},         {0xCEDFu, &&L_CEDF},         {0xCEE2u, &&L_CEE2},         {0xCEE5u, &&L_CEE5},         {0xCEE8u, &&L_CEE8},         {0xCEEBu, &&L_CEEB},         {0xCEF1u, &&L_CEF1},         {0xCEF5u, &&L_CEF5},         {0xCEF8u, &&L_CEF8},         {0xCEFBu, &&L_CEFB},         {0xCEFEu, &&L_CEFE},         {0xCF01u, &&L_CF01},         {0xCF04u, &&L_CF04},         {0xCF07u, &&L_CF07},         {0xCF0Au, &&L_CF0A},         {0xCF0Du, &&L_CF0D},         {0xCF10u, &&L_CF10},         {0xCF13u, &&L_CF13},         {0xCF16u, &&L_CF16},         {0xCF19u, &&L_CF19},         {0xCF1Cu, &&L_CF1C},         {0xCF1Fu, &&L_CF1F},         {0xCF24u, &&L_CF24},         {0xCF27u, &&L_CF27},         {0xCF2Au, &&L_CF2A},         {0xCF2Bu, &&L_CF2B},         {0xCF42u, &&L_CF42},         {0xCF48u, &&L_CF48},         {0xCF4Cu, &&L_CF4C},         {0xCF55u, &&L_CF55},         {0xCF5Cu, &&L_CF5C},         {0xCF64u, &&L_CF64},         {0xCF69u, &&L_CF69},         {0xCF79u, &&L_CF79},         {0xCF7Au, &&L_CF7A},         {0xCF87u, &&L_CF87},         {0xCF8Fu, &&L_CF8F},         {0xCF92u, &&L_CF92},         {0xCF97u, &&L_CF97},         {0xCF9Bu, &&L_CF9B},         {0xCFA0u, &&L_CFA0},         {0xCFA1u, &&L_CFA1},         {0xCFA8u, &&L_CFA8},         {0xCFACu, &&L_CFAC},         {0xCFB0u, &&L_CFB0},         {0xCFB8u, &&L_CFB8},         {0xCFC5u, &&L_CFC5},         {0xCFC6u, &&L_CFC6},         {0xCFCDu, &&L_CFCD},         {0xCFD4u, &&L_CFD4},         {0xCFF9u, &&L_CFF9},         {0xD007u, &&L_D007},         {0xD008u, &&L_D008},         {0xD010u, &&L_D010},         {0xD024u, &&L_D024},         {0xD02Au, &&L_D02A},         {0xD02Du, &&L_D02D},         {0xD032u, &&L_D032},         {0xD041u, &&L_D041},         {0xD047u, &&L_D047},         {0xD04Bu, &&L_D04B},         {0xD04Cu, &&L_D04C},         {0xD050u, &&L_D050},         {0xD056u, &&L_D056},         {0xD05Au, &&L_D05A},         {0xD062u, &&L_D062},         {0xD063u, &&L_D063},         {0xD065u, &&L_D065},         {0xD069u, &&L_D069},         {0xD071u, &&L_D071},         {0xD074u, &&L_D074},         {0xD077u, &&L_D077},         {0xD07Cu, &&L_D07C},         {0xD07Fu, &&L_D07F},         {0xD082u, &&L_D082},         {0xD086u, &&L_D086},         {0xD092u, &&L_D092},         {0xD096u, &&L_D096},         {0xD09Eu, &&L_D09E},         {0xD0A2u, &&L_D0A2},         {0xD0A5u, &&L_D0A5},         {0xD0AAu, &&L_D0AA},         {0xD0B5u, &&L_D0B5},         {0xD0BFu, &&L_D0BF},         {0xD0C0u, &&L_D0C0},         {0xD0C9u, &&L_D0C9},         {0xD0CBu, &&L_D0CB},         {0xD0D1u, &&L_D0D1},         {0xD0D5u, &&L_D0D5},         {0xD0D9u, &&L_D0D9},         {0xD0DDu, &&L_D0DD},         {0xD0E4u, &&L_D0E4},         {0xD0E8u, &&L_D0E8},         {0xD0ECu, &&L_D0EC},         {0xD0F0u, &&L_D0F0},         {0xD0F4u, &&L_D0F4},         {0xD0F8u, &&L_D0F8},         {0xD0FFu, &&L_D0FF},         {0xD101u, &&L_D101},         {0xD108u, &&L_D108},         {0xD110u, &&L_D110},         {0xD115u, &&L_D115},         {0xD119u, &&L_D119},         {0xD11Du, &&L_D11D},         {0xD11Fu, &&L_D11F},         {0xD124u, &&L_D124},         {0xD127u, &&L_D127},         {0xD12Au, &&L_D12A},         {0xD130u, &&L_D130},         {0xD138u, &&L_D138},         {0xD139u, &&L_D139},         {0xD13Eu, &&L_D13E},         {0xD142u, &&L_D142},         {0xD14Bu, &&L_D14B},         {0xD151u, &&L_D151},         {0xD15Du, &&L_D15D},         {0xD166u, &&L_D166},         {0xD169u, &&L_D169},         {0xD175u, &&L_D175},         {0xD181u, &&L_D181},         {0xD185u, &&L_D185},         {0xD189u, &&L_D189},         {0xD18Fu, &&L_D18F},         {0xD195u, &&L_D195},         {0xD199u, &&L_D199},         {0xD19Au, &&L_D19A},         {0xD1A4u, &&L_D1A4},         {0xD1AAu, &&L_D1AA},         {0xD1AEu, &&L_D1AE},         {0xD1B2u, &&L_D1B2},         {0xD1B6u, &&L_D1B6},         {0xD1BAu, &&L_D1BA},         {0xD1BBu, &&L_D1BB},         {0xD1BEu, &&L_D1BE},         {0xD1C3u, &&L_D1C3},         {0xD1C6u, &&L_D1C6},         {0xD1C9u, &&L_D1C9},         {0xD1CCu, &&L_D1CC},         {0xD1CFu, &&L_D1CF},         {0xD1D5u, &&L_D1D5},         {0xD1D9u, &&L_D1D9},         {0xD1DDu, &&L_D1DD},         {0xD1E1u, &&L_D1E1},         {0xD1E2u, &&L_D1E2},         {0xD1E5u, &&L_D1E5},         {0xD1EEu, &&L_D1EE},         {0xD1F0u, &&L_D1F0},         {0xD1F3u, &&L_D1F3},         {0xD1F6u, &&L_D1F6},         {0xD1F8u, &&L_D1F8},         {0xD1F9u, &&L_D1F9},         {0xD1FFu, &&L_D1FF},         {0xD205u, &&L_D205},         {0xD208u, &&L_D208},         {0xD20Bu, &&L_D20B},         {0xD213u, &&L_D213},         {0xD218u, &&L_D218},         {0xD21Au, &&L_D21A},         {0xD220u, &&L_D220},         {0xD227u, &&L_D227},         {0xD22Au, &&L_D22A},         {0xD22Eu, &&L_D22E},         {0xD233u, &&L_D233},         {0xD237u, &&L_D237},         {0xD23Eu, &&L_D23E},         {0xD24Au, &&L_D24A},         {0xD24Eu, &&L_D24E},         {0xD256u, &&L_D256},         {0xD25Bu, &&L_D25B},         {0xD25Du, &&L_D25D},         {0xD262u, &&L_D262},         {0xD26Du, &&L_D26D},         {0xD275u, &&L_D275},         {0xD278u, &&L_D278},         {0xD27Fu, &&L_D27F},         {0xD285u, &&L_D285},         {0xD288u, &&L_D288},         {0xD28Bu, &&L_D28B},         {0xD28Eu, &&L_D28E},         {0xD299u, &&L_D299},         {0xD2B7u, &&L_D2B7},         {0xD2B9u, &&L_D2B9},         {0xD2CAu, &&L_D2CA},         {0xD2CBu, &&L_D2CB},         {0xD2CEu, &&L_D2CE},         {0xD2D4u, &&L_D2D4},         {0xD2D8u, &&L_D2D8},         {0xD2DDu, &&L_D2DD},         {0xD2DFu, &&L_D2DF},         {0xD2E2u, &&L_D2E2},         {0xD2E8u, &&L_D2E8},         {0xD2F0u, &&L_D2F0},         {0xD2F5u, &&L_D2F5},         {0xD2F8u, &&L_D2F8},         {0xD2FDu, &&L_D2FD},         {0xD314u, &&L_D314},         {0xD318u, &&L_D318},         {0xD31Eu, &&L_D31E},         {0xD321u, &&L_D321},         {0xD323u, &&L_D323},         {0xD326u, &&L_D326},         {0xD32Bu, &&L_D32B},         {0xD32Fu, &&L_D32F},         {0xD335u, &&L_D335},         {0xD340u, &&L_D340},         {0xD34Au, &&L_D34A},         {0xD34Eu, &&L_D34E},         {0xD353u, &&L_D353},         {0xD359u, &&L_D359},         {0xD35Eu, &&L_D35E},         {0xD360u, &&L_D360},         {0xD365u, &&L_D365},         {0xD36Au, &&L_D36A},         {0xD370u, &&L_D370},         {0xD373u, &&L_D373},         {0xD378u, &&L_D378},         {0xD37Bu, &&L_D37B},         {0xD37Eu, &&L_D37E},         {0xD384u, &&L_D384},         {0xD388u, &&L_D388},         {0xD38Bu, &&L_D38B},         {0xD38Eu, &&L_D38E},         {0xD392u, &&L_D392},         {0xD395u, &&L_D395},         {0xD39Au, &&L_D39A},         {0xD39Cu, &&L_D39C},         {0xD3A5u, &&L_D3A5},         {0xD3A7u, &&L_D3A7},         {0xD3AFu, &&L_D3AF},         {0xD3B2u, &&L_D3B2},         {0xD3B4u, &&L_D3B4},         {0xD3B8u, &&L_D3B8},         {0xD3BBu, &&L_D3BB},         {0xD3BFu, &&L_D3BF},         {0xD3C6u, &&L_D3C6},         {0xD3C8u, &&L_D3C8},         {0xD3CDu, &&L_D3CD},         {0xD3D0u, &&L_D3D0},         {0xD3D2u, &&L_D3D2},         {0xD3E4u, &&L_D3E4},         {0xD3E7u, &&L_D3E7},         {0xD3EBu, &&L_D3EB},         {0xD3F2u, &&L_D3F2},         {0xD3F4u, &&L_D3F4},         {0xD3F9u, &&L_D3F9},         {0xD3FBu, &&L_D3FB},         {0xD40Du, &&L_D40D},         {0xD417u, &&L_D417},         {0xD421u, &&L_D421},         {0xD426u, &&L_D426},         {0xD42Cu, &&L_D42C},         {0xD42Fu, &&L_D42F},         {0xD432u, &&L_D432},         {0xD436u, &&L_D436},         {0xD439u, &&L_D439},         {0xD43Eu, &&L_D43E},         {0xD442u, &&L_D442},         {0xD445u, &&L_D445},         {0xD450u, &&L_D450},         {0xD452u, &&L_D452},         {0xD45Au, &&L_D45A},         {0xD45Du, &&L_D45D},         {0xD45Fu, &&L_D45F},         {0xD463u, &&L_D463},         {0xD467u, &&L_D467},         {0xD46Eu, &&L_D46E},         {0xD471u, &&L_D471},         {0xD476u, &&L_D476},         {0xD478u, &&L_D478},         {0xD488u, &&L_D488},         {0xD48Bu, &&L_D48B},         {0xD48Fu, &&L_D48F},         {0xD496u, &&L_D496},         {0xD498u, &&L_D498},         {0xD49Du, &&L_D49D},         {0xD49Fu, &&L_D49F},         {0xD4B1u, &&L_D4B1},         {0xD4BBu, &&L_D4BB},         {0xD4C1u, &&L_D4C1},         {0xD4C6u, &&L_D4C6},         {0xD4CCu, &&L_D4CC},         {0xD4CFu, &&L_D4CF},         {0xD4D2u, &&L_D4D2},         {0xD4D6u, &&L_D4D6},         {0xD4DFu, &&L_D4DF},         {0xD4EDu, &&L_D4ED},         {0xD4EEu, &&L_D4EE},         {0xD4F9u, &&L_D4F9},         {0xD501u, &&L_D501},         {0xD505u, &&L_D505},         {0xD509u, &&L_D509},         {0xD50Au, &&L_D50A},         {0xD50Du, &&L_D50D},         {0xD512u, &&L_D512},         {0xD52Eu, &&L_D52E},         {0xD536u, &&L_D536},         {0xD53Bu, &&L_D53B},         {0xD53Eu, &&L_D53E},         {0xD540u, &&L_D540},         {0xD544u, &&L_D544},         {0xD547u, &&L_D547},         {0xD54Cu, &&L_D54C},         {0xD550u, &&L_D550},         {0xD551u, &&L_D551},         {0xD557u, &&L_D557},         {0xD55Au, &&L_D55A},         {0xD55Du, &&L_D55D},         {0xD55Fu, &&L_D55F},         {0xD565u, &&L_D565},         {0xD56Au, &&L_D56A},         {0xD56Cu, &&L_D56C},         {0xD570u, &&L_D570},         {0xD57Au, &&L_D57A},         {0xD585u, &&L_D585},         {0xD589u, &&L_D589},         {0xD58Cu, &&L_D58C},         {0xD590u, &&L_D590},         {0xD59Au, &&L_D59A},         {0xD5A1u, &&L_D5A1},         {0xD5A5u, &&L_D5A5},         {0xD5AFu, &&L_D5AF},         {0xD5B3u, &&L_D5B3},         {0xD5BBu, &&L_D5BB},         {0xD5BFu, &&L_D5BF},         {0xD5C8u, &&L_D5C8},         {0xD5CCu, &&L_D5CC},         {0xD5CFu, &&L_D5CF},         {0xD5D3u, &&L_D5D3},         {0xD5E2u, &&L_D5E2},         {0xD5F1u, &&L_D5F1},         {0xD5F6u, &&L_D5F6},         {0xD5F9u, &&L_D5F9},         {0xD600u, &&L_D600},         {0xD608u, &&L_D608},         {0xD60Du, &&L_D60D},         {0xD615u, &&L_D615},         {0xD61Bu, &&L_D61B},         {0xD620u, &&L_D620},         {0xD631u, &&L_D631},         {0xD642u, &&L_D642},         {0xD64Fu, &&L_D64F},         {0xD697u, &&L_D697},         {0xD69Cu, &&L_D69C},         {0xD69Eu, &&L_D69E},         {0xD6A1u, &&L_D6A1},         {0xD6ABu, &&L_D6AB},         {0xD6B1u, &&L_D6B1},         {0xD6B7u, &&L_D6B7},         {0xD6BCu, &&L_D6BC},         {0xD6BFu, &&L_D6BF},         {0xD6C1u, &&L_D6C1},         {0xD6C5u, &&L_D6C5},         {0xD6C6u, &&L_D6C6},         {0xD6CAu, &&L_D6CA},         {0xD6CDu, &&L_D6CD},         {0xD6D6u, &&L_D6D6},         {0xD6D8u, &&L_D6D8},         {0xD6D9u, &&L_D6D9},         {0xD6DCu, &&L_D6DC},         {0xD6DEu, &&L_D6DE},         {0xD6E4u, &&L_D6E4},         {0xD6E8u, &&L_D6E8},         {0xD6EFu, &&L_D6EF},         {0xD6F2u, &&L_D6F2},         {0xD6FAu, &&L_D6FA},         {0xD6FEu, &&L_D6FE},         {0xD703u, &&L_D703},         {0xD705u, &&L_D705},         {0xD70Au, &&L_D70A},         {0xD710u, &&L_D710},         {0xD713u, &&L_D713},         {0xD716u, &&L_D716},         {0xD71Eu, &&L_D71E},         {0xD723u, &&L_D723},         {0xD725u, &&L_D725},         {0xD72Bu, &&L_D72B},         {0xD732u, &&L_D732},         {0xD735u, &&L_D735},         {0xD737u, &&L_D737},         {0xD73Eu, &&L_D73E},         {0xD746u, &&L_D746},         {0xD74Au, &&L_D74A},         {0xD74Fu, &&L_D74F},         {0xD753u, &&L_D753},         {0xD75Cu, &&L_D75C},         {0xD762u, &&L_D762},         {0xD767u, &&L_D767},         {0xD769u, &&L_D769},         {0xD76Bu, &&L_D76B},         {0xD786u, &&L_D786},         {0xD78Cu, &&L_D78C},         {0xD795u, &&L_D795},         {0xD79Bu, &&L_D79B},         {0xD7ADu, &&L_D7AD},         {0xD7B3u, &&L_D7B3},         {0xD7B8u, &&L_D7B8},         {0xD7BAu, &&L_D7BA},         {0xD7BFu, &&L_D7BF},         {0xD7C9u, &&L_D7C9},         {0xD7D3u, &&L_D7D3},         {0xD7DAu, &&L_D7DA},         {0xD7DFu, &&L_D7DF},         {0xD7E2u, &&L_D7E2},         {0xD7F2u, &&L_D7F2},         {0xD7FFu, &&L_D7FF},         {0xD800u, &&L_D800},         {0xD804u, &&L_D804},         {0xD805u, &&L_D805},         {0xD80Bu, &&L_D80B},         {0xD80Eu, &&L_D80E},         {0xD815u, &&L_D815},         {0xD819u, &&L_D819},         {0xD81Bu, &&L_D81B},         {0xD81Eu, &&L_D81E},         {0xD822u, &&L_D822},         {0xD824u, &&L_D824},         {0xD827u, &&L_D827},         {0xD830u, &&L_D830},         {0xD840u, &&L_D840},         {0xD846u, &&L_D846},         {0xD849u, &&L_D849},         {0xD84Eu, &&L_D84E},         {0xD853u, &&L_D853},         {0xD856u, &&L_D856},         {0xD867u, &&L_D867},         {0xD86Cu, &&L_D86C},         {0xD86Fu, &&L_D86F},         {0xD87Du, &&L_D87D},         {0xD882u, &&L_D882},         {0xD885u, &&L_D885},         {0xD88Au, &&L_D88A},         {0xD88Du, &&L_D88D},         {0xD88Fu, &&L_D88F},         {0xD89Au, &&L_D89A},         {0xD8A7u, &&L_D8A7},         {0xD8A8u, &&L_D8A8},         {0xD8ADu, &&L_D8AD},         {0xD8B9u, &&L_D8B9},         {0xD8D3u, &&L_D8D3},         {0xD8D5u, &&L_D8D5},         {0xD8DEu, &&L_D8DE},         {0xD8E1u, &&L_D8E1},         {0xD8E6u, &&L_D8E6},         {0xD8E8u, &&L_D8E8},         {0xD8EBu, &&L_D8EB},         {0xD8EFu, &&L_D8EF},         {0xD8F3u, &&L_D8F3},         {0xD8F7u, &&L_D8F7},         {0xD8FDu, &&L_D8FD},         {0xD901u, &&L_D901},         {0xD904u, &&L_D904},         {0xD90Au, &&L_D90A},         {0xD90Eu, &&L_D90E},         {0xD911u, &&L_D911},         {0xD914u, &&L_D914},         {0xD917u, &&L_D917},         {0xD91Au, &&L_D91A},         {0xD923u, &&L_D923},         {0xD929u, &&L_D929},         {0xD92Du, &&L_D92D},         {0xD931u, &&L_D931},         {0xD938u, &&L_D938},         {0xD93Bu, &&L_D93B},         {0xD93Cu, &&L_D93C},         {0xD964u, &&L_D964},         {0xD967u, &&L_D967},         {0xD969u, &&L_D969},         {0xD97Au, &&L_D97A},         {0xD982u, &&L_D982},         {0xD986u, &&L_D986},         {0xD98Bu, &&L_D98B},         {0xD98Du, &&L_D98D},         {0xD990u, &&L_D990},         {0xD996u, &&L_D996},         {0xD99Au, &&L_D99A},         {0xD99Du, &&L_D99D},         {0xD9AAu, &&L_D9AA},         {0xD9ACu, &&L_D9AC},         {0xD9AFu, &&L_D9AF},         {0xD9BDu, &&L_D9BD},         {0xD9C3u, &&L_D9C3},         {0xD9C9u, &&L_D9C9},         {0xD9CDu, &&L_D9CD},         {0xD9D0u, &&L_D9D0},         {0xD9D4u, &&L_D9D4},         {0xD9DBu, &&L_D9DB},         {0xD9DDu, &&L_D9DD},         {0xD9E0u, &&L_D9E0},         {0xD9E3u, &&L_D9E3},         {0xD9E6u, &&L_D9E6},         {0xD9E8u, &&L_D9E8},         {0xD9F2u, &&L_D9F2},         {0xD9F5u, &&L_D9F5},         {0xD9F9u, &&L_D9F9},         {0xD9FDu, &&L_D9FD},         {0xDA06u, &&L_DA06},         {0xDA0Fu, &&L_DA0F},         {0xDA11u, &&L_DA11},         {0xDA13u, &&L_DA13},         {0xDA16u, &&L_DA16},         {0xDA19u, &&L_DA19},         {0xDA1Du, &&L_DA1D},         {0xDA20u, &&L_DA20},         {0xDA27u, &&L_DA27},         {0xDA2Bu, &&L_DA2B},         {0xDA38u, &&L_DA38},         {0xDA3Du, &&L_DA3D},         {0xDA40u, &&L_DA40},         {0xDA4Bu, &&L_DA4B},         {0xDA4Cu, &&L_DA4C},         {0xDA54u, &&L_DA54},         {0xDA58u, &&L_DA58},         {0xDA5Cu, &&L_DA5C},         {0xDA60u, &&L_DA60},         {0xDA64u, &&L_DA64},         {0xDA68u, &&L_DA68},         {0xDA6Cu, &&L_DA6C},         {0xDA70u, &&L_DA70},         {0xDA74u, &&L_DA74},         {0xDA78u, &&L_DA78},         {0xDA7Cu, &&L_DA7C},         {0xDA7Du, &&L_DA7D},         {0xDA80u, &&L_DA80},         {0xDA83u, &&L_DA83},         {0xDA86u, &&L_DA86},         {0xDA89u, &&L_DA89},         {0xDA8Fu, &&L_DA8F},         {0xDA92u, &&L_DA92},         {0xDA95u, &&L_DA95},         {0xDA98u, &&L_DA98},         {0xDA9Bu, &&L_DA9B},         {0xDA9Cu, &&L_DA9C},         {0xDA9Fu, &&L_DA9F},         {0xDAAEu, &&L_DAAE},         {0xDAB2u, &&L_DAB2},         {0xDAC0u, &&L_DAC0},         {0xDAC3u, &&L_DAC3},         {0xDAC7u, &&L_DAC7},         {0xDAD5u, &&L_DAD5},         {0xDAD9u, &&L_DAD9},         {0xDADDu, &&L_DADD},         {0xDAEAu, &&L_DAEA},         {0xDAF2u, &&L_DAF2},         {0xDAF7u, &&L_DAF7},         {0xDAFAu, &&L_DAFA},         {0xDAFFu, &&L_DAFF},         {0xDB00u, &&L_DB00},         {0xDB05u, &&L_DB05},         {0xDB07u, &&L_DB07},         {0xDB0Au, &&L_DB0A},         {0xDB1Bu, &&L_DB1B},         {0xDB21u, &&L_DB21},         {0xDB2Bu, &&L_DB2B},         {0xDB2Cu, &&L_DB2C},         {0xDB31u, &&L_DB31},         {0xDB33u, &&L_DB33},         {0xDB34u, &&L_DB34},         {0xDB37u, &&L_DB37},         {0xDB3Bu, &&L_DB3B},         {0xDB40u, &&L_DB40},         {0xDB49u, &&L_DB49},         {0xDB4Eu, &&L_DB4E},         {0xDB50u, &&L_DB50},         {0xDB55u, &&L_DB55},         {0xDB5Au, &&L_DB5A},         {0xDB62u, &&L_DB62},         {0xDB69u, &&L_DB69},         {0xDB6Eu, &&L_DB6E},         {0xDB73u, &&L_DB73},         {0xDB75u, &&L_DB75},         {0xDB78u, &&L_DB78},         {0xDB7Fu, &&L_DB7F},         {0xDB8Bu, &&L_DB8B},         {0xDB91u, &&L_DB91},         {0xDB9Bu, &&L_DB9B},         {0xDBA3u, &&L_DBA3},         {0xDBACu, &&L_DBAC},         {0xDBB1u, &&L_DBB1},         {0xDBB3u, &&L_DBB3},         {0xDBB6u, &&L_DBB6},         {0xDBB9u, &&L_DBB9},         {0xDBC1u, &&L_DBC1},         {0xDBC4u, &&L_DBC4},         {0xDBCAu, &&L_DBCA},         {0xDBCCu, &&L_DBCC},         {0xDBCDu, &&L_DBCD},         {0xDBD8u, &&L_DBD8},         {0xDBE7u, &&L_DBE7},         {0xDBEDu, &&L_DBED},         {0xDBEEu, &&L_DBEE},         {0xDBFAu, &&L_DBFA},         {0xDBFBu, &&L_DBFB},         {0xDC06u, &&L_DC06},         {0xDC0Fu, &&L_DC0F},         {0xDC13u, &&L_DC13},         {0xDC16u, &&L_DC16},         {0xDC1Bu, &&L_DC1B},         {0xDC24u, &&L_DC24},         {0xDC28u, &&L_DC28},         {0xDC2Bu, &&L_DC2B},         {0xDC2Du, &&L_DC2D},         {0xDC30u, &&L_DC30},         {0xDC35u, &&L_DC35},         {0xDC37u, &&L_DC37},         {0xDC3Au, &&L_DC3A},         {0xDC3Fu, &&L_DC3F},         {0xDC4Au, &&L_DC4A},         {0xDC4Fu, &&L_DC4F},         {0xDC51u, &&L_DC51},         {0xDC5Au, &&L_DC5A},         {0xDC62u, &&L_DC62},         {0xDC68u, &&L_DC68},         {0xDC69u, &&L_DC69},         {0xDC6Eu, &&L_DC6E},         {0xDC70u, &&L_DC70},         {0xDC71u, &&L_DC71},         {0xDC74u, &&L_DC74},         {0xDC79u, &&L_DC79},         {0xDC81u, &&L_DC81},         {0xDC89u, &&L_DC89},         {0xDC8Eu, &&L_DC8E},         {0xDC90u, &&L_DC90},         {0xDC93u, &&L_DC93},         {0xDC9Cu, &&L_DC9C},         {0xDCA1u, &&L_DCA1},         {0xDCA6u, &&L_DCA6},         {0xDCA8u, &&L_DCA8},         {0xDCB1u, &&L_DCB1},         {0xDCB3u, &&L_DCB3},         {0xDCB9u, &&L_DCB9},         {0xDCBCu, &&L_DCBC},         {0xDCC8u, &&L_DCC8},         {0xDCC9u, &&L_DCC9},         {0xDCCFu, &&L_DCCF},         {0xDCD0u, &&L_DCD0},         {0xDCD5u, &&L_DCD5},         {0xDCD7u, &&L_DCD7},         {0xDCD8u, &&L_DCD8},         {0xDCDBu, &&L_DCDB},         {0xDCE0u, &&L_DCE0},         {0xDCE5u, &&L_DCE5},         {0xDCEDu, &&L_DCED},         {0xDCF3u, &&L_DCF3},         {0xDCF8u, &&L_DCF8},         {0xDCFDu, &&L_DCFD},         {0xDD00u, &&L_DD00},         {0xDD06u, &&L_DD06},         {0xDD0Bu, &&L_DD0B},         {0xDD10u, &&L_DD10},         {0xDD13u, &&L_DD13},         {0xDD1Fu, &&L_DD1F},         {0xDD25u, &&L_DD25},         {0xDD28u, &&L_DD28},         {0xDD31u, &&L_DD31},         {0xDD32u, &&L_DD32},         {0xDD37u, &&L_DD37},         {0xDD39u, &&L_DD39},         {0xDD3Au, &&L_DD3A},         {0xDD3Du, &&L_DD3D},         {0xDD42u, &&L_DD42},         {0xDD47u, &&L_DD47},         {0xDD4Fu, &&L_DD4F},         {0xDD57u, &&L_DD57},         {0xDD59u, &&L_DD59},         {0xDD5Du, &&L_DD5D},         {0xDD60u, &&L_DD60},         {0xDD68u, &&L_DD68},         {0xDD6Au, &&L_DD6A},         {0xDD70u, &&L_DD70},         {0xDD73u, &&L_DD73},         {0xDD76u, &&L_DD76},         {0xDD7Fu, &&L_DD7F},         {0xDD84u, &&L_DD84},         {0xDD8Bu, &&L_DD8B},         {0xDD95u, &&L_DD95},         {0xDD98u, &&L_DD98},         {0xDD9Cu, &&L_DD9C},         {0xDDA2u, &&L_DDA2},         {0xDDA6u, &&L_DDA6},         {0xDDABu, &&L_DDAB},         {0xDDB0u, &&L_DDB0},         {0xDDB2u, &&L_DDB2},         {0xDDB5u, &&L_DDB5},         {0xDDB8u, &&L_DDB8},         {0xDDC0u, &&L_DDC0},         {0xDDC6u, &&L_DDC6},         {0xDDC9u, &&L_DDC9},         {0xDDCDu, &&L_DDCD},         {0xDDD7u, &&L_DDD7},         {0xDDDAu, &&L_DDDA},         {0xDDE4u, &&L_DDE4},         {0xDDE9u, &&L_DDE9},         {0xDDEBu, &&L_DDEB},         {0xDDF5u, &&L_DDF5},         {0xDE01u, &&L_DE01},         {0xDE06u, &&L_DE06},         {0xDE0Bu, &&L_DE0B},         {0xDE0Du, &&L_DE0D},         {0xDE10u, &&L_DE10},         {0xDE13u, &&L_DE13},         {0xDE18u, &&L_DE18},         {0xDE1Au, &&L_DE1A},         {0xDE27u, &&L_DE27},         {0xDE30u, &&L_DE30},         {0xDE36u, &&L_DE36},         {0xDE3Au, &&L_DE3A},         {0xDE40u, &&L_DE40},         {0xDE47u, &&L_DE47},         {0xDE50u, &&L_DE50},         {0xDE56u, &&L_DE56},         {0xDE63u, &&L_DE63},         {0xDE68u, &&L_DE68},         {0xDE6Au, &&L_DE6A},         {0xDE73u, &&L_DE73},         {0xDE82u, &&L_DE82},         {0xDE85u, &&L_DE85},         {0xDE86u, &&L_DE86},         {0xDE8Cu, &&L_DE8C},         {0xDE90u, &&L_DE90},         {0xDE95u, &&L_DE95},         {0xDE9Au, &&L_DE9A},         {0xDE9Fu, &&L_DE9F},         {0xDEA4u, &&L_DEA4},         {0xDEA5u, &&L_DEA5},         {0xDEA8u, &&L_DEA8},         {0xDEADu, &&L_DEAD},         {0xDEB9u, &&L_DEB9},         {0xDEC0u, &&L_DEC0},         {0xDEC7u, &&L_DEC7},         {0xDECEu, &&L_DECE},         {0xDED5u, &&L_DED5},         {0xDEDCu, &&L_DEDC},         {0xDEE8u, &&L_DEE8},         {0xDEEDu, &&L_DEED},         {0xDEF2u, &&L_DEF2},         {0xDEFBu, &&L_DEFB},         {0xDF06u, &&L_DF06},         {0xDF07u, &&L_DF07},         {0xDF0Cu, &&L_DF0C},         {0xDF0Eu, &&L_DF0E},         {0xDF0Fu, &&L_DF0F},         {0xDF12u, &&L_DF12},         {0xDF17u, &&L_DF17},         {0xDF20u, &&L_DF20},         {0xDF25u, &&L_DF25},         {0xDF27u, &&L_DF27},         {0xDF2Cu, &&L_DF2C},         {0xDF32u, &&L_DF32},         {0xDF34u, &&L_DF34},         {0xDF35u, &&L_DF35},         {0xDF40u, &&L_DF40},         {0xDF44u, &&L_DF44},         {0xDF45u, &&L_DF45},         {0xDF4Bu, &&L_DF4B},         {0xDF4Cu, &&L_DF4C},         {0xDF52u, &&L_DF52},         {0xDF55u, &&L_DF55},         {0xDF5Du, &&L_DF5D},         {0xDF5Eu, &&L_DF5E},         {0xDF60u, &&L_DF60},         {0xDF66u, &&L_DF66},         {0xDF6Cu, &&L_DF6C},         {0xDF71u, &&L_DF71},         {0xDF72u, &&L_DF72},         {0xDF7Au, &&L_DF7A},         {0xDF7Bu, &&L_DF7B},         {0xDF7Du, &&L_DF7D},         {0xDF83u, &&L_DF83},         {0xDF89u, &&L_DF89},         {0xDF8Eu, &&L_DF8E},         {0xDF8Fu, &&L_DF8F},         {0xDFADu, &&L_DFAD},         {0xDFB1u, &&L_DFB1},         {0xDFB8u, &&L_DFB8},         {0xDFC3u, &&L_DFC3},         {0xDFCBu, &&L_DFCB},         {0xDFCEu, &&L_DFCE},         {0xDFD5u, &&L_DFD5},         {0xDFE3u, &&L_DFE3},         {0xDFE4u, &&L_DFE4},         {0xDFE8u, &&L_DFE8},         {0xDFF0u, &&L_DFF0},         {0xDFF4u, &&L_DFF4},         {0xDFF7u, &&L_DFF7},         {0xDFFBu, &&L_DFFB},         {0xDFFFu, &&L_DFFF},         {0xE008u, &&L_E008},         {0xE011u, &&L_E011},         {0xE013u, &&L_E013},         {0xE015u, &&L_E015},         {0xE016u, &&L_E016},         {0xE02Fu, &&L_E02F},         {0xE035u, &&L_E035},         {0xE039u, &&L_E039},         {0xE03Bu, &&L_E03B},         {0xE041u, &&L_E041},         {0xE045u, &&L_E045},         {0xE048u, &&L_E048},         {0xE050u, &&L_E050},         {0xE054u, &&L_E054},         {0xE057u, &&L_E057},         {0xE05Au, &&L_E05A},         {0xE064u, &&L_E064},         {0xE068u, &&L_E068},         {0xE06Au, &&L_E06A},         {0xE071u, &&L_E071},         {0xE076u, &&L_E076},         {0xE079u, &&L_E079},         {0xE07Bu, &&L_E07B},         {0xE082u, &&L_E082},         {0xE087u, &&L_E087},         {0xE08Au, &&L_E08A},         {0xE08Du, &&L_E08D},         {0xE090u, &&L_E090},         {0xE09Au, &&L_E09A},         {0xE09Fu, &&L_E09F},         {0xE0A1u, &&L_E0A1},         {0xE0A8u, &&L_E0A8},         {0xE0ABu, &&L_E0AB},         {0xE0AEu, &&L_E0AE},         {0xE0B8u, &&L_E0B8},         {0xE0BCu, &&L_E0BC},         {0xE0C0u, &&L_E0C0},         {0xE0C4u, &&L_E0C4},         {0xE0C8u, &&L_E0C8},         {0xE0CBu, &&L_E0CB},         {0xE0CEu, &&L_E0CE},         {0xE0D1u, &&L_E0D1},         {0xE0D4u, &&L_E0D4},         {0xE0DAu, &&L_E0DA},         {0xE0DDu, &&L_E0DD},         {0xE0E0u, &&L_E0E0},         {0xE0E6u, &&L_E0E6},         {0xE0E9u, &&L_E0E9},         {0xE0ECu, &&L_E0EC},         {0xE0F1u, &&L_E0F1},         {0xE0FEu, &&L_E0FE},         {0xE106u, &&L_E106},         {0xE107u, &&L_E107},         {0xE109u, &&L_E109},         {0xE10Fu, &&L_E10F},         {0xE112u, &&L_E112},         {0xE116u, &&L_E116},         {0xE11Cu, &&L_E11C},         {0xE120u, &&L_E120},         {0xE124u, &&L_E124},         {0xE129u, &&L_E129},         {0xE12Bu, &&L_E12B},         {0xE130u, &&L_E130},         {0xE139u, &&L_E139},         {0xE13Bu, &&L_E13B},         {0xE13Eu, &&L_E13E},         {0xE141u, &&L_E141},         {0xE166u, &&L_E166},         {0xE16Au, &&L_E16A},         {0xE170u, &&L_E170},         {0xE172u, &&L_E172},         {0xE177u, &&L_E177},         {0xE17Fu, &&L_E17F},         {0xE183u, &&L_E183},         {0xE187u, &&L_E187},         {0xE18Du, &&L_E18D},         {0xE195u, &&L_E195},         {0xE199u, &&L_E199},         {0xE19Au, &&L_E19A},         {0xE19Eu, &&L_E19E},         {0xE19Fu, &&L_E19F},         {0xE1A3u, &&L_E1A3},         {0xE1B8u, &&L_E1B8},         {0xE1BFu, &&L_E1BF},         {0xE1C3u, &&L_E1C3},         {0xE1D0u, &&L_E1D0},         {0xE1D5u, &&L_E1D5},         {0xE1D7u, &&L_E1D7},         {0xE1E0u, &&L_E1E0},         {0xE1E4u, &&L_E1E4},         {0xE1E5u, &&L_E1E5},         {0xE1E9u, &&L_E1E9},         {0xE1ECu, &&L_E1EC},         {0xE1F3u, &&L_E1F3},         {0xE1F9u, &&L_E1F9},         {0xE1FDu, &&L_E1FD},         {0xE200u, &&L_E200},         {0xE204u, &&L_E204},         {0xE208u, &&L_E208},         {0xE20Cu, &&L_E20C},         {0xE213u, &&L_E213},         {0xE217u, &&L_E217},         {0xE21Au, &&L_E21A},         {0xE21Fu, &&L_E21F},         {0xE225u, &&L_E225},         {0xE228u, &&L_E228},         {0xE234u, &&L_E234},         {0xE237u, &&L_E237},         {0xE23Du, &&L_E23D},         {0xE241u, &&L_E241},         {0xE24Fu, &&L_E24F},         {0xE250u, &&L_E250},         {0xE254u, &&L_E254},         {0xE258u, &&L_E258},         {0xE25Cu, &&L_E25C},         {0xE260u, &&L_E260},         {0xE264u, &&L_E264},         {0xE268u, &&L_E268},         {0xE26Cu, &&L_E26C},         {0xE272u, &&L_E272},         {0xE275u, &&L_E275},         {0xE278u, &&L_E278},         {0xE280u, &&L_E280},         {0xE286u, &&L_E286},         {0xE28Au, &&L_E28A},         {0xE28Cu, &&L_E28C},         {0xE28Fu, &&L_E28F},         {0xE292u, &&L_E292},         {0xE295u, &&L_E295},         {0xE29Au, &&L_E29A},         {0xE29Cu, &&L_E29C},         {0xE2A1u, &&L_E2A1},         {0xE2A7u, &&L_E2A7},         {0xE2AAu, &&L_E2AA},         {0xE2B0u, &&L_E2B0},         {0xE2B3u, &&L_E2B3},         {0xE2B6u, &&L_E2B6},         {0xE2BCu, &&L_E2BC},         {0xE2D2u, &&L_E2D2},         {0xE2D9u, &&L_E2D9},         {0xE2DDu, &&L_E2DD},         {0xE2E8u, &&L_E2E8},         {0xE2EBu, &&L_E2EB},         {0xE2F1u, &&L_E2F1},         {0xE2F4u, &&L_E2F4},         {0xE2F6u, &&L_E2F6},         {0xE2F9u, &&L_E2F9},         {0xE302u, &&L_E302},         {0xE304u, &&L_E304},         {0xE305u, &&L_E305},         {0xE308u, &&L_E308},         {0xE30Du, &&L_E30D},         {0xE315u, &&L_E315},         {0xE31Au, &&L_E31A},         {0xE31Eu, &&L_E31E},         {0xE323u, &&L_E323},         {0xE325u, &&L_E325},         {0xE332u, &&L_E332},         {0xE336u, &&L_E336},         {0xE33Bu, &&L_E33B},         {0xE340u, &&L_E340},         {0xE344u, &&L_E344},         {0xE349u, &&L_E349},         {0xE34Bu, &&L_E34B},         {0xE34Eu, &&L_E34E},         {0xE356u, &&L_E356},         {0xE35Eu, &&L_E35E},         {0xE363u, &&L_E363},         {0xE365u, &&L_E365},         {0xE368u, &&L_E368},         {0xE371u, &&L_E371},         {0xE373u, &&L_E373},         {0xE374u, &&L_E374},         {0xE377u, &&L_E377},         {0xE37Cu, &&L_E37C},         {0xE380u, &&L_E380},         {0xE385u, &&L_E385},         {0xE387u, &&L_E387},         {0xE38Fu, &&L_E38F},         {0xE393u, &&L_E393},         {0xE396u, &&L_E396},         {0xE39Bu, &&L_E39B},         {0xE3A2u, &&L_E3A2},         {0xE3A7u, &&L_E3A7},         {0xE3AAu, &&L_E3AA},         {0xE3AFu, &&L_E3AF},         {0xE3B3u, &&L_E3B3},         {0xE3B7u, &&L_E3B7},         {0xE3BAu, &&L_E3BA},         {0xE3C0u, &&L_E3C0},         {0xE3C5u, &&L_E3C5},         {0xE3C7u, &&L_E3C7},         {0xE3CEu, &&L_E3CE},         {0xE3D2u, &&L_E3D2},         {0xE3D8u, &&L_E3D8},         {0xE3DAu, &&L_E3DA},         {0xE3DDu, &&L_E3DD},         {0xE3E6u, &&L_E3E6},         {0xE3EDu, &&L_E3ED},         {0xE3FAu, &&L_E3FA},         {0xE3FEu, &&L_E3FE},         {0xE403u, &&L_E403},         {0xE408u, &&L_E408},         {0xE40Cu, &&L_E40C},         {0xE411u, &&L_E411},         {0xE413u, &&L_E413},         {0xE416u, &&L_E416},         {0xE41Bu, &&L_E41B},         {0xE429u, &&L_E429},         {0xE436u, &&L_E436},         {0xE441u, &&L_E441},         {0xE44Bu, &&L_E44B},         {0xE44Eu, &&L_E44E},         {0xE450u, &&L_E450},         {0xE451u, &&L_E451},         {0xE454u, &&L_E454},         {0xE459u, &&L_E459},         {0xE45Fu, &&L_E45F},         {0xE463u, &&L_E463},         {0xE466u, &&L_E466},         {0xE46Du, &&L_E46D},         {0xE473u, &&L_E473},         {0xE47Au, &&L_E47A},         {0xE480u, &&L_E480},         {0xE483u, &&L_E483},         {0xE487u, &&L_E487},         {0xE48Bu, &&L_E48B},         {0xE48Eu, &&L_E48E},         {0xE498u, &&L_E498},         {0xE49Bu, &&L_E49B},         {0xE4A5u, &&L_E4A5},         {0xE4A8u, &&L_E4A8},         {0xE4B5u, &&L_E4B5},         {0xE4BDu, &&L_E4BD},         {0xE4C0u, &&L_E4C0},         {0xE4CDu, &&L_E4CD},         {0xE4D3u, &&L_E4D3},         {0xE4D6u, &&L_E4D6},         {0xE4DEu, &&L_E4DE},         {0xE4E6u, &&L_E4E6},         {0xE4F0u, &&L_E4F0},         {0xE4F9u, &&L_E4F9},         {0xE506u, &&L_E506},         {0xE50Cu, &&L_E50C},         {0xE519u, &&L_E519},         {0xE51Du, &&L_E51D},         {0xE522u, &&L_E522},         {0xE527u, &&L_E527},         {0xE52Bu, &&L_E52B},         {0xE530u, &&L_E530},         {0xE532u, &&L_E532},         {0xE535u, &&L_E535},         {0xE538u, &&L_E538},         {0xE540u, &&L_E540},         {0xE544u, &&L_E544},         {0xE545u, &&L_E545},         {0xE548u, &&L_E548},         {0xE54Eu, &&L_E54E},         {0xE552u, &&L_E552},         {0xE553u, &&L_E553},         {0xE564u, &&L_E564},         {0xE56Bu, &&L_E56B},         {0xE570u, &&L_E570},         {0xE572u, &&L_E572},         {0xE592u, &&L_E592},         {0xE594u, &&L_E594},         {0xE597u, &&L_E597},         {0xE59Au, &&L_E59A},         {0xE59Fu, &&L_E59F},         {0xE5A2u, &&L_E5A2},         {0xE5A7u, &&L_E5A7},         {0xE5ADu, &&L_E5AD},         {0xE5B3u, &&L_E5B3},         {0xE5B4u, &&L_E5B4},         {0xE5BCu, &&L_E5BC},         {0xE5BEu, &&L_E5BE},         {0xE5C6u, &&L_E5C6},         {0xE5D4u, &&L_E5D4},         {0xE5D9u, &&L_E5D9},         {0xE5DBu, &&L_E5DB},         {0xE5DFu, &&L_E5DF},         {0xE5E5u, &&L_E5E5},         {0xE5E8u, &&L_E5E8},         {0xE5F2u, &&L_E5F2},         {0xE5F6u, &&L_E5F6},         {0xE5FAu, &&L_E5FA},         {0xE5FEu, &&L_E5FE},         {0xE603u, &&L_E603},         {0xE609u, &&L_E609},         {0xE60Cu, &&L_E60C},         {0xE60Fu, &&L_E60F},         {0xE611u, &&L_E611},         {0xE618u, &&L_E618},         {0xE61Du, &&L_E61D},         {0xE620u, &&L_E620},         {0xE623u, &&L_E623},         {0xE626u, &&L_E626},         {0xE62Eu, &&L_E62E},         {0xE62Fu, &&L_E62F},         {0xE632u, &&L_E632},         {0xE635u, &&L_E635},         {0xE63Du, &&L_E63D},         {0xE640u, &&L_E640},         {0xE646u, &&L_E646},         {0xE64Au, &&L_E64A},         {0xE64Du, &&L_E64D},         {0xE65Du, &&L_E65D},         {0xE66Du, &&L_E66D},         {0xE673u, &&L_E673},         {0xE677u, &&L_E677},         {0xE67Au, &&L_E67A},         {0xE68Au, &&L_E68A},         {0xE697u, &&L_E697},         {0xE69Eu, &&L_E69E},         {0xE6A5u, &&L_E6A5},         {0xE6ADu, &&L_E6AD},         {0xE6B9u, &&L_E6B9},         {0xE6BCu, &&L_E6BC},         {0xE6C0u, &&L_E6C0},         {0xE6C3u, &&L_E6C3},         {0xE6C6u, &&L_E6C6},         {0xE6CBu, &&L_E6CB},         {0xE6CDu, &&L_E6CD},         {0xE6D5u, &&L_E6D5},         {0xE6DBu, &&L_E6DB},         {0xE6DEu, &&L_E6DE},         {0xE6E3u, &&L_E6E3},         {0xE6EBu, &&L_E6EB},         {0xE6F2u, &&L_E6F2},         {0xE6F3u, &&L_E6F3},         {0xE6FAu, &&L_E6FA},         {0xE6FBu, &&L_E6FB},         {0xE702u, &&L_E702},         {0xE70Au, &&L_E70A},         {0xE711u, &&L_E711},         {0xE716u, &&L_E716},         {0xE719u, &&L_E719},         {0xE71Du, &&L_E71D},         {0xE721u, &&L_E721},         {0xE728u, &&L_E728},         {0xE72Du, &&L_E72D},         {0xE72Eu, &&L_E72E},         {0xE734u, &&L_E734},         {0xE735u, &&L_E735},         {0xE73Cu, &&L_E73C},         {0xE747u, &&L_E747},         {0xE74Bu, &&L_E74B},         {0xE74Fu, &&L_E74F},         {0xE755u, &&L_E755},         {0xE758u, &&L_E758},         {0xE75Cu, &&L_E75C},         {0xE760u, &&L_E760},         {0xE766u, &&L_E766},         {0xE768u, &&L_E768},         {0xE769u, &&L_E769},         {0xE770u, &&L_E770},         {0xE775u, &&L_E775},         {0xE787u, &&L_E787},         {0xE790u, &&L_E790},         {0xE794u, &&L_E794},         {0xE79Du, &&L_E79D},         {0xE7A0u, &&L_E7A0},         {0xE7A3u, &&L_E7A3},         {0xE7A9u, &&L_E7A9},         {0xE7AEu, &&L_E7AE},         {0xE7C5u, &&L_E7C5},         {0xE7E2u, &&L_E7E2},         {0xE7E6u, &&L_E7E6},         {0xE7ECu, &&L_E7EC},         {0xE7F2u, &&L_E7F2},         {0xE7F9u, &&L_E7F9},         {0xE806u, &&L_E806},         {0xE80Eu, &&L_E80E},         {0xE812u, &&L_E812},         {0xE815u, &&L_E815},         {0xE819u, &&L_E819},         {0xE81Du, &&L_E81D},         {0xE826u, &&L_E826},         {0xE82Fu, &&L_E82F},         {0xE831u, &&L_E831},         {0xE833u, &&L_E833},         {0xE834u, &&L_E834},         {0xE837u, &&L_E837},         {0xE848u, &&L_E848},         {0xE84Au, &&L_E84A},         {0xE84Bu, &&L_E84B},         {0xE84Fu, &&L_E84F},         {0xE855u, &&L_E855},         {0xE858u, &&L_E858},         {0xE85Eu, &&L_E85E},         {0xE86Au, &&L_E86A},         {0xE874u, &&L_E874},         {0xE883u, &&L_E883},         {0xE886u, &&L_E886},         {0xE889u, &&L_E889},         {0xE88Du, &&L_E88D},         {0xE890u, &&L_E890},         {0xE897u, &&L_E897},         {0xE89Bu, &&L_E89B},         {0xE8A2u, &&L_E8A2},         {0xE8A4u, &&L_E8A4},         {0xE8A9u, &&L_E8A9},         {0xE8ADu, &&L_E8AD},         {0xE8B2u, &&L_E8B2},         {0xE8B8u, &&L_E8B8},         {0xE8C4u, &&L_E8C4},         {0xE8CEu, &&L_E8CE},         {0xE8DDu, &&L_E8DD},         {0xE8E0u, &&L_E8E0},         {0xE8E3u, &&L_E8E3},         {0xE8E7u, &&L_E8E7},         {0xE8EAu, &&L_E8EA},         {0xE8F1u, &&L_E8F1},         {0xE8F8u, &&L_E8F8},         {0xE8FCu, &&L_E8FC},         {0xE901u, &&L_E901},         {0xE90Eu, &&L_E90E},         {0xE914u, &&L_E914},         {0xE918u, &&L_E918},         {0xE91Eu, &&L_E91E},         {0xE929u, &&L_E929},         {0xE92Eu, &&L_E92E},         {0xE933u, &&L_E933},         {0xE936u, &&L_E936},         {0xE93Bu, &&L_E93B},         {0xE941u, &&L_E941},         {0xE945u, &&L_E945},         {0xE94Bu, &&L_E94B},         {0xE956u, &&L_E956},         {0xE95Bu, &&L_E95B},         {0xE960u, &&L_E960},         {0xE963u, &&L_E963},         {0xE967u, &&L_E967},         {0xE968u, &&L_E968},         {0xE971u, &&L_E971},         {0xE97Au, &&L_E97A},         {0xE981u, &&L_E981},         {0xE986u, &&L_E986},         {0xE98Cu, &&L_E98C},         {0xE996u, &&L_E996},         {0xE99Au, &&L_E99A},         {0xE9A7u, &&L_E9A7},         {0xE9ADu, &&L_E9AD},         {0xE9B4u, &&L_E9B4},         {0xE9B7u, &&L_E9B7},         {0xE9BBu, &&L_E9BB},         {0xE9BEu, &&L_E9BE},         {0xE9C8u, &&L_E9C8},         {0xE9DAu, &&L_E9DA},         {0xE9EAu, &&L_E9EA},         {0xE9EDu, &&L_E9ED},         {0xE9F0u, &&L_E9F0},         {0xE9F3u, &&L_E9F3},         {0xE9FDu, &&L_E9FD},         {0xEA00u, &&L_EA00},         {0xEA01u, &&L_EA01},         {0xEA0Du, &&L_EA0D},         {0xEA11u, &&L_EA11},         {0xEA15u, &&L_EA15},         {0xEA19u, &&L_EA19},         {0xEA1Du, &&L_EA1D},         {0xEA21u, &&L_EA21},         {0xEA24u, &&L_EA24},         {0xEA27u, &&L_EA27},         {0xEA2Au, &&L_EA2A},         {0xEA2Fu, &&L_EA2F},         {0xEA34u, &&L_EA34},         {0xEA38u, &&L_EA38},         {0xEA56u, &&L_EA56},         {0xEA59u, &&L_EA59},         {0xEA5Eu, &&L_EA5E},         {0xEA5Fu, &&L_EA5F},         {0xEA63u, &&L_EA63},         {0xEA64u, &&L_EA64},         {0xEA6Fu, &&L_EA6F},         {0xEA71u, &&L_EA71},         {0xEA72u, &&L_EA72},         {0xEA81u, &&L_EA81},         {0xEA88u, &&L_EA88},         {0xEA8Au, &&L_EA8A},         {0xEA8Du, &&L_EA8D},         {0xEA92u, &&L_EA92},         {0xEA98u, &&L_EA98},         {0xEAA0u, &&L_EAA0},         {0xEAA1u, &&L_EAA1},         {0xEAA7u, &&L_EAA7},         {0xEAABu, &&L_EAAB},         {0xEAAEu, &&L_EAAE},         {0xEAB2u, &&L_EAB2},         {0xEAB6u, &&L_EAB6},         {0xEABFu, &&L_EABF},         {0xEAC8u, &&L_EAC8},         {0xEACAu, &&L_EACA},         {0xEACCu, &&L_EACC},         {0xEACDu, &&L_EACD},         {0xEAD1u, &&L_EAD1},         {0xEAD4u, &&L_EAD4},         {0xEAD6u, &&L_EAD6},         {0xEADBu, &&L_EADB},         {0xEADEu, &&L_EADE},         {0xEAE1u, &&L_EAE1},         {0xEAECu, &&L_EAEC},         {0xEAF7u, &&L_EAF7},         {0xEB03u, &&L_EB03},         {0xEB05u, &&L_EB05},         {0xEB06u, &&L_EB06},         {0xEB0Bu, &&L_EB0B},         {0xEB0Cu, &&L_EB0C},         {0xEB27u, &&L_EB27},         {0xEB2Bu, &&L_EB2B},         {0xEB2Fu, &&L_EB2F},         {0xEB32u, &&L_EB32},         {0xEB36u, &&L_EB36},         {0xEB39u, &&L_EB39},         {0xEB3Du, &&L_EB3D},         {0xEB40u, &&L_EB40},         {0xEB44u, &&L_EB44},         {0xEB47u, &&L_EB47},         {0xEB4Bu, &&L_EB4B},         {0xEB4Eu, &&L_EB4E},         {0xEB4Fu, &&L_EB4F},         {0xEB54u, &&L_EB54},         {0xEB5Au, &&L_EB5A},         {0xEB5Eu, &&L_EB5E},         {0xEB63u, &&L_EB63},         {0xEB66u, &&L_EB66},         {0xEB6Fu, &&L_EB6F},         {0xEB74u, &&L_EB74},         {0xEB7Bu, &&L_EB7B},         {0xEB82u, &&L_EB82},         {0xEB85u, &&L_EB85},         {0xEB89u, &&L_EB89},         {0xEB8Eu, &&L_EB8E},         {0xEB92u, &&L_EB92},         {0xEB97u, &&L_EB97},         {0xEB9Cu, &&L_EB9C},         {0xEBA1u, &&L_EBA1},         {0xEBA6u, &&L_EBA6},         {0xEBA8u, &&L_EBA8},         {0xEBABu, &&L_EBAB},         {0xEBB6u, &&L_EBB6},         {0xEBBAu, &&L_EBBA},         {0xEBBBu, &&L_EBBB},         {0xEBBFu, &&L_EBBF},         {0xEBC4u, &&L_EBC4},         {0xEBD3u, &&L_EBD3},         {0xEBDAu, &&L_EBDA},         {0xEBDFu, &&L_EBDF},         {0xEBEDu, &&L_EBED},         {0xEBF2u, &&L_EBF2},         {0xEBF9u, &&L_EBF9},         {0xEBFFu, &&L_EBFF},         {0xEC03u, &&L_EC03},         {0xEC0Au, &&L_EC0A},         {0xEC10u, &&L_EC10},         {0xEC12u, &&L_EC12},         {0xEC16u, &&L_EC16},         {0xEC29u, &&L_EC29},         {0xEC2Cu, &&L_EC2C},         {0xEC31u, &&L_EC31},         {0xEC37u, &&L_EC37},         {0xEC3Bu, &&L_EC3B},         {0xEC3Eu, &&L_EC3E},         {0xEC41u, &&L_EC41},         {0xEC44u, &&L_EC44},         {0xEC48u, &&L_EC48},         {0xEC4Du, &&L_EC4D},         {0xEC50u, &&L_EC50},         {0xEC56u, &&L_EC56},         {0xEC5Bu, &&L_EC5B},         {0xEC5Eu, &&L_EC5E},         {0xEC61u, &&L_EC61},         {0xEC63u, &&L_EC63},         {0xEC69u, &&L_EC69},         {0xEC6Fu, &&L_EC6F},         {0xEC73u, &&L_EC73},         {0xEC76u, &&L_EC76},         {0xEC7Cu, &&L_EC7C},         {0xEC80u, &&L_EC80},         {0xEC86u, &&L_EC86},         {0xEC93u, &&L_EC93},         {0xEC97u, &&L_EC97},         {0xECA4u, &&L_ECA4},         {0xECA7u, &&L_ECA7},         {0xECAAu, &&L_ECAA},         {0xECAFu, &&L_ECAF},         {0xECB5u, &&L_ECB5},         {0xECBBu, &&L_ECBB},         {0xECBEu, &&L_ECBE},         {0xECBFu, &&L_ECBF},         {0xECC3u, &&L_ECC3},         {0xECC6u, &&L_ECC6},         {0xECCCu, &&L_ECCC},         {0xECD1u, &&L_ECD1},         {0xECD3u, &&L_ECD3},         {0xECD5u, &&L_ECD5},         {0xECE8u, &&L_ECE8},         {0xECEEu, &&L_ECEE},         {0xECF7u, &&L_ECF7},         {0xECFDu, &&L_ECFD},         {0xED07u, &&L_ED07},         {0xED0Cu, &&L_ED0C},         {0xED12u, &&L_ED12},         {0xED16u, &&L_ED16},         {0xED19u, &&L_ED19},         {0xED1Cu, &&L_ED1C},         {0xED21u, &&L_ED21},         {0xED24u, &&L_ED24},         {0xED26u, &&L_ED26},         {0xED31u, &&L_ED31},         {0xED34u, &&L_ED34},         {0xED38u, &&L_ED38},         {0xED3Bu, &&L_ED3B},         {0xED3Eu, &&L_ED3E},         {0xED43u, &&L_ED43},         {0xED46u, &&L_ED46},         {0xED48u, &&L_ED48},         {0xED54u, &&L_ED54},         {0xED57u, &&L_ED57},         {0xED69u, &&L_ED69},         {0xED74u, &&L_ED74},         {0xED85u, &&L_ED85},         {0xED87u, &&L_ED87},         {0xED8Au, &&L_ED8A},         {0xED93u, &&L_ED93},         {0xED96u, &&L_ED96},         {0xED99u, &&L_ED99},         {0xED9Cu, &&L_ED9C},         {0xED9Eu, &&L_ED9E},         {0xEDAAu, &&L_EDAA},         {0xEDADu, &&L_EDAD},         {0xEDB0u, &&L_EDB0},         {0xEDB5u, &&L_EDB5},         {0xEDBBu, &&L_EDBB},         {0xEDC1u, &&L_EDC1},         {0xEDC4u, &&L_EDC4},         {0xEDC5u, &&L_EDC5},         {0xEDCBu, &&L_EDCB},         {0xEDD1u, &&L_EDD1},         {0xEDD2u, &&L_EDD2},         {0xEDEBu, &&L_EDEB},         {0xEDEEu, &&L_EDEE},         {0xEDF0u, &&L_EDF0},         {0xEDF6u, &&L_EDF6},         {0xEDFCu, &&L_EDFC},         {0xEE07u, &&L_EE07},         {0xEE0Bu, &&L_EE0B},         {0xEE0Cu, &&L_EE0C},         {0xEE17u, &&L_EE17},         {0xEE19u, &&L_EE19},         {0xEE1Au, &&L_EE1A},         {0xEE20u, &&L_EE20},         {0xEE23u, &&L_EE23},         {0xEE26u, &&L_EE26},         {0xEE29u, &&L_EE29},         {0xEE2Eu, &&L_EE2E},         {0xEE34u, &&L_EE34},         {0xEE38u, &&L_EE38},         {0xEE3Cu, &&L_EE3C},         {0xEE47u, &&L_EE47},         {0xEE4Eu, &&L_EE4E},         {0xEE51u, &&L_EE51},         {0xEE57u, &&L_EE57},         {0xEE5Cu, &&L_EE5C},         {0xEE5Fu, &&L_EE5F},         {0xEE62u, &&L_EE62},         {0xEE67u, &&L_EE67},         {0xEE6Cu, &&L_EE6C},         {0xEE79u, &&L_EE79},         {0xEE7Fu, &&L_EE7F},         {0xEE80u, &&L_EE80},         {0xEE84u, &&L_EE84},         {0xEE88u, &&L_EE88},         {0xEE8Du, &&L_EE8D},         {0xEE95u, &&L_EE95},         {0xEE9Du, &&L_EE9D},         {0xEEA5u, &&L_EEA5},         {0xEEACu, &&L_EEAC},         {0xEEB2u, &&L_EEB2},         {0xEEB6u, &&L_EEB6},         {0xEEC2u, &&L_EEC2},         {0xEED4u, &&L_EED4},         {0xEED8u, &&L_EED8},         {0xEED9u, &&L_EED9},         {0xEEDFu, &&L_EEDF},         {0xEEE2u, &&L_EEE2},         {0xEEE6u, &&L_EEE6},         {0xEEE7u, &&L_EEE7},         {0xEEEBu, &&L_EEEB},         {0xEEF0u, &&L_EEF0},         {0xEEF7u, &&L_EEF7},         {0xEEFFu, &&L_EEFF},         {0xEF07u, &&L_EF07},         {0xEF0Cu, &&L_EF0C},         {0xEF18u, &&L_EF18},         {0xEF2Au, &&L_EF2A},         {0xEF2Eu, &&L_EF2E},         {0xEF2Fu, &&L_EF2F},         {0xEF33u, &&L_EF33},         {0xEF38u, &&L_EF38},         {0xEF51u, &&L_EF51},         {0xEF57u, &&L_EF57},         {0xEF5Bu, &&L_EF5B},         {0xEF71u, &&L_EF71},         {0xEF72u, &&L_EF72},         {0xEF7Bu, &&L_EF7B},         {0xEF82u, &&L_EF82},         {0xEF87u, &&L_EF87},         {0xEF89u, &&L_EF89},         {0xEF94u, &&L_EF94},         {0xEF9Bu, &&L_EF9B},         {0xEFA0u, &&L_EFA0},         {0xEFA2u, &&L_EFA2},         {0xEFADu, &&L_EFAD},         {0xEFD5u, &&L_EFD5},         {0xEFD7u, &&L_EFD7},         {0xEFDDu, &&L_EFDD},         {0xEFE2u, &&L_EFE2},         {0xEFE8u, &&L_EFE8},         {0xEFEBu, &&L_EFEB},         {0xEFEFu, &&L_EFEF},         {0xEFF3u, &&L_EFF3},         {0xEFF5u, &&L_EFF5},         {0xF001u, &&L_F001},         {0xF004u, &&L_F004},         {0xF009u, &&L_F009},         {0xF00Eu, &&L_F00E},         {0xF013u, &&L_F013},         {0xF018u, &&L_F018},         {0xF01Bu, &&L_F01B},         {0xF020u, &&L_F020},         {0xF025u, &&L_F025},         {0xF02Au, &&L_F02A},         {0xF040u, &&L_F040},         {0xF046u, &&L_F046},         {0xF04Cu, &&L_F04C},         {0xF052u, &&L_F052},         {0xF057u, &&L_F057},         {0xF059u, &&L_F059},         {0xF062u, &&L_F062},         {0xF063u, &&L_F063},         {0xF069u, &&L_F069},         {0xF070u, &&L_F070},         {0xF075u, &&L_F075},         {0xF078u, &&L_F078},         {0xF080u, &&L_F080},         {0xF082u, &&L_F082},         {0xF086u, &&L_F086},         {0xF088u, &&L_F088},         {0xF08Cu, &&L_F08C},         {0xF08Eu, &&L_F08E},         {0xF092u, &&L_F092},         {0xF094u, &&L_F094},         {0xF096u, &&L_F096},         {0xF0B9u, &&L_F0B9},         {0xF0CBu, &&L_F0CB},         {0xF0D0u, &&L_F0D0},         {0xF0D6u, &&L_F0D6},         {0xF0D9u, &&L_F0D9},         {0xF0DCu, &&L_F0DC},         {0xF0E0u, &&L_F0E0},         {0xF0E3u, &&L_F0E3},         {0xF0E6u, &&L_F0E6},         {0xF0E9u, &&L_F0E9},         {0xF0ECu, &&L_F0EC},         {0xF0EFu, &&L_F0EF},         {0xF0F2u, &&L_F0F2},         {0xF10Au, &&L_F10A},         {0xF10Eu, &&L_F10E},         {0xF11Du, &&L_F11D},         {0xF11Eu, &&L_F11E},         {0xF124u, &&L_F124},         {0xF138u, &&L_F138},         {0xF139u, &&L_F139},         {0xF13Bu, &&L_F13B},         {0xF141u, &&L_F141},         {0xF155u, &&L_F155},         {0xF160u, &&L_F160},         {0xF161u, &&L_F161},         {0xF16Au, &&L_F16A},         {0xF16Fu, &&L_F16F},         {0xF18Du, &&L_F18D},         {0xF194u, &&L_F194},         {0xF195u, &&L_F195},         {0xF197u, &&L_F197},         {0xF19Fu, &&L_F19F},         {0xF1A8u, &&L_F1A8},         {0xF1B3u, &&L_F1B3},         {0xF1B4u, &&L_F1B4},         {0xF1CEu, &&L_F1CE},         {0xF1D4u, &&L_F1D4},         {0xF1D7u, &&L_F1D7},         {0xF1E5u, &&L_F1E5},         {0xF1EBu, &&L_F1EB},         {0xF1ECu, &&L_F1EC},         {0xF200u, &&L_F200},         {0xF202u, &&L_F202},         {0xF20Bu, &&L_F20B},         {0xF20Eu, &&L_F20E},         {0xF211u, &&L_F211},         {0xF213u, &&L_F213},         {0xF214u, &&L_F214},         {0xF21Cu, &&L_F21C},         {0xF228u, &&L_F228},         {0xF231u, &&L_F231},         {0xF23Cu, &&L_F23C},         {0xF23Fu, &&L_F23F},         {0xF243u, &&L_F243},         {0xF247u, &&L_F247},         {0xF248u, &&L_F248},         {0xF24Du, &&L_F24D},         {0xF24Eu, &&L_F24E},         {0xF25Fu, &&L_F25F},         {0xF269u, &&L_F269},         {0xF27Du, &&L_F27D},         {0xF28Eu, &&L_F28E},         {0xF295u, &&L_F295},         {0xF296u, &&L_F296},         {0xF298u, &&L_F298},         {0xF29Au, &&L_F29A},         {0xF2A2u, &&L_F2A2},         {0xF2AFu, &&L_F2AF},         {0xF2B0u, &&L_F2B0},         {0xF2B2u, &&L_F2B2},         {0xF2B4u, &&L_F2B4},         {0xF2BDu, &&L_F2BD},         {0xF2BEu, &&L_F2BE},         {0xF2C4u, &&L_F2C4},         {0xF2CAu, &&L_F2CA},         {0xF2D6u, &&L_F2D6},         {0xF2D7u, &&L_F2D7},         {0xF2EAu, &&L_F2EA},         {0xF2F2u, &&L_F2F2},         {0xF2FAu, &&L_F2FA},         {0xF303u, &&L_F303},         {0xF306u, &&L_F306},         {0xF310u, &&L_F310},         {0xF313u, &&L_F313},         {0xF327u, &&L_F327},         {0xF32Du, &&L_F32D},         {0xF32Fu, &&L_F32F},         {0xF333u, &&L_F333},         {0xF33Du, &&L_F33D},         {0xF33Eu, &&L_F33E},         {0xF342u, &&L_F342},         {0xF344u, &&L_F344},         {0xF354u, &&L_F354},         {0xF355u, &&L_F355},         {0xF35Eu, &&L_F35E},         {0xF367u, &&L_F367},         {0xF36Bu, &&L_F36B},         {0xF375u, &&L_F375},         {0xF380u, &&L_F380},         {0xF38Bu, &&L_F38B},         {0xF38Eu, &&L_F38E},         {0xF392u, &&L_F392},         {0xF39Cu, &&L_F39C},         {0xF3A7u, &&L_F3A7},         {0xF3B2u, &&L_F3B2},         {0xF3B8u, &&L_F3B8},         {0xF3BCu, &&L_F3BC},         {0xF3C0u, &&L_F3C0},         {0xF3C2u, &&L_F3C2},         {0xF3C6u, &&L_F3C6},         {0xF3D2u, &&L_F3D2},         {0xF3D9u, &&L_F3D9},         {0xF3E0u, &&L_F3E0},         {0xF3E2u, &&L_F3E2},         {0xF3E3u, &&L_F3E3},         {0xF3E6u, &&L_F3E6},         {0xF3ECu, &&L_F3EC},         {0xF3EEu, &&L_F3EE},         {0xF3FBu, &&L_F3FB},         {0xF3FFu, &&L_F3FF},         {0xF403u, &&L_F403},         {0xF404u, &&L_F404},         {0xF407u, &&L_F407},         {0xF40Du, &&L_F40D},         {0xF417u, &&L_F417},         {0xF420u, &&L_F420},         {0xF423u, &&L_F423},         {0xF426u, &&L_F426},         {0xF435u, &&L_F435},         {0xF44Au, &&L_F44A},         {0xF44Fu, &&L_F44F},         {0xF453u, &&L_F453},         {0xF45Eu, &&L_F45E},         {0xF468u, &&L_F468},         {0xF472u, &&L_F472},         {0xF474u, &&L_F474},         {0xF479u, &&L_F479},         {0xF47Eu, &&L_F47E},         {0xF481u, &&L_F481},         {0xF483u, &&L_F483},         {0xF493u, &&L_F493},         {0xF499u, &&L_F499},         {0xF49Fu, &&L_F49F},         {0xF4A0u, &&L_F4A0},         {0xF4A4u, &&L_F4A4},         {0xF4A9u, &&L_F4A9},         {0xF4ACu, &&L_F4AC},         {0xF4B2u, &&L_F4B2},         {0xF4B8u, &&L_F4B8},         {0xF4BCu, &&L_F4BC},         {0xF4BEu, &&L_F4BE},         {0xF4C1u, &&L_F4C1},         {0xF4C2u, &&L_F4C2},         {0xF4CDu, &&L_F4CD},         {0xF4D5u, &&L_F4D5},         {0xF4DDu, &&L_F4DD},         {0xF4E4u, &&L_F4E4},         {0xF4EDu, &&L_F4ED},         {0xF4FCu, &&L_F4FC},         {0xF4FDu, &&L_F4FD},         {0xF50Eu, &&L_F50E},         {0xF51Du, &&L_F51D},         {0xF521u, &&L_F521},         {0xF522u, &&L_F522},         {0xF524u, &&L_F524},         {0xF533u, &&L_F533},         {0xF543u, &&L_F543},         {0xF547u, &&L_F547},         {0xF549u, &&L_F549},         {0xF554u, &&L_F554},         {0xF55Au, &&L_F55A},         {0xFA48u, &&L_FA48},         {0xFA50u, &&L_FA50},         {0xFA5Fu, &&L_FA5F},         {0xFA64u, &&L_FA64},         {0xFA68u, &&L_FA68},         {0xFA6Bu, &&L_FA6B},         {0xFA7Au, &&L_FA7A},         {0xFA7Fu, &&L_FA7F},         {0xFA82u, &&L_FA82},         {0xFA86u, &&L_FA86},         {0xFA88u, &&L_FA88},         {0xFA8Bu, &&L_FA8B},         {0xFA8Eu, &&L_FA8E},         {0xFA8Fu, &&L_FA8F},         {0xFA93u, &&L_FA93},         {0xFA95u, &&L_FA95},         {0xFA9Fu, &&L_FA9F},         {0xFAA1u, &&L_FAA1},         {0xFAA7u, &&L_FAA7},         {0xFAB2u, &&L_FAB2},         {0xFAB3u, &&L_FAB3},         {0xFABAu, &&L_FABA},         {0xFAC4u, &&L_FAC4},         {0xFACAu, &&L_FACA},         {0xFAD5u, &&L_FAD5},         {0xFAD7u, &&L_FAD7},         {0xFAE0u, &&L_FAE0},         {0xFB75u, &&L_FB75},         {0xFB7Eu, &&L_FB7E},         {0xFB89u, &&L_FB89},         {0xFB94u, &&L_FB94},         {0xFB98u, &&L_FB98},         {0xFBA0u, &&L_FBA0},         {0xFBA4u, &&L_FBA4},         {0xFBA7u, &&L_FBA7},         {0xFBAEu, &&L_FBAE},         {0xFBAFu, &&L_FBAF},         {0xFBB2u, &&L_FBB2},         {0xFBB7u, &&L_FBB7},         {0xFBC2u, &&L_FBC2},         {0xFBCAu, &&L_FBCA},         {0xFBCEu, &&L_FBCE},         {0xFBD1u, &&L_FBD1},         {0xFBD4u, &&L_FBD4},         {0xFBD9u, &&L_FBD9},         {0xFBEAu, &&L_FBEA},         {0xFBF2u, &&L_FBF2},         {0xFBF9u, &&L_FBF9},         {0xFBFDu, &&L_FBFD},         {0xFC01u, &&L_FC01},         {0xFC04u, &&L_FC04},         {0xFC08u, &&L_FC08},         {0xFC0Bu, &&L_FC0B},         {0xFC0Fu, &&L_FC0F},         {0xFC12u, &&L_FC12},         {0xFC16u, &&L_FC16},         {0xFC19u, &&L_FC19},         {0xFC28u, &&L_FC28},         {0xFC2Cu, &&L_FC2C},         {0xFC30u, &&L_FC30},         {0xFC3Du, &&L_FC3D},         {0xFC41u, &&L_FC41},         {0xFC44u, &&L_FC44},         {0xFC48u, &&L_FC48},         {0xFC4Bu, &&L_FC4B},         {0xFC51u, &&L_FC51},         {0xFC62u, &&L_FC62},         {0xFC73u, &&L_FC73},         {0xFC7Fu, &&L_FC7F},         {0xFC84u, &&L_FC84},         {0xFC90u, &&L_FC90},         {0xFC94u, &&L_FC94},         {0xFC99u, &&L_FC99},         {0xFC9Du, &&L_FC9D},         {0xFCA1u, &&L_FCA1},         {0xFCA5u, &&L_FCA5},         {0xFCAEu, &&L_FCAE},         {0xFCB1u, &&L_FCB1},         {0xFCB4u, &&L_FCB4},         {0xFCB8u, &&L_FCB8},         {0xFCBAu, &&L_FCBA},         {0xFCBEu, &&L_FCBE},         {0xFCC2u, &&L_FCC2},         {0xFCC6u, &&L_FCC6},         {0xFCD1u, &&L_FCD1},         {0xFCDBu, &&L_FCDB},         {0xFCDDu, &&L_FCDD},         {0xFCF0u, &&L_FCF0},         {0xFCF6u, &&L_FCF6},         {0xFCFAu, &&L_FCFA},         {0xFD00u, &&L_FD00},         {0xFD09u, &&L_FD09},         {0xFD0Bu, &&L_FD0B},         {0xFD0Fu, &&L_FD0F},         {0xFD13u, &&L_FD13},         {0xFD18u, &&L_FD18},         {0xFD1Du, &&L_FD1D},         {0xFD25u, &&L_FD25},         {0xFD35u, &&L_FD35},         {0xFD3Au, &&L_FD3A},         {0xFD44u, &&L_FD44},         {0xFD58u, &&L_FD58},         {0xFD5Cu, &&L_FD5C},         {0xFD61u, &&L_FD61},         {0xFD62u, &&L_FD62},         {0xFD65u, &&L_FD65},         {0xFD67u, &&L_FD67},         {0xFD9Bu, &&L_FD9B},         {0xFD9Fu, &&L_FD9F},         {0xFDA4u, &&L_FDA4},         {0xFDAAu, &&L_FDAA},         {0xFDACu, &&L_FDAC},         {0xFDAFu, &&L_FDAF},         {0xFDB8u, &&L_FDB8},         {0xFDBBu, &&L_FDBB},         {0xFDBDu, &&L_FDBD},         {0xFDC1u, &&L_FDC1},         {0xFDC7u, &&L_FDC7},         {0xFDCDu, &&L_FDCD},         {0xFDCFu, &&L_FDCF},         {0xFDD2u, &&L_FDD2},         {0xFDD8u, &&L_FDD8},         {0xFDDCu, &&L_FDDC},         {0xFDE1u, &&L_FDE1},         {0xFDE9u, &&L_FDE9},         {0xFDECu, &&L_FDEC},         {0xFDFBu, &&L_FDFB},         {0xFE00u, &&L_FE00},         {0xFE03u, &&L_FE03},         {0xFE09u, &&L_FE09},         {0xFE0Cu, &&L_FE0C},         {0xFE17u, &&L_FE17},         {0xFE19u, &&L_FE19},         {0xFE1Du, &&L_FE1D},         {0xFE26u, &&L_FE26},         {0xFE2Cu, &&L_FE2C},         {0xFE2Eu, &&L_FE2E},         {0xFE31u, &&L_FE31},         {0xFE35u, &&L_FE35},         {0xFE3Au, &&L_FE3A},         {0xFE41u, &&L_FE41},         {0xFE4Du, &&L_FE4D},         {0xFE4Fu, &&L_FE4F},         {0xFE53u, &&L_FE53},         {0xFE55u, &&L_FE55},         {0xFE58u, &&L_FE58},         {0xFFF0u, &&L_FFF0}, 
+    };
+    if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; u16 lo = 0u, hi = (u16)(sizeof(kRL)/sizeof(kRL[0]));
+        while (lo < hi) { const u16 mid = (u16)((lo + hi) / 2u); if (kRL[mid].a < n2a_r) { lo = (u16)(mid + 1u); } else { hi = mid; } }
+        if (lo < (u16)(sizeof(kRL)/sizeof(kRL[0])) && kRL[lo].a == n2a_r) { goto *kRL[lo].l; } }
+    if (g_resume == 0u) { goto L_C79E; }
+L_C79E: if (g_yield_req) { g_resume = 0xC79Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    If = true;
+    tick(2u);
+    Df = false;
+    tick(2u);
+    A = 0x10u;
+    tick(4u);
+    wr(0x2000u, A);
+    tick(2u);
+    X = 0xFFu; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(2u);
+    SP = X;
+    goto L_C7A8;
+L_C7A8: if (g_yield_req) { g_resume = 0xC7A8u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x2002u);
+    tick(2u);
+    A = (u8)(A & 0x80u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    hal_wait_vblank();
+    if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_0; goto L_C85F; }
+L_nmiret_0: if (g_engine_mode) { g_yield_req = 1u; }
+    goto L_C7AF;
+L_C7AF: if (g_yield_req) { g_resume = 0xC7AFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x07u;
+    tick(3u);
+    wr(0x0001u, Y);
+    tick(2u);
+    Y = 0x00u;
+    tick(3u);
+    wr(0x0000u, Y);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_C7B9;
+L_C7B9: if (g_yield_req) { g_resume = 0xC7B9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y), A);
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C7B9; }
+    tick(2u);
+    goto L_C7BE;
+L_C7BE: if (g_yield_req) { g_resume = 0xC7BEu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Nf) { tick(3u); goto L_C7B9; }
+    tick(2u);
+    goto L_C7C2;
+L_C7C2: if (g_yield_req) { g_resume = 0xC7C2u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC7u); --SP;
+    wr(0x100u + SP, 0xC4u); --SP;
+    ret_lbl[ret_sp++] = &&L_C7C5; goto L_C7E7;
+L_C7C5: if (g_yield_req) { g_resume = 0xC7C5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x7Fu;
+    tick(4u);
+    wr(0x0511u, A);
+    tick(2u);
+    A = 0x18u;
+    tick(3u);
+    wr(0x0051u, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x004Eu, A);
+    tick(3u);
+    wr(0x0055u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x004Fu, A);
+    tick(3u);
+    A = rd(0x0010u);
+    tick(2u);
+    A = (u8)(A ^ 0x80u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x2000u, A);
+    tick(3u);
+    wr(0x0010u, A);
+    goto L_C7E1;
+L_C7E1: if (g_yield_req) { g_resume = 0xC7E1u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC7u); --SP;
+    wr(0x100u + SP, 0xE3u); --SP;
+    ret_lbl[ret_sp++] = &&L_C7E4; goto L_F4ED;
+L_C7E4: if (g_yield_req) { g_resume = 0xC7E4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    frame_event();
+    if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_1; goto L_C85F; }
+L_nmiret_1: if (g_engine_mode) { g_yield_req = 1u; }
+    goto L_C7E1;
+L_C85F: if (g_yield_req) { g_resume = 0xC85Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0010u);
+    tick(2u);
+    A = (u8)(A & 0x7Fu);
+    tick(4u);
+    wr(0x2000u, A);
+    tick(3u);
+    wr(0x0010u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x2003u, A);
+    tick(2u);
+    A = 0x02u;
+    tick(4u);
+    wr(0x4014u, A);
+    tick(2u);
+    A = 0x31u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x03u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0x7Du); --SP;
+    ret_lbl[ret_sp++] = &&L_C87E; goto L_F228;
+L_C87E: if (g_yield_req) { g_resume = 0xC87Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x0330u, A);
+    tick(4u);
+    wr(0x0331u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0x88u); --SP;
+    ret_lbl[ret_sp++] = &&L_C889; goto L_F50E;
+L_C889: if (g_yield_req) { g_resume = 0xC889u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0011u);
+    tick(2u);
+    A = (u8)(A ^ 0x18u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x2001u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0x92u); --SP;
+    ret_lbl[ret_sp++] = &&L_C893; goto L_FA48;
+L_C893: if (g_yield_req) { g_resume = 0xC893u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x004Eu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C8C1; }
+    tick(2u);
+    goto L_C897;
+L_C897: if (g_yield_req) { g_resume = 0xC897u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x004Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_C8D4; }
+    tick(2u);
+    goto L_C89B;
+L_C89B: if (g_yield_req) { g_resume = 0xC89Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C8A5; }
+    tick(2u);
+    goto L_C89F;
+L_C89F: if (g_yield_req) { g_resume = 0xC89Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0xA1u); --SP;
+    ret_lbl[ret_sp++] = &&L_C8A2; goto L_CE7C;
+L_C8A2: if (g_yield_req) { g_resume = 0xC8A2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_C8D7;
+L_C8A5: if (g_yield_req) { g_resume = 0xC8A5u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x044Fu);
+    if (A != 8u) { goto L_C8D4; }
+    goto L_C8AC;
+L_C8AC: if (g_yield_req) { g_resume = 0xC8ACu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0xAEu); --SP;
+    ret_lbl[ret_sp++] = &&L_C8AF; goto L_CCF4;
+L_C8AF: if (g_yield_req) { g_resume = 0xC8AFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C8D7; }
+    tick(2u);
+    goto L_C8B3;
+L_C8B3: if (g_yield_req) { g_resume = 0xC8B3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x044Fu, A);
+    tick(3u);
+    wr(0x004Fu, A);
+    tick(2u);
+    A = 0x79u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(3u);
+    goto L_C8D7;
+L_C8C1: if (g_yield_req) { g_resume = 0xC8C1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0055u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C8CB; }
+    tick(2u);
+    goto L_C8C5;
+L_C8C5: if (g_yield_req) { g_resume = 0xC8C5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0xC7u); --SP;
+    ret_lbl[ret_sp++] = &&L_C8C8; goto L_CA30;
+L_C8C8: if (g_yield_req) { g_resume = 0xC8C8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_C8D7;
+L_C8CB: if (g_yield_req) { g_resume = 0xC8CBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0xCDu); --SP;
+    ret_lbl[ret_sp++] = &&L_C8CE; goto L_C8F3;
+L_C8CE: if (g_yield_req) { g_resume = 0xC8CEu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0xD0u); --SP;
+    ret_lbl[ret_sp++] = &&L_C8D1; goto L_F4AC;
+L_C8D1: if (g_yield_req) { g_resume = 0xC8D1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_C8D7;
+L_C8D4: if (g_yield_req) { g_resume = 0xC8D4u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0xD6u); --SP;
+    ret_lbl[ret_sp++] = &&L_C8D7; goto L_CAC9;
+L_C8D7: if (g_yield_req) { g_resume = 0xC8D7u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0505u);
+    if (A != 1u) { goto L_C8E8; }
+    goto L_C8DE;
+L_C8DE: if (g_yield_req) { g_resume = 0xC8DEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0051u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0xE4u); --SP;
+    ret_lbl[ret_sp++] = &&L_C8E5; goto L_F23C;
+L_C8E5: if (g_yield_req) { g_resume = 0xC8E5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0505u) - 1u); wr(0x0505u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_C8E8;
+L_C8E8: if (g_yield_req) { g_resume = 0xC8E8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0010u);
+    tick(2u);
+    A = (u8)(A ^ 0x80u);
+    tick(4u);
+    wr(0x2000u, A);
+    tick(3u);
+    wr(0x0010u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(6u); goto *ret_lbl[--ret_sp];
+L_FFF0: if (g_yield_req) { g_resume = 0xFFF0u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0xCE8Eu, X);
+    tick(6u);
+    { u8 t = (u8)(rd(0xCED2u) - 1u); wr(0xCED2u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+L_C7E7: if (g_yield_req) { g_resume = 0xC7E7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x10u;
+    tick(4u);
+    wr(0x2000u, A);
+    tick(3u);
+    wr(0x0010u, A);
+    tick(2u);
+    A = 0x06u;
+    tick(4u);
+    wr(0x2001u, A);
+    tick(3u);
+    wr(0x0011u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x2005u, A);
+    tick(3u);
+    wr(0x0012u, A);
+    tick(4u);
+    wr(0x2005u, A);
+    tick(3u);
+    wr(0x0013u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xC8u); --SP;
+    wr(0x100u + SP, 0x03u); --SP;
+    ret_lbl[ret_sp++] = &&L_C804; goto L_CBAE;
+L_C804: if (g_yield_req) { g_resume = 0xC804u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CBB7;
+L_CBB7: if (g_yield_req) { g_resume = 0xCBB7u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0xB9u); --SP;
+    ret_lbl[ret_sp++] = &&L_CBBA; goto L_D19A;
+L_CBBA: if (g_yield_req) { g_resume = 0xCBBAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F1B4;
+L_F1B4: if (g_yield_req) { g_resume = 0xF1B4u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x2002u);
+    tick(3u);
+    A = rd(0x0010u);
+    tick(2u);
+    A = (u8)(A & 0xFBu);
+    tick(4u);
+    wr(0x2000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(4u);
+    wr(0x2006u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x2006u, A);
+    tick(2u);
+    X = 0x04u;
+    tick(2u);
+    Y = 0x00u;
+    tick(2u);
+    A = 0x24u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F1CE;
+L_F1CE: if (g_yield_req) { g_resume = 0xF1CEu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x2007u, A);
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F1CE; }
+    tick(2u);
+    goto L_F1D4;
+L_F1D4: if (g_yield_req) { g_resume = 0xF1D4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F1CE; }
+    tick(2u);
+    goto L_F1D7;
+L_F1D7: if (g_yield_req) { g_resume = 0xF1D7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x23u;
+    tick(4u);
+    wr(0x2006u, A);
+    tick(2u);
+    A = 0xC0u;
+    tick(4u);
+    wr(0x2006u, A);
+    tick(2u);
+    Y = 0x40u;
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F1E5;
+L_F1E5: if (g_yield_req) { g_resume = 0xF1E5u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x2007u, A);
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F1E5; }
+    tick(2u);
+    goto L_F1EB;
+L_F1EB: if (g_yield_req) { g_resume = 0xF1EBu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F4ED: if (g_yield_req) { g_resume = 0xF4EDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0018u);
+    tick(2u);
+    A = (u8)(A & 0x02u);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    A = rd(0x0019u);
+    tick(2u);
+    A = (u8)(A & 0x02u);
+    tick(3u);
+    A = (u8)(A ^ rd(0x0000u)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(2u);
+    Cf = false;
+    if (Zf) { tick(3u); goto L_F4FD; }
+    tick(2u);
+    goto L_F4FC;
+L_F4FC: if (g_yield_req) { g_resume = 0xF4FCu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    goto L_F4FD;
+L_F4FD: if (g_yield_req) { g_resume = 0xF4FDu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x0018u); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x0018u, t); }
+    tick(5u);
+    { u8 t = rd(0x0019u); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x0019u, t); }
+    tick(5u);
+    { u8 t = rd(0x001Au); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x001Au, t); }
+    tick(5u);
+    { u8 t = rd(0x001Bu); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x001Bu, t); }
+    tick(5u);
+    { u8 t = rd(0x001Cu); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x001Cu, t); }
+    tick(5u);
+    { u8 t = rd(0x001Du); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x001Du, t); }
+    tick(5u);
+    { u8 t = rd(0x001Eu); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x001Eu, t); }
+    tick(5u);
+    { u8 t = rd(0x001Fu); { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } wr(0x001Fu, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CBAE: if (g_yield_req) { g_resume = 0xCBAEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0004u, A);
+    tick(2u);
+    A = 0xFFu;
+    tick(3u);
+    goto L_F092;
+L_F092: if (g_yield_req) { g_resume = 0xF092u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0003u, A);
+    goto L_F094;
+L_F094: if (g_yield_req) { g_resume = 0xF094u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Fu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F096;
+L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    wr(0x000Fu, A);
+    tick(2u);
+    A = X;
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(2u);
+    A = Y;
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0000u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0005u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0006u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0007u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0008u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0009u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x0005u, A);
+    tick(3u);
+    A = rd(0x000Fu);
+    if (A == 4u) { goto L_F0EF; }
+    goto L_F0B9;
+L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Fu;
+    tick(3u);
+    A = (u8)(A & rd(0x0003u));
+    tick(3u);
+    wr(0x0007u, A);
+    tick(3u);
+    A = rd(0x0003u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    wr(0x0006u, A);
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(2u);
+    Cf = false;
+    goto L_F0CB;
+L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F0CB; }
+    tick(2u);
+    goto L_F0D0;
+L_F0D0: if (g_yield_req) { g_resume = 0xF0D0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0008u, A);
+    tick(3u);
+    A = rd(0x000Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F0DC; }
+    tick(2u);
+    goto L_F0D6;
+L_F0D6: if (g_yield_req) { g_resume = 0xF0D6u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0xD8u); --SP;
+    ret_lbl[ret_sp++] = &&L_F0D9; goto L_F11E;
+L_F0D9: if (g_yield_req) { g_resume = 0xF0D9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F0E9;
+L_F0DC: if (g_yield_req) { g_resume = 0xF0DCu; g_yield_req = 0u; return; } 
+    if (A == 1u) { goto L_F0E6; }
+    goto L_F0E0;
+L_F0E0: if (g_yield_req) { g_resume = 0xF0E0u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0xE2u); --SP;
+    ret_lbl[ret_sp++] = &&L_F0E3; goto L_F195;
+L_F0E3: if (g_yield_req) { g_resume = 0xF0E3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F0F2;
+L_F0E6: if (g_yield_req) { g_resume = 0xF0E6u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0xE8u); --SP;
+    ret_lbl[ret_sp++] = &&L_F0E9; goto L_F161;
+L_F0E9: if (g_yield_req) { g_resume = 0xF0E9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0xEBu); --SP;
+    ret_lbl[ret_sp++] = &&L_F0EC; goto L_F139;
+L_F0EC: if (g_yield_req) { g_resume = 0xF0ECu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F0F2;
+L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0xF1u); --SP;
+    ret_lbl[ret_sp++] = &&L_F0F2; goto L_F10A;
+L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(3u);
+    wr(0x0009u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(3u);
+    wr(0x0008u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(3u);
+    wr(0x0007u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(3u);
+    wr(0x0006u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(3u);
+    wr(0x0005u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    Y = A;
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    X = A;
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F1EC: if (g_yield_req) { g_resume = 0xF1ECu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x2006u, A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
+    tick(4u);
+    wr(0x2006u, A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0010u);
+    tick(2u);
+    A = (u8)(A | 0x04u);
+    if (Cf) { tick(3u); goto L_F202; }
+    tick(2u);
+    goto L_F200;
+L_F200: if (g_yield_req) { g_resume = 0xF200u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0xFBu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F202;
+L_F202: if (g_yield_req) { g_resume = 0xF202u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x2000u, A);
+    tick(3u);
+    wr(0x0010u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    if (!Cf) { tick(3u); goto L_F20E; }
+    tick(2u);
+    goto L_F20B;
+L_F20B: if (g_yield_req) { g_resume = 0xF20Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A | 0x02u);
+    tick(2u);
+    Y = (u8)(Y + 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F20E;
+L_F20E: if (g_yield_req) { g_resume = 0xF20Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F211;
+L_F211: if (g_yield_req) { g_resume = 0xF211u; g_yield_req = 0u; return; } 
+    if (Cf) { tick(3u); goto L_F214; }
+    tick(2u);
+    goto L_F213;
+L_F213: if (g_yield_req) { g_resume = 0xF213u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F214;
+L_F214: if (g_yield_req) { g_resume = 0xF214u; g_yield_req = 0u; return; } 
+    tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
+    tick(4u);
+    wr(0x2007u, A);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F211; }
+    tick(2u);
+    goto L_F21C;
+L_F21C: if (g_yield_req) { g_resume = 0xF21Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    A = Y;
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0001u, A);
+    goto L_F228;
+L_F228: if (g_yield_req) { g_resume = 0xF228u; g_yield_req = 0u; return; } 
+    tick(4u);
+    X = rd(0x2002u);
+    tick(2u);
+    Y = 0x00u;
+    tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_F1EC; }
+    tick(2u);
+    goto L_F231;
+L_F231: if (g_yield_req) { g_resume = 0xF231u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0012u);
+    tick(4u);
+    wr(0x2005u, A);
+    tick(3u);
+    A = rd(0x0013u);
+    tick(4u);
+    wr(0x2005u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F50E: if (g_yield_req) { g_resume = 0xF50Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr(0x4016u, A);
+    tick(2u);
+    X = 0x00u;
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x4016u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF5u); --SP;
+    wr(0x100u + SP, 0x1Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_F51D; goto L_F522;
+L_F51D: if (g_yield_req) { g_resume = 0xF51Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF5u); --SP;
+    wr(0x100u + SP, 0x20u); --SP;
+    ret_lbl[ret_sp++] = &&L_F521; goto L_F522;
+L_F521: if (g_yield_req) { g_resume = 0xF521u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FA48: if (g_yield_req) { g_resume = 0xFA48u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC0u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x4017u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xFAu); --SP;
+    wr(0x100u + SP, 0x4Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_FA50; goto L_FBF2;
+L_FA50: if (g_yield_req) { g_resume = 0xFA50u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u;
+    tick(3u);
+    wr(0x00FFu, X);
+    tick(3u);
+    wr(0x00FEu, X);
+    tick(3u);
+    wr(0x00FDu, X);
+    tick(4u);
+    A = rd(0x06F0u);
+    if (A >= 144u) { goto L_FA64; }
+    goto L_FA5F;
+L_FA5F: if (g_yield_req) { g_resume = 0xFA5Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x06F1u, X);
+    goto L_FA64;
+L_FA64: if (g_yield_req) { g_resume = 0xFA64u; g_yield_req = 0u; return; } 
+    if (A < 216u) { goto L_FA6B; }
+    goto L_FA68;
+L_FA68: if (g_yield_req) { g_resume = 0xFA68u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x06F1u) + 1u); wr(0x06F1u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_FA6B;
+L_FA6B: if (g_yield_req) { g_resume = 0xFA6Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = A;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = Y;
+    tick(4u);
+    X = rd(0x06F1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FA7F; }
+    tick(2u);
+    goto L_FA7A;
+L_FA7A: if (g_yield_req) { g_resume = 0xFA7Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_FA82; }
+    tick(2u);
+    goto L_FA7F;
+L_FA7F: if (g_yield_req) { g_resume = 0xFA7Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_FA82;
+L_FA82: if (g_yield_req) { g_resume = 0xFA82u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x06F0u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CA53: if (g_yield_req) { g_resume = 0xCA53u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCAu); --SP;
+    wr(0x100u + SP, 0x55u); --SP;
+    ret_lbl[ret_sp++] = &&L_CA56; goto L_CBB7;
+L_CA56: if (g_yield_req) { g_resume = 0xCA56u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCAu); --SP;
+    wr(0x100u + SP, 0x58u); --SP;
+    ret_lbl[ret_sp++] = &&L_CA59; goto L_CBAE;
+L_CA59: if (g_yield_req) { g_resume = 0xCA59u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CE7C: if (g_yield_req) { g_resume = 0xCE7Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CE94; }
+    tick(2u);
+    goto L_CE80;
+L_CE80: if (g_yield_req) { g_resume = 0xCE80u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0102u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CE8B; }
+    tick(2u);
+    goto L_CE85;
+L_CE85: if (g_yield_req) { g_resume = 0xCE85u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4015u, A);
+    tick(4u);
+    wr(0x0100u, A);
+    goto L_CE8B;
+L_CE8B: if (g_yield_req) { g_resume = 0xCE8Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0015u);
+    tick(2u);
+    A = (u8)(A & 0x20u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CE94; }
+    tick(2u);
+    goto L_CE91;
+L_CE91: if (g_yield_req) { g_resume = 0xCE91u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF2B;
+L_CE94: if (g_yield_req) { g_resume = 0xCE94u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0516u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CEAE; }
+    tick(2u);
+    goto L_CE99;
+L_CE99: if (g_yield_req) { g_resume = 0xCE99u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0517u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CEA2; }
+    tick(2u);
+    goto L_CE9E;
+L_CE9E: if (g_yield_req) { g_resume = 0xCE9Eu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0517u) - 1u); wr(0x0517u, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CEA2: if (g_yield_req) { g_resume = 0xCEA2u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xA4u); --SP;
+    ret_lbl[ret_sp++] = &&L_CEA5; goto L_CC04;
+L_CEA5: if (g_yield_req) { g_resume = 0xCEA5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xA7u); --SP;
+    ret_lbl[ret_sp++] = &&L_CEA8; goto L_CFA8;
+L_CEA8: if (g_yield_req) { g_resume = 0xCEA8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Au);
+    if (A != 1u) { goto L_CEB1; }
+    goto L_CEAE;
+L_CEAE: if (g_yield_req) { g_resume = 0xCEAEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF1C;
+L_CEB1: if (g_yield_req) { g_resume = 0xCEB1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00BFu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CEB8; }
+    tick(2u);
+    goto L_CEB5;
+L_CEB5: if (g_yield_req) { g_resume = 0xCEB5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF13;
+L_CEB8: if (g_yield_req) { g_resume = 0xCEB8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 255u) { goto L_CEC1; }
+    goto L_CEBE;
+L_CEBE: if (g_yield_req) { g_resume = 0xCEBEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF19;
+L_CEC1: if (g_yield_req) { g_resume = 0xCEC1u; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_CED6; }
+    goto L_CEC5;
+L_CEC5: if (g_yield_req) { g_resume = 0xCEC5u; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_CED6; }
+    goto L_CEC9;
+L_CEC9: if (g_yield_req) { g_resume = 0xCEC9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CED3; }
+    tick(2u);
+    goto L_CECD;
+L_CECD: if (g_yield_req) { g_resume = 0xCECDu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xCFu); --SP;
+    ret_lbl[ret_sp++] = &&L_CED0; goto L_EBDA;
+L_CED0: if (g_yield_req) { g_resume = 0xCED0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CED6;
+L_CED3: if (g_yield_req) { g_resume = 0xCED3u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xD5u); --SP;
+    ret_lbl[ret_sp++] = &&L_CED6; goto L_D175;
+L_CED6: if (g_yield_req) { g_resume = 0xCED6u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xD8u); --SP;
+    ret_lbl[ret_sp++] = &&L_CED9; goto L_EB06;
+L_CED9: if (g_yield_req) { g_resume = 0xCED9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xDBu); --SP;
+    ret_lbl[ret_sp++] = &&L_CEDC; goto L_EBB6;
+L_CEDC: if (g_yield_req) { g_resume = 0xCEDCu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xDEu); --SP;
+    ret_lbl[ret_sp++] = &&L_CEDF; goto L_D041;
+L_CEDF: if (g_yield_req) { g_resume = 0xCEDFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xE1u); --SP;
+    ret_lbl[ret_sp++] = &&L_CEE2; goto L_D1A4;
+L_CEE2: if (g_yield_req) { g_resume = 0xCEE2u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xE4u); --SP;
+    ret_lbl[ret_sp++] = &&L_CEE5; goto L_EA5F;
+L_CEE5: if (g_yield_req) { g_resume = 0xCEE5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xE7u); --SP;
+    ret_lbl[ret_sp++] = &&L_CEE8; goto L_E1E5;
+L_CEE8: if (g_yield_req) { g_resume = 0xCEE8u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xEAu); --SP;
+    ret_lbl[ret_sp++] = &&L_CEEB; goto L_EE79;
+L_CEEB: if (g_yield_req) { g_resume = 0xCEEBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 3u) { goto L_CF01; }
+    goto L_CEF1;
+L_CEF1: if (g_yield_req) { g_resume = 0xCEF1u; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_CF0D; }
+    goto L_CEF5;
+L_CEF5: if (g_yield_req) { g_resume = 0xCEF5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xF7u); --SP;
+    ret_lbl[ret_sp++] = &&L_CEF8; goto L_DA16;
+L_CEF8: if (g_yield_req) { g_resume = 0xCEF8u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xFAu); --SP;
+    ret_lbl[ret_sp++] = &&L_CEFB; goto L_E19A;
+L_CEFB: if (g_yield_req) { g_resume = 0xCEFBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0xFDu); --SP;
+    ret_lbl[ret_sp++] = &&L_CEFE; goto L_EC29;
+L_CEFE: if (g_yield_req) { g_resume = 0xCEFEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF1C;
+L_CF01: if (g_yield_req) { g_resume = 0xCF01u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x03u); --SP;
+    ret_lbl[ret_sp++] = &&L_CF04; goto L_E834;
+L_CF04: if (g_yield_req) { g_resume = 0xCF04u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x06u); --SP;
+    ret_lbl[ret_sp++] = &&L_CF07; goto L_E981;
+L_CF07: if (g_yield_req) { g_resume = 0xCF07u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x09u); --SP;
+    ret_lbl[ret_sp++] = &&L_CF0A; goto L_EC29;
+L_CF0A: if (g_yield_req) { g_resume = 0xCF0Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF1C;
+L_CF0D: if (g_yield_req) { g_resume = 0xCF0Du; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x0Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_CF10; goto L_EC29;
+L_CF10: if (g_yield_req) { g_resume = 0xCF10u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF1C;
+L_CF13: if (g_yield_req) { g_resume = 0xCF13u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x15u); --SP;
+    ret_lbl[ret_sp++] = &&L_CF16; goto L_EE0C;
+L_CF16: if (g_yield_req) { g_resume = 0xCF16u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CF1C;
+L_CF19: if (g_yield_req) { g_resume = 0xCF19u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x1Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_CF1C; goto L_D0C0;
+L_CF1C: if (g_yield_req) { g_resume = 0xCF1Cu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x1Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_CF1F; goto L_CF42;
+L_CF1F: if (g_yield_req) { g_resume = 0xCF1Fu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0516u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CF2A; }
+    tick(2u);
+    goto L_CF24;
+L_CF24: if (g_yield_req) { g_resume = 0xCF24u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x26u); --SP;
+    ret_lbl[ret_sp++] = &&L_CF27; goto L_D04C;
+L_CF27: if (g_yield_req) { g_resume = 0xCF27u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0x29u); --SP;
+    ret_lbl[ret_sp++] = &&L_CF2A; goto L_F4AC;
+L_CF2A: if (g_yield_req) { g_resume = 0xCF2Au; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CF2B: if (g_yield_req) { g_resume = 0xCF2Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x004Eu, A);
+    tick(4u);
+    wr(0x0512u, A);
+    tick(3u);
+    wr(0x0055u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0044u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0058u, A);
+    tick(4u);
+    wr(0x0510u, A);
+    tick(3u);
+    goto L_CA53;
+L_C815: if (g_yield_req) { g_resume = 0xC815u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Cu + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Du + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    goto L_F2D7;
+L_C823: if (g_yield_req) { g_resume = 0xC823u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Cu + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Du + X));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_CD76;
+L_CCF4: if (g_yield_req) { g_resume = 0xCCF4u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0450u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_CD07; }
+    tick(2u);
+    goto L_CCF9;
+L_CCF9: if (g_yield_req) { g_resume = 0xCCF9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr(0x0450u, A);
+    tick(2u);
+    A = 0x0Au;
+    tick(3u);
+    wr(0x0034u, A);
+    tick(2u);
+    A = 0x10u;
+    tick(3u);
+    wr(0x00FDu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CD07: if (g_yield_req) { g_resume = 0xCD07u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u);
+    if (A < 88u) { goto L_CD13; }
+    goto L_CD0D;
+L_CD0D: if (g_yield_req) { g_resume = 0xCD0Du; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCDu); --SP;
+    wr(0x100u + SP, 0x0Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_CD10; goto L_F4AC;
+L_CD10: if (g_yield_req) { g_resume = 0xCD10u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CD22;
+L_CD13: if (g_yield_req) { g_resume = 0xCD13u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCDu); --SP;
+    wr(0x100u + SP, 0x15u); --SP;
+    ret_lbl[ret_sp++] = &&L_CD16; goto L_CC24;
+L_CD16: if (g_yield_req) { g_resume = 0xCD16u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCDu); --SP;
+    wr(0x100u + SP, 0x18u); --SP;
+    ret_lbl[ret_sp++] = &&L_CD19; goto L_CC04;
+L_CD19: if (g_yield_req) { g_resume = 0xCD19u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(3u);
+    wr(0x009Au, A);
+    tick(3u);
+    goto L_CA53;
+L_CD22: if (g_yield_req) { g_resume = 0xCD22u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u);
+    if (A == 159u) { goto L_CD45; }
+    goto L_CD28;
+L_CD28: if (g_yield_req) { g_resume = 0xCD28u; g_yield_req = 0u; return; } 
+    if (A == 158u) { goto L_CD4A; }
+    goto L_CD2C;
+L_CD2C: if (g_yield_req) { g_resume = 0xCD2Cu; g_yield_req = 0u; return; } 
+    if (A == 157u) { goto L_CD4F; }
+    goto L_CD30;
+L_CD30: if (g_yield_req) { g_resume = 0xCD30u; g_yield_req = 0u; return; } 
+    if (A == 156u) { goto L_CD58; }
+    goto L_CD34;
+L_CD34: if (g_yield_req) { g_resume = 0xCD34u; g_yield_req = 0u; return; } 
+    if (A == 155u) { goto L_CD61; }
+    goto L_CD38;
+L_CD38: if (g_yield_req) { g_resume = 0xCD38u; g_yield_req = 0u; return; } 
+    if (A >= 144u) { goto L_CD66; }
+    goto L_CD3C;
+L_CD3C: if (g_yield_req) { g_resume = 0xCD3Cu; g_yield_req = 0u; return; } 
+    if (A >= 134u) { goto L_CD69; }
+    goto L_CD40;
+L_CD40: if (g_yield_req) { g_resume = 0xCD40u; g_yield_req = 0u; return; } 
+    if (A >= 112u) { goto L_CD6C; }
+    goto L_CD44;
+L_CD44: if (g_yield_req) { g_resume = 0xCD44u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CD45: if (g_yield_req) { g_resume = 0xCD45u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    goto L_CD6F;
+L_CD4A: if (g_yield_req) { g_resume = 0xCD4Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    goto L_CD7F;
+L_CD4F: if (g_yield_req) { g_resume = 0xCD4Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x1Cu;
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(2u);
+    A = 0x06u;
+    tick(3u);
+    goto L_C823;
+L_CD58: if (g_yield_req) { g_resume = 0xCD58u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x1Cu;
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(2u);
+    A = 0x08u;
+    tick(3u);
+    goto L_C823;
+L_CD61: if (g_yield_req) { g_resume = 0xCD61u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    goto L_CD89;
+L_CD66: if (g_yield_req) { g_resume = 0xCD66u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CD9D;
+L_CD69: if (g_yield_req) { g_resume = 0xCD69u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CDB1;
+L_CD6C: if (g_yield_req) { g_resume = 0xCD6Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CE24;
+L_CD6F: if (g_yield_req) { g_resume = 0xCD6Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x0Cu;
+    tick(2u);
+    A = 0x0Au;
+    tick(3u);
+    goto L_C823;
+L_CD76: if (g_yield_req) { g_resume = 0xCD76u; g_yield_req = 0u; return; } 
+    tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
+    tick(5u);
+    wr((u16)(0x0331u + Y), A);
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Nf) { tick(3u); goto L_CD76; }
+    tick(2u);
+    goto L_CD7E;
+L_CD7E: if (g_yield_req) { g_resume = 0xCD7Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CD7F: if (g_yield_req) { g_resume = 0xCD7Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCDu); --SP;
+    wr(0x100u + SP, 0x81u); --SP;
+    ret_lbl[ret_sp++] = &&L_CD82; goto L_CBAE;
+L_CD82: if (g_yield_req) { g_resume = 0xCD82u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x16u;
+    tick(2u);
+    A = 0x0Cu;
+    tick(3u);
+    goto L_C823;
+L_CD89: if (g_yield_req) { g_resume = 0xCD89u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x0Cu;
+    tick(2u);
+    A = 0x0Eu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCDu); --SP;
+    wr(0x100u + SP, 0x8Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_CD90; goto L_C823;
+L_CD90: if (g_yield_req) { g_resume = 0xCD90u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x18u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    A = 0x50u;
+    tick(3u);
+    goto L_F08C;
+L_CD9D: if (g_yield_req) { g_resume = 0xCD9Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x8Du;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    A = rd(0x0043u);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CDAE; }
+    tick(2u);
+    goto L_CDAB;
+L_CDAB: if (g_yield_req) { g_resume = 0xCDABu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EB89;
+L_CDAE: if (g_yield_req) { g_resume = 0xCDAEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EB92;
+L_CDB1: if (g_yield_req) { g_resume = 0xCDB1u; g_yield_req = 0u; return; } 
+    if (A != 143u) { goto L_CDD7; }
+    goto L_CDB5;
+L_CDB5: if (g_yield_req) { g_resume = 0xCDB5u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(2u);
+    Y = 0x10u;
+    tick(2u);
+    A = 0x10u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCDu); --SP;
+    wr(0x100u + SP, 0xBDu); --SP;
+    ret_lbl[ret_sp++] = &&L_CDBE; goto L_C823;
+L_CDBE: if (g_yield_req) { g_resume = 0xCDBEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x00FEu, A);
+    tick(2u);
+    A = 0x68u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x3Eu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0001u, A);
+    goto L_CDCA;
+L_CDCA: if (g_yield_req) { g_resume = 0xCDCAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x40u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x46u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    A = 0x50u;
+    tick(3u);
+    goto L_F080;
+L_CDD7: if (g_yield_req) { g_resume = 0xCDD7u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0250u);
+    if (A == 160u) { goto L_CDEF; }
+    goto L_CDDE;
+L_CDDE: if (g_yield_req) { g_resume = 0xCDDEu; g_yield_req = 0u; return; } 
+    if (A == 255u) { goto L_CDF3; }
+    goto L_CDE2;
+L_CDE2: if (g_yield_req) { g_resume = 0xCDE2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x02u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    A = rd(0x0253u);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    goto L_CDCA;
+L_CDEF: if (g_yield_req) { g_resume = 0xCDEFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FEu, A);
+    goto L_CDF3;
+L_CDF3: if (g_yield_req) { g_resume = 0xCDF3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x18u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    A = 0x50u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCDu); --SP;
+    wr(0x100u + SP, 0xFBu); --SP;
+    ret_lbl[ret_sp++] = &&L_CDFC; goto L_F08C;
+L_CDFC: if (g_yield_req) { g_resume = 0xCDFCu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xEBu;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x23u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x12u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0x08u); --SP;
+    ret_lbl[ret_sp++] = &&L_CE09; goto L_C815;
+L_CE09: if (g_yield_req) { g_resume = 0xCE09u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_CE0E;
+L_CE0E: if (g_yield_req) { g_resume = 0xCE0Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x100u + SP, (u8)(0x30u | (Nf?0x80u:0u) | (Vf?0x40u:0u) | (Df?0x08u:0u) | (If?0x04u:0u) | (Zf?0x02u:0u) | (Cf?0x01u:0u))); --SP;
+    tick(2u);
+    A = 0x8Du;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x22u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    { ++SP; const u8 q = rd(0x100u + SP); Nf=(q&0x80u)!=0; Vf=(q&0x40u)!=0; Df=(q&0x08u)!=0; If=(q&0x04u)!=0; Zf=(q&0x02u)!=0; Cf=(q&0x01u)!=0; }
+    if (!Zf) { tick(3u); goto L_CE1F; }
+    tick(2u);
+    goto L_CE1A;
+L_CE1A: if (g_yield_req) { g_resume = 0xCE1Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x16u;
+    tick(3u);
+    goto L_C815;
+L_CE1F: if (g_yield_req) { g_resume = 0xCE1Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x14u;
+    tick(3u);
+    goto L_C815;
+L_CE24: if (g_yield_req) { g_resume = 0xCE24u; g_yield_req = 0u; return; } 
+    if (A == 133u) { goto L_CE2F; }
+    goto L_CE28;
+L_CE28: if (g_yield_req) { g_resume = 0xCE28u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u);
+    tick(2u);
+    A = (u8)(A & 0x01u);
+    tick(3u);
+    goto L_CE0E;
+L_CE2F: if (g_yield_req) { g_resume = 0xCE2Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(3u);
+    wr(0x00FDu, A);
+    tick(2u);
+    Y = 0x04u;
+    tick(2u);
+    A = 0x18u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0x39u); --SP;
+    ret_lbl[ret_sp++] = &&L_CE3A; goto L_C823;
+L_CE3A: if (g_yield_req) { g_resume = 0xCE3Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x78u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0xC8u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x22u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    A = 0xB0u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0x4Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_CE4F; goto L_F080;
+L_CE4F: if (g_yield_req) { g_resume = 0xCE4Fu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(2u);
+    A = 0xA0u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x30u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0x5Du); --SP;
+    ret_lbl[ret_sp++] = &&L_CE5E; goto L_EAD4;
+L_CE5E: if (g_yield_req) { g_resume = 0xCE5Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCEu); --SP;
+    wr(0x100u + SP, 0x62u); --SP;
+    ret_lbl[ret_sp++] = &&L_CE63; goto L_F086;
+L_CE63: if (g_yield_req) { g_resume = 0xCE63u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x28u;
+    tick(4u);
+    wr(0x02E8u, A);
+    tick(4u);
+    wr(0x02ECu, A);
+    tick(2u);
+    A = 0x30u;
+    tick(4u);
+    wr(0x02F0u, A);
+    tick(4u);
+    wr(0x02F8u, A);
+    tick(2u);
+    A = 0x38u;
+    tick(4u);
+    wr(0x02F4u, A);
+    tick(4u);
+    wr(0x02FCu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EB89: if (g_yield_req) { g_resume = 0xEB89u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x40u;
+    tick(3u);
+    goto L_EBA8;
+L_EB92: if (g_yield_req) { g_resume = 0xEB92u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x42u;
+    tick(3u);
+    goto L_EBA8;
+L_EBA8: if (g_yield_req) { g_resume = 0xEBA8u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEBu); --SP;
+    wr(0x100u + SP, 0xAAu); --SP;
+    ret_lbl[ret_sp++] = &&L_EBAB; goto L_C815;
+L_EBAB: if (g_yield_req) { g_resume = 0xEBABu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0044u) - 1u); wr(0x0044u, t); }
+    tick(4u);
+    A = rd(0x0505u);
+    tick(2u);
+    A = (u8)(A | 0x10u);
+    tick(4u);
+    wr(0x0505u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F080: if (g_yield_req) { g_resume = 0xF080u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, A);
+    goto L_F082;
+L_F082: if (g_yield_req) { g_resume = 0xF082u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F096; }
+    tick(2u);
+    goto L_F086;
+L_F086: if (g_yield_req) { g_resume = 0xF086u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, A);
+    goto L_F088;
+L_F088: if (g_yield_req) { g_resume = 0xF088u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F096; }
+    tick(2u);
+    goto L_F08C;
+L_F08C: if (g_yield_req) { g_resume = 0xF08Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, A);
+    goto L_F08E;
+L_F08E: if (g_yield_req) { g_resume = 0xF08Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F096; }
+    tick(2u);
+    goto L_F092;
+L_F2D7: if (g_yield_req) { g_resume = 0xF2D7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u;
+    tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
+    tick(2u);
+    A = (u8)(A & 0x0Fu);
+    tick(3u);
+    wr(0x0005u, A);
+    tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    wr(0x0004u, A);
+    tick(4u);
+    X = rd(0x0330u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F2EA;
+L_F2EA: if (g_yield_req) { g_resume = 0xF2EAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF2u); --SP;
+    wr(0x100u + SP, 0xF1u); --SP;
+    ret_lbl[ret_sp++] = &&L_F2F2; goto L_F32D;
+L_F2F2: if (g_yield_req) { g_resume = 0xF2F2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF2u); --SP;
+    wr(0x100u + SP, 0xF9u); --SP;
+    ret_lbl[ret_sp++] = &&L_F2FA; goto L_F32D;
+L_F2FA: if (g_yield_req) { g_resume = 0xF2FAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0004u);
+    tick(3u);
+    wr(0x0006u, A);
+    tick(2u);
+    A = (u8)(A | 0x80u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    goto L_F303;
+L_F303: if (g_yield_req) { g_resume = 0xF303u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0x05u); --SP;
+    ret_lbl[ret_sp++] = &&L_F306; goto L_F32D;
+L_F306: if (g_yield_req) { g_resume = 0xF306u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0006u) - 1u); wr(0x0006u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_F303; }
+    tick(2u);
+    goto L_F310;
+L_F310: if (g_yield_req) { g_resume = 0xF310u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0x12u); --SP;
+    ret_lbl[ret_sp++] = &&L_F313; goto L_F32D;
+L_F313: if (g_yield_req) { g_resume = 0xF313u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    wr(0x0330u, X);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0005u) - 1u); wr(0x0005u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(4u); goto L_F2EA; }
+    tick(2u);
+    goto L_F327;
+L_F327: if (g_yield_req) { g_resume = 0xF327u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CA30: if (g_yield_req) { g_resume = 0xCA30u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCAu); --SP;
+    wr(0x100u + SP, 0x32u); --SP;
+    ret_lbl[ret_sp++] = &&L_CA33; goto L_F4AC;
+L_CA33: if (g_yield_req) { g_resume = 0xCA33u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CA4A; }
+    tick(2u);
+    goto L_CA37;
+L_CA37: if (g_yield_req) { g_resume = 0xCA37u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u);
+    if (A == 117u) { goto L_CA5A; }
+    goto L_CA3D;
+L_CA3D: if (g_yield_req) { g_resume = 0xCA3Du; g_yield_req = 0u; return; } 
+    if (A == 116u) { goto L_CA5F; }
+    goto L_CA41;
+L_CA41: if (g_yield_req) { g_resume = 0xCA41u; g_yield_req = 0u; return; } 
+    if (A == 115u) { goto L_CA64; }
+    goto L_CA45;
+L_CA45: if (g_yield_req) { g_resume = 0xCA45u; g_yield_req = 0u; return; } 
+    if (A == 95u) { goto L_CA79; }
+    goto L_CA49;
+L_CA49: if (g_yield_req) { g_resume = 0xCA49u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CA4A: if (g_yield_req) { g_resume = 0xCA4Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0055u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0058u, A);
+    tick(4u);
+    wr(0x0510u, A);
+    goto L_CA53;
+L_CA5A: if (g_yield_req) { g_resume = 0xCA5Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    goto L_CBAE;
+L_CA5F: if (g_yield_req) { g_resume = 0xCA5Fu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    goto L_CBCA;
+L_CA64: if (g_yield_req) { g_resume = 0xCA64u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    A = rd(0x0050u);
+    tick(2u);
+    A = (u8)(A & 0x01u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(3u);
+    A = rd(0x0021u);
+    tick(5u);
+    wr((u16)(0x0507u + X), A);
+    tick(3u);
+    A = rd(0x0022u);
+    tick(5u);
+    wr((u16)(0x0508u + X), A);
+    tick(3u);
+    goto L_CBF5;
+L_CA79: if (g_yield_req) { g_resume = 0xCA79u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0052u);
+    tick(2u);
+    A = 0x01u;
+    tick(5u);
+    wr((u16)(0x0406u + X), A);
+    tick(3u);
+    wr(0x004Eu, A);
+    tick(3u);
+    A = rd(0x0051u);
+    if (A != 28u) { goto L_CA94; }
+    goto L_CA88;
+L_CA88: if (g_yield_req) { g_resume = 0xCA88u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0052u);
+    tick(2u);
+    A = (u8)(A ^ 0x01u);
+    tick(2u);
+    X = A;
+    tick(4u + ((0x0006u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0406u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x004Eu, A);
+    if (Zf) { tick(3u); goto L_CA99; }
+    tick(2u);
+    goto L_CA94;
+L_CA94: if (g_yield_req) { g_resume = 0xCA94u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0055u, A);
+    tick(3u);
+    goto L_CA53;
+L_CA99: if (g_yield_req) { g_resume = 0xCA99u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x85u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(4u);
+    wr(0x040Bu, A);
+    tick(2u);
+    Y = 0x00u;
+    tick(3u);
+    wr(0x004Fu, Y);
+    tick(3u);
+    wr(0x0052u, X);
+    tick(3u);
+    goto L_CAA9;
+L_CAA9: if (g_yield_req) { g_resume = 0xCAA9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CAAB;
+L_CAAB: if (g_yield_req) { g_resume = 0xCAABu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0400u + X));
+    tick(5u);
+    wr((u16)(0x0053u + Y), A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    if (Y != 3u) { goto L_CAAB; }
+    goto L_CAB8;
+L_CAB8: if (g_yield_req) { g_resume = 0xCAB8u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CBCA: if (g_yield_req) { g_resume = 0xCBCAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CBF4; }
+    tick(2u);
+    goto L_CBCE;
+L_CBCE: if (g_yield_req) { g_resume = 0xCBCEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0051u);
+    if (A != 28u) { goto L_CBF4; }
+    goto L_CBD4;
+L_CBD4: if (g_yield_req) { g_resume = 0xCBD4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0052u);
+    tick(3u);
+    A = rd(0x0053u);
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0x0400u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_CBF4; }
+    tick(2u);
+    goto L_CBDD;
+L_CBDD: if (g_yield_req) { g_resume = 0xCBDDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CBDF;
+L_CBDF: if (g_yield_req) { g_resume = 0xCBDFu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00AAu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC6AAu + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + Y), A);
+    if (Zf) { tick(3u); goto L_CBEB; }
+    tick(2u);
+    goto L_CBE7;
+L_CBE7: if (g_yield_req) { g_resume = 0xCBE7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_CBDF;
+L_CBEB: if (g_yield_req) { g_resume = 0xCBEBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0052u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CBF4; }
+    tick(2u);
+    goto L_CBEF;
+L_CBEF: if (g_yield_req) { g_resume = 0xCBEFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x67u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x0345u, A);
+    goto L_CBF4;
+L_CBF4: if (g_yield_req) { g_resume = 0xCBF4u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CBF5: if (g_yield_req) { g_resume = 0xCBF5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CBF7;
+L_CBF7: if (g_yield_req) { g_resume = 0xCBF7u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C2u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC6C2u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + Y), A);
+    if (Zf) { tick(4u); goto L_CC03; }
+    tick(2u);
+    goto L_CBFF;
+L_CBFF: if (g_yield_req) { g_resume = 0xCBFFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_CBF7;
+L_CC03: if (g_yield_req) { g_resume = 0xCC03u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C8F3: if (g_yield_req) { g_resume = 0xC8F3u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0102u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C8FE; }
+    tick(2u);
+    goto L_C8F8;
+L_C8F8: if (g_yield_req) { g_resume = 0xC8F8u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4015u, A);
+    tick(4u);
+    wr(0x0100u, A);
+    goto L_C8FE;
+L_C8FE: if (g_yield_req) { g_resume = 0xC8FEu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0518u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C914; }
+    tick(2u);
+    goto L_C903;
+L_C903: if (g_yield_req) { g_resume = 0xC903u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u;
+    tick(3u);
+    wr(0x00FDu, A);
+    tick(2u);
+    A = 0x04u;
+    tick(4u);
+    wr(0x0518u, A);
+    tick(2u);
+    A = 0x0Fu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x4015u, A);
+    tick(4u);
+    wr(0x0100u, A);
+    goto L_C914;
+L_C914: if (g_yield_req) { g_resume = 0xC914u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0510u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C940; }
+    tick(2u);
+    goto L_C919;
+L_C919: if (g_yield_req) { g_resume = 0xC919u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xC9u); --SP;
+    wr(0x100u + SP, 0x1Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_C91C; goto L_D19A;
+L_C91C: if (g_yield_req) { g_resume = 0xC91Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xC9u); --SP;
+    wr(0x100u + SP, 0x20u); --SP;
+    ret_lbl[ret_sp++] = &&L_C921; goto L_C807;
+L_C921: if (g_yield_req) { g_resume = 0xC921u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0511u);
+    tick(4u);
+    wr(0x0200u, A);
+    tick(2u);
+    A = 0xA2u;
+    tick(4u);
+    wr(0x0201u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x0202u, A);
+    tick(3u);
+    wr(0x0058u, A);
+    tick(2u);
+    A = 0x38u;
+    tick(4u);
+    wr(0x0203u, A);
+    tick(4u);
+    wr(0x0510u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0044u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C940: if (g_yield_req) { g_resume = 0xC940u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0015u);
+    tick(2u);
+    A = (u8)(A & 0x20u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C95D; }
+    tick(2u);
+    goto L_C946;
+L_C946: if (g_yield_req) { g_resume = 0xC946u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0015u);
+    tick(2u);
+    A = (u8)(A & 0x10u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C98A; }
+    tick(2u);
+    goto L_C94C;
+L_C94C: if (g_yield_req) { g_resume = 0xC94Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x0512u, A);
+    tick(3u);
+    A = rd(0x0044u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C95C; }
+    tick(2u);
+    goto L_C955;
+L_C955: if (g_yield_req) { g_resume = 0xC955u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0058u, A);
+    tick(3u);
+    goto L_C9B1;
+L_C95C: if (g_yield_req) { g_resume = 0xC95Cu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C95D: if (g_yield_req) { g_resume = 0xC95Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x40u;
+    tick(3u);
+    wr(0x0044u, A);
+    tick(4u);
+    A = rd(0x0512u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C985; }
+    tick(2u);
+    goto L_C966;
+L_C966: if (g_yield_req) { g_resume = 0xC966u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x40u;
+    tick(3u);
+    wr(0x0035u, A);
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A != 191u) { goto L_C976; }
+    goto L_C974;
+L_C974: if (g_yield_req) { g_resume = 0xC974u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x7Fu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_C976;
+L_C976: if (g_yield_req) { g_resume = 0xC976u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0200u, A);
+    tick(4u);
+    wr(0x0511u, A);
+    tick(6u);
+    { u8 t = (u8)(rd(0x0512u) + 1u); wr(0x0512u, t); }
+    tick(2u);
+    A = 0x0Au;
+    tick(4u);
+    wr(0x0513u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C985: if (g_yield_req) { g_resume = 0xC985u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0035u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C989; }
+    tick(2u);
+    goto L_C989;
+L_C989: if (g_yield_req) { g_resume = 0xC989u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C98A: if (g_yield_req) { g_resume = 0xC98Au; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0514u, A);
+    tick(2u);
+    X = 0x0Au;
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_C991;
+L_C991: if (g_yield_req) { g_resume = 0xC991u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0024u + X), A);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_C991; }
+    tick(2u);
+    goto L_C996;
+L_C996: if (g_yield_req) { g_resume = 0xC996u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0511u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x07u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0050u, A);
+    if (((u8)(A - 2u) & 0x80u) != 0) { goto L_C9AD; }
+    goto L_C9A6;
+L_C9A6: if (g_yield_req) { g_resume = 0xC9A6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x1Cu;
+    tick(3u);
+    wr(0x0051u, A);
+    tick(3u);
+    goto L_C9B1;
+L_C9AD: if (g_yield_req) { g_resume = 0xC9ADu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x18u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0051u, A);
+    goto L_C9B1;
+L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0050u);
+    tick(2u);
+    A = (u8)(A & 0x01u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x0007u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0507u + X));
+    tick(3u);
+    wr(0x0021u, A);
+    tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0508u + X));
+    tick(3u);
+    wr(0x0022u, A);
+    tick(2u);
+    A = 0x0Fu;
+    tick(3u);
+    wr(0x0018u, A);
+    tick(2u);
+    A = 0x13u;
+    tick(3u);
+    wr(0x0019u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x004Eu, A);
+    tick(4u);
+    wr(0x0406u, A);
+    tick(4u);
+    wr(0x0407u, A);
+    tick(3u);
+    wr(0x004Fu, A);
+    tick(4u);
+    wr(0x0510u, A);
+    tick(4u);
+    wr(0x050Bu, A);
+    tick(4u);
+    wr(0x0512u, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0053u, A);
+    tick(4u);
+    wr(0x0400u, A);
+    tick(4u);
+    wr(0x0401u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0054u, A);
+    tick(4u);
+    wr(0x0402u, A);
+    tick(4u);
+    wr(0x0403u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0052u, A);
+    tick(4u);
+    wr(0x0408u, A);
+    tick(4u);
+    wr(0x0409u, A);
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(2u);
+    A = 0x03u;
+    tick(3u);
+    X = rd(0x0058u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CA06; }
+    tick(2u);
+    goto L_CA04;
+L_CA04: if (g_yield_req) { g_resume = 0xCA04u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CA06;
+L_CA06: if (g_yield_req) { g_resume = 0xCA06u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0055u, A);
+    tick(4u);
+    wr(0x0404u, A);
+    tick(4u);
+    wr(0x0405u, A);
+    tick(4u);
+    wr(0x040Bu, A);
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CA26; }
+    tick(2u);
+    goto L_CA15;
+L_CA15: if (g_yield_req) { g_resume = 0xCA15u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x97u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x00FDu, A);
+    tick(2u);
+    A = 0x0Fu;
+    tick(4u);
+    wr(0x4015u, A);
+    tick(4u);
+    wr(0x0100u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CA26: if (g_yield_req) { g_resume = 0xCA26u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0518u) - 1u); wr(0x0518u, t); }
+    tick(2u);
+    A = 0x75u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(3u);
+    goto L_CBAE;
+L_F4AC: if (g_yield_req) { g_resume = 0xF4ACu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x09u;
+    tick(5u);
+    { u8 t = (u8)(rd(0x0034u) - 1u); wr(0x0034u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Nf) { tick(3u); goto L_F4B8; }
+    tick(2u);
+    goto L_F4B2;
+L_F4B2: if (g_yield_req) { g_resume = 0xF4B2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Au;
+    tick(3u);
+    wr(0x0034u, A);
+    tick(2u);
+    X = 0x10u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F4B8;
+L_F4B8: if (g_yield_req) { g_resume = 0xF4B8u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0035u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F4BE; }
+    tick(2u);
+    goto L_F4BC;
+L_F4BC: if (g_yield_req) { g_resume = 0xF4BCu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x0035u + X)) - 1u); wr((u16)(0x0035u + X), t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_F4BE;
+L_F4BE: if (g_yield_req) { g_resume = 0xF4BEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Nf) { tick(3u); goto L_F4B8; }
+    tick(2u);
+    goto L_F4C1;
+L_F4C1: if (g_yield_req) { g_resume = 0xF4C1u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CAC9: if (g_yield_req) { g_resume = 0xCAC9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCAu); --SP;
+    wr(0x100u + SP, 0xCBu); --SP;
+    ret_lbl[ret_sp++] = &&L_CACC; goto L_F4AC;
+L_CACC: if (g_yield_req) { g_resume = 0xCACCu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_CAD8; }
+    goto L_CAD2;
+L_CAD2: if (g_yield_req) { g_resume = 0xCAD2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u);
+    if (A == 132u) { goto L_CB02; }
+    goto L_CAD8;
+L_CAD8: if (g_yield_req) { g_resume = 0xCAD8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u);
+    if (A >= 114u) { goto L_CB18; }
+    goto L_CADE;
+L_CADE: if (g_yield_req) { g_resume = 0xCADEu; g_yield_req = 0u; return; } 
+    if (A == 109u) { goto L_CAE7; }
+    goto L_CAE2;
+L_CAE2: if (g_yield_req) { g_resume = 0xCAE2u; g_yield_req = 0u; return; } 
+    if (A == 98u) { goto L_CAFA; }
+    goto L_CAE6;
+L_CAE6: if (g_yield_req) { g_resume = 0xCAE6u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CAE7: if (g_yield_req) { g_resume = 0xCAE7u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x040Bu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CAF6; }
+    tick(2u);
+    goto L_CAEC;
+L_CAEC: if (g_yield_req) { g_resume = 0xCAECu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x040Bu, A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0055u) - 1u); wr(0x0055u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xCAu); --SP;
+    wr(0x100u + SP, 0xF5u); --SP;
+    ret_lbl[ret_sp++] = &&L_CAF6; goto L_CBBD;
+L_CAF6: if (g_yield_req) { g_resume = 0xCAF6u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCAu); --SP;
+    wr(0x100u + SP, 0xF8u); --SP;
+    ret_lbl[ret_sp++] = &&L_CAF9; goto L_CC34;
+L_CAF9: if (g_yield_req) { g_resume = 0xCAF9u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CAFA: if (g_yield_req) { g_resume = 0xCAFAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x004Fu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x00u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB01; goto L_CC47;
+L_CB01: if (g_yield_req) { g_resume = 0xCB01u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CB02: if (g_yield_req) { g_resume = 0xCB02u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0052u);
+    tick(3u);
+    A = rd(0x0053u);
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0x0400u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_CB15; }
+    tick(2u);
+    goto L_CB0B;
+L_CB0B: if (g_yield_req) { g_resume = 0xCB0Bu; g_yield_req = 0u; return; } 
+    if (A == 1u) { goto L_CB15; }
+    goto L_CB0F;
+L_CB0F: if (g_yield_req) { g_resume = 0xCB0Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x11u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB12; goto L_CC24;
+L_CB12: if (g_yield_req) { g_resume = 0xCB12u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x14u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB15; goto L_CC04;
+L_CB15: if (g_yield_req) { g_resume = 0xCB15u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CB18: if (g_yield_req) { g_resume = 0xCB18u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_CB1B;
+L_CB1B: if (g_yield_req) { g_resume = 0xCB1Bu; g_yield_req = 0u; return; } 
+    if (A == 122u) { goto L_CB30; }
+    goto L_CB1F;
+L_CB1F: if (g_yield_req) { g_resume = 0xCB1Fu; g_yield_req = 0u; return; } 
+    if (A == 117u) { goto L_CB39; }
+    goto L_CB23;
+L_CB23: if (g_yield_req) { g_resume = 0xCB23u; g_yield_req = 0u; return; } 
+    if (A == 116u) { goto L_CB36; }
+    goto L_CB27;
+L_CB27: if (g_yield_req) { g_resume = 0xCB27u; g_yield_req = 0u; return; } 
+    if (A == 115u) { goto L_CB58; }
+    goto L_CB2B;
+L_CB2B: if (g_yield_req) { g_resume = 0xCB2Bu; g_yield_req = 0u; return; } 
+    if (A == 114u) { goto L_CB47; }
+    goto L_CB2F;
+L_CB2F: if (g_yield_req) { g_resume = 0xCB2Fu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CB30: if (g_yield_req) { g_resume = 0xCB30u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x32u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB33; goto L_CA53;
+L_CB33: if (g_yield_req) { g_resume = 0xCB33u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x35u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB36; goto L_CBCA;
+L_CB36: if (g_yield_req) { g_resume = 0xCB36u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CB39: if (g_yield_req) { g_resume = 0xCB39u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x3Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_CB3C; goto L_CBB7;
+L_CB3C: if (g_yield_req) { g_resume = 0xCB3Cu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CB46; }
+    tick(2u);
+    goto L_CB42;
+L_CB42: if (g_yield_req) { g_resume = 0xCB42u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FDu, A);
+    goto L_CB46;
+L_CB46: if (g_yield_req) { g_resume = 0xCB46u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CB47: if (g_yield_req) { g_resume = 0xCB47u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(3u);
+    X = rd(0x0053u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC608u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_EBA6;
+L_CB58: if (g_yield_req) { g_resume = 0xCB58u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x5Au); --SP;
+    ret_lbl[ret_sp++] = &&L_CB5B; goto L_D19A;
+L_CB5B: if (g_yield_req) { g_resume = 0xCB5Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0053u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(2u);
+    A = X;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x62u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB63; goto L_C807;
+L_CB63: if (g_yield_req) { g_resume = 0xCB63u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x67u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB68; goto L_C807;
+L_CB68: if (g_yield_req) { g_resume = 0xCB68u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0051u);
+    if (A == 28u) { goto L_CB7B; }
+    goto L_CB6E;
+L_CB6E: if (g_yield_req) { g_resume = 0xCB6Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x76u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x7Au); --SP;
+    ret_lbl[ret_sp++] = &&L_CB7B; goto L_C815;
+L_CB7B: if (g_yield_req) { g_resume = 0xCB7Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x0505u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x82u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB83; goto L_D032;
+L_CB83: if (g_yield_req) { g_resume = 0xCB83u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x85u); --SP;
+    ret_lbl[ret_sp++] = &&L_CB86; goto L_CBBD;
+L_CB86: if (g_yield_req) { g_resume = 0xCB86u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xBCu;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    Y = rd(0x0054u);
+    tick(2u);
+    Y = (u8)(Y + 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0x8Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_CB90; goto L_F4C2;
+L_CB90: if (g_yield_req) { g_resume = 0xCB90u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x002Cu, A);
+    tick(2u);
+    A = 0x80u;
+    tick(2u);
+    Y = (u8)(Y - 1u);
+    if (((u8)(Y - 4u) & 0x80u) == 0) { goto L_CB9E; }
+    goto L_CB9B;
+L_CB9B: if (g_yield_req) { g_resume = 0xCB9Bu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0007u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC207u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CB9E;
+L_CB9E: if (g_yield_req) { g_resume = 0xCB9Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x002Eu, A);
+    tick(2u);
+    A = 0x0Du;
+    tick(3u);
+    wr(0x0045u, A);
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xCBu); --SP;
+    wr(0x100u + SP, 0xAAu); --SP;
+    ret_lbl[ret_sp++] = &&L_CBAB; goto L_F23C;
+L_CBAB: if (g_yield_req) { g_resume = 0xCBABu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EBA6: if (g_yield_req) { g_resume = 0xEBA6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EBA8;
+L_F23C: if (g_yield_req) { g_resume = 0xF23Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Df = false;
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F23F;
+L_F23F: if (g_yield_req) { g_resume = 0xF23Fu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x0000u); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x0000u, t); }
+    if (!Cf) { tick(3u); goto L_F248; }
+    tick(2u);
+    goto L_F243;
+L_F243: if (g_yield_req) { g_resume = 0xF243u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(6u);
+    wr(0x100u + SP, 0xF2u); --SP;
+    wr(0x100u + SP, 0x46u); --SP;
+    ret_lbl[ret_sp++] = &&L_F247; goto L_F24E;
+L_F247: if (g_yield_req) { g_resume = 0xF247u; g_yield_req = 0u; return; } 
+    tick(4u);
+    ++SP; A = rd(0x100u + SP); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F248;
+L_F248: if (g_yield_req) { g_resume = 0xF248u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x00u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Nf) { tick(3u); goto L_F23F; }
+    tick(2u);
+    goto L_F24D;
+L_F24D: if (g_yield_req) { g_resume = 0xF24Du; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D19A: if (g_yield_req) { g_resume = 0xD19Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0011u);
+    tick(2u);
+    A = (u8)(A & 0xE7u);
+    tick(4u);
+    wr(0x2001u, A);
+    tick(3u);
+    wr(0x0011u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C807: if (g_yield_req) { g_resume = 0xC807u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00A7u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC4A7u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u + ((0x00A8u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC4A8u + X));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_F228;
+L_CBBD: if (g_yield_req) { g_resume = 0xCBBDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xB5u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    Y = rd(0x0055u);
+    tick(3u);
+    goto L_F4C2;
+L_F4C2: if (g_yield_req) { g_resume = 0xF4C2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    X = rd(0x0330u);
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0xCCu); --SP;
+    ret_lbl[ret_sp++] = &&L_F4CD; goto L_F32D;
+L_F4CD: if (g_yield_req) { g_resume = 0xF4CDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0xD4u); --SP;
+    ret_lbl[ret_sp++] = &&L_F4D5; goto L_F32D;
+L_F4D5: if (g_yield_req) { g_resume = 0xF4D5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0xDCu); --SP;
+    ret_lbl[ret_sp++] = &&L_F4DD; goto L_F32D;
+L_F4DD: if (g_yield_req) { g_resume = 0xF4DDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0xE3u); --SP;
+    ret_lbl[ret_sp++] = &&L_F4E4; goto L_F32D;
+L_F4E4: if (g_yield_req) { g_resume = 0xF4E4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(4u);
+    wr(0x0330u, X);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CC34: if (g_yield_req) { g_resume = 0xCC34u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x0505u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xCCu); --SP;
+    wr(0x100u + SP, 0x3Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_CC3C; goto L_D032;
+L_CC3C: if (g_yield_req) { g_resume = 0xCC3Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x050Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xCCu); --SP;
+    wr(0x100u + SP, 0x43u); --SP;
+    ret_lbl[ret_sp++] = &&L_CC44; goto L_CCC1;
+L_CC44: if (g_yield_req) { g_resume = 0xCC44u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D7F2;
+L_D7F2: if (g_yield_req) { g_resume = 0xD7F2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x19u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x3Fu;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x4Eu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0xFEu); --SP;
+    ret_lbl[ret_sp++] = &&L_D7FF; goto L_C815;
+L_D7FF: if (g_yield_req) { g_resume = 0xD7FFu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CC47: if (g_yield_req) { g_resume = 0xCC47u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CC4A;
+L_CC4A: if (g_yield_req) { g_resume = 0xCC4Au; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0059u + X), A);
+    tick(5u);
+    wr((u16)(0x040Du + X), A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X != 137u) { goto L_CC4A; }
+    goto L_CC54;
+L_CC54: if (g_yield_req) { g_resume = 0xCC54u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0059u, A);
+    tick(3u);
+    wr(0x0096u, A);
+    tick(4u);
+    wr(0x043Eu, A);
+    tick(4u);
+    wr(0x0451u, A);
+    tick(4u);
+    wr(0x0452u, A);
+    tick(3u);
+    wr(0x009Fu, A);
+    tick(4u);
+    wr(0x0503u, A);
+    tick(2u);
+    A = 0x04u;
+    tick(3u);
+    wr(0x0097u, A);
+    tick(2u);
+    A = 0x58u;
+    tick(4u);
+    wr(0x043Du, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x00A2u, A);
+    tick(2u);
+    A = 0x80u;
+    tick(3u);
+    wr(0x0018u, A);
+    tick(2u);
+    A = 0x0Au;
+    tick(3u);
+    wr(0x0034u, A);
+    tick(3u);
+    X = rd(0x0052u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCCu); --SP;
+    wr(0x100u + SP, 0x81u); --SP;
+    ret_lbl[ret_sp++] = &&L_CC82; goto L_CAB9;
+L_CC82: if (g_yield_req) { g_resume = 0xCC82u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xBBu;
+    tick(3u);
+    wr(0x0039u, A);
+    tick(2u);
+    A = 0x27u;
+    tick(3u);
+    wr(0x0044u, A);
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_CC99; }
+    goto L_CC90;
+L_CC90: if (g_yield_req) { g_resume = 0xCC90u; g_yield_req = 0u; return; } 
+    if (A == 3u) { goto L_CCA6; }
+    goto L_CC94;
+L_CC94: if (g_yield_req) { g_resume = 0xCC94u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x10u;
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CC99: if (g_yield_req) { g_resume = 0xCC99u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x38u;
+    tick(3u);
+    wr(0x0036u, A);
+    tick(2u);
+    A = 0x40u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CCA6: if (g_yield_req) { g_resume = 0xCCA6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0036u, A);
+    tick(2u);
+    A = 0x50u;
+    tick(4u);
+    wr(0x043Fu, A);
+    tick(4u);
+    wr(0x0441u, A);
+    tick(4u);
+    wr(0x0443u, A);
+    tick(2u);
+    A = 0x03u;
+    tick(4u);
+    wr(0x0440u, A);
+    tick(4u);
+    wr(0x0442u, A);
+    tick(4u);
+    wr(0x0444u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CC24: if (g_yield_req) { g_resume = 0xCC24u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x002Eu);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    A = rd(0x0052u);
+    tick(2u);
+    A = (u8)(A | 0x08u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xCCu); --SP;
+    wr(0x100u + SP, 0x30u); --SP;
+    ret_lbl[ret_sp++] = &&L_CC31; goto L_F342;
+L_CC31: if (g_yield_req) { g_resume = 0xCC31u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D032;
+L_D032: if (g_yield_req) { g_resume = 0xD032u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0505u);
+    tick(2u);
+    A = (u8)(A | 0x01u);
+    tick(4u);
+    wr(0x0505u, A);
+    tick(2u);
+    A = 0xF9u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    goto L_F435;
+L_F435: if (g_yield_req) { g_resume = 0xF435u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0004u, A);
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    A = (u8)(A & 0xF0u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    Y = A;
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    A = (u8)(A & 0x07u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F44A;
+L_F44A: if (g_yield_req) { g_resume = 0xF44Au; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0020u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F4A0; }
+    tick(2u);
+    goto L_F44F;
+L_F44F: if (g_yield_req) { g_resume = 0xF44Fu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0024u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F479; }
+    tick(2u);
+    goto L_F453;
+L_F453: if (g_yield_req) { g_resume = 0xF453u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(4u + ((0x0023u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0023u + Y));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(4u);
+    A = rd((u16)(0x0027u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0x5Du); --SP;
+    ret_lbl[ret_sp++] = &&L_F45E; goto L_F404;
+L_F45E: if (g_yield_req) { g_resume = 0xF45Eu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0022u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0022u + Y));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(4u);
+    A = rd((u16)(0x0026u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0x67u); --SP;
+    ret_lbl[ret_sp++] = &&L_F468; goto L_F404;
+L_F468: if (g_yield_req) { g_resume = 0xF468u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0021u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0021u + Y));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(4u);
+    A = rd((u16)(0x0025u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0x71u); --SP;
+    ret_lbl[ret_sp++] = &&L_F472; goto L_F404;
+L_F472: if (g_yield_req) { g_resume = 0xF472u; g_yield_req = 0u; return; } 
+    if (Cf) { tick(3u); goto L_F4A4; }
+    tick(2u);
+    goto L_F474;
+L_F474: if (g_yield_req) { g_resume = 0xF474u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0020u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F4A9; }
+    tick(2u);
+    goto L_F479;
+L_F479: if (g_yield_req) { g_resume = 0xF479u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0004u, A);
+    tick(2u);
+    Cf = true;
+    goto L_F47E;
+L_F47E: if (g_yield_req) { g_resume = 0xF47Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F49F; }
+    tick(2u);
+    goto L_F481;
+L_F481: if (g_yield_req) { g_resume = 0xF481u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_F493; }
+    tick(2u);
+    goto L_F483;
+L_F483: if (g_yield_req) { g_resume = 0xF483u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0024u + X));
+    tick(3u);
+    wr(0x0020u, A);
+    tick(4u);
+    A = rd((u16)(0x0025u + X));
+    tick(3u);
+    wr(0x0021u, A);
+    tick(4u);
+    A = rd((u16)(0x0026u + X));
+    tick(3u);
+    wr(0x0022u, A);
+    tick(4u);
+    A = rd((u16)(0x0027u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0023u, A);
+    goto L_F493;
+L_F493: if (g_yield_req) { g_resume = 0xF493u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    A = (u8)(A & 0x08u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F49F; }
+    tick(2u);
+    goto L_F499;
+L_F499: if (g_yield_req) { g_resume = 0xF499u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Nf) { tick(3u); goto L_F44A; }
+    tick(2u);
+    goto L_F49F;
+L_F49F: if (g_yield_req) { g_resume = 0xF49Fu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F4A0: if (g_yield_req) { g_resume = 0xF4A0u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0024u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F453; }
+    tick(2u);
+    goto L_F4A4;
+L_F4A4: if (g_yield_req) { g_resume = 0xF4A4u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0020u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F479; }
+    tick(2u);
+    goto L_F4A9;
+L_F4A9: if (g_yield_req) { g_resume = 0xF4A9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    if (!Cf) { tick(3u); goto L_F47E; }
+    tick(2u);
+    goto L_F4AC;
+L_CC04: if (g_yield_req) { g_resume = 0xCC04u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CC23; }
+    tick(2u);
+    goto L_CC08;
+L_CC08: if (g_yield_req) { g_resume = 0xCC08u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0052u);
+    tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0408u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CC23; }
+    tick(2u);
+    goto L_CC0F;
+L_CC0F: if (g_yield_req) { g_resume = 0xCC0Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = X;
+    tick(2u);
+    Y = A;
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u);
+    A = rd((u16)(0x0025u + X));
+    if (A < 2u) { goto L_CC23; }
+    goto L_CC1B;
+L_CC1B: if (g_yield_req) { g_resume = 0xCC1Bu; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0408u + Y), A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0055u) + 1u); wr(0x0055u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xCCu); --SP;
+    wr(0x100u + SP, 0x22u); --SP;
+    ret_lbl[ret_sp++] = &&L_CC23; goto L_CBBD;
+L_CC23: if (g_yield_req) { g_resume = 0xCC23u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F342: if (g_yield_req) { g_resume = 0xF342u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F344;
+L_F344: if (g_yield_req) { g_resume = 0xF344u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(2u);
+    X = 0x00u;
+    tick(3u);
+    wr(0x0005u, X);
+    tick(3u);
+    wr(0x0006u, X);
+    tick(3u);
+    wr(0x0007u, X);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(2u);
+    A = (u8)(A & 0x08u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F355; }
+    tick(2u);
+    goto L_F354;
+L_F354: if (g_yield_req) { g_resume = 0xF354u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F355;
+L_F355: if (g_yield_req) { g_resume = 0xF355u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(4u);
+    wr((u16)(0x0006u + X), A);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    goto L_F35E;
+L_F35E: if (g_yield_req) { g_resume = 0xF35Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x07u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(3u);
+    A = rd(0x0004u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F38E; }
+    tick(2u);
+    goto L_F367;
+L_F367: if (g_yield_req) { g_resume = 0xF367u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0024u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F392; }
+    tick(2u);
+    goto L_F36B;
+L_F36B: if (g_yield_req) { g_resume = 0xF36Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    A = rd((u16)(0x0027u + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    A = rd(0x0007u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0x74u); --SP;
+    ret_lbl[ret_sp++] = &&L_F375; goto L_F3E3;
+L_F375: if (g_yield_req) { g_resume = 0xF375u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0027u + X), A);
+    tick(4u);
+    A = rd((u16)(0x0026u + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    A = rd(0x0006u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0x7Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_F380; goto L_F3E3;
+L_F380: if (g_yield_req) { g_resume = 0xF380u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0026u + X), A);
+    tick(4u);
+    A = rd((u16)(0x0025u + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    A = rd(0x0005u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0x8Au); --SP;
+    ret_lbl[ret_sp++] = &&L_F38B; goto L_F3E3;
+L_F38B: if (g_yield_req) { g_resume = 0xF38Bu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0025u + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F38E: if (g_yield_req) { g_resume = 0xF38Eu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0024u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F36B; }
+    tick(2u);
+    goto L_F392;
+L_F392: if (g_yield_req) { g_resume = 0xF392u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(4u);
+    A = rd((u16)(0x0027u + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    A = rd(0x0007u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0x9Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_F39C; goto L_F404;
+L_F39C: if (g_yield_req) { g_resume = 0xF39Cu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0027u + X), A);
+    tick(4u);
+    A = rd((u16)(0x0026u + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    A = rd(0x0006u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0xA6u); --SP;
+    ret_lbl[ret_sp++] = &&L_F3A7; goto L_F404;
+L_F3A7: if (g_yield_req) { g_resume = 0xF3A7u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0026u + X), A);
+    tick(4u);
+    A = rd((u16)(0x0025u + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    A = rd(0x0005u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0xB1u); --SP;
+    ret_lbl[ret_sp++] = &&L_F3B2; goto L_F404;
+L_F3B2: if (g_yield_req) { g_resume = 0xF3B2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0025u + X), A);
+    tick(4u);
+    A = rd((u16)(0x0025u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F3C0; }
+    tick(2u);
+    goto L_F3B8;
+L_F3B8: if (g_yield_req) { g_resume = 0xF3B8u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0026u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F3C0; }
+    tick(2u);
+    goto L_F3BC;
+L_F3BC: if (g_yield_req) { g_resume = 0xF3BCu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0027u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F3C6; }
+    tick(2u);
+    goto L_F3C0;
+L_F3C0: if (g_yield_req) { g_resume = 0xF3C0u; g_yield_req = 0u; return; } 
+    if (Cf) { tick(3u); goto L_F3E2; }
+    tick(2u);
+    goto L_F3C2;
+L_F3C2: if (g_yield_req) { g_resume = 0xF3C2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0024u + X));
+    tick(2u);
+    A = (u8)(A ^ 0xFFu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F3C6;
+L_F3C6: if (g_yield_req) { g_resume = 0xF3C6u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0024u + X), A);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(4u);
+    A = rd((u16)(0x0027u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0xD1u); --SP;
+    ret_lbl[ret_sp++] = &&L_F3D2; goto L_F404;
+L_F3D2: if (g_yield_req) { g_resume = 0xF3D2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0027u + X), A);
+    tick(4u);
+    A = rd((u16)(0x0026u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0xD8u); --SP;
+    ret_lbl[ret_sp++] = &&L_F3D9; goto L_F404;
+L_F3D9: if (g_yield_req) { g_resume = 0xF3D9u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0026u + X), A);
+    tick(4u);
+    A = rd((u16)(0x0025u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0xDFu); --SP;
+    ret_lbl[ret_sp++] = &&L_F3E0; goto L_F404;
+L_F3E0: if (g_yield_req) { g_resume = 0xF3E0u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0025u + X), A);
+    goto L_F3E2;
+L_F3E2: if (g_yield_req) { g_resume = 0xF3E2u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CCC1: if (g_yield_req) { g_resume = 0xCCC1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00A6u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5A6u + X));
+    tick(3u);
+    wr(0x0009u, A);
+    tick(4u + ((0x00A7u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5A7u + X));
+    tick(3u);
+    wr(0x000Au, A);
+    tick(2u);
+    X = 0x00u;
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CCD6;
+L_CCD6: if (g_yield_req) { g_resume = 0xCCD6u; g_yield_req = 0u; return; } 
+    tick(5u + (((rd(0x0009u) | (static_cast<eng::u16>(rd(0x000Au)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0009u) | ((u16)rd(0x000Au) << 8)) + Y));
+    if (A == 254u) { goto L_CCF3; }
+    goto L_CCDC;
+L_CCDC: if (g_yield_req) { g_resume = 0xCCDCu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0000u + X), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X != 5u) { goto L_CCD6; }
+    goto L_CCE4;
+L_CCE4: if (g_yield_req) { g_resume = 0xCCE4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0086u, Y);
+    tick(5u + (((rd(0x0009u) | (static_cast<eng::u16>(rd(0x000Au)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0009u) | ((u16)rd(0x000Au) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xCCu); --SP;
+    wr(0x100u + SP, 0xEAu); --SP;
+    ret_lbl[ret_sp++] = &&L_CCEB; goto L_F096;
+L_CCEB: if (g_yield_req) { g_resume = 0xCCEBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0086u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    X = 0x00u;
+    tick(3u);
+    goto L_CCD6;
+L_CCF3: if (g_yield_req) { g_resume = 0xCCF3u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CAB9: if (g_yield_req) { g_resume = 0xCAB9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CABB;
+L_CABB: if (g_yield_req) { g_resume = 0xCABBu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0053u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0053u + Y));
+    tick(5u);
+    wr((u16)(0x0400u + X), A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    if (Y != 3u) { goto L_CABB; }
+    goto L_CAC8;
+L_CAC8: if (g_yield_req) { g_resume = 0xCAC8u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EAD4: if (g_yield_req) { g_resume = 0xEAD4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0002u, A);
+    goto L_EAD6;
+L_EAD6: if (g_yield_req) { g_resume = 0xEAD6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x22u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CFA8: if (g_yield_req) { g_resume = 0xCFA8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u;
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_CFAC;
+L_CFAC: if (g_yield_req) { g_resume = 0xCFACu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0041u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CFB8; }
+    tick(2u);
+    goto L_CFB0;
+L_CFB0: if (g_yield_req) { g_resume = 0xCFB0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x02C0u + Y), A);
+    tick(5u);
+    wr((u16)(0x02C4u + Y), A);
+    goto L_CFB8;
+L_CFB8: if (g_yield_req) { g_resume = 0xCFB8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    if (((u8)(X - 2u) & 0x80u) != 0) { goto L_CFAC; }
+    goto L_CFC5;
+L_CFC5: if (g_yield_req) { g_resume = 0xCFC5u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EBDA: if (g_yield_req) { g_resume = 0xEBDAu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x050Bu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EBED; }
+    tick(2u);
+    goto L_EBDF;
+L_EBDF: if (g_yield_req) { g_resume = 0xEBDFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr(0x050Bu, A);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x050Eu, A);
+    tick(4u);
+    wr(0x050Cu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EBED: if (g_yield_req) { g_resume = 0xEBEDu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x050Cu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(4u); goto L_EC16; }
+    tick(2u);
+    goto L_EBF2;
+L_EBF2: if (g_yield_req) { g_resume = 0xEBF2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x050Du);
+    if (A != 5u) { goto L_EC0A; }
+    goto L_EBF9;
+L_EBF9: if (g_yield_req) { g_resume = 0xEBF9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 10u) { goto L_EC03; }
+    goto L_EBFF;
+L_EBFF: if (g_yield_req) { g_resume = 0xEBFFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EC0A; }
+    tick(2u);
+    goto L_EC03;
+L_EC03: if (g_yield_req) { g_resume = 0xEC03u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(3u);
+    goto L_EC12;
+L_EC0A: if (g_yield_req) { g_resume = 0xEC0Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0056u, A);
+    tick(2u);
+    A = (u8)(A & 0x03u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EC12; }
+    tick(2u);
+    goto L_EC10;
+L_EC10: if (g_yield_req) { g_resume = 0xEC10u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0057u, A);
+    goto L_EC12;
+L_EC12: if (g_yield_req) { g_resume = 0xEC12u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x050Cu) - 1u); wr(0x050Cu, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EC16: if (g_yield_req) { g_resume = 0xEC16u; g_yield_req = 0u; return; } 
+    tick(4u);
+    X = rd(0x050Eu);
+    tick(4u + ((0x0028u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC028u + X));
+    tick(4u);
+    wr(0x050Cu, A);
+    tick(4u + ((0x0014u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC014u + X));
+    tick(4u);
+    wr(0x050Du, A);
+    tick(6u);
+    { u8 t = (u8)(rd(0x050Eu) + 1u); wr(0x050Eu, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D175: if (g_yield_req) { g_resume = 0xD175u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0052u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u);
+    A = rd((u16)(0x0015u + X));
+    tick(2u);
+    A = (u8)(A & 0x0Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0056u, A);
+    if (Zf) { tick(3u); goto L_D189; }
+    tick(2u);
+    goto L_D181;
+L_D181: if (g_yield_req) { g_resume = 0xD181u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_D189; }
+    tick(2u);
+    goto L_D185;
+L_D185: if (g_yield_req) { g_resume = 0xD185u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0057u, A);
+    goto L_D189;
+L_D189: if (g_yield_req) { g_resume = 0xD189u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 1u) { goto L_D199; }
+    goto L_D18F;
+L_D18F: if (g_yield_req) { g_resume = 0xD18Fu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0015u + X));
+    tick(2u);
+    A = (u8)(A & 0x80u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D199; }
+    tick(2u);
+    goto L_D195;
+L_D195: if (g_yield_req) { g_resume = 0xD195u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0096u, A);
+    goto L_D199;
+L_D199: if (g_yield_req) { g_resume = 0xD199u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EB06: if (g_yield_req) { g_resume = 0xEB06u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0503u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EB0C; }
+    tick(2u);
+    goto L_EB0B;
+L_EB0B: if (g_yield_req) { g_resume = 0xEB0Bu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EB0C: if (g_yield_req) { g_resume = 0xEB0Cu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0505u);
+    tick(2u);
+    A = (u8)(A & 0x0Fu);
+    tick(4u);
+    wr(0x0505u, A);
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    X = A;
+    tick(2u);
+    Y = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC608u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = Y;
+    if (((u8)(A - 2u) & 0x80u) != 0) { goto L_EB54; }
+    goto L_EB27;
+L_EB27: if (g_yield_req) { g_resume = 0xEB27u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0044u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EB4F; }
+    tick(2u);
+    goto L_EB2B;
+L_EB2B: if (g_yield_req) { g_resume = 0xEB2Bu; g_yield_req = 0u; return; } 
+    if (A != 19u) { goto L_EB32; }
+    goto L_EB2F;
+L_EB2F: if (g_yield_req) { g_resume = 0xEB2Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EB85;
+L_EB32: if (g_yield_req) { g_resume = 0xEB32u; g_yield_req = 0u; return; } 
+    if (A != 15u) { goto L_EB39; }
+    goto L_EB36;
+L_EB36: if (g_yield_req) { g_resume = 0xEB36u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EB8E;
+L_EB39: if (g_yield_req) { g_resume = 0xEB39u; g_yield_req = 0u; return; } 
+    if (A != 11u) { goto L_EB40; }
+    goto L_EB3D;
+L_EB3D: if (g_yield_req) { g_resume = 0xEB3Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EB85;
+L_EB40: if (g_yield_req) { g_resume = 0xEB40u; g_yield_req = 0u; return; } 
+    if (A != 8u) { goto L_EB47; }
+    goto L_EB44;
+L_EB44: if (g_yield_req) { g_resume = 0xEB44u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EB8E;
+L_EB47: if (g_yield_req) { g_resume = 0xEB47u; g_yield_req = 0u; return; } 
+    if (A != 4u) { goto L_EB4E; }
+    goto L_EB4B;
+L_EB4B: if (g_yield_req) { g_resume = 0xEB4Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEBu); --SP;
+    wr(0x100u + SP, 0x4Du); --SP;
+    ret_lbl[ret_sp++] = &&L_EB4E; goto L_EBA6;
+L_EB4E: if (g_yield_req) { g_resume = 0xEB4Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EB4F: if (g_yield_req) { g_resume = 0xEB4Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x25u;
+    tick(3u);
+    wr(0x0044u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EB54: if (g_yield_req) { g_resume = 0xEB54u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0036u);
+    if (A == 24u) { goto L_EB74; }
+    goto L_EB5A;
+L_EB5A: if (g_yield_req) { g_resume = 0xEB5Au; g_yield_req = 0u; return; } 
+    if (A == 0u) { goto L_EB7B; }
+    goto L_EB5E;
+L_EB5E: if (g_yield_req) { g_resume = 0xEB5Eu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0515u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EB6F; }
+    tick(2u);
+    goto L_EB63;
+L_EB63: if (g_yield_req) { g_resume = 0xEB63u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEBu); --SP;
+    wr(0x100u + SP, 0x65u); --SP;
+    ret_lbl[ret_sp++] = &&L_EB66; goto L_EBA1;
+L_EB66: if (g_yield_req) { g_resume = 0xEB66u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x0515u, A);
+    tick(2u);
+    A = 0x1Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0044u, A);
+    goto L_EB6F;
+L_EB6F: if (g_yield_req) { g_resume = 0xEB6Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0044u);
+    tick(3u);
+    goto L_EB2B;
+L_EB74: if (g_yield_req) { g_resume = 0xEB74u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x30u;
+    tick(3u);
+    wr(0x0044u, A);
+    tick(3u);
+    goto L_EB9C;
+L_EB7B: if (g_yield_req) { g_resume = 0xEB7Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x1Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0044u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xEBu); --SP;
+    wr(0x100u + SP, 0x81u); --SP;
+    ret_lbl[ret_sp++] = &&L_EB82; goto L_EB97;
+L_EB82: if (g_yield_req) { g_resume = 0xEB82u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EB2B;
+L_EB85: if (g_yield_req) { g_resume = 0xEB85u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FEu, A);
+    goto L_EB89;
+L_EB8E: if (g_yield_req) { g_resume = 0xEB8Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FEu, A);
+    goto L_EB92;
+L_EB9C: if (g_yield_req) { g_resume = 0xEB9Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x3Eu;
+    tick(3u);
+    goto L_EBA8;
+L_EBB6: if (g_yield_req) { g_resume = 0xEBB6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0045u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EBBB; }
+    tick(2u);
+    goto L_EBBA;
+L_EBBA: if (g_yield_req) { g_resume = 0xEBBAu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EBBB: if (g_yield_req) { g_resume = 0xEBBBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x002Eu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EBC4; }
+    tick(2u);
+    goto L_EBBF;
+L_EBBF: if (g_yield_req) { g_resume = 0xEBBFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EBC4: if (g_yield_req) { g_resume = 0xEBC4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Bu;
+    tick(3u);
+    wr(0x0045u, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x0Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xEBu); --SP;
+    wr(0x100u + SP, 0xD2u); --SP;
+    ret_lbl[ret_sp++] = &&L_EBD3; goto L_F33E;
+L_EBD3: if (g_yield_req) { g_resume = 0xEBD3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    goto L_F23C;
+L_D041: if (g_yield_req) { g_resume = 0xD041u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x002Eu);
+    if (((u8)(A - 16u) & 0x80u) == 0) { goto L_D04B; }
+    goto L_D047;
+L_D047: if (g_yield_req) { g_resume = 0xD047u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FCu, A);
+    goto L_D04B;
+L_D04B: if (g_yield_req) { g_resume = 0xD04Bu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D1A4: if (g_yield_req) { g_resume = 0xD1A4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A == 1u) { goto L_D1BB; }
+    goto L_D1AA;
+L_D1AA: if (g_yield_req) { g_resume = 0xD1AAu; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D1C3; }
+    goto L_D1AE;
+L_D1AE: if (g_yield_req) { g_resume = 0xD1AEu; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_D1C6; }
+    goto L_D1B2;
+L_D1B2: if (g_yield_req) { g_resume = 0xD1B2u; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_D1C9; }
+    goto L_D1B6;
+L_D1B6: if (g_yield_req) { g_resume = 0xD1B6u; g_yield_req = 0u; return; } 
+    if (A == 10u) { goto L_D1CC; }
+    goto L_D1BA;
+L_D1BA: if (g_yield_req) { g_resume = 0xD1BAu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D1BB: if (g_yield_req) { g_resume = 0xD1BBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0xBDu); --SP;
+    ret_lbl[ret_sp++] = &&L_D1BE; goto L_D1CF;
+L_D1BE: if (g_yield_req) { g_resume = 0xD1BEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    tick(3u);
+    goto L_D1AA;
+L_D1C3: if (g_yield_req) { g_resume = 0xD1C3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D37E;
+L_D1C6: if (g_yield_req) { g_resume = 0xD1C6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D547;
+L_D1C9: if (g_yield_req) { g_resume = 0xD1C9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D697;
+L_D1CC: if (g_yield_req) { g_resume = 0xD1CCu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D6C6;
+L_D37E: if (g_yield_req) { g_resume = 0xD37Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 8u) { goto L_D38E; }
+    goto L_D384;
+L_D384: if (g_yield_req) { g_resume = 0xD384u; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_D38B; }
+    goto L_D388;
+L_D388: if (g_yield_req) { g_resume = 0xD388u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D4CF;
+L_D38B: if (g_yield_req) { g_resume = 0xD38Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D432;
+L_D38E: if (g_yield_req) { g_resume = 0xD38Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D39C; }
+    tick(2u);
+    goto L_D392;
+L_D392: if (g_yield_req) { g_resume = 0xD392u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0x94u); --SP;
+    ret_lbl[ret_sp++] = &&L_D395; goto L_EAE1;
+L_D395: if (g_yield_req) { g_resume = 0xD395u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0x99u); --SP;
+    ret_lbl[ret_sp++] = &&L_D39A; goto L_D50A;
+L_D39A: if (g_yield_req) { g_resume = 0xD39Au; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D3CD; }
+    tick(2u);
+    goto L_D39C;
+L_D39C: if (g_yield_req) { g_resume = 0xD39Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x24u;
+    tick(3u);
+    wr(0x000Au, A);
+    tick(2u);
+    A = 0x49u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0xA4u); --SP;
+    ret_lbl[ret_sp++] = &&L_D3A5; goto L_D9E8;
+L_D3A5: if (g_yield_req) { g_resume = 0xD3A5u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D3AF; }
+    tick(2u);
+    goto L_D3A7;
+L_D3A7: if (g_yield_req) { g_resume = 0xD3A7u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_D4CF;
+L_D3AF: if (g_yield_req) { g_resume = 0xD3AFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0xB1u); --SP;
+    ret_lbl[ret_sp++] = &&L_D3B2; goto L_D50A;
+L_D3B2: if (g_yield_req) { g_resume = 0xD3B2u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D3E7; }
+    tick(2u);
+    goto L_D3B4;
+L_D3B4: if (g_yield_req) { g_resume = 0xD3B4u; g_yield_req = 0u; return; } 
+    if (A != 2u) { goto L_D3BB; }
+    goto L_D3B8;
+L_D3B8: if (g_yield_req) { g_resume = 0xD3B8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D4CF;
+L_D3BB: if (g_yield_req) { g_resume = 0xD3BBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Bu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D3D0; }
+    tick(2u);
+    goto L_D3BF;
+L_D3BF: if (g_yield_req) { g_resume = 0xD3BFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A == 16u) { goto L_D3D2; }
+    goto L_D3C6;
+L_D3C6: if (g_yield_req) { g_resume = 0xD3C6u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_D3D2; }
+    tick(2u);
+    goto L_D3C8;
+L_D3C8: if (g_yield_req) { g_resume = 0xD3C8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x10u;
+    tick(3u);
+    goto L_D3D2;
+L_D3CD: if (g_yield_req) { g_resume = 0xD3CDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D4CF;
+L_D3D0: if (g_yield_req) { g_resume = 0xD3D0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D3D2;
+L_D3D2: if (g_yield_req) { g_resume = 0xD3D2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Bu, A);
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x0047u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC147u + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Au, A);
+    tick(3u);
+    wr(0x005Cu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0xE3u); --SP;
+    ret_lbl[ret_sp++] = &&L_D3E4; goto L_D4EE;
+L_D3E4: if (g_yield_req) { g_resume = 0xD3E4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D40D;
+L_D3E7: if (g_yield_req) { g_resume = 0xD3E7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Cu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D3F9; }
+    tick(2u);
+    goto L_D3EB;
+L_D3EB: if (g_yield_req) { g_resume = 0xD3EBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A == 6u) { goto L_D3FB; }
+    goto L_D3F2;
+L_D3F2: if (g_yield_req) { g_resume = 0xD3F2u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_D3FB; }
+    tick(2u);
+    goto L_D3F4;
+L_D3F4: if (g_yield_req) { g_resume = 0xD3F4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_D3FB;
+L_D3F9: if (g_yield_req) { g_resume = 0xD3F9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D3FB;
+L_D3FB: if (g_yield_req) { g_resume = 0xD3FBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Cu, A);
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x0059u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC159u + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Au, A);
+    tick(3u);
+    wr(0x005Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x0Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_D40D; goto L_D4EE;
+L_D40D: if (g_yield_req) { g_resume = 0xD40Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00A1u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    wr(0x0203u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x16u); --SP;
+    ret_lbl[ret_sp++] = &&L_D417; goto L_EAD1;
+L_D417: if (g_yield_req) { g_resume = 0xD417u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0004u, A);
+    tick(3u);
+    A = rd(0x0002u);
+    if (A == 84u) { goto L_D426; }
+    goto L_D421;
+L_D421: if (g_yield_req) { g_resume = 0xD421u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_D42C;
+L_D426: if (g_yield_req) { g_resume = 0xD426u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x24u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D42C;
+L_D42C: if (g_yield_req) { g_resume = 0xD42Cu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x2Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_D42F; goto L_F096;
+L_D42F: if (g_yield_req) { g_resume = 0xD42Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D4CF;
+L_D432: if (g_yield_req) { g_resume = 0xD432u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D445; }
+    tick(2u);
+    goto L_D436;
+L_D436: if (g_yield_req) { g_resume = 0xD436u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x38u); --SP;
+    ret_lbl[ret_sp++] = &&L_D439; goto L_EAE1;
+L_D439: if (g_yield_req) { g_resume = 0xD439u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x3Du); --SP;
+    ret_lbl[ret_sp++] = &&L_D43E; goto L_D50A;
+L_D43E: if (g_yield_req) { g_resume = 0xD43Eu; g_yield_req = 0u; return; } 
+    if (A == 1u) { goto L_D445; }
+    goto L_D442;
+L_D442: if (g_yield_req) { g_resume = 0xD442u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D4CF;
+L_D445: if (g_yield_req) { g_resume = 0xD445u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x24u;
+    tick(3u);
+    wr(0x000Au, A);
+    tick(2u);
+    A = 0x49u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x4Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_D450; goto L_D9E6;
+L_D450: if (g_yield_req) { g_resume = 0xD450u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D45A; }
+    tick(2u);
+    goto L_D452;
+L_D452: if (g_yield_req) { g_resume = 0xD452u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_D4CF;
+L_D45A: if (g_yield_req) { g_resume = 0xD45Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x5Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_D45D; goto L_D50A;
+L_D45D: if (g_yield_req) { g_resume = 0xD45Du; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D48B; }
+    tick(2u);
+    goto L_D45F;
+L_D45F: if (g_yield_req) { g_resume = 0xD45Fu; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D48B; }
+    goto L_D463;
+L_D463: if (g_yield_req) { g_resume = 0xD463u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Bu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D471; }
+    tick(2u);
+    goto L_D467;
+L_D467: if (g_yield_req) { g_resume = 0xD467u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A < 1u) { goto L_D476; }
+    goto L_D46E;
+L_D46E: if (g_yield_req) { g_resume = 0xD46Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D478;
+L_D471: if (g_yield_req) { g_resume = 0xD471u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Du;
+    tick(3u);
+    goto L_D478;
+L_D476: if (g_yield_req) { g_resume = 0xD476u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D478;
+L_D478: if (g_yield_req) { g_resume = 0xD478u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Bu, A);
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x0047u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC147u + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x03u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Cu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0x87u); --SP;
+    ret_lbl[ret_sp++] = &&L_D488; goto L_D4F9;
+L_D488: if (g_yield_req) { g_resume = 0xD488u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D4B1;
+L_D48B: if (g_yield_req) { g_resume = 0xD48Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Cu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D49D; }
+    tick(2u);
+    goto L_D48F;
+L_D48F: if (g_yield_req) { g_resume = 0xD48Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A == 6u) { goto L_D49F; }
+    goto L_D496;
+L_D496: if (g_yield_req) { g_resume = 0xD496u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_D49F; }
+    tick(2u);
+    goto L_D498;
+L_D498: if (g_yield_req) { g_resume = 0xD498u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_D49F;
+L_D49D: if (g_yield_req) { g_resume = 0xD49Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D49F;
+L_D49F: if (g_yield_req) { g_resume = 0xD49Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Cu, A);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x0059u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC159u + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0xB0u); --SP;
+    ret_lbl[ret_sp++] = &&L_D4B1; goto L_D4F9;
+L_D4B1: if (g_yield_req) { g_resume = 0xD4B1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00A1u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x0203u, A);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0xBAu); --SP;
+    ret_lbl[ret_sp++] = &&L_D4BB; goto L_EACD;
+L_D4BB: if (g_yield_req) { g_resume = 0xD4BBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0002u);
+    if (A == 84u) { goto L_D4C6; }
+    goto L_D4C1;
+L_D4C1: if (g_yield_req) { g_resume = 0xD4C1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_D4CC;
+L_D4C6: if (g_yield_req) { g_resume = 0xD4C6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x24u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D4CC;
+L_D4CC: if (g_yield_req) { g_resume = 0xD4CCu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0xCEu); --SP;
+    ret_lbl[ret_sp++] = &&L_D4CF; goto L_F096;
+L_D4CF: if (g_yield_req) { g_resume = 0xD4CFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0xD1u); --SP;
+    ret_lbl[ret_sp++] = &&L_D4D2; goto L_D2CB;
+L_D4D2: if (g_yield_req) { g_resume = 0xD4D2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Au, A);
+    if (Zf) { tick(3u); goto L_D4ED; }
+    tick(2u);
+    goto L_D4D6;
+L_D4D6: if (g_yield_req) { g_resume = 0xD4D6u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xD4u); --SP;
+    wr(0x100u + SP, 0xDEu); --SP;
+    ret_lbl[ret_sp++] = &&L_D4DF; goto L_E016;
+L_D4DF: if (g_yield_req) { g_resume = 0xD4DFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0059u, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Cu, A);
+    tick(3u);
+    wr(0x005Bu, A);
+    tick(3u);
+    wr(0x0085u, A);
+    goto L_D4ED;
+L_D4ED: if (g_yield_req) { g_resume = 0xD4EDu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D547: if (g_yield_req) { g_resume = 0xD547u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x4Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_D54C; goto L_D9E6;
+L_D54C: if (g_yield_req) { g_resume = 0xD54Cu; g_yield_req = 0u; return; } 
+    if (A != 0u) { goto L_D551; }
+    goto L_D550;
+L_D550: if (g_yield_req) { g_resume = 0xD550u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D551: if (g_yield_req) { g_resume = 0xD551u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0094u);
+    if (A < 240u) { goto L_D55A; }
+    goto L_D557;
+L_D557: if (g_yield_req) { g_resume = 0xD557u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D60D;
+L_D55A: if (g_yield_req) { g_resume = 0xD55Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x5Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_D55D; goto L_D990;
+L_D55D: if (g_yield_req) { g_resume = 0xD55Du; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D570; }
+    tick(2u);
+    goto L_D55F;
+L_D55F: if (g_yield_req) { g_resume = 0xD55Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A != 1u) { goto L_D56A; }
+    goto L_D565;
+L_D565: if (g_yield_req) { g_resume = 0xD565u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    goto L_D56C;
+L_D56A: if (g_yield_req) { g_resume = 0xD56Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D56C;
+L_D56C: if (g_yield_req) { g_resume = 0xD56Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0056u, A);
+    tick(3u);
+    wr(0x0057u, A);
+    goto L_D570;
+L_D570: if (g_yield_req) { g_resume = 0xD570u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x79u); --SP;
+    ret_lbl[ret_sp++] = &&L_D57A; goto L_EF72;
+L_D57A: if (g_yield_req) { g_resume = 0xD57Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(4u);
+    wr(0x0200u, A);
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 1u) { goto L_D58C; }
+    goto L_D585;
+L_D585: if (g_yield_req) { g_resume = 0xD585u; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D5A1; }
+    goto L_D589;
+L_D589: if (g_yield_req) { g_resume = 0xD589u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D5B3;
+L_D58C: if (g_yield_req) { g_resume = 0xD58Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Eu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D59A; }
+    tick(2u);
+    goto L_D590;
+L_D590: if (g_yield_req) { g_resume = 0xD590u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0203u) + 1u); wr(0x0203u, t); }
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x009Eu, A);
+    tick(3u);
+    goto L_D5B3;
+L_D59A: if (g_yield_req) { g_resume = 0xD59Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x009Eu, A);
+    tick(3u);
+    goto L_D5B3;
+L_D5A1: if (g_yield_req) { g_resume = 0xD5A1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Eu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D5AF; }
+    tick(2u);
+    goto L_D5A5;
+L_D5A5: if (g_yield_req) { g_resume = 0xD5A5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0203u) - 1u); wr(0x0203u, t); }
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x009Eu, A);
+    tick(3u);
+    goto L_D5B3;
+L_D5AF: if (g_yield_req) { g_resume = 0xD5AFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x009Eu, A);
+    goto L_D5B3;
+L_D5B3: if (g_yield_req) { g_resume = 0xD5B3u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0xBAu); --SP;
+    ret_lbl[ret_sp++] = &&L_D5BB; goto L_D800;
+L_D5BB: if (g_yield_req) { g_resume = 0xD5BBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0094u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D5E2; }
+    tick(2u);
+    goto L_D5BF;
+L_D5BF: if (g_yield_req) { g_resume = 0xD5BFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0095u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_D5CC; }
+    tick(2u);
+    goto L_D5C8;
+L_D5C8: if (g_yield_req) { g_resume = 0xD5C8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0095u, A);
+    goto L_D5CC;
+L_D5CC: if (g_yield_req) { g_resume = 0xD5CCu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0xCEu); --SP;
+    ret_lbl[ret_sp++] = &&L_D5CF; goto L_D2CB;
+L_D5CF: if (g_yield_req) { g_resume = 0xD5CFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Au, A);
+    if (Zf) { tick(3u); goto L_D5F1; }
+    tick(2u);
+    goto L_D5D3;
+L_D5D3: if (g_yield_req) { g_resume = 0xD5D3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x004Bu);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x11u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(4u);
+    wr(0x0200u, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x005Au, A);
+    tick(3u);
+    goto L_D5F6;
+L_D5E2: if (g_yield_req) { g_resume = 0xD5E2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(3u);
+    wr(0x00FFu, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0094u, A);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    wr(0x0095u, A);
+    tick(3u);
+    goto L_D5F1;
+L_D5F1: if (g_yield_req) { g_resume = 0xD5F1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x28u;
+    tick(3u);
+    goto L_F070;
+L_D5F6: if (g_yield_req) { g_resume = 0xD5F6u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0xF8u); --SP;
+    ret_lbl[ret_sp++] = &&L_D5F9; goto L_EAE1;
+L_D5F9: if (g_yield_req) { g_resume = 0xD5F9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x2Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0xFFu); --SP;
+    ret_lbl[ret_sp++] = &&L_D600; goto L_EACD;
+L_D600: if (g_yield_req) { g_resume = 0xD600u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0057u);
+    tick(2u);
+    A = (u8)(A & 0x03u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0x07u); --SP;
+    ret_lbl[ret_sp++] = &&L_D608; goto L_F096;
+L_D608: if (g_yield_req) { g_resume = 0xD608u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xF0u;
+    tick(3u);
+    wr(0x0094u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D60D: if (g_yield_req) { g_resume = 0xD60Du; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0094u) + 1u); wr(0x0094u, t); }
+    tick(3u);
+    A = rd(0x0094u);
+    if (A != 244u) { goto L_D64F; }
+    goto L_D615;
+L_D615: if (g_yield_req) { g_resume = 0xD615u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0095u);
+    if (A == 255u) { goto L_D642; }
+    goto L_D61B;
+L_D61B: if (g_yield_req) { g_resume = 0xD61Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0x1Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_D620; goto L_F070;
+L_D620: if (g_yield_req) { g_resume = 0xD620u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x042Cu, A);
+    tick(3u);
+    wr(0x0094u, A);
+    tick(3u);
+    wr(0x0095u, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(3u);
+    A = rd(0x00A0u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D64F; }
+    tick(2u);
+    goto L_D631;
+L_D631: if (g_yield_req) { g_resume = 0xD631u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x009Fu, A);
+    tick(2u);
+    A = 0x4Bu;
+    tick(3u);
+    wr(0x003Fu, A);
+    tick(2u);
+    A = 0x0Au;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(2u);
+    A = 0x40u;
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D642: if (g_yield_req) { g_resume = 0xD642u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x042Cu, A);
+    tick(3u);
+    wr(0x0094u, A);
+    tick(3u);
+    wr(0x0095u, A);
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0096u, A);
+    goto L_D64F;
+L_D64F: if (g_yield_req) { g_resume = 0xD64Fu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D697: if (g_yield_req) { g_resume = 0xD697u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0x9Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_D69C; goto L_D9E6;
+L_D69C: if (g_yield_req) { g_resume = 0xD69Cu; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D6C5; }
+    tick(2u);
+    goto L_D69E;
+L_D69E: if (g_yield_req) { g_resume = 0xD69Eu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0xA0u); --SP;
+    ret_lbl[ret_sp++] = &&L_D6A1; goto L_EAE1;
+L_D6A1: if (g_yield_req) { g_resume = 0xD6A1u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    A = rd(0x0057u);
+    if (A == 2u) { goto L_D6B1; }
+    goto L_D6AB;
+L_D6AB: if (g_yield_req) { g_resume = 0xD6ABu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0201u);
+    tick(3u);
+    goto L_D6B7;
+L_D6B1: if (g_yield_req) { g_resume = 0xD6B1u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0201u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_D6B7;
+L_D6B7: if (g_yield_req) { g_resume = 0xD6B7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0xBBu); --SP;
+    ret_lbl[ret_sp++] = &&L_D6BC; goto L_F075;
+L_D6BC: if (g_yield_req) { g_resume = 0xD6BCu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0xBEu); --SP;
+    ret_lbl[ret_sp++] = &&L_D6BF; goto L_D2CB;
+L_D6BF: if (g_yield_req) { g_resume = 0xD6BFu; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D6C5; }
+    tick(2u);
+    goto L_D6C1;
+L_D6C1: if (g_yield_req) { g_resume = 0xD6C1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0096u, A);
+    goto L_D6C5;
+L_D6C5: if (g_yield_req) { g_resume = 0xD6C5u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D6C6: if (g_yield_req) { g_resume = 0xD6C6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x003Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D6CD; }
+    tick(2u);
+    goto L_D6CA;
+L_D6CA: if (g_yield_req) { g_resume = 0xD6CAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D7BF;
+L_D6CD: if (g_yield_req) { g_resume = 0xD6CDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xDBu;
+    tick(3u);
+    wr(0x000Au, A);
+    tick(2u);
+    A = 0x36u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0xD5u); --SP;
+    ret_lbl[ret_sp++] = &&L_D6D6; goto L_D9E8;
+L_D6D6: if (g_yield_req) { g_resume = 0xD6D6u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D6D9; }
+    tick(2u);
+    goto L_D6D8;
+L_D6D8: if (g_yield_req) { g_resume = 0xD6D8u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D6D9: if (g_yield_req) { g_resume = 0xD6D9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD6u); --SP;
+    wr(0x100u + SP, 0xDBu); --SP;
+    ret_lbl[ret_sp++] = &&L_D6DC; goto L_D990;
+L_D6DC: if (g_yield_req) { g_resume = 0xD6DCu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D6E8; }
+    tick(2u);
+    goto L_D6DE;
+L_D6DE: if (g_yield_req) { g_resume = 0xD6DEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 1u) { goto L_D70A; }
+    goto L_D6E4;
+L_D6E4: if (g_yield_req) { g_resume = 0xD6E4u; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D710; }
+    goto L_D6E8;
+L_D6E8: if (g_yield_req) { g_resume = 0xD6E8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00A2u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x00A2u, A);
+    if (Zf) { tick(3u); goto L_D6F2; }
+    tick(2u);
+    goto L_D6EF;
+L_D6EF: if (g_yield_req) { g_resume = 0xD6EFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D753;
+L_D6F2: if (g_yield_req) { g_resume = 0xD6F2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x00A2u, A);
+    tick(3u);
+    A = rd(0x009Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D6FE; }
+    tick(2u);
+    goto L_D6FA;
+L_D6FA: if (g_yield_req) { g_resume = 0xD6FAu; g_yield_req = 0u; return; } 
+    if (A < 4u) { goto L_D703; }
+    goto L_D6FE;
+L_D6FE: if (g_yield_req) { g_resume = 0xD6FEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    goto L_D705;
+L_D703: if (g_yield_req) { g_resume = 0xD703u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x05u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D705;
+L_D705: if (g_yield_req) { g_resume = 0xD705u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x009Fu, A);
+    tick(3u);
+    goto L_D753;
+L_D70A: if (g_yield_req) { g_resume = 0xD70Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0203u) + 1u); wr(0x0203u, t); }
+    tick(3u);
+    goto L_D713;
+L_D710: if (g_yield_req) { g_resume = 0xD710u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0203u) - 1u); wr(0x0203u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_D713;
+L_D713: if (g_yield_req) { g_resume = 0xD713u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0x15u); --SP;
+    ret_lbl[ret_sp++] = &&L_D716; goto L_D2CB;
+L_D716: if (g_yield_req) { g_resume = 0xD716u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Au, A);
+    tick(4u);
+    A = rd(0x0200u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0x1Du); --SP;
+    ret_lbl[ret_sp++] = &&L_D71E; goto L_E016;
+L_D71E: if (g_yield_req) { g_resume = 0xD71Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0059u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0x22u); --SP;
+    ret_lbl[ret_sp++] = &&L_D723; goto L_D8EB;
+L_D723: if (g_yield_req) { g_resume = 0xD723u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D73E; }
+    tick(2u);
+    goto L_D725;
+L_D725: if (g_yield_req) { g_resume = 0xD725u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0053u);
+    if (X != 1u) { goto L_D732; }
+    goto L_D72B;
+L_D72B: if (g_yield_req) { g_resume = 0xD72Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(4u);
+    wr(0x0200u, A);
+    goto L_D732;
+L_D732: if (g_yield_req) { g_resume = 0xD732u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0x34u); --SP;
+    ret_lbl[ret_sp++] = &&L_D735; goto L_D36A;
+L_D735: if (g_yield_req) { g_resume = 0xD735u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D73E; }
+    tick(2u);
+    goto L_D737;
+L_D737: if (g_yield_req) { g_resume = 0xD737u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(3u);
+    goto L_D7BF;
+L_D73E: if (g_yield_req) { g_resume = 0xD73Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u;
+    tick(3u);
+    wr(0x00FFu, A);
+    tick(3u);
+    A = rd(0x009Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D74F; }
+    tick(2u);
+    goto L_D746;
+L_D746: if (g_yield_req) { g_resume = 0xD746u; g_yield_req = 0u; return; } 
+    if (A >= 6u) { goto L_D74F; }
+    goto L_D74A;
+L_D74A: if (g_yield_req) { g_resume = 0xD74Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x009Fu) + 1u); wr(0x009Fu, t); }
+    tick(3u);
+    goto L_D753;
+L_D74F: if (g_yield_req) { g_resume = 0xD74Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x009Fu, A);
+    goto L_D753;
+L_D753: if (g_yield_req) { g_resume = 0xD753u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x009Fu);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x00A2u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1A2u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0x5Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_D75C; goto L_F070;
+L_D75C: if (g_yield_req) { g_resume = 0xD75Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Fu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_D767; }
+    tick(2u);
+    goto L_D762;
+L_D762: if (g_yield_req) { g_resume = 0xD762u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_D769;
+L_D767: if (g_yield_req) { g_resume = 0xD767u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D769;
+L_D769: if (g_yield_req) { g_resume = 0xD769u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D786; }
+    tick(2u);
+    goto L_D76B;
+L_D76B: if (g_yield_req) { g_resume = 0xD76Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x0Eu; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x21u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    A = 0xF6u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    goto L_D7AD;
+L_D786: if (g_yield_req) { g_resume = 0xD786u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0057u);
+    if (A != 1u) { goto L_D795; }
+    goto L_D78C;
+L_D78C: if (g_yield_req) { g_resume = 0xD78Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Eu;
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    goto L_D79B;
+L_D795: if (g_yield_req) { g_resume = 0xD795u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x0Eu; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_D79B;
+L_D79B: if (g_yield_req) { g_resume = 0xD79Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x06u;
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x12u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    A = 0xFAu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    goto L_D7AD;
+L_D7AD: if (g_yield_req) { g_resume = 0xD7ADu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00A0u);
+    if (A == 1u) { goto L_D7B8; }
+    goto L_D7B3;
+L_D7B3: if (g_yield_req) { g_resume = 0xD7B3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xD8u;
+    tick(3u);
+    goto L_D7BA;
+L_D7B8: if (g_yield_req) { g_resume = 0xD7B8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xD0u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D7BA;
+L_D7BA: if (g_yield_req) { g_resume = 0xD7BAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, A);
+    tick(3u);
+    goto L_F078;
+L_D7BF: if (g_yield_req) { g_resume = 0xD7BFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x12u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    A = rd(0x00A0u);
+    if (A == 1u) { goto L_D7D3; }
+    goto L_D7C9;
+L_D7C9: if (g_yield_req) { g_resume = 0xD7C9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x0452u, A);
+    tick(2u);
+    A = 0xD8u;
+    tick(3u);
+    goto L_D7DA;
+L_D7D3: if (g_yield_req) { g_resume = 0xD7D3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr(0x0451u, A);
+    tick(2u);
+    A = 0xD0u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D7DA;
+L_D7DA: if (g_yield_req) { g_resume = 0xD7DAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0xDEu); --SP;
+    ret_lbl[ret_sp++] = &&L_D7DF; goto L_F094;
+L_D7DF: if (g_yield_req) { g_resume = 0xD7DFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD7u); --SP;
+    wr(0x100u + SP, 0xE1u); --SP;
+    ret_lbl[ret_sp++] = &&L_D7E2; goto L_D7F2;
+L_D7E2: if (g_yield_req) { g_resume = 0xD7E2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00A0u, A);
+    tick(3u);
+    wr(0x009Fu, A);
+    tick(4u);
+    A = rd(0x0519u);
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F070: if (g_yield_req) { g_resume = 0xF070u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x74u); --SP;
+    ret_lbl[ret_sp++] = &&L_F075; goto L_EAE1;
+L_F075: if (g_yield_req) { g_resume = 0xF075u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x77u); --SP;
+    ret_lbl[ret_sp++] = &&L_F078; goto L_EACD;
+L_F078: if (g_yield_req) { g_resume = 0xF078u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0057u);
+    tick(2u);
+    A = (u8)(A & 0x03u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    goto L_F096;
+L_EA5F: if (g_yield_req) { g_resume = 0xEA5Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0039u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EA64; }
+    tick(2u);
+    goto L_EA63;
+L_EA63: if (g_yield_req) { g_resume = 0xEA63u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EA64: if (g_yield_req) { g_resume = 0xEA64u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u;
+    tick(3u);
+    wr(0x000Au, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0x6Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_EA6F; goto L_EAA1;
+L_EA6F: if (g_yield_req) { g_resume = 0xEA6Fu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_EA72; }
+    tick(2u);
+    goto L_EA71;
+L_EA71: if (g_yield_req) { g_resume = 0xEA71u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EA72: if (g_yield_req) { g_resume = 0xEA72u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x50u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    A = rd(0x02F1u);
+    if (A == 219u) { goto L_EA88; }
+    goto L_EA81;
+L_EA81: if (g_yield_req) { g_resume = 0xEA81u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00B7u) + 1u); wr(0x00B7u, t); }
+    tick(2u);
+    A = 0xDBu;
+    tick(3u);
+    goto L_EA8A;
+L_EA88: if (g_yield_req) { g_resume = 0xEA88u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xD7u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EA8A;
+L_EA8A: if (g_yield_req) { g_resume = 0xEA8Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0x8Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_EA8D; goto L_EAD4;
+L_EA8D: if (g_yield_req) { g_resume = 0xEA8Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xF0u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0x91u); --SP;
+    ret_lbl[ret_sp++] = &&L_EA92; goto L_F080;
+L_EA92: if (g_yield_req) { g_resume = 0xEA92u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00B7u);
+    if (A != 4u) { goto L_EAA0; }
+    goto L_EA98;
+L_EA98: if (g_yield_req) { g_resume = 0xEA98u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00B7u, A);
+    tick(2u);
+    A = 0xBBu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0039u, A);
+    goto L_EAA0;
+L_EAA0: if (g_yield_req) { g_resume = 0xEAA0u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E1E5: if (g_yield_req) { g_resume = 0xE1E5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00AEu, A);
+    goto L_E1E9;
+L_E1E9: if (g_yield_req) { g_resume = 0xE1E9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE1u); --SP;
+    wr(0x100u + SP, 0xEBu); --SP;
+    ret_lbl[ret_sp++] = &&L_E1EC; goto L_EFDD;
+L_E1EC: if (g_yield_req) { g_resume = 0xE1ECu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    if (A != 255u) { goto L_E225; }
+    goto L_E1F3;
+L_E1F3: if (g_yield_req) { g_resume = 0xE1F3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_E200; }
+    goto L_E1F9;
+L_E1F9: if (g_yield_req) { g_resume = 0xE1F9u; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_E213; }
+    goto L_E1FD;
+L_E1FD: if (g_yield_req) { g_resume = 0xE1FDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E225;
+L_E200: if (g_yield_req) { g_resume = 0xE200u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0040u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E228; }
+    tick(2u);
+    goto L_E204;
+L_E204: if (g_yield_req) { g_resume = 0xE204u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00ADu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E228; }
+    tick(2u);
+    goto L_E208;
+L_E208: if (g_yield_req) { g_resume = 0xE208u; g_yield_req = 0u; return; } 
+    if (A != 2u) { goto L_E228; }
+    goto L_E20C;
+L_E20C: if (g_yield_req) { g_resume = 0xE20Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x19u;
+    tick(3u);
+    wr(0x0040u, A);
+    tick(3u);
+    goto L_E21F;
+L_E213: if (g_yield_req) { g_resume = 0xE213u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0040u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E228; }
+    tick(2u);
+    goto L_E217;
+L_E217: if (g_yield_req) { g_resume = 0xE217u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE2u); --SP;
+    wr(0x100u + SP, 0x19u); --SP;
+    ret_lbl[ret_sp++] = &&L_E21A; goto L_EAF7;
+L_E21A: if (g_yield_req) { g_resume = 0xE21Au; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0066u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC466u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0040u, A);
+    goto L_E21F;
+L_E21F: if (g_yield_req) { g_resume = 0xE21Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x06u;
+    tick(3u);
+    X = rd(0x00AEu); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    goto L_E225;
+L_E225: if (g_yield_req) { g_resume = 0xE225u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE2u); --SP;
+    wr(0x100u + SP, 0x27u); --SP;
+    ret_lbl[ret_sp++] = &&L_E228; goto L_E250;
+L_E228: if (g_yield_req) { g_resume = 0xE228u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0053u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(5u);
+    { u8 t = (u8)(rd(0x00AEu) + 1u); wr(0x00AEu, t); }
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(4u + ((0x00F6u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC1F6u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E237; }
+    tick(2u);
+    goto L_E234;
+L_E234: if (g_yield_req) { g_resume = 0xE234u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E1E9;
+L_E237: if (g_yield_req) { g_resume = 0xE237u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 3u) { goto L_E24F; }
+    goto L_E23D;
+L_E23D: if (g_yield_req) { g_resume = 0xE23Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x003Bu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E24F; }
+    tick(2u);
+    goto L_E241;
+L_E241: if (g_yield_req) { g_resume = 0xE241u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00D2u, A);
+    tick(3u);
+    wr(0x00D3u, A);
+    tick(3u);
+    wr(0x00D4u, A);
+    tick(3u);
+    wr(0x00D5u, A);
+    tick(2u);
+    A = 0xBCu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x003Bu, A);
+    goto L_E24F;
+L_E24F: if (g_yield_req) { g_resume = 0xE24Fu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EE79: if (g_yield_req) { g_resume = 0xEE79u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0053u);
+    if (Y != 1u) { goto L_EE80; }
+    goto L_EE7F;
+L_EE7F: if (g_yield_req) { g_resume = 0xEE7Fu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EE80: if (g_yield_req) { g_resume = 0xEE80u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00BEu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EED8; }
+    tick(2u);
+    goto L_EE84;
+L_EE84: if (g_yield_req) { g_resume = 0xEE84u; g_yield_req = 0u; return; } 
+    if (Y != 4u) { goto L_EEF0; }
+    goto L_EE88;
+L_EE88: if (g_yield_req) { g_resume = 0xEE88u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u;
+    tick(4u);
+    X = rd(0xC5FFu); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EE8D;
+L_EE8D: if (g_yield_req) { g_resume = 0xEE8Du; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C2u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5C2u + X));
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_EEE7; }
+    tick(2u);
+    goto L_EE95;
+L_EE95: if (g_yield_req) { g_resume = 0xEE95u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00AEu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5AEu + X));
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_EEE7; }
+    tick(2u);
+    goto L_EE9D;
+L_EE9D: if (g_yield_req) { g_resume = 0xEE9Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x11u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (Cf) { tick(3u); goto L_EEE7; }
+    tick(2u);
+    goto L_EEA5;
+L_EEA5: if (g_yield_req) { g_resume = 0xEEA5u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C1u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x00C1u + Y));
+    if (A != 0u) { goto L_EED9; }
+    goto L_EEAC;
+L_EEAC: if (g_yield_req) { g_resume = 0xEEACu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A == 8u) { goto L_EED8; }
+    goto L_EEB2;
+L_EEB2: if (g_yield_req) { g_resume = 0xEEB2u; g_yield_req = 0u; return; } 
+    if (A == 255u) { goto L_EED8; }
+    goto L_EEB6;
+L_EEB6: if (g_yield_req) { g_resume = 0xEEB6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x11u;
+    tick(3u);
+    wr(0x00CCu, A);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x00C1u + Y), A);
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0xC1u); --SP;
+    ret_lbl[ret_sp++] = &&L_EEC2; goto L_EF38;
+L_EEC2: if (g_yield_req) { g_resume = 0xEEC2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0006u, A);
+    tick(4u);
+    A = rd(0x0203u);
+    tick(3u);
+    wr(0x0005u, A);
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0xD3u); --SP;
+    ret_lbl[ret_sp++] = &&L_EED4; goto L_CFC6;
+L_EED4: if (g_yield_req) { g_resume = 0xEED4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FDu, A);
+    goto L_EED8;
+L_EED8: if (g_yield_req) { g_resume = 0xEED8u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EED9: if (g_yield_req) { g_resume = 0xEED9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A == 4u) { goto L_EEE6; }
+    goto L_EEDF;
+L_EEDF: if (g_yield_req) { g_resume = 0xEEDFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0xE1u); --SP;
+    ret_lbl[ret_sp++] = &&L_EEE2; goto L_EF51;
+L_EEE2: if (g_yield_req) { g_resume = 0xEEE2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0096u, A);
+    goto L_EEE6;
+L_EEE6: if (g_yield_req) { g_resume = 0xEEE6u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EEE7: if (g_yield_req) { g_resume = 0xEEE7u; g_yield_req = 0u; return; } 
+    if (Y == 7u) { goto L_EEF0; }
+    goto L_EEEB;
+L_EEEB: if (g_yield_req) { g_resume = 0xEEEBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_EE8D;
+L_EEF0: if (g_yield_req) { g_resume = 0xEEF0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0053u);
+    tick(4u + ((0x00FAu + Y) > 0xFFu ? 1u : 0u));
+    X = rd((u16)(0xC5FAu + Y));
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EEF7;
+L_EEF7: if (g_yield_req) { g_resume = 0xEEF7u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00AEu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5AEu + X));
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(4u); goto L_EF2F; }
+    tick(2u);
+    goto L_EEFF;
+L_EEFF: if (g_yield_req) { g_resume = 0xEEFFu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C2u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5C2u + X));
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_EF2F; }
+    tick(2u);
+    goto L_EF07;
+L_EF07: if (g_yield_req) { g_resume = 0xEF07u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C9u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x00C9u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EF2F; }
+    tick(2u);
+    goto L_EF0C;
+L_EF0C: if (g_yield_req) { g_resume = 0xEF0Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x22u;
+    tick(3u);
+    wr(0x00CCu, A);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x00C9u + Y), A);
+    tick(6u);
+    wr(0x100u + SP, 0xEFu); --SP;
+    wr(0x100u + SP, 0x17u); --SP;
+    ret_lbl[ret_sp++] = &&L_EF18; goto L_EF38;
+L_EF18: if (g_yield_req) { g_resume = 0xEF18u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0006u, A);
+    tick(4u);
+    A = rd(0x0203u);
+    tick(3u);
+    wr(0x0005u, A);
+    tick(2u);
+    X = 0x03u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEFu); --SP;
+    wr(0x100u + SP, 0x29u); --SP;
+    ret_lbl[ret_sp++] = &&L_EF2A; goto L_CFC6;
+L_EF2A: if (g_yield_req) { g_resume = 0xEF2Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FDu, A);
+    goto L_EF2E;
+L_EF2E: if (g_yield_req) { g_resume = 0xEF2Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EF2F: if (g_yield_req) { g_resume = 0xEF2Fu; g_yield_req = 0u; return; } 
+    if (Y == 2u) { goto L_EF2E; }
+    goto L_EF33;
+L_EF33: if (g_yield_req) { g_resume = 0xEF33u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_EEF7;
+L_DA16: if (g_yield_req) { g_resume = 0xDA16u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0x18u); --SP;
+    ret_lbl[ret_sp++] = &&L_DA19; goto L_E166;
+L_DA19: if (g_yield_req) { g_resume = 0xDA19u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Du, A);
+    goto L_DA1D;
+L_DA1D: if (g_yield_req) { g_resume = 0xDA1Du; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0x1Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_DA20; goto L_EFD5;
+L_DA20: if (g_yield_req) { g_resume = 0xDA20u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    if (A != 255u) { goto L_DA3D; }
+    goto L_DA27;
+L_DA27: if (g_yield_req) { g_resume = 0xDA27u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0036u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DA40; }
+    tick(2u);
+    goto L_DA2B;
+L_DA2B: if (g_yield_req) { g_resume = 0xDA2Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(2u);
+    A = 0x10u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0037u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0x37u); --SP;
+    ret_lbl[ret_sp++] = &&L_DA38; goto L_EAF7;
+L_DA38: if (g_yield_req) { g_resume = 0xDA38u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0043u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC443u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0036u, A);
+    goto L_DA3D;
+L_DA3D: if (g_yield_req) { g_resume = 0xDA3Du; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0x3Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_DA40; goto L_DA4C;
+L_DA40: if (g_yield_req) { g_resume = 0xDA40u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Du);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x005Du, A);
+    if (A != 9u) { goto L_DA1D; }
+    goto L_DA4B;
+L_DA4B: if (g_yield_req) { g_resume = 0xDA4Bu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E19A: if (g_yield_req) { g_resume = 0xE19Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00ADu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E19F; }
+    tick(2u);
+    goto L_E19E;
+L_E19E: if (g_yield_req) { g_resume = 0xE19Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E19F: if (g_yield_req) { g_resume = 0xE19Fu; g_yield_req = 0u; return; } 
+    if (A != 1u) { goto L_E1BF; }
+    goto L_E1A3;
+L_E1A3: if (g_yield_req) { g_resume = 0xE1A3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0xC0u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0xFCu;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x12u;
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    A = 0xE0u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xE1u); --SP;
+    wr(0x100u + SP, 0xB7u); --SP;
+    ret_lbl[ret_sp++] = &&L_E1B8; goto L_F080;
+L_E1B8: if (g_yield_req) { g_resume = 0xE1B8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x00ADu, A);
+    tick(3u);
+    goto L_E1E0;
+L_E1BF: if (g_yield_req) { g_resume = 0xE1BFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0038u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E1E4; }
+    tick(2u);
+    goto L_E1C3;
+L_E1C3: if (g_yield_req) { g_resume = 0xE1C3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u;
+    tick(3u);
+    wr(0x00ADu, A);
+    tick(2u);
+    X = 0xE1u;
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    if (A == 252u) { goto L_E1D5; }
+    goto L_E1D0;
+L_E1D0: if (g_yield_req) { g_resume = 0xE1D0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFCu;
+    tick(3u);
+    goto L_E1D7;
+L_E1D5: if (g_yield_req) { g_resume = 0xE1D5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFEu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E1D7;
+L_E1D7: if (g_yield_req) { g_resume = 0xE1D7u; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0200u + X), A);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(5u);
+    wr((u16)(0x0204u + X), A);
+    goto L_E1E0;
+L_E1E0: if (g_yield_req) { g_resume = 0xE1E0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x10u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0038u, A);
+    goto L_E1E4;
+L_E1E4: if (g_yield_req) { g_resume = 0xE1E4u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EC29: if (g_yield_req) { g_resume = 0xEC29u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x2Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_EC2C; goto L_EAE1;
+L_EC2C: if (g_yield_req) { g_resume = 0xEC2Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x4Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x30u); --SP;
+    ret_lbl[ret_sp++] = &&L_EC31; goto L_EFE8;
+L_EC31: if (g_yield_req) { g_resume = 0xEC31u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 3u) { goto L_EC3B; }
+    goto L_EC37;
+L_EC37: if (g_yield_req) { g_resume = 0xEC37u; g_yield_req = 0u; return; } 
+    if (A != 1u) { goto L_EC3E; }
+    goto L_EC3B;
+L_EC3B: if (g_yield_req) { g_resume = 0xEC3Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x3Du); --SP;
+    ret_lbl[ret_sp++] = &&L_EC3E; goto L_EC44;
+L_EC3E: if (g_yield_req) { g_resume = 0xEC3Eu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x40u); --SP;
+    ret_lbl[ret_sp++] = &&L_EC41; goto L_ED8A;
+L_EC41: if (g_yield_req) { g_resume = 0xEC41u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EDC5;
+L_EDC5: if (g_yield_req) { g_resume = 0xEDC5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 3u) { goto L_EDD2; }
+    goto L_EDCB;
+L_EDCB: if (g_yield_req) { g_resume = 0xEDCBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0096u);
+    if (Y == 1u) { goto L_EDD2; }
+    goto L_EDD1;
+L_EDD1: if (g_yield_req) { g_resume = 0xEDD1u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EDD2: if (g_yield_req) { g_resume = 0xEDD2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x002Bu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC42Bu + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(4u + ((0x002Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC42Cu + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(4u + ((0x0023u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC423u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u + ((0x0024u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC424u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0001u, A);
+    goto L_EDEB;
+L_EDEB: if (g_yield_req) { g_resume = 0xEDEBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0xEDu); --SP;
+    ret_lbl[ret_sp++] = &&L_EDEE; goto L_EFEF;
+L_EDEE: if (g_yield_req) { g_resume = 0xEDEEu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(4u); goto L_EE07; }
+    tick(2u);
+    goto L_EDF0;
+L_EDF0: if (g_yield_req) { g_resume = 0xEDF0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 3u) { goto L_EE0B; }
+    goto L_EDF6;
+L_EDF6: if (g_yield_req) { g_resume = 0xEDF6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    if (A == 201u) { goto L_EE0B; }
+    goto L_EDFC;
+L_EDFC: if (g_yield_req) { g_resume = 0xEDFCu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x70u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0xC9u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_EDEB;
+L_EE07: if (g_yield_req) { g_resume = 0xEE07u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0096u, A);
+    goto L_EE0B;
+L_EE0B: if (g_yield_req) { g_resume = 0xEE0Bu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E834: if (g_yield_req) { g_resume = 0xE834u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE8u); --SP;
+    wr(0x100u + SP, 0x36u); --SP;
+    ret_lbl[ret_sp++] = &&L_E837; goto L_EAF7;
+L_E837: if (g_yield_req) { g_resume = 0xE837u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x005Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC45Cu + X));
+    tick(3u);
+    wr(0x000Au, A);
+    tick(4u + ((0x0061u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC461u + X));
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Du, A);
+    tick(6u);
+    wr(0x100u + SP, 0xE8u); --SP;
+    wr(0x100u + SP, 0x47u); --SP;
+    ret_lbl[ret_sp++] = &&L_E848; goto L_DFE8;
+L_E848: if (g_yield_req) { g_resume = 0xE848u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_E84B; }
+    tick(2u);
+    goto L_E84A;
+L_E84A: if (g_yield_req) { g_resume = 0xE84Au; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E84B: if (g_yield_req) { g_resume = 0xE84Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00D2u, A);
+    goto L_E84F;
+L_E84F: if (g_yield_req) { g_resume = 0xE84Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00D2u);
+    if (A >= 3u) { goto L_E8A9; }
+    goto L_E855;
+L_E855: if (g_yield_req) { g_resume = 0xE855u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E86A; }
+    tick(2u);
+    goto L_E858;
+L_E858: if (g_yield_req) { g_resume = 0xE858u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00DAu);
+    if (A != 1u) { goto L_E86A; }
+    goto L_E85E;
+L_E85E: if (g_yield_req) { g_resume = 0xE85Eu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0200u) - 1u); wr(0x0200u, t); }
+    tick(6u);
+    { u8 t = (u8)(rd(0x0204u) - 1u); wr(0x0204u, t); }
+    tick(6u);
+    { u8 t = (u8)(rd(0x0208u) - 1u); wr(0x0208u, t); }
+    tick(6u);
+    { u8 t = (u8)(rd(0x020Cu) - 1u); wr(0x020Cu, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_E86A;
+L_E86A: if (g_yield_req) { g_resume = 0xE86Au; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xC2CCu + X));
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A == 255u) { goto L_E8A4; }
+    goto L_E874;
+L_E874: if (g_yield_req) { g_resume = 0xE874u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(2u);
+    X = A;
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0200u + X)) - 1u); wr((u16)(0x0200u + X), t); }
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0204u + X)) - 1u); wr((u16)(0x0204u + X), t); }
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    if (A != 80u) { goto L_E889; }
+    goto L_E883;
+L_E883: if (g_yield_req) { g_resume = 0xE883u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE8u); --SP;
+    wr(0x100u + SP, 0x85u); --SP;
+    ret_lbl[ret_sp++] = &&L_E886; goto L_E968;
+L_E886: if (g_yield_req) { g_resume = 0xE886u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E890;
+L_E889: if (g_yield_req) { g_resume = 0xE889u; g_yield_req = 0u; return; } 
+    if (A != 200u) { goto L_E890; }
+    goto L_E88D;
+L_E88D: if (g_yield_req) { g_resume = 0xE88Du; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE8u); --SP;
+    wr(0x100u + SP, 0x8Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_E890; goto L_E971;
+L_E890: if (g_yield_req) { g_resume = 0xE890u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A != 112u) { goto L_E89B; }
+    goto L_E897;
+L_E897: if (g_yield_req) { g_resume = 0xE897u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00D8u, A);
+    goto L_E89B;
+L_E89B: if (g_yield_req) { g_resume = 0xE89Bu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A == 72u) { goto L_E901; }
+    goto L_E8A2;
+L_E8A2: if (g_yield_req) { g_resume = 0xE8A2u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(4u); goto L_E901; }
+    tick(2u);
+    goto L_E8A4;
+L_E8A4: if (g_yield_req) { g_resume = 0xE8A4u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00D2u) + 1u); wr(0x00D2u, t); }
+    tick(3u);
+    goto L_E84F;
+L_E8A9: if (g_yield_req) { g_resume = 0xE8A9u; g_yield_req = 0u; return; } 
+    if (A == 6u) { goto L_E90E; }
+    goto L_E8AD;
+L_E8AD: if (g_yield_req) { g_resume = 0xE8ADu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    if (A != 3u) { goto L_E8C4; }
+    goto L_E8B2;
+L_E8B2: if (g_yield_req) { g_resume = 0xE8B2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00DAu);
+    if (A != 2u) { goto L_E8C4; }
+    goto L_E8B8;
+L_E8B8: if (g_yield_req) { g_resume = 0xE8B8u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0200u) + 1u); wr(0x0200u, t); }
+    tick(6u);
+    { u8 t = (u8)(rd(0x0204u) + 1u); wr(0x0204u, t); }
+    tick(6u);
+    { u8 t = (u8)(rd(0x0208u) + 1u); wr(0x0208u, t); }
+    tick(6u);
+    { u8 t = (u8)(rd(0x020Cu) + 1u); wr(0x020Cu, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_E8C4;
+L_E8C4: if (g_yield_req) { g_resume = 0xE8C4u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xC2CCu + X));
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A == 255u) { goto L_E8FC; }
+    goto L_E8CE;
+L_E8CE: if (g_yield_req) { g_resume = 0xE8CEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(2u);
+    X = A;
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0200u + X)) + 1u); wr((u16)(0x0200u + X), t); }
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0204u + X)) + 1u); wr((u16)(0x0204u + X), t); }
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    if (A != 80u) { goto L_E8E3; }
+    goto L_E8DD;
+L_E8DD: if (g_yield_req) { g_resume = 0xE8DDu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE8u); --SP;
+    wr(0x100u + SP, 0xDFu); --SP;
+    ret_lbl[ret_sp++] = &&L_E8E0; goto L_E971;
+L_E8E0: if (g_yield_req) { g_resume = 0xE8E0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E8EA;
+L_E8E3: if (g_yield_req) { g_resume = 0xE8E3u; g_yield_req = 0u; return; } 
+    if (A != 200u) { goto L_E8EA; }
+    goto L_E8E7;
+L_E8E7: if (g_yield_req) { g_resume = 0xE8E7u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE8u); --SP;
+    wr(0x100u + SP, 0xE9u); --SP;
+    ret_lbl[ret_sp++] = &&L_E8EA; goto L_E968;
+L_E8EA: if (g_yield_req) { g_resume = 0xE8EAu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A != 168u) { goto L_E8F8; }
+    goto L_E8F1;
+L_E8F1: if (g_yield_req) { g_resume = 0xE8F1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x00D9u, A);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E8F8;
+L_E8F8: if (g_yield_req) { g_resume = 0xE8F8u; g_yield_req = 0u; return; } 
+    if (A >= 208u) { goto L_E901; }
+    goto L_E8FC;
+L_E8FC: if (g_yield_req) { g_resume = 0xE8FCu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00D2u) + 1u); wr(0x00D2u, t); }
+    tick(3u);
+    goto L_E84F;
+L_E901: if (g_yield_req) { g_resume = 0xE901u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(5u);
+    wr((u16)(0x0200u + Y), A);
+    tick(5u);
+    wr((u16)(0x0204u + Y), A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x00D2u) + 1u); wr(0x00D2u, t); }
+    tick(3u);
+    goto L_E84F;
+L_E90E: if (g_yield_req) { g_resume = 0xE90Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00D8u);
+    if (A != 1u) { goto L_E93B; }
+    goto L_E914;
+L_E914: if (g_yield_req) { g_resume = 0xE914u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00D2u, A);
+    goto L_E918;
+L_E918: if (g_yield_req) { g_resume = 0xE918u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00D2u);
+    if (A == 3u) { goto L_E967; }
+    goto L_E91E;
+L_E91E: if (g_yield_req) { g_resume = 0xE91Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xC2CCu + X));
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A == 255u) { goto L_E92E; }
+    goto L_E929;
+L_E929: if (g_yield_req) { g_resume = 0xE929u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00D2u) + 1u); wr(0x00D2u, t); }
+    tick(3u);
+    goto L_E918;
+L_E92E: if (g_yield_req) { g_resume = 0xE92Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xD0u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0x32u); --SP;
+    ret_lbl[ret_sp++] = &&L_E933; goto L_E97A;
+L_E933: if (g_yield_req) { g_resume = 0xE933u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0x35u); --SP;
+    ret_lbl[ret_sp++] = &&L_E936; goto L_E968;
+L_E936: if (g_yield_req) { g_resume = 0xE936u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00D8u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E93B: if (g_yield_req) { g_resume = 0xE93Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00D9u);
+    if (A != 1u) { goto L_E967; }
+    goto L_E941;
+L_E941: if (g_yield_req) { g_resume = 0xE941u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00D2u, A);
+    goto L_E945;
+L_E945: if (g_yield_req) { g_resume = 0xE945u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00D2u);
+    if (A == 6u) { goto L_E967; }
+    goto L_E94B;
+L_E94B: if (g_yield_req) { g_resume = 0xE94Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xC2CCu + X));
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A == 255u) { goto L_E95B; }
+    goto L_E956;
+L_E956: if (g_yield_req) { g_resume = 0xE956u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00D2u) + 1u); wr(0x00D2u, t); }
+    tick(3u);
+    goto L_E945;
+L_E95B: if (g_yield_req) { g_resume = 0xE95Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x48u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0x5Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_E960; goto L_E97A;
+L_E960: if (g_yield_req) { g_resume = 0xE960u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0x62u); --SP;
+    ret_lbl[ret_sp++] = &&L_E963; goto L_E968;
+L_E963: if (g_yield_req) { g_resume = 0xE963u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00D9u, A);
+    goto L_E967;
+L_E967: if (g_yield_req) { g_resume = 0xE967u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E981: if (g_yield_req) { g_resume = 0xE981u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x0445u, A);
+    goto L_E986;
+L_E986: if (g_yield_req) { g_resume = 0xE986u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0445u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0x8Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_E98C; goto L_EFD7;
+L_E98C: if (g_yield_req) { g_resume = 0xE98Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = X;
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x30u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0x95u); --SP;
+    ret_lbl[ret_sp++] = &&L_E996; goto L_EAEC;
+L_E996: if (g_yield_req) { g_resume = 0xE996u; g_yield_req = 0u; return; } 
+    if (A == 255u) { goto L_E9F0; }
+    goto L_E99A;
+L_E99A: if (g_yield_req) { g_resume = 0xE99Au; g_yield_req = 0u; return; } 
+    tick(4u);
+    X = rd(0x0445u);
+    tick(4u + ((0x0046u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0446u + X));
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0xB0u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_E9B4; }
+    tick(2u);
+    goto L_E9A7;
+L_E9A7: if (g_yield_req) { g_resume = 0xE9A7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    if (A >= 38u) { goto L_E9BE; }
+    goto L_E9AD;
+L_E9AD: if (g_yield_req) { g_resume = 0xE9ADu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC0u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    goto L_E9DA;
+L_E9B4: if (g_yield_req) { g_resume = 0xE9B4u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0xB6u); --SP;
+    ret_lbl[ret_sp++] = &&L_E9B7; goto L_EA01;
+L_E9B7: if (g_yield_req) { g_resume = 0xE9B7u; g_yield_req = 0u; return; } 
+    if (A == 255u) { goto L_E9F3; }
+    goto L_E9BB;
+L_E9BB: if (g_yield_req) { g_resume = 0xE9BBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E9EA;
+L_E9BE: if (g_yield_req) { g_resume = 0xE9BEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC4u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    A = rd(0x0001u);
+    if (A < 46u) { goto L_E9DA; }
+    goto L_E9C8;
+L_E9C8: if (g_yield_req) { g_resume = 0xE9C8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x00FEu, A);
+    tick(2u);
+    A = 0x2Eu;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    A = rd(0x0445u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x042Eu + X), A);
+    goto L_E9DA;
+L_E9DA: if (g_yield_req) { g_resume = 0xE9DAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x02u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    A = rd(0x0445u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0xE9u); --SP;
+    ret_lbl[ret_sp++] = &&L_E9EA; goto L_EF72;
+L_E9EA: if (g_yield_req) { g_resume = 0xE9EAu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0xECu); --SP;
+    ret_lbl[ret_sp++] = &&L_E9ED; goto L_EADB;
+L_E9ED: if (g_yield_req) { g_resume = 0xE9EDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E9F3;
+L_E9F0: if (g_yield_req) { g_resume = 0xE9F0u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE9u); --SP;
+    wr(0x100u + SP, 0xF2u); --SP;
+    ret_lbl[ret_sp++] = &&L_E9F3; goto L_EA34;
+L_E9F3: if (g_yield_req) { g_resume = 0xE9F3u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0445u) + 1u); wr(0x0445u, t); }
+    tick(4u);
+    A = rd(0x0445u);
+    if (A == 3u) { goto L_EA00; }
+    goto L_E9FD;
+L_E9FD: if (g_yield_req) { g_resume = 0xE9FDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E986;
+L_EA00: if (g_yield_req) { g_resume = 0xEA00u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EE0C: if (g_yield_req) { g_resume = 0xEE0Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u;
+    tick(3u);
+    wr(0x000Au, A);
+    tick(2u);
+    A = 0x80u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x16u); --SP;
+    ret_lbl[ret_sp++] = &&L_EE17; goto L_DFE4;
+L_EE17: if (g_yield_req) { g_resume = 0xEE17u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_EE1A; }
+    tick(2u);
+    goto L_EE19;
+L_EE19: if (g_yield_req) { g_resume = 0xEE19u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EE1A: if (g_yield_req) { g_resume = 0xEE1Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 1u) { goto L_EE26; }
+    goto L_EE20;
+L_EE20: if (g_yield_req) { g_resume = 0xEE20u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x22u); --SP;
+    ret_lbl[ret_sp++] = &&L_EE23; goto L_EFD5;
+L_EE23: if (g_yield_req) { g_resume = 0xEE23u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EE29;
+L_EE26: if (g_yield_req) { g_resume = 0xEE26u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x28u); --SP;
+    ret_lbl[ret_sp++] = &&L_EE29; goto L_EFDD;
+L_EE29: if (g_yield_req) { g_resume = 0xEE29u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x2Du); --SP;
+    ret_lbl[ret_sp++] = &&L_EE2E; goto L_EAEC;
+L_EE2E: if (g_yield_req) { g_resume = 0xEE2Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00BFu);
+    if (A != 1u) { goto L_EE38; }
+    goto L_EE34;
+L_EE34: if (g_yield_req) { g_resume = 0xEE34u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x02u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FFu, Y);
+    goto L_EE38;
+L_EE38: if (g_yield_req) { g_resume = 0xEE38u; g_yield_req = 0u; return; } 
+    if (A == 11u) { goto L_EE51; }
+    goto L_EE3C;
+L_EE3C: if (g_yield_req) { g_resume = 0xEE3Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00BFu);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x00ECu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1ECu + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x46u); --SP;
+    ret_lbl[ret_sp++] = &&L_EE47; goto L_EADB;
+L_EE47: if (g_yield_req) { g_resume = 0xEE47u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0004u);
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x4Du); --SP;
+    ret_lbl[ret_sp++] = &&L_EE4E; goto L_EE6C;
+L_EE4E: if (g_yield_req) { g_resume = 0xEE4Eu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00BFu) + 1u); wr(0x00BFu, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EE51: if (g_yield_req) { g_resume = 0xEE51u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 1u) { goto L_EE5C; }
+    goto L_EE57;
+L_EE57: if (g_yield_req) { g_resume = 0xEE57u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x5Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_EE5C; goto L_EE6C;
+L_EE5C: if (g_yield_req) { g_resume = 0xEE5Cu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x5Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_EE5F; goto L_EAD1;
+L_EE5F: if (g_yield_req) { g_resume = 0xEE5Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x61u); --SP;
+    ret_lbl[ret_sp++] = &&L_EE62; goto L_F094;
+L_EE62: if (g_yield_req) { g_resume = 0xEE62u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x02u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEEu); --SP;
+    wr(0x100u + SP, 0x66u); --SP;
+    ret_lbl[ret_sp++] = &&L_EE67; goto L_CFC6;
+L_EE67: if (g_yield_req) { g_resume = 0xEE67u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00BFu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D0C0: if (g_yield_req) { g_resume = 0xD0C0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(2u);
+    A = 0x10u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD0u); --SP;
+    wr(0x100u + SP, 0xC8u); --SP;
+    ret_lbl[ret_sp++] = &&L_D0C9; goto L_D9E6;
+L_D0C9: if (g_yield_req) { g_resume = 0xD0C9u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(4u); goto L_D138; }
+    tick(2u);
+    goto L_D0CB;
+L_D0CB: if (g_yield_req) { g_resume = 0xD0CBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0098u);
+    if (A == 255u) { goto L_D130; }
+    goto L_D0D1;
+L_D0D1: if (g_yield_req) { g_resume = 0xD0D1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0098u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D0E4; }
+    tick(2u);
+    goto L_D0D5;
+L_D0D5: if (g_yield_req) { g_resume = 0xD0D5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D0DD; }
+    tick(2u);
+    goto L_D0D9;
+L_D0D9: if (g_yield_req) { g_resume = 0xD0D9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FEu, A);
+    goto L_D0DD;
+L_D0DD: if (g_yield_req) { g_resume = 0xD0DDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x40u;
+    tick(3u);
+    wr(0x003Au, A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0098u) + 1u); wr(0x0098u, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D0E4: if (g_yield_req) { g_resume = 0xD0E4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x003Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D0F8; }
+    tick(2u);
+    goto L_D0E8;
+L_D0E8: if (g_yield_req) { g_resume = 0xD0E8u; g_yield_req = 0u; return; } 
+    if (A < 14u) { goto L_D138; }
+    goto L_D0EC;
+L_D0EC: if (g_yield_req) { g_resume = 0xD0ECu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D0F4; }
+    tick(2u);
+    goto L_D0F0;
+L_D0F0: if (g_yield_req) { g_resume = 0xD0F0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FFu, A);
+    goto L_D0F4;
+L_D0F4: if (g_yield_req) { g_resume = 0xD0F4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x003Au, A);
+    goto L_D0F8;
+L_D0F8: if (g_yield_req) { g_resume = 0xD0F8u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0201u);
+    if (A >= 108u) { goto L_D101; }
+    goto L_D0FF;
+L_D0FF: if (g_yield_req) { g_resume = 0xD0FFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x6Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D101;
+L_D101: if (g_yield_req) { g_resume = 0xD101u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x04u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A < 124u) { goto L_D11F; }
+    goto L_D108;
+L_D108: if (g_yield_req) { g_resume = 0xD108u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0098u) + 1u); wr(0x0098u, t); }
+    tick(3u);
+    A = rd(0x0098u);
+    if (A == 5u) { goto L_D115; }
+    goto L_D110;
+L_D110: if (g_yield_req) { g_resume = 0xD110u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x6Cu;
+    tick(3u);
+    goto L_D11F;
+L_D115: if (g_yield_req) { g_resume = 0xD115u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D11D; }
+    tick(2u);
+    goto L_D119;
+L_D119: if (g_yield_req) { g_resume = 0xD119u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x7Du; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x003Au, A);
+    goto L_D11D;
+L_D11D: if (g_yield_req) { g_resume = 0xD11Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x7Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D11F;
+L_D11F: if (g_yield_req) { g_resume = 0xD11Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0x23u); --SP;
+    ret_lbl[ret_sp++] = &&L_D124; goto L_EAE1;
+L_D124: if (g_yield_req) { g_resume = 0xD124u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0x26u); --SP;
+    ret_lbl[ret_sp++] = &&L_D127; goto L_EACD;
+L_D127: if (g_yield_req) { g_resume = 0xD127u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0x29u); --SP;
+    ret_lbl[ret_sp++] = &&L_D12A; goto L_F082;
+L_D12A: if (g_yield_req) { g_resume = 0xD12Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0098u);
+    if (A != 5u) { goto L_D138; }
+    goto L_D130;
+L_D130: if (g_yield_req) { g_resume = 0xD130u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(3u);
+    wr(0x0098u, A);
+    tick(3u);
+    A = rd(0x003Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D139; }
+    tick(2u);
+    goto L_D138;
+L_D138: if (g_yield_req) { g_resume = 0xD138u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D139: if (g_yield_req) { g_resume = 0xD139u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0052u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0x3Du); --SP;
+    ret_lbl[ret_sp++] = &&L_D13E; goto L_CAB9;
+L_D13E: if (g_yield_req) { g_resume = 0xD13Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0055u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D14B; }
+    tick(2u);
+    goto L_D142;
+L_D142: if (g_yield_req) { g_resume = 0xD142u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x004Eu, A);
+    tick(2u);
+    A = 0x87u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D14B: if (g_yield_req) { g_resume = 0xD14Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0051u);
+    if (A != 28u) { goto L_D169; }
+    goto L_D151;
+L_D151: if (g_yield_req) { g_resume = 0xD151u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0052u);
+    tick(2u);
+    A = (u8)(A ^ 0x01u);
+    tick(2u);
+    X = A;
+    tick(3u);
+    wr(0x0052u, X);
+    tick(4u + ((0x0006u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0406u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D166; }
+    tick(2u);
+    goto L_D15D;
+L_D15D: if (g_yield_req) { g_resume = 0xD15Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = X;
+    tick(2u);
+    A = (u8)(A ^ 0x01u);
+    tick(2u);
+    X = A;
+    tick(3u);
+    wr(0x0052u, X);
+    tick(3u);
+    goto L_D169;
+L_D166: if (g_yield_req) { g_resume = 0xD166u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0x68u); --SP;
+    ret_lbl[ret_sp++] = &&L_D169; goto L_CAA9;
+L_D169: if (g_yield_req) { g_resume = 0xD169u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x87u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(4u);
+    wr(0x040Bu, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x004Fu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CF42: if (g_yield_req) { g_resume = 0xCF42u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0015u);
+    tick(2u);
+    A = (u8)(A & 0x10u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CF8F; }
+    tick(2u);
+    goto L_CF48;
+L_CF48: if (g_yield_req) { g_resume = 0xCF48u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CF55; }
+    tick(2u);
+    goto L_CF4C;
+L_CF4C: if (g_yield_req) { g_resume = 0xCF4Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0058u, A);
+    tick(3u);
+    A = rd(0x0015u);
+    tick(3u);
+    goto L_C98A;
+L_CF55: if (g_yield_req) { g_resume = 0xCF55u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0015u);
+    tick(4u);
+    { const u8 v = rd(0x0514u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_CF92; }
+    tick(2u);
+    goto L_CF5C;
+L_CF5C: if (g_yield_req) { g_resume = 0xCF5Cu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0514u, A);
+    tick(4u);
+    A = rd(0x0516u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CF7A; }
+    tick(2u);
+    goto L_CF64;
+L_CF64: if (g_yield_req) { g_resume = 0xCF64u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0517u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CF79; }
+    tick(2u);
+    goto L_CF69;
+L_CF69: if (g_yield_req) { g_resume = 0xCF69u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0516u, A);
+    tick(3u);
+    A = rd(0x000Fu);
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(3u);
+    A = rd(0x0011u);
+    tick(2u);
+    A = (u8)(A & 0xEFu);
+    tick(3u);
+    wr(0x0011u, A);
+    tick(3u);
+    goto L_CF87;
+L_CF79: if (g_yield_req) { g_resume = 0xCF79u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CF7A: if (g_yield_req) { g_resume = 0xCF7Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr(0x0516u, A);
+    tick(3u);
+    A = rd(0x00FCu);
+    tick(3u);
+    wr(0x000Fu, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FCu, A);
+    goto L_CF87;
+L_CF87: if (g_yield_req) { g_resume = 0xCF87u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x40u;
+    tick(4u);
+    wr(0x0517u, A);
+    tick(3u);
+    wr(0x00FDu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CF8F: if (g_yield_req) { g_resume = 0xCF8Fu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0514u, A);
+    goto L_CF92;
+L_CF92: if (g_yield_req) { g_resume = 0xCF92u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0517u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_CF9B; }
+    tick(2u);
+    goto L_CF97;
+L_CF97: if (g_yield_req) { g_resume = 0xCF97u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0517u) - 1u); wr(0x0517u, t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CF9B: if (g_yield_req) { g_resume = 0xCF9Bu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0516u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_CFA1; }
+    tick(2u);
+    goto L_CFA0;
+L_CFA0: if (g_yield_req) { g_resume = 0xCFA0u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CFA1: if (g_yield_req) { g_resume = 0xCFA1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0011u);
+    tick(2u);
+    A = (u8)(A | 0x10u);
+    tick(3u);
+    wr(0x0011u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D04C: if (g_yield_req) { g_resume = 0xD04Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D092; }
+    tick(2u);
+    goto L_D050;
+L_D050: if (g_yield_req) { g_resume = 0xD050u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0053u);
+    if (X == 4u) { goto L_D063; }
+    goto L_D056;
+L_D056: if (g_yield_req) { g_resume = 0xD056u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D0BF; }
+    tick(2u);
+    goto L_D05A;
+L_D05A: if (g_yield_req) { g_resume = 0xD05Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x00FAu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1FAu + X));
+    tick(3u);
+    { const u8 v = rd(0x0059u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_D074; }
+    tick(2u);
+    goto L_D062;
+L_D062: if (g_yield_req) { g_resume = 0xD062u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D063: if (g_yield_req) { g_resume = 0xD063u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D065;
+L_D065: if (g_yield_req) { g_resume = 0xD065u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x00C1u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D0BF; }
+    tick(2u);
+    goto L_D069;
+L_D069: if (g_yield_req) { g_resume = 0xD069u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u);
+    wr(0x044Fu, X);
+    if (X != 8u) { goto L_D065; }
+    goto L_D071;
+L_D071: if (g_yield_req) { g_resume = 0xD071u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D086;
+L_D074: if (g_yield_req) { g_resume = 0xD074u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD0u); --SP;
+    wr(0x100u + SP, 0x76u); --SP;
+    ret_lbl[ret_sp++] = &&L_D077; goto L_EAE1;
+L_D077: if (g_yield_req) { g_resume = 0xD077u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD0u); --SP;
+    wr(0x100u + SP, 0x7Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_D07C; goto L_EAD4;
+L_D07C: if (g_yield_req) { g_resume = 0xD07Cu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD0u); --SP;
+    wr(0x100u + SP, 0x7Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_D07F; goto L_EACD;
+L_D07F: if (g_yield_req) { g_resume = 0xD07Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD0u); --SP;
+    wr(0x100u + SP, 0x81u); --SP;
+    ret_lbl[ret_sp++] = &&L_D082; goto L_F088;
+L_D082: if (g_yield_req) { g_resume = 0xD082u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FDu, A);
+    goto L_D086;
+L_D086: if (g_yield_req) { g_resume = 0xD086u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00FCu, A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x009Au, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x003Au, A);
+    goto L_D092;
+L_D092: if (g_yield_req) { g_resume = 0xD092u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x003Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D0BF; }
+    tick(2u);
+    goto L_D096;
+L_D096: if (g_yield_req) { g_resume = 0xD096u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0053u) + 1u); wr(0x0053u, t); }
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 2u) { goto L_D0A5; }
+    goto L_D09E;
+L_D09E: if (g_yield_req) { g_resume = 0xD09Eu; g_yield_req = 0u; return; } 
+    if (A >= 5u) { goto L_D0AA; }
+    goto L_D0A2;
+L_D0A2: if (g_yield_req) { g_resume = 0xD0A2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D0B5;
+L_D0A5: if (g_yield_req) { g_resume = 0xD0A5u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0053u) + 1u); wr(0x0053u, t); }
+    tick(3u);
+    goto L_D0B5;
+L_D0AA: if (g_yield_req) { g_resume = 0xD0AAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x0053u, A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0054u) + 1u); wr(0x0054u, t); }
+    tick(2u);
+    A = 0xA0u;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D0B5: if (g_yield_req) { g_resume = 0xD0B5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x8Du;
+    tick(3u);
+    wr(0x0043u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x004Fu, A);
+    tick(3u);
+    wr(0x009Au, A);
+    goto L_D0BF;
+L_D0BF: if (g_yield_req) { g_resume = 0xD0BFu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D008: if (g_yield_req) { g_resume = 0xD008u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = X;
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(2u);
+    A = Y;
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0058u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D02A; }
+    tick(2u);
+    goto L_D010;
+L_D010: if (g_yield_req) { g_resume = 0xD010u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0052u);
+    tick(2u);
+    A = (u8)(A | 0x18u);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC600u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    A = rd(0x0005u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(3u);
+    A = rd(0x0006u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(6u);
+    wr(0x100u + SP, 0xD0u); --SP;
+    wr(0x100u + SP, 0x23u); --SP;
+    ret_lbl[ret_sp++] = &&L_D024; goto L_F342;
+L_D024: if (g_yield_req) { g_resume = 0xD024u; g_yield_req = 0u; return; } 
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(3u);
+    wr(0x0006u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0005u, A);
+    goto L_D02A;
+L_D02A: if (g_yield_req) { g_resume = 0xD02Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD0u); --SP;
+    wr(0x100u + SP, 0x2Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_D02D; goto L_D032;
+L_D02D: if (g_yield_req) { g_resume = 0xD02Du; g_yield_req = 0u; return; } 
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    Y = A;
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    X = A;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EAE1: if (g_yield_req) { g_resume = 0xEAE1u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    A = rd(0x0200u);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EACD: if (g_yield_req) { g_resume = 0xEACDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0004u, A);
+    goto L_EAD1;
+L_EAD1: if (g_yield_req) { g_resume = 0xEAD1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EAD6;
+L_D9E6: if (g_yield_req) { g_resume = 0xD9E6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Au, A);
+    goto L_D9E8;
+L_D9E8: if (g_yield_req) { g_resume = 0xD9E8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0088u) + 1u); wr(0x0088u, t); }
+    tick(3u);
+    A = rd(0x0088u);
+    if (A >= 15u) { goto L_D9F5; }
+    goto L_D9F2;
+L_D9F2: if (g_yield_req) { g_resume = 0xD9F2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D9F9;
+L_D9F5: if (g_yield_req) { g_resume = 0xD9F5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0088u, A);
+    goto L_D9F9;
+L_D9F9: if (g_yield_req) { g_resume = 0xD9F9u; g_yield_req = 0u; return; } 
+    if (A >= 8u) { goto L_DA06; }
+    goto L_D9FD;
+L_D9FD: if (g_yield_req) { g_resume = 0xD9FDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Au));
+    tick(3u);
+    goto L_DA0F;
+L_DA06: if (g_yield_req) { g_resume = 0xDA06u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Bu)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DA0F;
+L_DA0F: if (g_yield_req) { g_resume = 0xDA0Fu; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_DA13; }
+    tick(2u);
+    goto L_DA11;
+L_DA11: if (g_yield_req) { g_resume = 0xDA11u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DA13;
+L_DA13: if (g_yield_req) { g_resume = 0xDA13u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00BEu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D1CF: if (g_yield_req) { g_resume = 0xD1CFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 1u) { goto L_D1E5; }
+    goto L_D1D5;
+L_D1D5: if (g_yield_req) { g_resume = 0xD1D5u; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D1E5; }
+    goto L_D1D9;
+L_D1D9: if (g_yield_req) { g_resume = 0xD1D9u; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_D1E2; }
+    goto L_D1DD;
+L_D1DD: if (g_yield_req) { g_resume = 0xD1DDu; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_D1E2; }
+    goto L_D1E1;
+L_D1E1: if (g_yield_req) { g_resume = 0xD1E1u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D1E2: if (g_yield_req) { g_resume = 0xD1E2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D28B;
+L_D1E5: if (g_yield_req) { g_resume = 0xD1E5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xDBu;
+    tick(3u);
+    wr(0x000Au, A);
+    tick(2u);
+    A = 0x36u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0xEDu); --SP;
+    ret_lbl[ret_sp++] = &&L_D1EE; goto L_D9E8;
+L_D1EE: if (g_yield_req) { g_resume = 0xD1EEu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D1F3; }
+    tick(2u);
+    goto L_D1F0;
+L_D1F0: if (g_yield_req) { g_resume = 0xD1F0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D275;
+L_D1F3: if (g_yield_req) { g_resume = 0xD1F3u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD1u); --SP;
+    wr(0x100u + SP, 0xF5u); --SP;
+    ret_lbl[ret_sp++] = &&L_D1F6; goto L_D990;
+L_D1F6: if (g_yield_req) { g_resume = 0xD1F6u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D1F9; }
+    tick(2u);
+    goto L_D1F8;
+L_D1F8: if (g_yield_req) { g_resume = 0xD1F8u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D1F9: if (g_yield_req) { g_resume = 0xD1F9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 2u) { goto L_D205; }
+    goto L_D1FF;
+L_D1FF: if (g_yield_req) { g_resume = 0xD1FFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0203u) + 1u); wr(0x0203u, t); }
+    tick(3u);
+    goto L_D208;
+L_D205: if (g_yield_req) { g_resume = 0xD205u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0203u) - 1u); wr(0x0203u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_D208;
+L_D208: if (g_yield_req) { g_resume = 0xD208u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x0Au); --SP;
+    ret_lbl[ret_sp++] = &&L_D20B; goto L_D2CB;
+L_D20B: if (g_yield_req) { g_resume = 0xD20Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Au, A);
+    tick(4u);
+    A = rd(0x0200u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x12u); --SP;
+    ret_lbl[ret_sp++] = &&L_D213; goto L_E016;
+L_D213: if (g_yield_req) { g_resume = 0xD213u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0059u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x17u); --SP;
+    ret_lbl[ret_sp++] = &&L_D218; goto L_D8EB;
+L_D218: if (g_yield_req) { g_resume = 0xD218u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D233; }
+    tick(2u);
+    goto L_D21A;
+L_D21A: if (g_yield_req) { g_resume = 0xD21Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0053u);
+    if (X != 1u) { goto L_D227; }
+    goto L_D220;
+L_D220: if (g_yield_req) { g_resume = 0xD220u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(4u);
+    wr(0x0200u, A);
+    goto L_D227;
+L_D227: if (g_yield_req) { g_resume = 0xD227u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x29u); --SP;
+    ret_lbl[ret_sp++] = &&L_D22A; goto L_D36A;
+L_D22A: if (g_yield_req) { g_resume = 0xD22Au; g_yield_req = 0u; return; } 
+    if (A == 0u) { goto L_D233; }
+    goto L_D22E;
+L_D22E: if (g_yield_req) { g_resume = 0xD22Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D233: if (g_yield_req) { g_resume = 0xD233u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Bu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D23E; }
+    tick(2u);
+    goto L_D237;
+L_D237: if (g_yield_req) { g_resume = 0xD237u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x009Bu, A);
+    tick(3u);
+    goto L_D275;
+L_D23E: if (g_yield_req) { g_resume = 0xD23Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u;
+    tick(3u);
+    wr(0x00FFu, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x009Bu, A);
+    tick(3u);
+    A = rd(0x0097u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D262; }
+    tick(2u);
+    goto L_D24A;
+L_D24A: if (g_yield_req) { g_resume = 0xD24Au; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_D26D; }
+    goto L_D24E;
+L_D24E: if (g_yield_req) { g_resume = 0xD24Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(3u);
+    wr(0x0097u, A);
+    tick(3u);
+    A = rd(0x0085u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D25B; }
+    tick(2u);
+    goto L_D256;
+L_D256: if (g_yield_req) { g_resume = 0xD256u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_D25D;
+L_D25B: if (g_yield_req) { g_resume = 0xD25Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D25D;
+L_D25D: if (g_yield_req) { g_resume = 0xD25Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0097u, A);
+    tick(3u);
+    goto L_D275;
+L_D262: if (g_yield_req) { g_resume = 0xD262u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(3u);
+    wr(0x0097u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0085u, A);
+    tick(3u);
+    goto L_D275;
+L_D26D: if (g_yield_req) { g_resume = 0xD26Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(3u);
+    wr(0x0097u, A);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0085u, A);
+    goto L_D275;
+L_D275: if (g_yield_req) { g_resume = 0xD275u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x77u); --SP;
+    ret_lbl[ret_sp++] = &&L_D278; goto L_EAE1;
+L_D278: if (g_yield_req) { g_resume = 0xD278u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0097u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x7Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_D27F; goto L_EACD;
+L_D27F: if (g_yield_req) { g_resume = 0xD27Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 2u) { goto L_D288; }
+    goto L_D285;
+L_D285: if (g_yield_req) { g_resume = 0xD285u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F082;
+L_D288: if (g_yield_req) { g_resume = 0xD288u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F088;
+L_D28B: if (g_yield_req) { g_resume = 0xD28Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x8Du); --SP;
+    ret_lbl[ret_sp++] = &&L_D28E; goto L_EAE1;
+L_D28E: if (g_yield_req) { g_resume = 0xD28Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x86u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0xC1u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0003u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0x98u); --SP;
+    ret_lbl[ret_sp++] = &&L_D299; goto L_EFEB;
+L_D299: if (g_yield_req) { g_resume = 0xD299u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x007Bu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC47Bu + X));
+    tick(3u);
+    wr(0x0004u, A);
+    tick(4u + ((0x007Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC47Cu + X));
+    tick(3u);
+    wr(0x0005u, A);
+    tick(4u + ((0x0083u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC483u + X));
+    tick(3u);
+    wr(0x0006u, A);
+    tick(4u + ((0x0084u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC484u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0007u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0xB6u); --SP;
+    ret_lbl[ret_sp++] = &&L_D2B7; goto L_D8AD;
+L_D2B7: if (g_yield_req) { g_resume = 0xD2B7u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D2CA; }
+    tick(2u);
+    goto L_D2B9;
+L_D2B9: if (g_yield_req) { g_resume = 0xD2B9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x04u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x00A1u, A);
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Bu, A);
+    tick(3u);
+    wr(0x005Cu, A);
+    goto L_D2CA;
+L_D2CA: if (g_yield_req) { g_resume = 0xD2CAu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D990: if (g_yield_req) { g_resume = 0xD990u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 1u) { goto L_D99D; }
+    goto L_D996;
+L_D996: if (g_yield_req) { g_resume = 0xD996u; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D9AF; }
+    goto L_D99A;
+L_D99A: if (g_yield_req) { g_resume = 0xD99Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D9E3;
+L_D99D: if (g_yield_req) { g_resume = 0xD99Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x00B4u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1B4u + X));
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_D9E0; }
+    tick(2u);
+    goto L_D9AA;
+L_D9AA: if (g_yield_req) { g_resume = 0xD9AAu; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_D9E0; }
+    tick(2u);
+    goto L_D9AC;
+L_D9AC: if (g_yield_req) { g_resume = 0xD9ACu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D9E3;
+L_D9AF: if (g_yield_req) { g_resume = 0xD9AFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x00B4u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1B4u + X));
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (Cf) { tick(3u); goto L_D9E0; }
+    tick(2u);
+    goto L_D9BD;
+L_D9BD: if (g_yield_req) { g_resume = 0xD9BDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 4u) { goto L_D9E3; }
+    goto L_D9C3;
+L_D9C3: if (g_yield_req) { g_resume = 0xD9C3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0059u);
+    if (A == 3u) { goto L_D9D0; }
+    goto L_D9C9;
+L_D9C9: if (g_yield_req) { g_resume = 0xD9C9u; g_yield_req = 0u; return; } 
+    if (X != 6u) { goto L_D9E3; }
+    goto L_D9CD;
+L_D9CD: if (g_yield_req) { g_resume = 0xD9CDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D9D4;
+L_D9D0: if (g_yield_req) { g_resume = 0xD9D0u; g_yield_req = 0u; return; } 
+    if (X != 5u) { goto L_D9E3; }
+    goto L_D9D4;
+L_D9D4: if (g_yield_req) { g_resume = 0xD9D4u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u);
+    if (A == 104u) { goto L_D9E0; }
+    goto L_D9DB;
+L_D9DB: if (g_yield_req) { g_resume = 0xD9DBu; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_D9E0; }
+    tick(2u);
+    goto L_D9DD;
+L_D9DD: if (g_yield_req) { g_resume = 0xD9DDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D9E3;
+L_D9E0: if (g_yield_req) { g_resume = 0xD9E0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D9E3: if (g_yield_req) { g_resume = 0xD9E3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D2CB: if (g_yield_req) { g_resume = 0xD2CBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0xCDu); --SP;
+    ret_lbl[ret_sp++] = &&L_D2CE; goto L_EAE1;
+L_D2CE: if (g_yield_req) { g_resume = 0xD2CEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A == 4u) { goto L_D2DD; }
+    goto L_D2D4;
+L_D2D4: if (g_yield_req) { g_resume = 0xD2D4u; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_D2DD; }
+    goto L_D2D8;
+L_D2D8: if (g_yield_req) { g_resume = 0xD2D8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x2Cu;
+    tick(3u);
+    goto L_D2DF;
+L_D2DD: if (g_yield_req) { g_resume = 0xD2DDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x4Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D2DF;
+L_D2DF: if (g_yield_req) { g_resume = 0xD2DFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0xE1u); --SP;
+    ret_lbl[ret_sp++] = &&L_D2E2; goto L_EFE8;
+L_D2E2: if (g_yield_req) { g_resume = 0xD2E2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_D2F0; }
+    goto L_D2E8;
+L_D2E8: if (g_yield_req) { g_resume = 0xD2E8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(3u);
+    goto L_D2FD;
+L_D2F0: if (g_yield_req) { g_resume = 0xD2F0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x1Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0xF4u); --SP;
+    ret_lbl[ret_sp++] = &&L_D2F5; goto L_C831;
+L_D2F5: if (g_yield_req) { g_resume = 0xD2F5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD2u); --SP;
+    wr(0x100u + SP, 0xF7u); --SP;
+    ret_lbl[ret_sp++] = &&L_D2F8; goto L_D91A;
+L_D2F8: if (g_yield_req) { g_resume = 0xD2F8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(3u);
+    goto L_D323;
+L_D2FD: if (g_yield_req) { g_resume = 0xD2FDu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x006Bu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC46Bu + X));
+    tick(3u);
+    wr(0x0004u, A);
+    tick(4u + ((0x006Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC46Cu + X));
+    tick(3u);
+    wr(0x0005u, A);
+    tick(4u + ((0x0073u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC473u + X));
+    tick(3u);
+    wr(0x0006u, A);
+    tick(4u + ((0x0074u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC474u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0007u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0x13u); --SP;
+    ret_lbl[ret_sp++] = &&L_D314; goto L_D8AD;
+L_D314: if (g_yield_req) { g_resume = 0xD314u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    if (!Zf) { tick(3u); goto L_D323; }
+    tick(2u);
+    goto L_D318;
+L_D318: if (g_yield_req) { g_resume = 0xD318u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 3u) { goto L_D323; }
+    goto L_D31E;
+L_D31E: if (g_yield_req) { g_resume = 0xD31Eu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0x20u); --SP;
+    ret_lbl[ret_sp++] = &&L_D321; goto L_D326;
+L_D321: if (g_yield_req) { g_resume = 0xD321u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    goto L_D323;
+L_D323: if (g_yield_req) { g_resume = 0xD323u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x000Cu);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E016: if (g_yield_req) { g_resume = 0xE016u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Au, A);
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x0093u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC493u + X));
+    tick(3u);
+    wr(0x0008u, A);
+    tick(4u + ((0x0094u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC494u + X));
+    tick(3u);
+    wr(0x0009u, A);
+    tick(2u);
+    Y = 0x00u;
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Bu, A);
+    goto L_E02F;
+L_E02F: if (g_yield_req) { g_resume = 0xE02Fu; g_yield_req = 0u; return; } 
+    tick(5u + (((rd(0x0008u) | (static_cast<eng::u16>(rd(0x0009u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0008u) | ((u16)rd(0x0009u) << 8)) + Y));
+    if (A == 255u) { goto L_E041; }
+    goto L_E035;
+L_E035: if (g_yield_req) { g_resume = 0xE035u; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x000Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E045; }
+    tick(2u);
+    goto L_E039;
+L_E039: if (g_yield_req) { g_resume = 0xE039u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_E045; }
+    tick(2u);
+    goto L_E03B;
+L_E03B: if (g_yield_req) { g_resume = 0xE03Bu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x000Bu) + 1u); wr(0x000Bu, t); }
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_E02F;
+L_E041: if (g_yield_req) { g_resume = 0xE041u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x07u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Bu, A);
+    goto L_E045;
+L_E045: if (g_yield_req) { g_resume = 0xE045u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x000Bu);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D8EB: if (g_yield_req) { g_resume = 0xD8EBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Au); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_D917; }
+    tick(2u);
+    goto L_D8EF;
+L_D8EF: if (g_yield_req) { g_resume = 0xD8EFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0059u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(4u); goto L_D917; }
+    tick(2u);
+    goto L_D8F3;
+L_D8F3: if (g_yield_req) { g_resume = 0xD8F3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_D904; }
+    tick(2u);
+    goto L_D8F7;
+L_D8F7: if (g_yield_req) { g_resume = 0xD8F7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 1u) { goto L_D914; }
+    goto L_D8FD;
+L_D8FD: if (g_yield_req) { g_resume = 0xD8FDu; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D911; }
+    goto L_D901;
+L_D901: if (g_yield_req) { g_resume = 0xD901u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D917;
+L_D904: if (g_yield_req) { g_resume = 0xD904u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    if (A == 1u) { goto L_D911; }
+    goto L_D90A;
+L_D90A: if (g_yield_req) { g_resume = 0xD90Au; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_D914; }
+    goto L_D90E;
+L_D90E: if (g_yield_req) { g_resume = 0xD90Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D917;
+L_D911: if (g_yield_req) { g_resume = 0xD911u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D914: if (g_yield_req) { g_resume = 0xD914u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D917: if (g_yield_req) { g_resume = 0xD917u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D36A: if (g_yield_req) { g_resume = 0xD36Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_D373; }
+    goto L_D370;
+L_D370: if (g_yield_req) { g_resume = 0xD370u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D37B;
+L_D373: if (g_yield_req) { g_resume = 0xD373u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x1Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0x77u); --SP;
+    ret_lbl[ret_sp++] = &&L_D378; goto L_C831;
+L_D378: if (g_yield_req) { g_resume = 0xD378u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8AD;
+L_D37B: if (g_yield_req) { g_resume = 0xD37Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D8AD: if (g_yield_req) { g_resume = 0xD8ADu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xF3u;
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0086u, A);
+    tick(2u);
+    Y = 0x00u;
+    tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D8B9;
+L_D8B9: if (g_yield_req) { g_resume = 0xD8B9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    A = rd(0x0007u);
+    tick(2u);
+    { const u8 v = 0x00u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0003u, A);
+    tick(3u);
+    wr(0x0086u, Y);
+    tick(6u);
+    wr(0x100u + SP, 0xD8u); --SP;
+    wr(0x100u + SP, 0xD2u); --SP;
+    ret_lbl[ret_sp++] = &&L_D8D3; goto L_EFF3;
+L_D8D3: if (g_yield_req) { g_resume = 0xD8D3u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D8E1; }
+    tick(2u);
+    goto L_D8D5;
+L_D8D5: if (g_yield_req) { g_resume = 0xD8D5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0086u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
+    if (A == 254u) { goto L_D8E6; }
+    goto L_D8DE;
+L_D8DE: if (g_yield_req) { g_resume = 0xD8DEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8B9;
+L_D8E1: if (g_yield_req) { g_resume = 0xD8E1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_D8E8;
+L_D8E6: if (g_yield_req) { g_resume = 0xD8E6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D8E8;
+L_D8E8: if (g_yield_req) { g_resume = 0xD8E8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EFEB: if (g_yield_req) { g_resume = 0xEFEBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EFF5; }
+    tick(2u);
+    goto L_EFEF;
+L_EFEF: if (g_yield_req) { g_resume = 0xEFEFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EFF5; }
+    tick(2u);
+    goto L_EFF3;
+L_EFF3: if (g_yield_req) { g_resume = 0xEFF3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EFF5;
+L_EFF5: if (g_yield_req) { g_resume = 0xEFF5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(2u);
+    A = X;
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(2u);
+    A = Y;
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(2u);
+    Y = 0x00u;
+    tick(3u);
+    A = rd(0x000Cu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F018; }
+    tick(2u);
+    goto L_F001;
+L_F001: if (g_yield_req) { g_resume = 0xF001u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x03u); --SP;
+    ret_lbl[ret_sp++] = &&L_F004; goto L_F063;
+L_F004: if (g_yield_req) { g_resume = 0xF004u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0046u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x08u); --SP;
+    ret_lbl[ret_sp++] = &&L_F009; goto L_F069;
+L_F009: if (g_yield_req) { g_resume = 0xF009u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0047u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x0Du); --SP;
+    ret_lbl[ret_sp++] = &&L_F00E; goto L_F062;
+L_F00E: if (g_yield_req) { g_resume = 0xF00Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0048u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x12u); --SP;
+    ret_lbl[ret_sp++] = &&L_F013; goto L_F069;
+L_F013: if (g_yield_req) { g_resume = 0xF013u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0049u, A);
+    tick(3u);
+    goto L_F059;
+L_F018: if (g_yield_req) { g_resume = 0xF018u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x1Au); --SP;
+    ret_lbl[ret_sp++] = &&L_F01B; goto L_F063;
+L_F01B: if (g_yield_req) { g_resume = 0xF01Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x004Au, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x1Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_F020; goto L_F069;
+L_F020: if (g_yield_req) { g_resume = 0xF020u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x004Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x24u); --SP;
+    ret_lbl[ret_sp++] = &&L_F025; goto L_F062;
+L_F025: if (g_yield_req) { g_resume = 0xF025u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x004Cu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xF0u); --SP;
+    wr(0x100u + SP, 0x29u); --SP;
+    ret_lbl[ret_sp++] = &&L_F02A; goto L_F069;
+L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x004Du, A);
+    tick(3u);
+    A = rd(0x004Au);
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x009Cu, A);
+    tick(3u);
+    A = rd(0x004Bu);
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x009Du, A);
+    tick(3u);
+    A = rd(0x0049u);
+    tick(3u);
+    { const u8 v = rd(0x004Bu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_F057; }
+    tick(2u);
+    goto L_F040;
+L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x004Du);
+    tick(3u);
+    { const u8 v = rd(0x0047u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_F057; }
+    tick(2u);
+    goto L_F046;
+L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x004Cu);
+    tick(3u);
+    { const u8 v = rd(0x0046u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_F057; }
+    tick(2u);
+    goto L_F04C;
+L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0048u);
+    tick(3u);
+    { const u8 v = rd(0x004Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_F057; }
+    tick(2u);
+    goto L_F052;
+L_F052: if (g_yield_req) { g_resume = 0xF052u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_F059;
+L_F057: if (g_yield_req) { g_resume = 0xF057u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F059;
+L_F059: if (g_yield_req) { g_resume = 0xF059u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    Y = A;
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    X = A;
+    tick(3u);
+    A = rd(0x000Cu);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EFE8: if (g_yield_req) { g_resume = 0xEFE8u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEFu); --SP;
+    wr(0x100u + SP, 0xEAu); --SP;
+    ret_lbl[ret_sp++] = &&L_EFEB; goto L_C847;
+L_C831: if (g_yield_req) { g_resume = 0xC831u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Cu + X));
+    tick(3u);
+    wr(0x0004u, A);
+    tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Du + X));
+    tick(3u);
+    wr(0x0005u, A);
+    tick(4u + ((0x0044u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC044u + X));
+    tick(3u);
+    wr(0x0006u, A);
+    tick(4u + ((0x0045u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC045u + X));
+    tick(3u);
+    wr(0x0007u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D91A: if (g_yield_req) { g_resume = 0xD91Au; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xD9u); --SP;
+    wr(0x100u + SP, 0x22u); --SP;
+    ret_lbl[ret_sp++] = &&L_D923; goto L_E016;
+L_D923: if (g_yield_req) { g_resume = 0xD923u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0059u, A);
+    if (A == 1u) { goto L_D938; }
+    goto L_D929;
+L_D929: if (g_yield_req) { g_resume = 0xD929u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x02u;
+    tick(2u);
+    A = 0x0Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D92D;
+L_D92D: if (g_yield_req) { g_resume = 0xD92Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x0059u); const u16 t = (u16)X - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_D93B; }
+    tick(2u);
+    goto L_D931;
+L_D931: if (g_yield_req) { g_resume = 0xD931u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x06u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(3u);
+    goto L_D92D;
+L_D938: if (g_yield_req) { g_resume = 0xD938u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_D93B;
+L_D93B: if (g_yield_req) { g_resume = 0xD93Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D93C;
+L_D93C: if (g_yield_req) { g_resume = 0xD93Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x0086u, A);
+    tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC08Cu + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC08Cu + X));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC08Cu + X));
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    A = rd(0x0007u);
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC08Cu + X));
+    tick(3u);
+    wr(0x0008u, A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC08Cu + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0009u, A);
+    goto L_D964;
+L_D964: if (g_yield_req) { g_resume = 0xD964u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD9u); --SP;
+    wr(0x100u + SP, 0x66u); --SP;
+    ret_lbl[ret_sp++] = &&L_D967; goto L_EFEF;
+L_D967: if (g_yield_req) { g_resume = 0xD967u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_D98B; }
+    tick(2u);
+    goto L_D969;
+L_D969: if (g_yield_req) { g_resume = 0xD969u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0008u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); }
+    tick(5u);
+    { u8 t = (u8)(rd(0x0086u) + 1u); wr(0x0086u, t); }
+    tick(3u);
+    A = rd(0x0009u);
+    tick(3u);
+    { const u8 v = rd(0x0086u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_D964; }
+    tick(2u);
+    goto L_D97A;
+L_D97A: if (g_yield_req) { g_resume = 0xD97Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC08Cu + X));
+    if (A == 254u) { goto L_D986; }
+    goto L_D982;
+L_D982: if (g_yield_req) { g_resume = 0xD982u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(3u);
+    goto L_D93C;
+L_D986: if (g_yield_req) { g_resume = 0xD986u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_D98D;
+L_D98B: if (g_yield_req) { g_resume = 0xD98Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D98D;
+L_D98D: if (g_yield_req) { g_resume = 0xD98Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x005Au, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D326: if (g_yield_req) { g_resume = 0xD326u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x2Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0x2Au); --SP;
+    ret_lbl[ret_sp++] = &&L_D32B; goto L_C847;
+L_D32B: if (g_yield_req) { g_resume = 0xD32Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00D2u, A);
+    goto L_D32F;
+L_D32F: if (g_yield_req) { g_resume = 0xD32Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00D2u);
+    if (A == 6u) { goto L_D365; }
+    goto L_D335;
+L_D335: if (g_yield_req) { g_resume = 0xD335u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xC2CCu + X));
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    if (A == 255u) { goto L_D34E; }
+    goto L_D340;
+L_D340: if (g_yield_req) { g_resume = 0xD340u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u + ((0x0003u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0203u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD3u); --SP;
+    wr(0x100u + SP, 0x49u); --SP;
+    ret_lbl[ret_sp++] = &&L_D34A; goto L_EFEF;
+L_D34A: if (g_yield_req) { g_resume = 0xD34Au; g_yield_req = 0u; return; } 
+    if (A == 1u) { goto L_D353; }
+    goto L_D34E;
+L_D34E: if (g_yield_req) { g_resume = 0xD34Eu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00D2u) + 1u); wr(0x00D2u, t); }
+    tick(3u);
+    goto L_D32F;
+L_D353: if (g_yield_req) { g_resume = 0xD353u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00D2u);
+    if (A >= 3u) { goto L_D35E; }
+    goto L_D359;
+L_D359: if (g_yield_req) { g_resume = 0xD359u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_D360;
+L_D35E: if (g_yield_req) { g_resume = 0xD35Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_D360;
+L_D360: if (g_yield_req) { g_resume = 0xD360u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00DAu, A);
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D365: if (g_yield_req) { g_resume = 0xD365u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00DAu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C847: if (g_yield_req) { g_resume = 0xC847u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Cu + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Du + X));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D50A: if (g_yield_req) { g_resume = 0xD50Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x0Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_D50D; goto L_EAE1;
+L_D50D: if (g_yield_req) { g_resume = 0xD50Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x2Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x11u); --SP;
+    ret_lbl[ret_sp++] = &&L_D512; goto L_EFE8;
+L_D512: if (g_yield_req) { g_resume = 0xD512u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x008Bu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC48Bu + X));
+    tick(3u);
+    wr(0x0004u, A);
+    tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC48Cu + X));
+    tick(3u);
+    wr(0x0005u, A);
+    tick(2u);
+    A = 0x43u;
+    tick(3u);
+    wr(0x0006u, A);
+    tick(2u);
+    A = 0xC1u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0007u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x2Du); --SP;
+    ret_lbl[ret_sp++] = &&L_D52E; goto L_D8AD;
+L_D52E: if (g_yield_req) { g_resume = 0xD52Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0008u, A);
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 1u) { goto L_D544; }
+    goto L_D536;
+L_D536: if (g_yield_req) { g_resume = 0xD536u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x1Eu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x3Au); --SP;
+    ret_lbl[ret_sp++] = &&L_D53B; goto L_C831;
+L_D53B: if (g_yield_req) { g_resume = 0xD53Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD5u); --SP;
+    wr(0x100u + SP, 0x3Du); --SP;
+    ret_lbl[ret_sp++] = &&L_D53E; goto L_D8AD;
+L_D53E: if (g_yield_req) { g_resume = 0xD53Eu; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D544; }
+    tick(2u);
+    goto L_D540;
+L_D540: if (g_yield_req) { g_resume = 0xD540u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0008u, A);
+    goto L_D544;
+L_D544: if (g_yield_req) { g_resume = 0xD544u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0008u);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D4EE: if (g_yield_req) { g_resume = 0xD4EEu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_D501;
+L_D501: if (g_yield_req) { g_resume = 0xD501u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x06u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D509; }
+    tick(2u);
+    goto L_D505;
+L_D505: if (g_yield_req) { g_resume = 0xD505u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FFu, A);
+    goto L_D509;
+L_D509: if (g_yield_req) { g_resume = 0xD509u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D4F9: if (g_yield_req) { g_resume = 0xD4F9u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0001u, A);
+    goto L_D501;
+L_EF72: if (g_yield_req) { g_resume = 0xEF72u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Fu, X);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x002Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x042Cu + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EF94; }
+    tick(2u);
+    goto L_EF7B;
+L_EF7B: if (g_yield_req) { g_resume = 0xEF7Bu; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0436u + X), A);
+    if (X != 0u) { goto L_EF87; }
+    goto L_EF82;
+L_EF82: if (g_yield_req) { g_resume = 0xEF82u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x08u;
+    tick(3u);
+    goto L_EF89;
+L_EF87: if (g_yield_req) { g_resume = 0xEF87u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EF89;
+L_EF89: if (g_yield_req) { g_resume = 0xEF89u; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0435u + X), A);
+    tick(2u);
+    A = 0xF0u;
+    tick(5u);
+    wr((u16)(0x042Du + X), A);
+    tick(3u);
+    goto L_EFAD;
+L_EF94: if (g_yield_req) { g_resume = 0xEF94u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0035u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0435u + X));
+    if (X != 0u) { goto L_EFA0; }
+    goto L_EF9B;
+L_EF9B: if (g_yield_req) { g_resume = 0xEF9Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    goto L_EFA2;
+L_EFA0: if (g_yield_req) { g_resume = 0xEFA0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { const u8 v = 0x30u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_EFA2;
+L_EFA2: if (g_yield_req) { g_resume = 0xEFA2u; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0435u + X), A);
+    tick(4u + ((0x0036u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0436u + X));
+    tick(2u);
+    { const u8 v = 0x00u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(5u);
+    wr((u16)(0x0436u + X), A);
+    goto L_EFAD;
+L_EFAD: if (g_yield_req) { g_resume = 0xEFADu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x002Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x042Du + X));
+    tick(2u);
+    Cf = true;
+    tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0x043Du + X)); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(5u);
+    wr((u16)(0x042Du + X), A);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(4u + ((0x003Eu + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0x043Eu + X)); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    Cf = false;
+    tick(4u + ((0x002Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x042Du + X));
+    tick(4u + ((0x0035u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0x0435u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(5u);
+    wr((u16)(0x042Du + X), A);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(4u + ((0x0036u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0x0436u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x042Cu + X)) + 1u); wr((u16)(0x042Cu + X), t); }
+    tick(3u);
+    X = rd(0x000Fu);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D800: if (g_yield_req) { g_resume = 0xD800u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00A0u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D805; }
+    tick(2u);
+    goto L_D804;
+L_D804: if (g_yield_req) { g_resume = 0xD804u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D805: if (g_yield_req) { g_resume = 0xD805u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0053u);
+    if (Y != 3u) { goto L_D80E; }
+    goto L_D80B;
+L_D80B: if (g_yield_req) { g_resume = 0xD80Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8A8;
+L_D80E: if (g_yield_req) { g_resume = 0xD80Eu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u);
+    if (Y == 1u) { goto L_D81E; }
+    goto L_D815;
+L_D815: if (g_yield_req) { g_resume = 0xD815u; g_yield_req = 0u; return; } 
+    if (A == 136u) { goto L_D827; }
+    goto L_D819;
+L_D819: if (g_yield_req) { g_resume = 0xD819u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_D827; }
+    tick(2u);
+    goto L_D81B;
+L_D81B: if (g_yield_req) { g_resume = 0xD81Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8A8;
+L_D81E: if (g_yield_req) { g_resume = 0xD81Eu; g_yield_req = 0u; return; } 
+    if (A == 40u) { goto L_D827; }
+    goto L_D822;
+L_D822: if (g_yield_req) { g_resume = 0xD822u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_D827; }
+    tick(2u);
+    goto L_D824;
+L_D824: if (g_yield_req) { g_resume = 0xD824u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8A8;
+L_D827: if (g_yield_req) { g_resume = 0xD827u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xD8u); --SP;
+    wr(0x100u + SP, 0x2Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_D830; goto L_E016;
+L_D830: if (g_yield_req) { g_resume = 0xD830u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0059u, A);
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(3u);
+    A = rd(0x0059u);
+    tick(4u + ((0x00A8u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC1A8u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_D849; }
+    tick(2u);
+    goto L_D840;
+L_D840: if (g_yield_req) { g_resume = 0xD840u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u + ((0x00A8u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC1A8u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_D849; }
+    tick(2u);
+    goto L_D846;
+L_D846: if (g_yield_req) { g_resume = 0xD846u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8A8;
+L_D849: if (g_yield_req) { g_resume = 0xD849u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = X;
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_D867; }
+    tick(2u);
+    goto L_D84E;
+L_D84E: if (g_yield_req) { g_resume = 0xD84Eu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0452u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D856; }
+    tick(2u);
+    goto L_D853;
+L_D853: if (g_yield_req) { g_resume = 0xD853u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8A8;
+L_D856: if (g_yield_req) { g_resume = 0xD856u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x00A0u, A);
+    tick(4u);
+    A = rd(0x02D8u);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    A = rd(0x02DBu);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    goto L_D87D;
+L_D867: if (g_yield_req) { g_resume = 0xD867u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0451u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_D86F; }
+    tick(2u);
+    goto L_D86C;
+L_D86C: if (g_yield_req) { g_resume = 0xD86Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_D8A8;
+L_D86F: if (g_yield_req) { g_resume = 0xD86Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x00A0u, A);
+    tick(4u);
+    A = rd(0x02D0u);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    A = rd(0x02D3u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0000u, A);
+    goto L_D87D;
+L_D87D: if (g_yield_req) { g_resume = 0xD87Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x2Eu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD8u); --SP;
+    wr(0x100u + SP, 0x81u); --SP;
+    ret_lbl[ret_sp++] = &&L_D882; goto L_EFE8;
+L_D882: if (g_yield_req) { g_resume = 0xD882u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD8u); --SP;
+    wr(0x100u + SP, 0x84u); --SP;
+    ret_lbl[ret_sp++] = &&L_D885; goto L_EAE1;
+L_D885: if (g_yield_req) { g_resume = 0xD885u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x30u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD8u); --SP;
+    wr(0x100u + SP, 0x89u); --SP;
+    ret_lbl[ret_sp++] = &&L_D88A; goto L_C847;
+L_D88A: if (g_yield_req) { g_resume = 0xD88Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xD8u); --SP;
+    wr(0x100u + SP, 0x8Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_D88D; goto L_EFEF;
+L_D88D: if (g_yield_req) { g_resume = 0xD88Du; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_D8A8; }
+    tick(2u);
+    goto L_D88F;
+L_D88F: if (g_yield_req) { g_resume = 0xD88Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00FCu);
+    tick(4u);
+    wr(0x0519u, A);
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 4u) { goto L_D8A7; }
+    goto L_D89A;
+L_D89A: if (g_yield_req) { g_resume = 0xD89Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x19u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x3Fu;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x46u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xD8u); --SP;
+    wr(0x100u + SP, 0xA6u); --SP;
+    ret_lbl[ret_sp++] = &&L_D8A7; goto L_C815;
+L_D8A7: if (g_yield_req) { g_resume = 0xD8A7u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_D8A8: if (g_yield_req) { g_resume = 0xD8A8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00A0u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E166: if (g_yield_req) { g_resume = 0xE166u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(2u);
+    Y = 0x06u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E16A;
+L_E16A: if (g_yield_req) { g_resume = 0xE16Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x007Eu + Y), A);
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Nf) { tick(3u); goto L_E16A; }
+    tick(2u);
+    goto L_E170;
+L_E170: if (g_yield_req) { g_resume = 0xE170u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E172;
+L_E172: if (g_yield_req) { g_resume = 0xE172u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0068u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0068u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E17F; }
+    tick(2u);
+    goto L_E177;
+L_E177: if (g_yield_req) { g_resume = 0xE177u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u);
+    A = rd((u16)(0x007Eu + X));
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(4u);
+    wr((u16)(0x007Eu + X), A);
+    goto L_E17F;
+L_E17F: if (g_yield_req) { g_resume = 0xE17Fu; g_yield_req = 0u; return; } 
+    if (Y == 9u) { goto L_E187; }
+    goto L_E183;
+L_E183: if (g_yield_req) { g_resume = 0xE183u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_E172;
+L_E187: if (g_yield_req) { g_resume = 0xE187u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0059u);
+    if (X == 7u) { goto L_E199; }
+    goto L_E18D;
+L_E18D: if (g_yield_req) { g_resume = 0xE18Du; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x007Eu + X)) + 1u); wr((u16)(0x007Eu + X), t); }
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 10u) { goto L_E199; }
+    goto L_E195;
+L_E195: if (g_yield_req) { g_resume = 0xE195u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0059u);
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x007Eu + X)) + 1u); wr((u16)(0x007Eu + X), t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_E199;
+L_E199: if (g_yield_req) { g_resume = 0xE199u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EFD5: if (g_yield_req) { g_resume = 0xEFD5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Du); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EFD7;
+L_EFD7: if (g_yield_req) { g_resume = 0xEFD7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    goto L_EFE2;
+L_EFE2: if (g_yield_req) { g_resume = 0xEFE2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EAF7: if (g_yield_req) { g_resume = 0xEAF7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0050u);
+    tick(2u);
+    A = (u8)(A & 0x01u);
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0054u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    if (X < 4u) { goto L_EB05; }
+    goto L_EB03;
+L_EB03: if (g_yield_req) { g_resume = 0xEB03u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x04u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EB05;
+L_EB05: if (g_yield_req) { g_resume = 0xEB05u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DA4C: if (g_yield_req) { g_resume = 0xDA4Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x005Eu + X));
+    if (A == 128u) { goto L_DA7D; }
+    goto L_DA54;
+L_DA54: if (g_yield_req) { g_resume = 0xDA54u; g_yield_req = 0u; return; } 
+    if (A == 129u) { goto L_DA80; }
+    goto L_DA58;
+L_DA58: if (g_yield_req) { g_resume = 0xDA58u; g_yield_req = 0u; return; } 
+    if (A == 1u) { goto L_DA83; }
+    goto L_DA5C;
+L_DA5C: if (g_yield_req) { g_resume = 0xDA5Cu; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_DA86; }
+    goto L_DA60;
+L_DA60: if (g_yield_req) { g_resume = 0xDA60u; g_yield_req = 0u; return; } 
+    if (A == 192u) { goto L_DA89; }
+    goto L_DA64;
+L_DA64: if (g_yield_req) { g_resume = 0xDA64u; g_yield_req = 0u; return; } 
+    if (A == 193u) { goto L_DA89; }
+    goto L_DA68;
+L_DA68: if (g_yield_req) { g_resume = 0xDA68u; g_yield_req = 0u; return; } 
+    if (A == 194u) { goto L_DA89; }
+    goto L_DA6C;
+L_DA6C: if (g_yield_req) { g_resume = 0xDA6Cu; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_DA8F; }
+    goto L_DA70;
+L_DA70: if (g_yield_req) { g_resume = 0xDA70u; g_yield_req = 0u; return; } 
+    if (A == 16u) { goto L_DA92; }
+    goto L_DA74;
+L_DA74: if (g_yield_req) { g_resume = 0xDA74u; g_yield_req = 0u; return; } 
+    if (A == 32u) { goto L_DA95; }
+    goto L_DA78;
+L_DA78: if (g_yield_req) { g_resume = 0xDA78u; g_yield_req = 0u; return; } 
+    if (A == 64u) { goto L_DA98; }
+    goto L_DA7C;
+L_DA7C: if (g_yield_req) { g_resume = 0xDA7Cu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DA7D: if (g_yield_req) { g_resume = 0xDA7Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DA9C;
+L_DA80: if (g_yield_req) { g_resume = 0xDA80u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DB00;
+L_DA83: if (g_yield_req) { g_resume = 0xDA83u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DB2C;
+L_DA86: if (g_yield_req) { g_resume = 0xDA86u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DC30;
+L_DA89: if (g_yield_req) { g_resume = 0xDA89u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0021u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0421u + X));
+    tick(3u);
+    goto L_DD8B;
+L_DA8F: if (g_yield_req) { g_resume = 0xDA8Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DC69;
+L_DA92: if (g_yield_req) { g_resume = 0xDA92u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DCD0;
+L_DA95: if (g_yield_req) { g_resume = 0xDA95u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DD32;
+L_DA98: if (g_yield_req) { g_resume = 0xDA98u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0x9Au); --SP;
+    ret_lbl[ret_sp++] = &&L_DA9B; goto L_DF07;
+L_DA9B: if (g_yield_req) { g_resume = 0xDA9Bu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DA9C: if (g_yield_req) { g_resume = 0xDA9Cu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0x9Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_DA9F; goto L_EFD5;
+L_DA9F: if (g_yield_req) { g_resume = 0xDA9Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x30u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x90u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0xADu); --SP;
+    ret_lbl[ret_sp++] = &&L_DAAE; goto L_EADB;
+L_DAAE: if (g_yield_req) { g_resume = 0xDAAEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0037u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DAFF; }
+    tick(2u);
+    goto L_DAB2;
+L_DAB2: if (g_yield_req) { g_resume = 0xDAB2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x81u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr((u16)(0x008Au + X), A);
+    tick(3u);
+    A = rd(0x00ADu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DAC3; }
+    tick(2u);
+    goto L_DAC0;
+L_DAC0: if (g_yield_req) { g_resume = 0xDAC0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DAD5;
+L_DAC3: if (g_yield_req) { g_resume = 0xDAC3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Du); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DAFF; }
+    tick(2u);
+    goto L_DAC7;
+L_DAC7: if (g_yield_req) { g_resume = 0xDAC7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC0u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(2u);
+    A = 0x01u;
+    tick(5u);
+    wr((u16)(0x0421u + X), A);
+    tick(3u);
+    goto L_DAF7;
+L_DAD5: if (g_yield_req) { g_resume = 0xDAD5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0043u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DAFF; }
+    tick(2u);
+    goto L_DAD9;
+L_DAD9: if (g_yield_req) { g_resume = 0xDAD9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Du); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DAFF; }
+    tick(2u);
+    goto L_DADD;
+L_DADD: if (g_yield_req) { g_resume = 0xDADDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC0u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(4u + ((0x0021u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0421u + X));
+    if (A != 1u) { goto L_DAF2; }
+    goto L_DAEA;
+L_DAEA: if (g_yield_req) { g_resume = 0xDAEAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u;
+    tick(5u);
+    wr((u16)(0x0421u + X), A);
+    tick(3u);
+    goto L_DAF7;
+L_DAF2: if (g_yield_req) { g_resume = 0xDAF2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0421u + X), A);
+    goto L_DAF7;
+L_DAF7: if (g_yield_req) { g_resume = 0xDAF7u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDAu); --SP;
+    wr(0x100u + SP, 0xF9u); --SP;
+    ret_lbl[ret_sp++] = &&L_DAFA; goto L_EAF7;
+L_DAFA: if (g_yield_req) { g_resume = 0xDAFAu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x004Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC44Du + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0043u, A);
+    goto L_DAFF;
+L_DAFF: if (g_yield_req) { g_resume = 0xDAFFu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DB00: if (g_yield_req) { g_resume = 0xDB00u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x55u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x04u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB05; goto L_DFE4;
+L_DB05: if (g_yield_req) { g_resume = 0xDB05u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_DB21; }
+    tick(2u);
+    goto L_DB07;
+L_DB07: if (g_yield_req) { g_resume = 0xDB07u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x09u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB0A; goto L_EFD5;
+L_DB0A: if (g_yield_req) { g_resume = 0xDB0Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x4Du;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x32u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0x84u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x1Au); --SP;
+    ret_lbl[ret_sp++] = &&L_DB1B; goto L_EADB;
+L_DB1B: if (g_yield_req) { g_resume = 0xDB1Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0515u) + 1u); wr(0x0515u, t); }
+    tick(3u);
+    goto L_DB2B;
+L_DB21: if (g_yield_req) { g_resume = 0xDB21u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(2u);
+    A = 0x84u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x0072u + X), A);
+    goto L_DB2B;
+L_DB2B: if (g_yield_req) { g_resume = 0xDB2Bu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DB2C: if (g_yield_req) { g_resume = 0xDB2Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x30u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB31; goto L_DFE4;
+L_DB31: if (g_yield_req) { g_resume = 0xDB31u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_DB34; }
+    tick(2u);
+    goto L_DB33;
+L_DB33: if (g_yield_req) { g_resume = 0xDB33u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DB34: if (g_yield_req) { g_resume = 0xDB34u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x36u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB37; goto L_EFD5;
+L_DB37: if (g_yield_req) { g_resume = 0xDB37u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x3Au); --SP;
+    ret_lbl[ret_sp++] = &&L_DB3B; goto L_EAEC;
+L_DB3B: if (g_yield_req) { g_resume = 0xDB3Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x3Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_DB40; goto L_E016;
+L_DB40: if (g_yield_req) { g_resume = 0xDB40u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x005Du);
+    tick(5u);
+    wr((u16)(0x0068u + Y), A);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DB4E; }
+    tick(2u);
+    goto L_DB49;
+L_DB49: if (g_yield_req) { g_resume = 0xDB49u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); }
+    tick(3u);
+    goto L_DB50;
+L_DB4E: if (g_yield_req) { g_resume = 0xDB4Eu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_DB50;
+L_DB50: if (g_yield_req) { g_resume = 0xDB50u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x54u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB55; goto L_E05A;
+L_DB55: if (g_yield_req) { g_resume = 0xDB55u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x007Du, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x59u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB5A; goto L_E048;
+L_DB5A: if (g_yield_req) { g_resume = 0xDB5Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x61u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB62; goto L_DBEE;
+L_DB62: if (g_yield_req) { g_resume = 0xDB62u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0072u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x68u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB69; goto L_EAD4;
+L_DB69: if (g_yield_req) { g_resume = 0xDB69u; g_yield_req = 0u; return; } 
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x6Du); --SP;
+    ret_lbl[ret_sp++] = &&L_DB6E; goto L_F080;
+L_DB6E: if (g_yield_req) { g_resume = 0xDB6Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x72u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB73; goto L_E0AE;
+L_DB73: if (g_yield_req) { g_resume = 0xDB73u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_DBAC; }
+    tick(2u);
+    goto L_DB75;
+L_DB75: if (g_yield_req) { g_resume = 0xDB75u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0x77u); --SP;
+    ret_lbl[ret_sp++] = &&L_DB78; goto L_EAF7;
+L_DB78: if (g_yield_req) { g_resume = 0xDB78u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0048u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC448u + X));
+    tick(3u);
+    A = (u8)(A & rd(0x0019u)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DBAC; }
+    tick(2u);
+    goto L_DB7F;
+L_DB7F: if (g_yield_req) { g_resume = 0xDB7Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u);
+    A = rd((u16)(0x007Eu + X));
+    if (A >= 4u) { goto L_DBAC; }
+    goto L_DB8B;
+L_DB8B: if (g_yield_req) { g_resume = 0xDB8Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 2u) { goto L_DBA3; }
+    goto L_DB91;
+L_DB91: if (g_yield_req) { g_resume = 0xDB91u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0004u);
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (Cf) { tick(3u); goto L_DBA3; }
+    tick(2u);
+    goto L_DB9B;
+L_DB9B: if (g_yield_req) { g_resume = 0xDB9Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x0Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(4u);
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (Cf) { tick(3u); goto L_DBAC; }
+    tick(2u);
+    goto L_DBA3;
+L_DBA3: if (g_yield_req) { g_resume = 0xDBA3u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x0068u + X)) - 1u); wr((u16)(0x0068u + X), t); }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DBAC: if (g_yield_req) { g_resume = 0xDBACu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0xB0u); --SP;
+    ret_lbl[ret_sp++] = &&L_DBB1; goto L_E090;
+L_DBB1: if (g_yield_req) { g_resume = 0xDBB1u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_DBB6; }
+    tick(2u);
+    goto L_DBB3;
+L_DBB3: if (g_yield_req) { g_resume = 0xDBB3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DBE7;
+L_DBB6: if (g_yield_req) { g_resume = 0xDBB6u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0xB8u); --SP;
+    ret_lbl[ret_sp++] = &&L_DBB9; goto L_DF40;
+L_DBB9: if (g_yield_req) { g_resume = 0xDBB9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    if (A != 1u) { goto L_DBED; }
+    goto L_DBC1;
+L_DBC1: if (g_yield_req) { g_resume = 0xDBC1u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0xC3u); --SP;
+    ret_lbl[ret_sp++] = &&L_DBC4; goto L_DFC3;
+L_DBC4: if (g_yield_req) { g_resume = 0xDBC4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    if (A == 32u) { goto L_DBCD; }
+    goto L_DBCA;
+L_DBCA: if (g_yield_req) { g_resume = 0xDBCAu; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_DBCD; }
+    tick(2u);
+    goto L_DBCC;
+L_DBCC: if (g_yield_req) { g_resume = 0xDBCCu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DBCD: if (g_yield_req) { g_resume = 0xDBCDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0003u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDBu); --SP;
+    wr(0x100u + SP, 0xD7u); --SP;
+    ret_lbl[ret_sp++] = &&L_DBD8; goto L_F08E;
+L_DBD8: if (g_yield_req) { g_resume = 0xDBD8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    wr(0x00ADu, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x0068u + X), A);
+    tick(2u);
+    A = 0x80u;
+    tick(3u);
+    wr(0x00FEu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DBE7: if (g_yield_req) { g_resume = 0xDBE7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x08u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    goto L_DBED;
+L_DBED: if (g_yield_req) { g_resume = 0xDBEDu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DC30: if (g_yield_req) { g_resume = 0xDC30u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x55u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x34u); --SP;
+    ret_lbl[ret_sp++] = &&L_DC35; goto L_DFE4;
+L_DC35: if (g_yield_req) { g_resume = 0xDC35u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_DC68; }
+    tick(2u);
+    goto L_DC37;
+L_DC37: if (g_yield_req) { g_resume = 0xDC37u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x39u); --SP;
+    ret_lbl[ret_sp++] = &&L_DC3A; goto L_EFD5;
+L_DC3A: if (g_yield_req) { g_resume = 0xDC3Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x3Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_DC3F; goto L_EAEC;
+L_DC3F: if (g_yield_req) { g_resume = 0xDC3Fu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    Y = rd(0x005Du);
+    tick(4u + ((0x0072u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0072u + Y));
+    if (A != 144u) { goto L_DC4F; }
+    goto L_DC4A;
+L_DC4A: if (g_yield_req) { g_resume = 0xDC4Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x94u;
+    tick(3u);
+    goto L_DC51;
+L_DC4F: if (g_yield_req) { g_resume = 0xDC4Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x90u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DC51;
+L_DC51: if (g_yield_req) { g_resume = 0xDC51u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    X = rd(0x005Du); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x0072u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x59u); --SP;
+    ret_lbl[ret_sp++] = &&L_DC5A; goto L_EADB;
+L_DC5A: if (g_yield_req) { g_resume = 0xDC5Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    { const u8 v = rd((u16)(0x00A3u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_DC68; }
+    tick(2u);
+    goto L_DC62;
+L_DC62: if (g_yield_req) { g_resume = 0xDC62u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    goto L_DC68;
+L_DC68: if (g_yield_req) { g_resume = 0xDC68u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DC69: if (g_yield_req) { g_resume = 0xDC69u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x6Du); --SP;
+    ret_lbl[ret_sp++] = &&L_DC6E; goto L_DFE4;
+L_DC6E: if (g_yield_req) { g_resume = 0xDC6Eu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_DC71; }
+    tick(2u);
+    goto L_DC70;
+L_DC70: if (g_yield_req) { g_resume = 0xDC70u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DC71: if (g_yield_req) { g_resume = 0xDC71u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x73u); --SP;
+    ret_lbl[ret_sp++] = &&L_DC74; goto L_EFD5;
+L_DC74: if (g_yield_req) { g_resume = 0xDC74u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x78u); --SP;
+    ret_lbl[ret_sp++] = &&L_DC79; goto L_EAEC;
+L_DC79: if (g_yield_req) { g_resume = 0xDC79u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    A = rd(0x0001u);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DC90; }
+    tick(2u);
+    goto L_DC81;
+L_DC81: if (g_yield_req) { g_resume = 0xDC81u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DC8E; }
+    tick(2u);
+    goto L_DC89;
+L_DC89: if (g_yield_req) { g_resume = 0xDC89u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); }
+    tick(3u);
+    goto L_DC90;
+L_DC8E: if (g_yield_req) { g_resume = 0xDC8Eu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_DC90;
+L_DC90: if (g_yield_req) { g_resume = 0xDC90u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x92u); --SP;
+    ret_lbl[ret_sp++] = &&L_DC93; goto L_DBEE;
+L_DC93: if (g_yield_req) { g_resume = 0xDC93u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0072u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0x9Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_DC9C; goto L_EADB;
+L_DC9C: if (g_yield_req) { g_resume = 0xDC9Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x32u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0xA0u); --SP;
+    ret_lbl[ret_sp++] = &&L_DCA1; goto L_C853;
+L_DCA1: if (g_yield_req) { g_resume = 0xDCA1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0xA5u); --SP;
+    ret_lbl[ret_sp++] = &&L_DCA6; goto L_E112;
+L_DCA6: if (g_yield_req) { g_resume = 0xDCA6u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_DCCF; }
+    tick(2u);
+    goto L_DCA8;
+L_DCA8: if (g_yield_req) { g_resume = 0xDCA8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x10u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0xB0u); --SP;
+    ret_lbl[ret_sp++] = &&L_DCB1; goto L_E130;
+L_DCB1: if (g_yield_req) { g_resume = 0xDCB1u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_DCBC; }
+    tick(2u);
+    goto L_DCB3;
+L_DCB3: if (g_yield_req) { g_resume = 0xDCB3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0019u);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DCBC; }
+    tick(2u);
+    goto L_DCB9;
+L_DCB9: if (g_yield_req) { g_resume = 0xDCB9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DCC9;
+L_DCBC: if (g_yield_req) { g_resume = 0xDCBCu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u);
+    A = rd((u16)(0x007Eu + X));
+    if (A >= 4u) { goto L_DCC9; }
+    goto L_DCC8;
+L_DCC8: if (g_yield_req) { g_resume = 0xDCC8u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DCC9: if (g_yield_req) { g_resume = 0xDCC9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    goto L_DCCF;
+L_DCCF: if (g_yield_req) { g_resume = 0xDCCFu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DCD0: if (g_yield_req) { g_resume = 0xDCD0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x77u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0xD4u); --SP;
+    ret_lbl[ret_sp++] = &&L_DCD5; goto L_DFE4;
+L_DCD5: if (g_yield_req) { g_resume = 0xDCD5u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_DCD8; }
+    tick(2u);
+    goto L_DCD7;
+L_DCD7: if (g_yield_req) { g_resume = 0xDCD7u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DCD8: if (g_yield_req) { g_resume = 0xDCD8u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0xDAu); --SP;
+    ret_lbl[ret_sp++] = &&L_DCDB; goto L_EFD5;
+L_DCDB: if (g_yield_req) { g_resume = 0xDCDBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0xDFu); --SP;
+    ret_lbl[ret_sp++] = &&L_DCE0; goto L_EAEC;
+L_DCE0: if (g_yield_req) { g_resume = 0xDCE0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDCu); --SP;
+    wr(0x100u + SP, 0xE4u); --SP;
+    ret_lbl[ret_sp++] = &&L_DCE5; goto L_E016;
+L_DCE5: if (g_yield_req) { g_resume = 0xDCE5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x0068u + X), A);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_DD00; }
+    tick(2u);
+    goto L_DCED;
+L_DCED: if (g_yield_req) { g_resume = 0xDCEDu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); }
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DCF3;
+L_DCF3: if (g_yield_req) { g_resume = 0xDCF3u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00FCu + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3FCu + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(4u); goto L_DD13; }
+    tick(2u);
+    goto L_DCF8;
+L_DCF8: if (g_yield_req) { g_resume = 0xDCF8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X == 11u) { goto L_DD25; }
+    goto L_DCFD;
+L_DCFD: if (g_yield_req) { g_resume = 0xDCFDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DCF3;
+L_DD00: if (g_yield_req) { g_resume = 0xDD00u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); }
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DD06;
+L_DD06: if (g_yield_req) { g_resume = 0xDD06u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0012u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC412u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_DD13; }
+    tick(2u);
+    goto L_DD0B;
+L_DD0B: if (g_yield_req) { g_resume = 0xDD0Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X == 11u) { goto L_DD25; }
+    goto L_DD10;
+L_DD10: if (g_yield_req) { g_resume = 0xDD10u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DD06;
+L_DD13: if (g_yield_req) { g_resume = 0xDD13u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(2u);
+    Cf = false;
+    tick(4u + ((0x0007u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC407u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    if (X != 10u) { goto L_DD25; }
+    goto L_DD1F;
+L_DD1F: if (g_yield_req) { g_resume = 0xDD1Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    goto L_DD25;
+L_DD25: if (g_yield_req) { g_resume = 0xDD25u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x27u); --SP;
+    ret_lbl[ret_sp++] = &&L_DD28; goto L_DBEE;
+L_DD28: if (g_yield_req) { g_resume = 0xDD28u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0072u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x30u); --SP;
+    ret_lbl[ret_sp++] = &&L_DD31; goto L_EADB;
+L_DD31: if (g_yield_req) { g_resume = 0xDD31u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DD32: if (g_yield_req) { g_resume = 0xDD32u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x55u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x36u); --SP;
+    ret_lbl[ret_sp++] = &&L_DD37; goto L_DFE4;
+L_DD37: if (g_yield_req) { g_resume = 0xDD37u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_DD3A; }
+    tick(2u);
+    goto L_DD39;
+L_DD39: if (g_yield_req) { g_resume = 0xDD39u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DD3A: if (g_yield_req) { g_resume = 0xDD3Au; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x3Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_DD3D; goto L_EFD5;
+L_DD3D: if (g_yield_req) { g_resume = 0xDD3Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x41u); --SP;
+    ret_lbl[ret_sp++] = &&L_DD42; goto L_EAEC;
+L_DD42: if (g_yield_req) { g_resume = 0xDD42u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x46u); --SP;
+    ret_lbl[ret_sp++] = &&L_DD47; goto L_E016;
+L_DD47: if (g_yield_req) { g_resume = 0xDD47u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x0068u + X), A);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DD60; }
+    tick(2u);
+    goto L_DD4F;
+L_DD4F: if (g_yield_req) { g_resume = 0xDD4Fu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); }
+    tick(3u);
+    A = rd(0x0001u);
+    if (A != 20u) { goto L_DD59; }
+    goto L_DD57;
+L_DD57: if (g_yield_req) { g_resume = 0xDD57u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_DD59;
+L_DD59: if (g_yield_req) { g_resume = 0xDD59u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DD73; }
+    tick(2u);
+    goto L_DD5D;
+L_DD5D: if (g_yield_req) { g_resume = 0xDD5Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DD7F;
+L_DD60: if (g_yield_req) { g_resume = 0xDD60u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); }
+    tick(3u);
+    A = rd(0x0001u);
+    if (A != 236u) { goto L_DD6A; }
+    goto L_DD68;
+L_DD68: if (g_yield_req) { g_resume = 0xDD68u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_DD6A;
+L_DD6A: if (g_yield_req) { g_resume = 0xDD6Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    if (A != 244u) { goto L_DD73; }
+    goto L_DD70;
+L_DD70: if (g_yield_req) { g_resume = 0xDD70u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DD7F;
+L_DD73: if (g_yield_req) { g_resume = 0xDD73u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x75u); --SP;
+    ret_lbl[ret_sp++] = &&L_DD76; goto L_DBEE;
+L_DD76: if (g_yield_req) { g_resume = 0xDD76u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0072u + X));
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    goto L_EADB;
+L_DD7F: if (g_yield_req) { g_resume = 0xDD7Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x22u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0x83u); --SP;
+    ret_lbl[ret_sp++] = &&L_DD84; goto L_F092;
+L_DD84: if (g_yield_req) { g_resume = 0xDD84u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x0068u + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DD8B: if (g_yield_req) { g_resume = 0xDD8Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0007u, A);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x005Eu + X));
+    if (A != 194u) { goto L_DD98; }
+    goto L_DD95;
+L_DD95: if (g_yield_req) { g_resume = 0xDD95u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DE82;
+L_DD98: if (g_yield_req) { g_resume = 0xDD98u; g_yield_req = 0u; return; } 
+    if (A == 193u) { goto L_DDD7; }
+    goto L_DD9C;
+L_DD9C: if (g_yield_req) { g_resume = 0xDD9Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0007u);
+    if (A == 2u) { goto L_DDAB; }
+    goto L_DDA2;
+L_DDA2: if (g_yield_req) { g_resume = 0xDDA2u; g_yield_req = 0u; return; } 
+    if (A == 3u) { goto L_DDB0; }
+    goto L_DDA6;
+L_DDA6: if (g_yield_req) { g_resume = 0xDDA6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x34u;
+    tick(3u);
+    goto L_DDB2;
+L_DDAB: if (g_yield_req) { g_resume = 0xDDABu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x36u;
+    tick(3u);
+    goto L_DDB2;
+L_DDB0: if (g_yield_req) { g_resume = 0xDDB0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x38u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DDB2;
+L_DDB2: if (g_yield_req) { g_resume = 0xDDB2u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0xB4u); --SP;
+    ret_lbl[ret_sp++] = &&L_DDB5; goto L_C853;
+L_DDB5: if (g_yield_req) { g_resume = 0xDDB5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0xB7u); --SP;
+    ret_lbl[ret_sp++] = &&L_DDB8; goto L_EFD5;
+L_DDB8: if (g_yield_req) { g_resume = 0xDDB8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0xBFu); --SP;
+    ret_lbl[ret_sp++] = &&L_DDC0; goto L_E112;
+L_DDC0: if (g_yield_req) { g_resume = 0xDDC0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x000Au);
+    if (Y != 4u) { goto L_DDC9; }
+    goto L_DDC6;
+L_DDC6: if (g_yield_req) { g_resume = 0xDDC6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DE73;
+L_DDC9: if (g_yield_req) { g_resume = 0xDDC9u; g_yield_req = 0u; return; } 
+    if (A == 0u) { goto L_DDD7; }
+    goto L_DDCD;
+L_DDCD: if (g_yield_req) { g_resume = 0xDDCDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr((u16)(0x008Au + X), A);
+    tick(2u);
+    A = 0xC1u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    goto L_DDD7;
+L_DDD7: if (g_yield_req) { g_resume = 0xDDD7u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0xD9u); --SP;
+    ret_lbl[ret_sp++] = &&L_DDDA; goto L_EFD5;
+L_DDDA: if (g_yield_req) { g_resume = 0xDDDAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x005Eu + X));
+    if (A != 193u) { goto L_DE13; }
+    goto L_DDE4;
+L_DDE4: if (g_yield_req) { g_resume = 0xDDE4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDDu); --SP;
+    wr(0x100u + SP, 0xE8u); --SP;
+    ret_lbl[ret_sp++] = &&L_DDE9; goto L_DFE4;
+L_DDE9: if (g_yield_req) { g_resume = 0xDDE9u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_DDF5; }
+    tick(2u);
+    goto L_DDEB;
+L_DDEB: if (g_yield_req) { g_resume = 0xDDEBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0004u);
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_DE27;
+L_DDF5: if (g_yield_req) { g_resume = 0xDDF5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0xC0u;
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(3u);
+    A = rd(0x0007u);
+    if (A != 3u) { goto L_DE10; }
+    goto L_DE01;
+L_DE01: if (g_yield_req) { g_resume = 0xDE01u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0017u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0417u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DE0B; }
+    tick(2u);
+    goto L_DE06;
+L_DE06: if (g_yield_req) { g_resume = 0xDE06u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_DE0D;
+L_DE0B: if (g_yield_req) { g_resume = 0xDE0Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DE0D;
+L_DE0D: if (g_yield_req) { g_resume = 0xDE0Du; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0417u + X), A);
+    goto L_DE10;
+L_DE10: if (g_yield_req) { g_resume = 0xDE10u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DE1A;
+L_DE13: if (g_yield_req) { g_resume = 0xDE13u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDEu); --SP;
+    wr(0x100u + SP, 0x17u); --SP;
+    ret_lbl[ret_sp++] = &&L_DE18; goto L_DFE4;
+L_DE18: if (g_yield_req) { g_resume = 0xDE18u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_DE85; }
+    tick(2u);
+    goto L_DE1A;
+L_DE1A: if (g_yield_req) { g_resume = 0xDE1Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0004u);
+    tick(2u);
+    A = 0x01u;
+    tick(2u);
+    Cf = false;
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0x0200u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDEu); --SP;
+    wr(0x100u + SP, 0x26u); --SP;
+    ret_lbl[ret_sp++] = &&L_DE27; goto L_DE86;
+L_DE27: if (g_yield_req) { g_resume = 0xDE27u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(3u);
+    A = rd(0x0007u);
+    if (A != 2u) { goto L_DE36; }
+    goto L_DE30;
+L_DE30: if (g_yield_req) { g_resume = 0xDE30u; g_yield_req = 0u; return; } 
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0200u + X)) + 1u); wr((u16)(0x0200u + X), t); }
+    tick(3u);
+    goto L_DE56;
+L_DE36: if (g_yield_req) { g_resume = 0xDE36u; g_yield_req = 0u; return; } 
+    if (A != 3u) { goto L_DE56; }
+    goto L_DE3A;
+L_DE3A: if (g_yield_req) { g_resume = 0xDE3Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DE56; }
+    tick(2u);
+    goto L_DE40;
+L_DE40: if (g_yield_req) { g_resume = 0xDE40u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x005Du);
+    tick(4u + ((0x0017u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0417u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_DE50; }
+    tick(2u);
+    goto L_DE47;
+L_DE47: if (g_yield_req) { g_resume = 0xDE47u; g_yield_req = 0u; return; } 
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0200u + X)) + 1u); wr((u16)(0x0200u + X), t); }
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0200u + X)) + 1u); wr((u16)(0x0200u + X), t); }
+    tick(3u);
+    goto L_DE56;
+L_DE50: if (g_yield_req) { g_resume = 0xDE50u; g_yield_req = 0u; return; } 
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0200u + X)) - 1u); wr((u16)(0x0200u + X), t); }
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x0200u + X)) - 1u); wr((u16)(0x0200u + X), t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_DE56;
+L_DE56: if (g_yield_req) { g_resume = 0xDE56u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0072u + X));
+    if (A != 144u) { goto L_DE68; }
+    goto L_DE63;
+L_DE63: if (g_yield_req) { g_resume = 0xDE63u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x94u;
+    tick(3u);
+    goto L_DE6A;
+L_DE68: if (g_yield_req) { g_resume = 0xDE68u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x90u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DE6A;
+L_DE6A: if (g_yield_req) { g_resume = 0xDE6Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x0072u + X), A);
+    tick(3u);
+    goto L_EADB;
+L_DE73: if (g_yield_req) { g_resume = 0xDE73u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC2u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(3u);
+    X = rd(0x0004u);
+    tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0203u + X));
+    tick(4u);
+    wr(0x042Bu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DE82: if (g_yield_req) { g_resume = 0xDE82u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDEu); --SP;
+    wr(0x100u + SP, 0x84u); --SP;
+    ret_lbl[ret_sp++] = &&L_DE85; goto L_DEA5;
+L_DE85: if (g_yield_req) { g_resume = 0xDE85u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EADB: if (g_yield_req) { g_resume = 0xEADBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0xDDu); --SP;
+    ret_lbl[ret_sp++] = &&L_EADE; goto L_EAD1;
+L_EADE: if (g_yield_req) { g_resume = 0xEADEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F082;
+L_DF07: if (g_yield_req) { g_resume = 0xDF07u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x55u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xDFu); --SP;
+    wr(0x100u + SP, 0x0Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_DF0C; goto L_DFE4;
+L_DF0C: if (g_yield_req) { g_resume = 0xDF0Cu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_DF0F; }
+    tick(2u);
+    goto L_DF0E;
+L_DF0E: if (g_yield_req) { g_resume = 0xDF0Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF0F: if (g_yield_req) { g_resume = 0xDF0Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDFu); --SP;
+    wr(0x100u + SP, 0x11u); --SP;
+    ret_lbl[ret_sp++] = &&L_DF12; goto L_EFD5;
+L_DF12: if (g_yield_req) { g_resume = 0xDF12u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDFu); --SP;
+    wr(0x100u + SP, 0x16u); --SP;
+    ret_lbl[ret_sp++] = &&L_DF17; goto L_EAEC;
+L_DF17: if (g_yield_req) { g_resume = 0xDF17u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(4u + ((0x0001u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0201u + X));
+    if (A == 144u) { goto L_DF25; }
+    goto L_DF20;
+L_DF20: if (g_yield_req) { g_resume = 0xDF20u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x90u;
+    tick(3u);
+    goto L_DF27;
+L_DF25: if (g_yield_req) { g_resume = 0xDF25u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x94u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DF27;
+L_DF27: if (g_yield_req) { g_resume = 0xDF27u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDFu); --SP;
+    wr(0x100u + SP, 0x2Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_DF2C; goto L_EADB;
+L_DF2C: if (g_yield_req) { g_resume = 0xDF2Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00C0u);
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_DF35; }
+    tick(2u);
+    goto L_DF32;
+L_DF32: if (g_yield_req) { g_resume = 0xDF32u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_DF35; }
+    tick(2u);
+    goto L_DF34;
+L_DF34: if (g_yield_req) { g_resume = 0xDF34u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF35: if (g_yield_req) { g_resume = 0xDF35u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00C0u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DFE4: if (g_yield_req) { g_resume = 0xDFE4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Au, A);
+    tick(3u);
+    wr(0x000Bu, A);
+    goto L_DFE8;
+L_DFE8: if (g_yield_req) { g_resume = 0xDFE8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x008Au + X)) + 1u); wr((u16)(0x008Au + X), t); }
+    tick(4u);
+    A = rd((u16)(0x008Au + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Nf) { tick(3u); goto L_DFF7; }
+    tick(2u);
+    goto L_DFF0;
+L_DFF0: if (g_yield_req) { g_resume = 0xDFF0u; g_yield_req = 0u; return; } 
+    if (A >= 16u) { goto L_DFF7; }
+    goto L_DFF4;
+L_DFF4: if (g_yield_req) { g_resume = 0xDFF4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DFFB;
+L_DFF7: if (g_yield_req) { g_resume = 0xDFF7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x008Au + X), A);
+    goto L_DFFB;
+L_DFFB: if (g_yield_req) { g_resume = 0xDFFBu; g_yield_req = 0u; return; } 
+    if (A >= 8u) { goto L_E008; }
+    goto L_DFFF;
+L_DFFF: if (g_yield_req) { g_resume = 0xDFFFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Au));
+    tick(3u);
+    goto L_E011;
+L_E008: if (g_yield_req) { g_resume = 0xE008u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Bu)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E011;
+L_E011: if (g_yield_req) { g_resume = 0xE011u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_E015; }
+    tick(2u);
+    goto L_E013;
+L_E013: if (g_yield_req) { g_resume = 0xE013u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E015;
+L_E015: if (g_yield_req) { g_resume = 0xE015u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EAEC: if (g_yield_req) { g_resume = 0xEAECu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0203u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + X));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E05A: if (g_yield_req) { g_resume = 0xE05Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    if (A == 1u) { goto L_E079; }
+    goto L_E064;
+L_E064: if (g_yield_req) { g_resume = 0xE064u; g_yield_req = 0u; return; } 
+    if (A == 6u) { goto L_E079; }
+    goto L_E068;
+L_E068: if (g_yield_req) { g_resume = 0xE068u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E06A;
+L_E06A: if (g_yield_req) { g_resume = 0xE06Au; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1C4u + X));
+    tick(3u);
+    { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E08A; }
+    tick(2u);
+    goto L_E071;
+L_E071: if (g_yield_req) { g_resume = 0xE071u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X == 9u) { goto L_E08D; }
+    goto L_E076;
+L_E076: if (g_yield_req) { g_resume = 0xE076u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E06A;
+L_E079: if (g_yield_req) { g_resume = 0xE079u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x04u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E07B;
+L_E07B: if (g_yield_req) { g_resume = 0xE07Bu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1C4u + X));
+    tick(3u);
+    { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E08A; }
+    tick(2u);
+    goto L_E082;
+L_E082: if (g_yield_req) { g_resume = 0xE082u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X == 9u) { goto L_E08D; }
+    goto L_E087;
+L_E087: if (g_yield_req) { g_resume = 0xE087u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E07B;
+L_E08A: if (g_yield_req) { g_resume = 0xE08Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E08D: if (g_yield_req) { g_resume = 0xE08Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E048: if (g_yield_req) { g_resume = 0xE048u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x005Eu + X));
+    if (A != 1u) { goto L_E057; }
+    goto L_E050;
+L_E050: if (g_yield_req) { g_resume = 0xE050u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x007Du); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E057; }
+    tick(2u);
+    goto L_E054;
+L_E054: if (g_yield_req) { g_resume = 0xE054u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E057: if (g_yield_req) { g_resume = 0xE057u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DBEE: if (g_yield_req) { g_resume = 0xDBEEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(7u);
+    { u8 t = (u8)(rd((u16)(0x040Du + X)) + 1u); wr((u16)(0x040Du + X), t); }
+    tick(4u + ((0x000Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x040Du + X));
+    if (A >= 6u) { goto L_DBFB; }
+    goto L_DBFA;
+L_DBFA: if (g_yield_req) { g_resume = 0xDBFAu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DBFB: if (g_yield_req) { g_resume = 0xDBFBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(5u);
+    wr((u16)(0x040Du + X), A);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DC1B; }
+    tick(2u);
+    goto L_DC06;
+L_DC06: if (g_yield_req) { g_resume = 0xDC06u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0072u + X));
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x04u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A < 128u) { goto L_DC16; }
+    goto L_DC0F;
+L_DC0F: if (g_yield_req) { g_resume = 0xDC0Fu; g_yield_req = 0u; return; } 
+    if (A >= 144u) { goto L_DC16; }
+    goto L_DC13;
+L_DC13: if (g_yield_req) { g_resume = 0xDC13u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DC2D;
+L_DC16: if (g_yield_req) { g_resume = 0xDC16u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x80u;
+    tick(3u);
+    goto L_DC2D;
+L_DC1B: if (g_yield_req) { g_resume = 0xDC1Bu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0072u + X));
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x04u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A < 128u) { goto L_DC2B; }
+    goto L_DC24;
+L_DC24: if (g_yield_req) { g_resume = 0xDC24u; g_yield_req = 0u; return; } 
+    if (A >= 144u) { goto L_DC2B; }
+    goto L_DC28;
+L_DC28: if (g_yield_req) { g_resume = 0xDC28u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DC2D;
+L_DC2B: if (g_yield_req) { g_resume = 0xDC2Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x8Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DC2D;
+L_DC2D: if (g_yield_req) { g_resume = 0xDC2Du; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x0072u + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E0AE: if (g_yield_req) { g_resume = 0xE0AEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    if (A == 2u) { goto L_E0CB; }
+    goto L_E0B8;
+L_E0B8: if (g_yield_req) { g_resume = 0xE0B8u; g_yield_req = 0u; return; } 
+    if (A == 3u) { goto L_E0CB; }
+    goto L_E0BC;
+L_E0BC: if (g_yield_req) { g_resume = 0xE0BCu; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_E0D1; }
+    goto L_E0C0;
+L_E0C0: if (g_yield_req) { g_resume = 0xE0C0u; g_yield_req = 0u; return; } 
+    if (A == 5u) { goto L_E0DD; }
+    goto L_E0C4;
+L_E0C4: if (g_yield_req) { g_resume = 0xE0C4u; g_yield_req = 0u; return; } 
+    if (A == 6u) { goto L_E0E9; }
+    goto L_E0C8;
+L_E0C8: if (g_yield_req) { g_resume = 0xE0C8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E0EC;
+L_E0CB: if (g_yield_req) { g_resume = 0xE0CBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE0u); --SP;
+    wr(0x100u + SP, 0xCDu); --SP;
+    ret_lbl[ret_sp++] = &&L_E0CE; goto L_E0F1;
+L_E0CE: if (g_yield_req) { g_resume = 0xE0CEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E0EC;
+L_E0D1: if (g_yield_req) { g_resume = 0xE0D1u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE0u); --SP;
+    wr(0x100u + SP, 0xD3u); --SP;
+    ret_lbl[ret_sp++] = &&L_E0D4; goto L_E0F1;
+L_E0D4: if (g_yield_req) { g_resume = 0xE0D4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x89u;
+    if (A == 196u) { goto L_E109; }
+    goto L_E0DA;
+L_E0DA: if (g_yield_req) { g_resume = 0xE0DAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E0EC;
+L_E0DD: if (g_yield_req) { g_resume = 0xE0DDu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE0u); --SP;
+    wr(0x100u + SP, 0xDFu); --SP;
+    ret_lbl[ret_sp++] = &&L_E0E0; goto L_E0F1;
+L_E0E0: if (g_yield_req) { g_resume = 0xE0E0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x71u;
+    if (A == 180u) { goto L_E109; }
+    goto L_E0E6;
+L_E0E6: if (g_yield_req) { g_resume = 0xE0E6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E0EC;
+L_E0E9: if (g_yield_req) { g_resume = 0xE0E9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE0u); --SP;
+    wr(0x100u + SP, 0xEBu); --SP;
+    ret_lbl[ret_sp++] = &&L_E0EC; goto L_E0F1;
+L_E0EC: if (g_yield_req) { g_resume = 0xE0ECu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_E10F;
+L_E109: if (g_yield_req) { g_resume = 0xE109u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x00A3u + X), Y);
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E10F;
+L_E10F: if (g_yield_req) { g_resume = 0xE10Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E090: if (g_yield_req) { g_resume = 0xE090u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E09F; }
+    tick(2u);
+    goto L_E09A;
+L_E09A: if (g_yield_req) { g_resume = 0xE09Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u;
+    tick(3u);
+    goto L_E0A1;
+L_E09F: if (g_yield_req) { g_resume = 0xE09Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x01u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E0A1;
+L_E0A1: if (g_yield_req) { g_resume = 0xE0A1u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00CDu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1CDu + X));
+    tick(3u);
+    { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E0AB; }
+    tick(2u);
+    goto L_E0A8;
+L_E0A8: if (g_yield_req) { g_resume = 0xE0A8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E0AB: if (g_yield_req) { g_resume = 0xE0ABu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF40: if (g_yield_req) { g_resume = 0xDF40u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00C0u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_DF45; }
+    tick(2u);
+    goto L_DF44;
+L_DF44: if (g_yield_req) { g_resume = 0xDF44u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF45: if (g_yield_req) { g_resume = 0xDF45u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A == 10u) { goto L_DF4C; }
+    goto L_DF4B;
+L_DF4B: if (g_yield_req) { g_resume = 0xDF4Bu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF4C: if (g_yield_req) { g_resume = 0xDF4Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0059u);
+    if (A == 3u) { goto L_DF55; }
+    goto L_DF52;
+L_DF52: if (g_yield_req) { g_resume = 0xDF52u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_DF72;
+L_DF55: if (g_yield_req) { g_resume = 0xDF55u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x03u;
+    tick(4u);
+    A = rd((u16)(0x007Eu + X));
+    if (A >= 5u) { goto L_DF5E; }
+    goto L_DF5D;
+L_DF5D: if (g_yield_req) { g_resume = 0xDF5Du; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF5E: if (g_yield_req) { g_resume = 0xDF5Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DF60;
+L_DF60: if (g_yield_req) { g_resume = 0xDF60u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x005Eu + X));
+    if (A != 1u) { goto L_DF6C; }
+    goto L_DF66;
+L_DF66: if (g_yield_req) { g_resume = 0xDF66u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    if (A == 3u) { goto L_DF8F; }
+    goto L_DF6C;
+L_DF6C: if (g_yield_req) { g_resume = 0xDF6Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X != 10u) { goto L_DF60; }
+    goto L_DF71;
+L_DF71: if (g_yield_req) { g_resume = 0xDF71u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF72: if (g_yield_req) { g_resume = 0xDF72u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x05u;
+    tick(4u);
+    A = rd((u16)(0x007Eu + X));
+    if (A >= 5u) { goto L_DF7B; }
+    goto L_DF7A;
+L_DF7A: if (g_yield_req) { g_resume = 0xDF7Au; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF7B: if (g_yield_req) { g_resume = 0xDF7Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DF7D;
+L_DF7D: if (g_yield_req) { g_resume = 0xDF7Du; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x005Eu + X));
+    if (A != 1u) { goto L_DF89; }
+    goto L_DF83;
+L_DF83: if (g_yield_req) { g_resume = 0xDF83u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    if (A == 5u) { goto L_DF8F; }
+    goto L_DF89;
+L_DF89: if (g_yield_req) { g_resume = 0xDF89u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (A != 10u) { goto L_DF7D; }
+    goto L_DF8E;
+L_DF8E: if (g_yield_req) { g_resume = 0xDF8Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DF8F: if (g_yield_req) { g_resume = 0xDF8Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x40u;
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x0068u + X)) - 1u); wr((u16)(0x0068u + X), t); }
+    tick(2u);
+    A = X;
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u + ((0x0003u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0203u + Y));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    A = rd(0xC1EBu);
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DFAD;
+L_DFAD: if (g_yield_req) { g_resume = 0xDFADu; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (Cf) { tick(3u); goto L_DFB8; }
+    tick(2u);
+    goto L_DFB1;
+L_DFB1: if (g_yield_req) { g_resume = 0xDFB1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x18u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_DFAD;
+L_DFB8: if (g_yield_req) { g_resume = 0xDFB8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x15u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x00C0u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DFC3: if (g_yield_req) { g_resume = 0xDFC3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    if (A != 1u) { goto L_DFE3; }
+    goto L_DFCB;
+L_DFCB: if (g_yield_req) { g_resume = 0xDFCBu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDFu); --SP;
+    wr(0x100u + SP, 0xCDu); --SP;
+    ret_lbl[ret_sp++] = &&L_DFCE; goto L_EFD5;
+L_DFCE: if (g_yield_req) { g_resume = 0xDFCEu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0203u + X));
+    if (A >= 48u) { goto L_DFE3; }
+    goto L_DFD5;
+L_DFD5: if (g_yield_req) { g_resume = 0xDFD5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x23u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0202u + X), A);
+    tick(5u);
+    wr((u16)(0x0206u + X), A);
+    tick(5u);
+    wr((u16)(0x020Au + X), A);
+    tick(5u);
+    wr((u16)(0x020Eu + X), A);
+    goto L_DFE3;
+L_DFE3: if (g_yield_req) { g_resume = 0xDFE3u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_C853: if (g_yield_req) { g_resume = 0xC853u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Cu + X));
+    tick(3u);
+    wr(0x0008u, A);
+    tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC03Du + X));
+    tick(3u);
+    wr(0x0009u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E112: if (g_yield_req) { g_resume = 0xE112u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E116;
+L_E116: if (g_yield_req) { g_resume = 0xE116u; g_yield_req = 0u; return; } 
+    tick(5u + (((rd(0x0008u) | (static_cast<eng::u16>(rd(0x0009u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0008u) | ((u16)rd(0x0009u) << 8)) + Y));
+    if (A == 254u) { goto L_E129; }
+    goto L_E11C;
+L_E11C: if (g_yield_req) { g_resume = 0xE11Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x000Bu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E124; }
+    tick(2u);
+    goto L_E120;
+L_E120: if (g_yield_req) { g_resume = 0xE120u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_E116;
+L_E124: if (g_yield_req) { g_resume = 0xE124u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_E12B;
+L_E129: if (g_yield_req) { g_resume = 0xE129u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E12B;
+L_E12B: if (g_yield_req) { g_resume = 0xE12Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(3u);
+    wr(0x000Au, Y);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E130: if (g_yield_req) { g_resume = 0xE130u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    A = rd((u16)(0x0068u + X));
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0059u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E13E; }
+    tick(2u);
+    goto L_E139;
+L_E139: if (g_yield_req) { g_resume = 0xE139u; g_yield_req = 0u; return; } 
+    if (Nf) { tick(3u); goto L_E13E; }
+    tick(2u);
+    goto L_E13B;
+L_E13B: if (g_yield_req) { g_resume = 0xE13Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E141;
+L_E13E: if (g_yield_req) { g_resume = 0xE13Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E141: if (g_yield_req) { g_resume = 0xE141u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DE86: if (g_yield_req) { g_resume = 0xDE86u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0007u);
+    if (A != 1u) { goto L_DEA4; }
+    goto L_DE8C;
+L_DE8C: if (g_yield_req) { g_resume = 0xDE8Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u;
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_DE90;
+L_DE90: if (g_yield_req) { g_resume = 0xDE90u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x001Du + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC41Du + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (!Cf) { tick(3u); goto L_DE9F; }
+    tick(2u);
+    goto L_DE95;
+L_DE95: if (g_yield_req) { g_resume = 0xDE95u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC420u + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (Cf) { tick(3u); goto L_DE9F; }
+    tick(2u);
+    goto L_DE9A;
+L_DE9A: if (g_yield_req) { g_resume = 0xDE9Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    goto L_DEA4;
+L_DE9F: if (g_yield_req) { g_resume = 0xDE9Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    if (Y != 3u) { goto L_DE90; }
+    goto L_DEA4;
+L_DEA4: if (g_yield_req) { g_resume = 0xDEA4u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DEA5: if (g_yield_req) { g_resume = 0xDEA5u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xDEu); --SP;
+    wr(0x100u + SP, 0xA7u); --SP;
+    ret_lbl[ret_sp++] = &&L_DEA8; goto L_EFD5;
+L_DEA8: if (g_yield_req) { g_resume = 0xDEA8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xDEu); --SP;
+    wr(0x100u + SP, 0xACu); --SP;
+    ret_lbl[ret_sp++] = &&L_DEAD; goto L_EAEC;
+L_DEAD: if (g_yield_req) { g_resume = 0xDEADu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); }
+    tick(4u);
+    A = rd(0x042Bu);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_DEE8; }
+    tick(2u);
+    goto L_DEB9;
+L_DEB9: if (g_yield_req) { g_resume = 0xDEB9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_DEE8; }
+    tick(2u);
+    goto L_DEC0;
+L_DEC0: if (g_yield_req) { g_resume = 0xDEC0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_DEF2; }
+    tick(2u);
+    goto L_DEC7;
+L_DEC7: if (g_yield_req) { g_resume = 0xDEC7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_DEED; }
+    tick(2u);
+    goto L_DECE;
+L_DECE: if (g_yield_req) { g_resume = 0xDECEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_DEED; }
+    tick(2u);
+    goto L_DED5;
+L_DED5: if (g_yield_req) { g_resume = 0xDED5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_DEFB; }
+    tick(2u);
+    goto L_DEDC;
+L_DEDC: if (g_yield_req) { g_resume = 0xDEDCu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x005Eu + X), A);
+    tick(2u);
+    A = 0x00u;
+    tick(5u);
+    wr((u16)(0x0417u + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_DEE8: if (g_yield_req) { g_resume = 0xDEE8u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); }
+    tick(3u);
+    goto L_DEFB;
+L_DEED: if (g_yield_req) { g_resume = 0xDEEDu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    goto L_DEFB;
+L_DEF2: if (g_yield_req) { g_resume = 0xDEF2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u + ((0x0021u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0421u + X));
+    if (A == 1u) { goto L_DEDC; }
+    goto L_DEFB;
+L_DEFB: if (g_yield_req) { g_resume = 0xDEFBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x84u;
+    tick(3u);
+    X = rd(0x005Du); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x0072u + X), A);
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xDFu); --SP;
+    wr(0x100u + SP, 0x05u); --SP;
+    ret_lbl[ret_sp++] = &&L_DF06; goto L_EADB;
+L_DF06: if (g_yield_req) { g_resume = 0xDF06u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E0F1: if (g_yield_req) { g_resume = 0xE0F1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(3u);
+    A = rd(0x000Cu);
+    tick(4u + ((0x0072u + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xC172u + X));
+    tick(4u + ((0x0077u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC177u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(4u); goto L_E107; }
+    tick(2u);
+    goto L_E0FE;
+L_E0FE: if (g_yield_req) { g_resume = 0xE0FEu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x007Cu + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xC17Cu + X));
+    tick(4u + ((0x0081u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC181u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E107; }
+    tick(2u);
+    goto L_E106;
+L_E106: if (g_yield_req) { g_resume = 0xE106u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E107: if (g_yield_req) { g_resume = 0xE107u; g_yield_req = 0u; return; } 
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E109;
+L_EFDD: if (g_yield_req) { g_resume = 0xEFDDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_EFE2;
+L_E250: if (g_yield_req) { g_resume = 0xE250u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E254;
+L_E254: if (g_yield_req) { g_resume = 0xE254u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x0Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E292; }
+    tick(2u);
+    goto L_E258;
+L_E258: if (g_yield_req) { g_resume = 0xE258u; g_yield_req = 0u; return; } 
+    if (A == 6u) { goto L_E28F; }
+    goto L_E25C;
+L_E25C: if (g_yield_req) { g_resume = 0xE25Cu; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_E28F; }
+    goto L_E260;
+L_E260: if (g_yield_req) { g_resume = 0xE260u; g_yield_req = 0u; return; } 
+    if (A == 1u) { goto L_E295; }
+    goto L_E264;
+L_E264: if (g_yield_req) { g_resume = 0xE264u; g_yield_req = 0u; return; } 
+    if (A == 2u) { goto L_E29A; }
+    goto L_E268;
+L_E268: if (g_yield_req) { g_resume = 0xE268u; g_yield_req = 0u; return; } 
+    if (A == 3u) { goto L_E2A1; }
+    goto L_E26C;
+L_E26C: if (g_yield_req) { g_resume = 0xE26Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 3u) { goto L_E278; }
+    goto L_E272;
+L_E272: if (g_yield_req) { g_resume = 0xE272u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE2u); --SP;
+    wr(0x100u + SP, 0x74u); --SP;
+    ret_lbl[ret_sp++] = &&L_E275; goto L_E2B6;
+L_E275: if (g_yield_req) { g_resume = 0xE275u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E280;
+L_E278: if (g_yield_req) { g_resume = 0xE278u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0019u + X));
+    tick(2u);
+    A = (u8)(A & 0x03u);
+    tick(3u);
+    X = rd(0x00AEu); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    goto L_E280;
+L_E280: if (g_yield_req) { g_resume = 0xE280u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    if (A == 1u) { goto L_E28A; }
+    goto L_E286;
+L_E286: if (g_yield_req) { g_resume = 0xE286u; g_yield_req = 0u; return; } 
+    if (A != 2u) { goto L_E28C; }
+    goto L_E28A;
+L_E28A: if (g_yield_req) { g_resume = 0xE28Au; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x00B3u + X), A);
+    goto L_E28C;
+L_E28C: if (g_yield_req) { g_resume = 0xE28Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E254;
+L_E28F: if (g_yield_req) { g_resume = 0xE28Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E538;
+L_E292: if (g_yield_req) { g_resume = 0xE292u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E2F9;
+L_E295: if (g_yield_req) { g_resume = 0xE295u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_E29C;
+L_E29A: if (g_yield_req) { g_resume = 0xE29Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E29C;
+L_E29C: if (g_yield_req) { g_resume = 0xE29Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0099u, A);
+    tick(3u);
+    goto L_E368;
+L_E2A1: if (g_yield_req) { g_resume = 0xE2A1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 1u) { goto L_E2B3; }
+    goto L_E2A7;
+L_E2A7: if (g_yield_req) { g_resume = 0xE2A7u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE2u); --SP;
+    wr(0x100u + SP, 0xA9u); --SP;
+    ret_lbl[ret_sp++] = &&L_E2AA; goto L_E626;
+L_E2AA: if (g_yield_req) { g_resume = 0xE2AAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E2B3; }
+    tick(2u);
+    goto L_E2B0;
+L_E2B0: if (g_yield_req) { g_resume = 0xE2B0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E292;
+L_E2B3: if (g_yield_req) { g_resume = 0xE2B3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E41B;
+L_E2F9: if (g_yield_req) { g_resume = 0xE2F9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x55u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Au, A);
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x01u); --SP;
+    ret_lbl[ret_sp++] = &&L_E302; goto L_E806;
+L_E302: if (g_yield_req) { g_resume = 0xE302u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_E305; }
+    tick(2u);
+    goto L_E304;
+L_E304: if (g_yield_req) { g_resume = 0xE304u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E305: if (g_yield_req) { g_resume = 0xE305u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x07u); --SP;
+    ret_lbl[ret_sp++] = &&L_E308; goto L_EFDD;
+L_E308: if (g_yield_req) { g_resume = 0xE308u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x0Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_E30D; goto L_EAEC;
+L_E30D: if (g_yield_req) { g_resume = 0xE30Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    if (A != 32u) { goto L_E31A; }
+    goto L_E315;
+L_E315: if (g_yield_req) { g_resume = 0xE315u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E31A: if (g_yield_req) { g_resume = 0xE31Au; g_yield_req = 0u; return; } 
+    if (A == 16u) { goto L_E323; }
+    goto L_E31E;
+L_E31E: if (g_yield_req) { g_resume = 0xE31Eu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); }
+    tick(3u);
+    goto L_E325;
+L_E323: if (g_yield_req) { g_resume = 0xE323u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_E325;
+L_E325: if (g_yield_req) { g_resume = 0xE325u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0004u);
+    tick(2u);
+    Y = A;
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    tick(3u);
+    X = rd(0x0053u);
+    if (X == 4u) { goto L_E340; }
+    goto L_E332;
+L_E332: if (g_yield_req) { g_resume = 0xE332u; g_yield_req = 0u; return; } 
+    if (A == 156u) { goto L_E33B; }
+    goto L_E336;
+L_E336: if (g_yield_req) { g_resume = 0xE336u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x9Cu;
+    tick(3u);
+    goto L_E34B;
+L_E33B: if (g_yield_req) { g_resume = 0xE33Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x98u;
+    tick(3u);
+    goto L_E34B;
+L_E340: if (g_yield_req) { g_resume = 0xE340u; g_yield_req = 0u; return; } 
+    if (A == 172u) { goto L_E349; }
+    goto L_E344;
+L_E344: if (g_yield_req) { g_resume = 0xE344u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xACu;
+    tick(3u);
+    goto L_E34B;
+L_E349: if (g_yield_req) { g_resume = 0xE349u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xA8u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E34B;
+L_E34B: if (g_yield_req) { g_resume = 0xE34Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x4Du); --SP;
+    ret_lbl[ret_sp++] = &&L_E34E; goto L_EAD4;
+L_E34E: if (g_yield_req) { g_resume = 0xE34Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00B3u + X));
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x55u); --SP;
+    ret_lbl[ret_sp++] = &&L_E356; goto L_F096;
+L_E356: if (g_yield_req) { g_resume = 0xE356u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    if (A == 16u) { goto L_E363; }
+    goto L_E35E;
+L_E35E: if (g_yield_req) { g_resume = 0xE35Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x10u;
+    tick(3u);
+    goto L_E365;
+L_E363: if (g_yield_req) { g_resume = 0xE363u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E365;
+L_E365: if (g_yield_req) { g_resume = 0xE365u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E368: if (g_yield_req) { g_resume = 0xE368u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x55u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Au, A);
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x70u); --SP;
+    ret_lbl[ret_sp++] = &&L_E371; goto L_E806;
+L_E371: if (g_yield_req) { g_resume = 0xE371u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_E374; }
+    tick(2u);
+    goto L_E373;
+L_E373: if (g_yield_req) { g_resume = 0xE373u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E374: if (g_yield_req) { g_resume = 0xE374u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x76u); --SP;
+    ret_lbl[ret_sp++] = &&L_E377; goto L_EFDD;
+L_E377: if (g_yield_req) { g_resume = 0xE377u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0x7Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_E37C; goto L_EAEC;
+L_E37C: if (g_yield_req) { g_resume = 0xE37Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0099u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E385; }
+    tick(2u);
+    goto L_E380;
+L_E380: if (g_yield_req) { g_resume = 0xE380u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); }
+    tick(3u);
+    goto L_E387;
+L_E385: if (g_yield_req) { g_resume = 0xE385u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_E387;
+L_E387: if (g_yield_req) { g_resume = 0xE387u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    A = (u8)(A & 0x0Fu);
+    if (A == 4u) { goto L_E396; }
+    goto L_E38F;
+L_E38F: if (g_yield_req) { g_resume = 0xE38Fu; g_yield_req = 0u; return; } 
+    if (A == 12u) { goto L_E396; }
+    goto L_E393;
+L_E393: if (g_yield_req) { g_resume = 0xE393u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E39B;
+L_E396: if (g_yield_req) { g_resume = 0xE396u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    goto L_E3AF;
+L_E39B: if (g_yield_req) { g_resume = 0xE39Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0099u);
+    tick(4u + ((0x00E2u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3E2u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E3AA; }
+    tick(2u);
+    goto L_E3A2;
+L_E3A2: if (g_yield_req) { g_resume = 0xE3A2u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00E4u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3E4u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E3AA; }
+    tick(2u);
+    goto L_E3A7;
+L_E3A7: if (g_yield_req) { g_resume = 0xE3A7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E3AF;
+L_E3AA: if (g_yield_req) { g_resume = 0xE3AAu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); }
+    tick(3u);
+    goto L_E3C0;
+L_E3AF: if (g_yield_req) { g_resume = 0xE3AFu; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_E3BA; }
+    goto L_E3B3;
+L_E3B3: if (g_yield_req) { g_resume = 0xE3B3u; g_yield_req = 0u; return; } 
+    if (A == 12u) { goto L_E3BA; }
+    goto L_E3B7;
+L_E3B7: if (g_yield_req) { g_resume = 0xE3B7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E3C0;
+L_E3BA: if (g_yield_req) { g_resume = 0xE3BAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    goto L_E3C0;
+L_E3C0: if (g_yield_req) { g_resume = 0xE3C0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0099u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xE3u); --SP;
+    wr(0x100u + SP, 0xC4u); --SP;
+    ret_lbl[ret_sp++] = &&L_E3C5; goto L_E6A5;
+L_E3C5: if (g_yield_req) { g_resume = 0xE3C5u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_E3CE; }
+    tick(2u);
+    goto L_E3C7;
+L_E3C7: if (g_yield_req) { g_resume = 0xE3C7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E3CE: if (g_yield_req) { g_resume = 0xE3CEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0099u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E3ED; }
+    tick(2u);
+    goto L_E3D2;
+L_E3D2: if (g_yield_req) { g_resume = 0xE3D2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    if (A == 12u) { goto L_E3DD; }
+    goto L_E3D8;
+L_E3D8: if (g_yield_req) { g_resume = 0xE3D8u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_E3E6; }
+    tick(2u);
+    goto L_E3DA;
+L_E3DA: if (g_yield_req) { g_resume = 0xE3DAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E3ED;
+L_E3DD: if (g_yield_req) { g_resume = 0xE3DDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(3u);
+    goto L_E3ED;
+L_E3E6: if (g_yield_req) { g_resume = 0xE3E6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E3ED: if (g_yield_req) { g_resume = 0xE3EDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0004u);
+    tick(2u);
+    Y = A;
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    tick(3u);
+    X = rd(0x0053u);
+    if (X == 4u) { goto L_E408; }
+    goto L_E3FA;
+L_E3FA: if (g_yield_req) { g_resume = 0xE3FAu; g_yield_req = 0u; return; } 
+    if (A >= 156u) { goto L_E403; }
+    goto L_E3FE;
+L_E3FE: if (g_yield_req) { g_resume = 0xE3FEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x9Cu;
+    tick(3u);
+    goto L_E413;
+L_E403: if (g_yield_req) { g_resume = 0xE403u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x98u;
+    tick(3u);
+    goto L_E413;
+L_E408: if (g_yield_req) { g_resume = 0xE408u; g_yield_req = 0u; return; } 
+    if (A >= 172u) { goto L_E411; }
+    goto L_E40C;
+L_E40C: if (g_yield_req) { g_resume = 0xE40Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xACu;
+    tick(3u);
+    goto L_E413;
+L_E411: if (g_yield_req) { g_resume = 0xE411u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xA8u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E413;
+L_E413: if (g_yield_req) { g_resume = 0xE413u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE4u); --SP;
+    wr(0x100u + SP, 0x15u); --SP;
+    ret_lbl[ret_sp++] = &&L_E416; goto L_EAD4;
+L_E416: if (g_yield_req) { g_resume = 0xE416u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0099u);
+    tick(3u);
+    goto L_F096;
+L_E41B: if (g_yield_req) { g_resume = 0xE41Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 4u) { goto L_E436; }
+    goto L_E429;
+L_E429: if (g_yield_req) { g_resume = 0xE429u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00F4u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3F4u + X));
+    tick(3u);
+    wr(0x000Au, A);
+    tick(4u + ((0x00F5u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3F5u + X));
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(3u);
+    goto L_E44B;
+L_E436: if (g_yield_req) { g_resume = 0xE436u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0050u);
+    tick(2u);
+    A = (u8)(A & 0x01u);
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0054u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A < 3u) { goto L_E429; }
+    goto L_E441;
+L_E441: if (g_yield_req) { g_resume = 0xE441u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00F8u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3F8u + X));
+    tick(3u);
+    wr(0x000Au, A);
+    tick(4u + ((0x00F9u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3F9u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Bu, A);
+    goto L_E44B;
+L_E44B: if (g_yield_req) { g_resume = 0xE44Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE4u); --SP;
+    wr(0x100u + SP, 0x4Du); --SP;
+    ret_lbl[ret_sp++] = &&L_E44E; goto L_E806;
+L_E44E: if (g_yield_req) { g_resume = 0xE44Eu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_E451; }
+    tick(2u);
+    goto L_E450;
+L_E450: if (g_yield_req) { g_resume = 0xE450u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E451: if (g_yield_req) { g_resume = 0xE451u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE4u); --SP;
+    wr(0x100u + SP, 0x53u); --SP;
+    ret_lbl[ret_sp++] = &&L_E454; goto L_EFDD;
+L_E454: if (g_yield_req) { g_resume = 0xE454u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xE4u); --SP;
+    wr(0x100u + SP, 0x58u); --SP;
+    ret_lbl[ret_sp++] = &&L_E459; goto L_EAEC;
+L_E459: if (g_yield_req) { g_resume = 0xE459u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E8u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E46D; }
+    tick(2u);
+    goto L_E45F;
+L_E45F: if (g_yield_req) { g_resume = 0xE45Fu; g_yield_req = 0u; return; } 
+    if (A == 3u) { goto L_E466; }
+    goto L_E463;
+L_E463: if (g_yield_req) { g_resume = 0xE463u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E46D;
+L_E466: if (g_yield_req) { g_resume = 0xE466u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr((u16)(0x00E8u + X), A);
+    tick(3u);
+    goto L_E47A;
+L_E46D: if (g_yield_req) { g_resume = 0xE46Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(2u);
+    A = (u8)(A & 0x03u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E47A; }
+    tick(2u);
+    goto L_E473;
+L_E473: if (g_yield_req) { g_resume = 0xE473u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x00E8u + X)) + 1u); wr((u16)(0x00E8u + X), t); }
+    tick(3u);
+    goto L_E50C;
+L_E47A: if (g_yield_req) { g_resume = 0xE47Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_E4B5; }
+    goto L_E480;
+L_E480: if (g_yield_req) { g_resume = 0xE480u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE4u); --SP;
+    wr(0x100u + SP, 0x82u); --SP;
+    ret_lbl[ret_sp++] = &&L_E483; goto L_E7A3;
+L_E483: if (g_yield_req) { g_resume = 0xE483u; g_yield_req = 0u; return; } 
+    if (A == 3u) { goto L_E48E; }
+    goto L_E487;
+L_E487: if (g_yield_req) { g_resume = 0xE487u; g_yield_req = 0u; return; } 
+    if (A == 19u) { goto L_E49B; }
+    goto L_E48B;
+L_E48B: if (g_yield_req) { g_resume = 0xE48Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E50C;
+L_E48E: if (g_yield_req) { g_resume = 0xE48Eu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); }
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    { const u8 v = rd((u16)(0x00DBu + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E4A8; }
+    tick(2u);
+    goto L_E498;
+L_E498: if (g_yield_req) { g_resume = 0xE498u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E50C;
+L_E49B: if (g_yield_req) { g_resume = 0xE49Bu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    { const u8 v = rd((u16)(0x00DBu + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E4A8; }
+    tick(2u);
+    goto L_E4A5;
+L_E4A5: if (g_yield_req) { g_resume = 0xE4A5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E50C;
+L_E4A8: if (g_yield_req) { g_resume = 0xE4A8u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr((u16)(0x00DBu + X), A);
+    tick(3u);
+    goto L_E50C;
+L_E4B5: if (g_yield_req) { g_resume = 0xE4B5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    if (A == 19u) { goto L_E4C0; }
+    goto L_E4BD;
+L_E4BD: if (g_yield_req) { g_resume = 0xE4BDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E4D6;
+L_E4C0: if (g_yield_req) { g_resume = 0xE4C0u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(4u);
+    A = rd((u16)(0x00B9u + X));
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_E4D3; }
+    tick(2u);
+    goto L_E4CD;
+L_E4CD: if (g_yield_req) { g_resume = 0xE4CDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    X = rd(0x00AEu); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    goto L_E4D3;
+L_E4D3: if (g_yield_req) { g_resume = 0xE4D3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E50C;
+L_E4D6: if (g_yield_req) { g_resume = 0xE4D6u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); }
+    tick(3u);
+    X = rd(0x00AEu);
+    if (X != 0u) { goto L_E4F9; }
+    goto L_E4DE;
+L_E4DE: if (g_yield_req) { g_resume = 0xE4DEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    if (A == 2u) { goto L_E4F9; }
+    goto L_E4E6;
+L_E4E6: if (g_yield_req) { g_resume = 0xE4E6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u);
+    A = rd((u16)(0x00B9u + X));
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(4u); goto L_E50C; }
+    tick(2u);
+    goto L_E4F0;
+L_E4F0: if (g_yield_req) { g_resume = 0xE4F0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(3u);
+    goto L_E50C;
+L_E4F9: if (g_yield_req) { g_resume = 0xE4F9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u);
+    A = rd((u16)(0x00B9u + X));
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x0Du; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_E50C; }
+    tick(2u);
+    goto L_E506;
+L_E506: if (g_yield_req) { g_resume = 0xE506u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x13u;
+    tick(3u);
+    X = rd(0x00AEu); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    goto L_E50C;
+L_E50C: if (g_yield_req) { g_resume = 0xE50Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0004u);
+    tick(2u);
+    Y = A;
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0200u + Y));
+    tick(3u);
+    X = rd(0x0053u);
+    if (X == 4u) { goto L_E527; }
+    goto L_E519;
+L_E519: if (g_yield_req) { g_resume = 0xE519u; g_yield_req = 0u; return; } 
+    if (A >= 156u) { goto L_E522; }
+    goto L_E51D;
+L_E51D: if (g_yield_req) { g_resume = 0xE51Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x9Cu;
+    tick(3u);
+    goto L_E532;
+L_E522: if (g_yield_req) { g_resume = 0xE522u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x98u;
+    tick(3u);
+    goto L_E532;
+L_E527: if (g_yield_req) { g_resume = 0xE527u; g_yield_req = 0u; return; } 
+    if (A >= 172u) { goto L_E530; }
+    goto L_E52B;
+L_E52B: if (g_yield_req) { g_resume = 0xE52Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xACu;
+    tick(3u);
+    goto L_E532;
+L_E530: if (g_yield_req) { g_resume = 0xE530u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xA8u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E532;
+L_E532: if (g_yield_req) { g_resume = 0xE532u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE5u); --SP;
+    wr(0x100u + SP, 0x34u); --SP;
+    ret_lbl[ret_sp++] = &&L_E535; goto L_EAD4;
+L_E535: if (g_yield_req) { g_resume = 0xE535u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F088;
+L_E538: if (g_yield_req) { g_resume = 0xE538u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    if (A == 6u) { goto L_E548; }
+    goto L_E540;
+L_E540: if (g_yield_req) { g_resume = 0xE540u; g_yield_req = 0u; return; } 
+    if (A == 8u) { goto L_E545; }
+    goto L_E544;
+L_E544: if (g_yield_req) { g_resume = 0xE544u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E545: if (g_yield_req) { g_resume = 0xE545u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E59F;
+L_E548: if (g_yield_req) { g_resume = 0xE548u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_E553; }
+    goto L_E54E;
+L_E54E: if (g_yield_req) { g_resume = 0xE54Eu; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_E564; }
+    goto L_E552;
+L_E552: if (g_yield_req) { g_resume = 0xE552u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E553: if (g_yield_req) { g_resume = 0xE553u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u;
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0xB8u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(2u);
+    A = 0x08u;
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(3u);
+    goto L_E592;
+L_E564: if (g_yield_req) { g_resume = 0xE564u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u);
+    if (A < 120u) { goto L_E570; }
+    goto L_E56B;
+L_E56B: if (g_yield_req) { g_resume = 0xE56Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u;
+    tick(3u);
+    goto L_E572;
+L_E570: if (g_yield_req) { g_resume = 0xE570u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x08u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E572;
+L_E572: if (g_yield_req) { g_resume = 0xE572u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, Y);
+    tick(3u);
+    A = rd(0x0019u);
+    tick(2u);
+    A = (u8)(A & 0x03u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x000Cu); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00CEu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3CEu + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u + ((0x00CFu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3CFu + X));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(2u);
+    A = 0xA8u;
+    tick(3u);
+    goto L_E594;
+L_E592: if (g_yield_req) { g_resume = 0xE592u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x98u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E594;
+L_E594: if (g_yield_req) { g_resume = 0xE594u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE5u); --SP;
+    wr(0x100u + SP, 0x96u); --SP;
+    ret_lbl[ret_sp++] = &&L_E597; goto L_EAD4;
+L_E597: if (g_yield_req) { g_resume = 0xE597u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE5u); --SP;
+    wr(0x100u + SP, 0x99u); --SP;
+    ret_lbl[ret_sp++] = &&L_E59A; goto L_EFDD;
+L_E59A: if (g_yield_req) { g_resume = 0xE59Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, A);
+    tick(3u);
+    goto L_F082;
+L_E59F: if (g_yield_req) { g_resume = 0xE59Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE5u); --SP;
+    wr(0x100u + SP, 0xA1u); --SP;
+    ret_lbl[ret_sp++] = &&L_E5A2; goto L_EFDD;
+L_E5A2: if (g_yield_req) { g_resume = 0xE5A2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0004u, X);
+    tick(6u);
+    wr(0x100u + SP, 0xE5u); --SP;
+    wr(0x100u + SP, 0xA6u); --SP;
+    ret_lbl[ret_sp++] = &&L_E5A7; goto L_EAEC;
+L_E5A7: if (g_yield_req) { g_resume = 0xE5A7u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0001u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0201u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xE5u); --SP;
+    wr(0x100u + SP, 0xACu); --SP;
+    ret_lbl[ret_sp++] = &&L_E5AD; goto L_EAD4;
+L_E5AD: if (g_yield_req) { g_resume = 0xE5ADu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_E5B4; }
+    goto L_E5B3;
+L_E5B3: if (g_yield_req) { g_resume = 0xE5B3u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E5B4: if (g_yield_req) { g_resume = 0xE5B4u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); }
+    tick(3u);
+    A = rd(0x0000u);
+    if (A == 44u) { goto L_E5BE; }
+    goto L_E5BC;
+L_E5BC: if (g_yield_req) { g_resume = 0xE5BCu; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_E5E5; }
+    tick(2u);
+    goto L_E5BE;
+L_E5BE: if (g_yield_req) { g_resume = 0xE5BEu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    A = rd(0x0001u);
+    if (A != 197u) { goto L_E5E5; }
+    goto L_E5C6;
+L_E5C6: if (g_yield_req) { g_resume = 0xE5C6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); }
+    tick(3u);
+    A = rd(0x0000u);
+    if (A >= 104u) { goto L_E5D9; }
+    goto L_E5D4;
+L_E5D4: if (g_yield_req) { g_resume = 0xE5D4u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(3u);
+    goto L_E5DB;
+L_E5D9: if (g_yield_req) { g_resume = 0xE5D9u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_E5DB;
+L_E5DB: if (g_yield_req) { g_resume = 0xE5DBu; g_yield_req = 0u; return; } 
+    if (A != 96u) { goto L_E5E5; }
+    goto L_E5DF;
+L_E5DF: if (g_yield_req) { g_resume = 0xE5DFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    goto L_E5E5;
+L_E5E5: if (g_yield_req) { g_resume = 0xE5E5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_F082;
+L_E2B6: if (g_yield_req) { g_resume = 0xE2B6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00D2u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_E2DD; }
+    tick(2u);
+    goto L_E2BC;
+L_E2BC: if (g_yield_req) { g_resume = 0xE2BCu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr((u16)(0x00D2u + X), A);
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x0003u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0203u + Y));
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); }
+    if (Cf) { tick(3u); goto L_E2D9; }
+    tick(2u);
+    goto L_E2D2;
+L_E2D2: if (g_yield_req) { g_resume = 0xE2D2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr((u16)(0x00ECu + X), A);
+    tick(3u);
+    goto L_E2DD;
+L_E2D9: if (g_yield_req) { g_resume = 0xE2D9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00ECu + X), A);
+    goto L_E2DD;
+L_E2DD: if (g_yield_req) { g_resume = 0xE2DDu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x0019u + X));
+    tick(2u);
+    A = (u8)(A & 0x07u);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(2u);
+    Y = A;
+    if (A >= 4u) { goto L_E2EB; }
+    goto L_E2E8;
+L_E2E8: if (g_yield_req) { g_resume = 0xE2E8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E2F6;
+L_E2EB: if (g_yield_req) { g_resume = 0xE2EBu; g_yield_req = 0u; return; } 
+    tick(4u);
+    Y = rd((u16)(0x00ECu + X));
+    if (A >= 7u) { goto L_E2F4; }
+    goto L_E2F1;
+L_E2F1: if (g_yield_req) { g_resume = 0xE2F1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E2F6;
+L_E2F4: if (g_yield_req) { g_resume = 0xE2F4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x03u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E2F6;
+L_E2F6: if (g_yield_req) { g_resume = 0xE2F6u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr((u16)(0x00AFu + X), Y);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E626: if (g_yield_req) { g_resume = 0xE626u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    if (A != 19u) { goto L_E62F; }
+    goto L_E62E;
+L_E62E: if (g_yield_req) { g_resume = 0xE62Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E62F: if (g_yield_req) { g_resume = 0xE62Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE6u); --SP;
+    wr(0x100u + SP, 0x31u); --SP;
+    ret_lbl[ret_sp++] = &&L_E632; goto L_EFDD;
+L_E632: if (g_yield_req) { g_resume = 0xE632u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xE6u); --SP;
+    wr(0x100u + SP, 0x34u); --SP;
+    ret_lbl[ret_sp++] = &&L_E635; goto L_EAEC;
+L_E635: if (g_yield_req) { g_resume = 0xE635u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    if (A == 1u) { goto L_E640; }
+    goto L_E63D;
+L_E63D: if (g_yield_req) { g_resume = 0xE63Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E66D;
+L_E640: if (g_yield_req) { g_resume = 0xE640u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    if (A == 92u) { goto L_E64D; }
+    goto L_E646;
+L_E646: if (g_yield_req) { g_resume = 0xE646u; g_yield_req = 0u; return; } 
+    if (A == 196u) { goto L_E65D; }
+    goto L_E64A;
+L_E64A: if (g_yield_req) { g_resume = 0xE64Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E69E;
+L_E64D: if (g_yield_req) { g_resume = 0xE64Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0xA6u;
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    A = 0xC7u;
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    tick(3u);
+    goto L_E697;
+L_E65D: if (g_yield_req) { g_resume = 0xE65Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0xABu;
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    A = 0xC3u;
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    tick(3u);
+    goto L_E697;
+L_E66D: if (g_yield_req) { g_resume = 0xE66Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    if (A == 44u) { goto L_E67A; }
+    goto L_E673;
+L_E673: if (g_yield_req) { g_resume = 0xE673u; g_yield_req = 0u; return; } 
+    if (A == 108u) { goto L_E68A; }
+    goto L_E677;
+L_E677: if (g_yield_req) { g_resume = 0xE677u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E69E;
+L_E67A: if (g_yield_req) { g_resume = 0xE67Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0x8Du;
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    A = 0xA4u;
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    tick(3u);
+    goto L_E697;
+L_E68A: if (g_yield_req) { g_resume = 0xE68Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0x8Au;
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    A = 0xA7u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00B9u + X), A);
+    goto L_E697;
+L_E697: if (g_yield_req) { g_resume = 0xE697u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E69E: if (g_yield_req) { g_resume = 0xE69Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E806: if (g_yield_req) { g_resume = 0xE806u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(6u);
+    { u8 t = (u8)(rd((u16)(0x00E4u + X)) + 1u); wr((u16)(0x00E4u + X), t); }
+    tick(4u);
+    A = rd((u16)(0x00E4u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Nf) { tick(3u); goto L_E815; }
+    tick(2u);
+    goto L_E80E;
+L_E80E: if (g_yield_req) { g_resume = 0xE80Eu; g_yield_req = 0u; return; } 
+    if (A >= 16u) { goto L_E815; }
+    goto L_E812;
+L_E812: if (g_yield_req) { g_resume = 0xE812u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E819;
+L_E815: if (g_yield_req) { g_resume = 0xE815u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x00E4u + X), A);
+    goto L_E819;
+L_E819: if (g_yield_req) { g_resume = 0xE819u; g_yield_req = 0u; return; } 
+    if (A >= 8u) { goto L_E826; }
+    goto L_E81D;
+L_E81D: if (g_yield_req) { g_resume = 0xE81Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Au));
+    tick(3u);
+    goto L_E82F;
+L_E826: if (g_yield_req) { g_resume = 0xE826u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Bu)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E82F;
+L_E82F: if (g_yield_req) { g_resume = 0xE82Fu; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_E833; }
+    tick(2u);
+    goto L_E831;
+L_E831: if (g_yield_req) { g_resume = 0xE831u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E833;
+L_E833: if (g_yield_req) { g_resume = 0xE833u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E6A5: if (g_yield_req) { g_resume = 0xE6A5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x0Bu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xE6u); --SP;
+    wr(0x100u + SP, 0xACu); --SP;
+    ret_lbl[ret_sp++] = &&L_E6AD; goto L_E016;
+L_E6AD: if (g_yield_req) { g_resume = 0xE6ADu; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0099u);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00E0u + X), A);
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 1u) { goto L_E6BC; }
+    goto L_E6B9;
+L_E6B9: if (g_yield_req) { g_resume = 0xE6B9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E6C6;
+L_E6BC: if (g_yield_req) { g_resume = 0xE6BCu; g_yield_req = 0u; return; } 
+    if (A != 3u) { goto L_E6C3; }
+    goto L_E6C0;
+L_E6C0: if (g_yield_req) { g_resume = 0xE6C0u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E702;
+L_E6C3: if (g_yield_req) { g_resume = 0xE6C3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E73C;
+L_E6C6: if (g_yield_req) { g_resume = 0xE6C6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xE6u); --SP;
+    wr(0x100u + SP, 0xCAu); --SP;
+    ret_lbl[ret_sp++] = &&L_E6CB; goto L_E5E8;
+L_E6CB: if (g_yield_req) { g_resume = 0xE6CBu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_E6E3; }
+    tick(2u);
+    goto L_E6CD;
+L_E6CD: if (g_yield_req) { g_resume = 0xE6CDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E6DB; }
+    tick(2u);
+    goto L_E6D5;
+L_E6D5: if (g_yield_req) { g_resume = 0xE6D5u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x009Au + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC79Au + Y));
+    tick(3u);
+    goto L_E6DE;
+L_E6DB: if (g_yield_req) { g_resume = 0xE6DBu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x009Cu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC79Cu + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E6DE;
+L_E6DE: if (g_yield_req) { g_resume = 0xE6DEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0001u, A);
+    goto L_E6E3;
+L_E6E3: if (g_yield_req) { g_resume = 0xE6E3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    if (A == 1u) { goto L_E6F3; }
+    goto L_E6EB;
+L_E6EB: if (g_yield_req) { g_resume = 0xE6EBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(4u + ((0x00E6u + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3E6u + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E6FB; }
+    tick(2u);
+    goto L_E6F2;
+L_E6F2: if (g_yield_req) { g_resume = 0xE6F2u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E6F3: if (g_yield_req) { g_resume = 0xE6F3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(4u + ((0x00E8u + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3E8u + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E6FB; }
+    tick(2u);
+    goto L_E6FA;
+L_E6FA: if (g_yield_req) { g_resume = 0xE6FAu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E6FB: if (g_yield_req) { g_resume = 0xE6FBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E702: if (g_yield_req) { g_resume = 0xE702u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    if (A != 2u) { goto L_E719; }
+    goto L_E70A;
+L_E70A: if (g_yield_req) { g_resume = 0xE70Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(4u + ((0x00EAu + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3EAu + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E735; }
+    tick(2u);
+    goto L_E711;
+L_E711: if (g_yield_req) { g_resume = 0xE711u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00ECu + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3ECu + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E735; }
+    tick(2u);
+    goto L_E716;
+L_E716: if (g_yield_req) { g_resume = 0xE716u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E72D;
+L_E719: if (g_yield_req) { g_resume = 0xE719u; g_yield_req = 0u; return; } 
+    if (Y != 1u) { goto L_E721; }
+    goto L_E71D;
+L_E71D: if (g_yield_req) { g_resume = 0xE71Du; g_yield_req = 0u; return; } 
+    if (A == 4u) { goto L_E72E; }
+    goto L_E721;
+L_E721: if (g_yield_req) { g_resume = 0xE721u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(4u + ((0x00EEu + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3EEu + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E735; }
+    tick(2u);
+    goto L_E728;
+L_E728: if (g_yield_req) { g_resume = 0xE728u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00F0u + Y) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC3F0u + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E735; }
+    tick(2u);
+    goto L_E72D;
+L_E72D: if (g_yield_req) { g_resume = 0xE72Du; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E72E: if (g_yield_req) { g_resume = 0xE72Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    if (A == 219u) { goto L_E735; }
+    goto L_E734;
+L_E734: if (g_yield_req) { g_resume = 0xE734u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E735: if (g_yield_req) { g_resume = 0xE735u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E73C: if (g_yield_req) { g_resume = 0xE73Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    tick(2u);
+    Y = A;
+    tick(2u);
+    Y = (u8)(Y - 1u);
+    tick(3u);
+    X = rd(0x0099u);
+    tick(4u + ((0x00F2u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3F2u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E747;
+L_E747: if (g_yield_req) { g_resume = 0xE747u; g_yield_req = 0u; return; } 
+    if (Y == 0u) { goto L_E75C; }
+    goto L_E74B;
+L_E74B: if (g_yield_req) { g_resume = 0xE74Bu; g_yield_req = 0u; return; } 
+    if (X == 0u) { goto L_E755; }
+    goto L_E74F;
+L_E74F: if (g_yield_req) { g_resume = 0xE74Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    goto L_E758;
+L_E755: if (g_yield_req) { g_resume = 0xE755u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_E758;
+L_E758: if (g_yield_req) { g_resume = 0xE758u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y - 1u);
+    tick(3u);
+    goto L_E747;
+L_E75C: if (g_yield_req) { g_resume = 0xE75Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E769; }
+    tick(2u);
+    goto L_E760;
+L_E760: if (g_yield_req) { g_resume = 0xE760u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0099u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xE7u); --SP;
+    wr(0x100u + SP, 0x65u); --SP;
+    ret_lbl[ret_sp++] = &&L_E766; goto L_E770;
+L_E766: if (g_yield_req) { g_resume = 0xE766u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_E769; }
+    tick(2u);
+    goto L_E768;
+L_E768: if (g_yield_req) { g_resume = 0xE768u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E769: if (g_yield_req) { g_resume = 0xE769u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(2u);
+    A = 0x00u;
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E7A3: if (g_yield_req) { g_resume = 0xE7A3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00DBu + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E7AE; }
+    tick(2u);
+    goto L_E7A9;
+L_E7A9: if (g_yield_req) { g_resume = 0xE7A9u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00AFu + X));
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E7AE: if (g_yield_req) { g_resume = 0xE7AEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x009Bu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC49Bu + Y));
+    tick(3u);
+    wr(0x0007u, A);
+    tick(4u + ((0x009Cu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC49Cu + Y));
+    tick(3u);
+    wr(0x0008u, A);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    Y = rd((u16)(0x00E0u + X)); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E7F2; }
+    tick(2u);
+    goto L_E7C5;
+L_E7C5: if (g_yield_req) { g_resume = 0xE7C5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y - 1u);
+    tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
+    tick(3u);
+    wr(0x0009u, A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
+    tick(3u);
+    wr(0x000Au, A);
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x00A1u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC4A1u + Y));
+    tick(3u);
+    wr(0x0007u, A);
+    tick(4u + ((0x00A2u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC4A2u + Y));
+    tick(3u);
+    wr(0x0008u, A);
+    tick(3u);
+    Y = rd(0x0009u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E7E2;
+L_E7E2: if (g_yield_req) { g_resume = 0xE7E2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x000Au); const u16 t = (u16)Y - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E7F2; }
+    tick(2u);
+    goto L_E7E6;
+L_E7E6: if (g_yield_req) { g_resume = 0xE7E6u; g_yield_req = 0u; return; } 
+    tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E7F9; }
+    tick(2u);
+    goto L_E7EC;
+L_E7EC: if (g_yield_req) { g_resume = 0xE7ECu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    goto L_E7E2;
+L_E7F2: if (g_yield_req) { g_resume = 0xE7F2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E7F9: if (g_yield_req) { g_resume = 0xE7F9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00DBu + X), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
+    tick(4u);
+    wr((u16)(0x00AFu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E5E8: if (g_yield_req) { g_resume = 0xE5E8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x000Cu, A);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    if (A == 1u) { goto L_E60F; }
+    goto L_E5F2;
+L_E5F2: if (g_yield_req) { g_resume = 0xE5F2u; g_yield_req = 0u; return; } 
+    if (A == 6u) { goto L_E60F; }
+    goto L_E5F6;
+L_E5F6: if (g_yield_req) { g_resume = 0xE5F6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u;
+    tick(2u);
+    A = 0x18u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E5FA;
+L_E5FA: if (g_yield_req) { g_resume = 0xE5FAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(4u); goto L_E609; }
+    tick(2u);
+    goto L_E5FE;
+L_E5FE: if (g_yield_req) { g_resume = 0xE5FEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X == 9u) { goto L_E60C; }
+    goto L_E603;
+L_E603: if (g_yield_req) { g_resume = 0xE603u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1C4u + X));
+    tick(3u);
+    goto L_E5FA;
+L_E609: if (g_yield_req) { g_resume = 0xE609u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E60C: if (g_yield_req) { g_resume = 0xE60Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E60F: if (g_yield_req) { g_resume = 0xE60Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x04u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_E611;
+L_E611: if (g_yield_req) { g_resume = 0xE611u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1C4u + X));
+    tick(3u);
+    { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E620; }
+    tick(2u);
+    goto L_E618;
+L_E618: if (g_yield_req) { g_resume = 0xE618u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    if (X == 9u) { goto L_E623; }
+    goto L_E61D;
+L_E61D: if (g_yield_req) { g_resume = 0xE61Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_E611;
+L_E620: if (g_yield_req) { g_resume = 0xE620u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E623: if (g_yield_req) { g_resume = 0xE623u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E770: if (g_yield_req) { g_resume = 0xE770u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0009u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xE7u); --SP;
+    wr(0x100u + SP, 0x74u); --SP;
+    ret_lbl[ret_sp++] = &&L_E775; goto L_EFDD;
+L_E775: if (g_yield_req) { g_resume = 0xE775u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0203u + X));
+    tick(3u);
+    wr(0x000Au, A);
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    A = rd((u16)(0x00E0u + X));
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(4u);
+    A = rd((u16)(0x00C1u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E790; }
+    tick(2u);
+    goto L_E787;
+L_E787: if (g_yield_req) { g_resume = 0xE787u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0009u);
+    tick(4u + ((0x00DEu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3DEu + Y));
+    tick(3u);
+    { const u8 v = rd(0x000Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_E79D; }
+    tick(2u);
+    goto L_E790;
+L_E790: if (g_yield_req) { g_resume = 0xE790u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd((u16)(0x00C2u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_E7A0; }
+    tick(2u);
+    goto L_E794;
+L_E794: if (g_yield_req) { g_resume = 0xE794u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x0009u);
+    tick(4u + ((0x00DFu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC3DFu + Y));
+    tick(3u);
+    { const u8 v = rd(0x000Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_E7A0; }
+    tick(2u);
+    goto L_E79D;
+L_E79D: if (g_yield_req) { g_resume = 0xE79Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E7A0: if (g_yield_req) { g_resume = 0xE7A0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E968: if (g_yield_req) { g_resume = 0xE968u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x23u;
+    tick(5u);
+    wr((u16)(0x0202u + Y), A);
+    tick(5u);
+    wr((u16)(0x0206u + Y), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E971: if (g_yield_req) { g_resume = 0xE971u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x03u;
+    tick(5u);
+    wr((u16)(0x0202u + Y), A);
+    tick(5u);
+    wr((u16)(0x0206u + Y), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_E97A: if (g_yield_req) { g_resume = 0xE97Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0200u + Y), A);
+    tick(5u);
+    wr((u16)(0x0204u + Y), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EA01: if (g_yield_req) { g_resume = 0xEA01u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0001u);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    tick(5u);
+    { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); }
+    if (A != 38u) { goto L_EA11; }
+    goto L_EA0D;
+L_EA0D: if (g_yield_req) { g_resume = 0xEA0Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x01u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FEu, X);
+    goto L_EA11;
+L_EA11: if (g_yield_req) { g_resume = 0xEA11u; g_yield_req = 0u; return; } 
+    if (A < 80u) { goto L_EA2A; }
+    goto L_EA15;
+L_EA15: if (g_yield_req) { g_resume = 0xEA15u; g_yield_req = 0u; return; } 
+    if (A < 144u) { goto L_EA2F; }
+    goto L_EA19;
+L_EA19: if (g_yield_req) { g_resume = 0xEA19u; g_yield_req = 0u; return; } 
+    if (A < 192u) { goto L_EA2A; }
+    goto L_EA1D;
+L_EA1D: if (g_yield_req) { g_resume = 0xEA1Du; g_yield_req = 0u; return; } 
+    if (A < 216u) { goto L_EA2F; }
+    goto L_EA21;
+L_EA21: if (g_yield_req) { g_resume = 0xEA21u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0x23u); --SP;
+    ret_lbl[ret_sp++] = &&L_EA24; goto L_EAD1;
+L_EA24: if (g_yield_req) { g_resume = 0xEA24u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0x26u); --SP;
+    ret_lbl[ret_sp++] = &&L_EA27; goto L_F094;
+L_EA27: if (g_yield_req) { g_resume = 0xEA27u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EA2A: if (g_yield_req) { g_resume = 0xEA2Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC4u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EA2F: if (g_yield_req) { g_resume = 0xEA2Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xC0u;
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EA34: if (g_yield_req) { g_resume = 0xEA34u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0036u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EA5E; }
+    tick(2u);
+    goto L_EA38;
+L_EA38: if (g_yield_req) { g_resume = 0xEA38u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0019u);
+    tick(2u);
+    A = (u8)(A & 0x03u);
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00FFu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1FFu + X));
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(4u);
+    X = rd(0x0445u);
+    tick(5u);
+    wr((u16)(0x0446u + X), A);
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x30u;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(2u);
+    A = 0xC4u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0x55u); --SP;
+    ret_lbl[ret_sp++] = &&L_EA56; goto L_EADB;
+L_EA56: if (g_yield_req) { g_resume = 0xEA56u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEAu); --SP;
+    wr(0x100u + SP, 0x58u); --SP;
+    ret_lbl[ret_sp++] = &&L_EA59; goto L_EAF7;
+L_EA59: if (g_yield_req) { g_resume = 0xEA59u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0057u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC457u + X)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0036u, A);
+    goto L_EA5E;
+L_EA5E: if (g_yield_req) { g_resume = 0xEA5Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EAA1: if (g_yield_req) { g_resume = 0xEAA1u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00B8u) + 1u); wr(0x00B8u, t); }
+    tick(3u);
+    A = rd(0x00B8u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Nf) { tick(3u); goto L_EAAE; }
+    tick(2u);
+    goto L_EAA7;
+L_EAA7: if (g_yield_req) { g_resume = 0xEAA7u; g_yield_req = 0u; return; } 
+    if (A >= 16u) { goto L_EAAE; }
+    goto L_EAAB;
+L_EAAB: if (g_yield_req) { g_resume = 0xEAABu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EAB2;
+L_EAAE: if (g_yield_req) { g_resume = 0xEAAEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00B8u, A);
+    goto L_EAB2;
+L_EAB2: if (g_yield_req) { g_resume = 0xEAB2u; g_yield_req = 0u; return; } 
+    if (A >= 8u) { goto L_EABF; }
+    goto L_EAB6;
+L_EAB6: if (g_yield_req) { g_resume = 0xEAB6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Au));
+    tick(3u);
+    goto L_EAC8;
+L_EABF: if (g_yield_req) { g_resume = 0xEABFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC1BCu + X));
+    tick(3u);
+    A = (u8)(A & rd(0x000Bu)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EAC8;
+L_EAC8: if (g_yield_req) { g_resume = 0xEAC8u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_EACC; }
+    tick(2u);
+    goto L_EACA;
+L_EACA: if (g_yield_req) { g_resume = 0xEACAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EACC;
+L_EACC: if (g_yield_req) { g_resume = 0xEACCu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EBA1: if (g_yield_req) { g_resume = 0xEBA1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_EBA8;
+L_EB97: if (g_yield_req) { g_resume = 0xEB97u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x44u;
+    tick(3u);
+    goto L_EBA8;
+L_F33E: if (g_yield_req) { g_resume = 0xF33Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0xFFu; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F344; }
+    tick(2u);
+    goto L_F342;
+L_EC44: if (g_yield_req) { g_resume = 0xEC44u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Du, A);
+    goto L_EC48;
+L_EC48: if (g_yield_req) { g_resume = 0xEC48u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x3Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x4Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_EC4D; goto L_C847;
+L_EC4D: if (g_yield_req) { g_resume = 0xEC4Du; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x4Fu); --SP;
+    ret_lbl[ret_sp++] = &&L_EC50; goto L_EFD5;
+L_EC50: if (g_yield_req) { g_resume = 0xEC50u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_EC5B; }
+    goto L_EC56;
+L_EC56: if (g_yield_req) { g_resume = 0xEC56u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = X;
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x30u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_EC5B;
+L_EC5B: if (g_yield_req) { g_resume = 0xEC5Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x5Du); --SP;
+    ret_lbl[ret_sp++] = &&L_EC5E; goto L_EAEC;
+L_EC5E: if (g_yield_req) { g_resume = 0xEC5Eu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x60u); --SP;
+    ret_lbl[ret_sp++] = &&L_EC61; goto L_EFEF;
+L_EC61: if (g_yield_req) { g_resume = 0xEC61u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_ECA7; }
+    tick(2u);
+    goto L_EC63;
+L_EC63: if (g_yield_req) { g_resume = 0xEC63u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 4u) { goto L_EC97; }
+    goto L_EC69;
+L_EC69: if (g_yield_req) { g_resume = 0xEC69u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0056u);
+    tick(2u);
+    A = (u8)(A & 0x03u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EC76; }
+    tick(2u);
+    goto L_EC6F;
+L_EC6F: if (g_yield_req) { g_resume = 0xEC6Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Cu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EC80; }
+    tick(2u);
+    goto L_EC73;
+L_EC73: if (g_yield_req) { g_resume = 0xEC73u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EC97;
+L_EC76: if (g_yield_req) { g_resume = 0xEC76u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Cu);
+    if (A >= 3u) { goto L_EC97; }
+    goto L_EC7C;
+L_EC7C: if (g_yield_req) { g_resume = 0xEC7Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Eu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_EC97; }
+    tick(2u);
+    goto L_EC80;
+L_EC80: if (g_yield_req) { g_resume = 0xEC80u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Du);
+    if (A >= 24u) { goto L_EC97; }
+    goto L_EC86;
+L_EC86: if (g_yield_req) { g_resume = 0xEC86u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(3u);
+    wr(0x0005u, A);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    wr(0x0006u, A);
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0x92u); --SP;
+    ret_lbl[ret_sp++] = &&L_EC93; goto L_CFC6;
+L_EC93: if (g_yield_req) { g_resume = 0xEC93u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00FDu, A);
+    goto L_EC97;
+L_EC97: if (g_yield_req) { g_resume = 0xEC97u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x005Du) + 1u); wr(0x005Du, t); }
+    tick(3u);
+    A = rd(0x0053u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(3u);
+    A = rd(0x005Du);
+    tick(4u + ((0x00FDu + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC1FDu + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_ECAF; }
+    tick(2u);
+    goto L_ECA4;
+L_ECA4: if (g_yield_req) { g_resume = 0xECA4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_EC48;
+L_ECA7: if (g_yield_req) { g_resume = 0xECA7u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xECu); --SP;
+    wr(0x100u + SP, 0xA9u); --SP;
+    ret_lbl[ret_sp++] = &&L_ECAA; goto L_EF51;
+L_ECAA: if (g_yield_req) { g_resume = 0xECAAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_ECAF: if (g_yield_req) { g_resume = 0xECAFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 3u) { goto L_ECBE; }
+    goto L_ECB5;
+L_ECB5: if (g_yield_req) { g_resume = 0xECB5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 10u) { goto L_ECBE; }
+    goto L_ECBB;
+L_ECBB: if (g_yield_req) { g_resume = 0xECBBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_ECBF;
+L_ECBE: if (g_yield_req) { g_resume = 0xECBEu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_ECBF: if (g_yield_req) { g_resume = 0xECBFu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00A0u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_ECC6; }
+    tick(2u);
+    goto L_ECC3;
+L_ECC3: if (g_yield_req) { g_resume = 0xECC3u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_ED87;
+L_ECC6: if (g_yield_req) { g_resume = 0xECC6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x009Fu);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_ECD1; }
+    tick(2u);
+    goto L_ECCC;
+L_ECCC: if (g_yield_req) { g_resume = 0xECCCu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_ECD3;
+L_ECD1: if (g_yield_req) { g_resume = 0xECD1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_ECD3;
+L_ECD3: if (g_yield_req) { g_resume = 0xECD3u; g_yield_req = 0u; return; } 
+    if (Zf) { tick(3u); goto L_ECE8; }
+    tick(2u);
+    goto L_ECD5;
+L_ECD5: if (g_yield_req) { g_resume = 0xECD5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x04u;
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    goto L_ED07;
+L_ECE8: if (g_yield_req) { g_resume = 0xECE8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0057u);
+    if (A == 1u) { goto L_ECF7; }
+    goto L_ECEE;
+L_ECEE: if (g_yield_req) { g_resume = 0xECEEu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u);
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    goto L_ECFD;
+L_ECF7: if (g_yield_req) { g_resume = 0xECF7u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0203u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_ECFD;
+L_ECFD: if (g_yield_req) { g_resume = 0xECFDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0000u, A);
+    tick(4u);
+    A = rd(0x0200u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x06u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0001u, A);
+    goto L_ED07;
+L_ED07: if (g_yield_req) { g_resume = 0xED07u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x3Cu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x0Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_ED0C; goto L_EFE8;
+L_ED0C: if (g_yield_req) { g_resume = 0xED0Cu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 1u) { goto L_ED34; }
+    goto L_ED12;
+L_ED12: if (g_yield_req) { g_resume = 0xED12u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x005Du, A);
+    goto L_ED16;
+L_ED16: if (g_yield_req) { g_resume = 0xED16u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x18u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED19; goto L_EFD5;
+L_ED19: if (g_yield_req) { g_resume = 0xED19u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x1Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_ED1C; goto L_EAEC;
+L_ED1C: if (g_yield_req) { g_resume = 0xED1Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x3Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x20u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED21; goto L_C847;
+L_ED21: if (g_yield_req) { g_resume = 0xED21u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x23u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED24; goto L_EFEF;
+L_ED24: if (g_yield_req) { g_resume = 0xED24u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_ED57; }
+    tick(2u);
+    goto L_ED26;
+L_ED26: if (g_yield_req) { g_resume = 0xED26u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x005Du);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x005Du, A);
+    if (A == 9u) { goto L_ED85; }
+    goto L_ED31;
+L_ED31: if (g_yield_req) { g_resume = 0xED31u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_ED16;
+L_ED34: if (g_yield_req) { g_resume = 0xED34u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00AEu, A);
+    goto L_ED38;
+L_ED38: if (g_yield_req) { g_resume = 0xED38u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x3Au); --SP;
+    ret_lbl[ret_sp++] = &&L_ED3B; goto L_EFDD;
+L_ED3B: if (g_yield_req) { g_resume = 0xED3Bu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x3Du); --SP;
+    ret_lbl[ret_sp++] = &&L_ED3E; goto L_EAEC;
+L_ED3E: if (g_yield_req) { g_resume = 0xED3Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x3Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x42u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED43; goto L_C847;
+L_ED43: if (g_yield_req) { g_resume = 0xED43u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x45u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED46; goto L_EFEF;
+L_ED46: if (g_yield_req) { g_resume = 0xED46u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_ED57; }
+    tick(2u);
+    goto L_ED48;
+L_ED48: if (g_yield_req) { g_resume = 0xED48u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00AEu) + 1u); wr(0x00AEu, t); }
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(3u);
+    X = rd(0x0053u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x00F6u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC1F6u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_ED85; }
+    tick(2u);
+    goto L_ED54;
+L_ED54: if (g_yield_req) { g_resume = 0xED54u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_ED38;
+L_ED57: if (g_yield_req) { g_resume = 0xED57u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x02u;
+    tick(3u);
+    wr(0x00FFu, A);
+    tick(3u);
+    A = rd(0x0000u);
+    tick(3u);
+    wr(0x0005u, A);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    wr(0x0006u, A);
+    tick(3u);
+    A = rd(0x0053u);
+    if (A != 1u) { goto L_ED74; }
+    goto L_ED69;
+L_ED69: if (g_yield_req) { g_resume = 0xED69u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x005Du);
+    tick(4u);
+    wr((u16)(0x0068u + X), A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_ED87;
+L_ED74: if (g_yield_req) { g_resume = 0xED74u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x10u;
+    tick(3u);
+    wr(0x0040u, A);
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    X = rd(0x00AEu);
+    tick(4u);
+    wr((u16)(0x00E0u + X), A);
+    tick(4u);
+    wr((u16)(0x00DBu + X), A);
+    tick(2u);
+    A = 0x01u;
+    tick(3u);
+    goto L_ED87;
+L_ED85: if (g_yield_req) { g_resume = 0xED85u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_ED87;
+L_ED87: if (g_yield_req) { g_resume = 0xED87u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00BFu, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_ED8A: if (g_yield_req) { g_resume = 0xED8Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00AEu, A);
+    tick(2u);
+    A = 0x3Au; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x92u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED93; goto L_C847;
+L_ED93: if (g_yield_req) { g_resume = 0xED93u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x95u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED96; goto L_EFDD;
+L_ED96: if (g_yield_req) { g_resume = 0xED96u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x98u); --SP;
+    ret_lbl[ret_sp++] = &&L_ED99; goto L_EAEC;
+L_ED99: if (g_yield_req) { g_resume = 0xED99u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0x9Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_ED9C; goto L_EFEF;
+L_ED9C: if (g_yield_req) { g_resume = 0xED9Cu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_EDAD; }
+    tick(2u);
+    goto L_ED9E;
+L_ED9E: if (g_yield_req) { g_resume = 0xED9Eu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00AEu) + 1u); wr(0x00AEu, t); }
+    tick(3u);
+    A = rd(0x00AEu);
+    tick(3u);
+    X = rd(0x0053u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(4u + ((0x00F6u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xC1F6u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); { const u8 _n2az = (u8)t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_EDB5; }
+    tick(2u);
+    goto L_EDAA;
+L_EDAA: if (g_yield_req) { g_resume = 0xEDAAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_ED93;
+L_EDAD: if (g_yield_req) { g_resume = 0xEDADu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0xAFu); --SP;
+    ret_lbl[ret_sp++] = &&L_EDB0; goto L_EF51;
+L_EDB0: if (g_yield_req) { g_resume = 0xEDB0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(3u);
+    wr(0x0096u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EDB5: if (g_yield_req) { g_resume = 0xEDB5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 10u) { goto L_EDC4; }
+    goto L_EDBB;
+L_EDBB: if (g_yield_req) { g_resume = 0xEDBBu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0053u);
+    if (A == 1u) { goto L_EDC4; }
+    goto L_EDC1;
+L_EDC1: if (g_yield_req) { g_resume = 0xEDC1u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xEDu); --SP;
+    wr(0x100u + SP, 0xC3u); --SP;
+    ret_lbl[ret_sp++] = &&L_EDC4; goto L_ECBF;
+L_EDC4: if (g_yield_req) { g_resume = 0xEDC4u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CFC6: if (g_yield_req) { g_resume = 0xCFC6u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x000Fu, Y);
+    tick(6u);
+    wr(0x100u + SP, 0xCFu); --SP;
+    wr(0x100u + SP, 0xCCu); --SP;
+    ret_lbl[ret_sp++] = &&L_CFCD; goto L_D008;
+L_CFCD: if (g_yield_req) { g_resume = 0xCFCDu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00C0u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x02C0u + Y));
+    if (A != 255u) { goto L_CFF9; }
+    goto L_CFD4;
+L_CFD4: if (g_yield_req) { g_resume = 0xCFD4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0005u);
+    tick(5u);
+    wr((u16)(0x02C3u + Y), A);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(5u);
+    wr((u16)(0x02C7u + Y), A);
+    tick(3u);
+    A = rd(0x0006u);
+    tick(5u);
+    wr((u16)(0x02C0u + Y), A);
+    tick(5u);
+    wr((u16)(0x02C4u + Y), A);
+    tick(4u + ((0x0004u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC604u + X));
+    tick(5u);
+    wr((u16)(0x02C1u + Y), A);
+    tick(2u);
+    A = 0xD4u;
+    tick(5u);
+    wr((u16)(0x02C5u + Y), A);
+    tick(3u);
+    X = rd(0x000Fu);
+    tick(2u);
+    A = 0x03u;
+    tick(4u);
+    wr((u16)(0x0041u + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_CFF9: if (g_yield_req) { g_resume = 0xCFF9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u);
+    { u8 t = (u8)(rd(0x000Fu) + 1u); wr(0x000Fu, t); }
+    if (((u8)(Y - 16u) & 0x80u) != 0) { goto L_CFCD; }
+    goto L_D007;
+L_D007: if (g_yield_req) { g_resume = 0xD007u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EF51: if (g_yield_req) { g_resume = 0xEF51u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0096u);
+    if (A != 10u) { goto L_EF71; }
+    goto L_EF57;
+L_EF57: if (g_yield_req) { g_resume = 0xEF57u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00A0u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_EF71; }
+    tick(2u);
+    goto L_EF5B;
+L_EF5B: if (g_yield_req) { g_resume = 0xEF5Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    tick(2u);
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0x00u;
+    tick(5u);
+    wr((u16)(0x0451u + X), A);
+    tick(2u);
+    A = X;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    X = A;
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x02D0u + X), A);
+    tick(5u);
+    wr((u16)(0x02D4u + X), A);
+    goto L_EF71;
+L_EF71: if (g_yield_req) { g_resume = 0xEF71u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EE6C: if (g_yield_req) { g_resume = 0xEE6Cu; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0202u + X), A);
+    tick(5u);
+    wr((u16)(0x0206u + X), A);
+    tick(5u);
+    wr((u16)(0x020Au + X), A);
+    tick(5u);
+    wr((u16)(0x020Eu + X), A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_EF38: if (g_yield_req) { g_resume = 0xEF38u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x24u;
+    tick(3u);
+    wr(0x00CDu, A);
+    tick(3u);
+    wr(0x00CEu, A);
+    tick(3u);
+    wr(0x00CFu, A);
+    tick(3u);
+    wr(0x00D0u, A);
+    tick(4u + ((0x00D6u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5D6u + X));
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u + ((0x00E9u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC5E9u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = 0x48u;
+    tick(3u);
+    goto L_C815;
+L_F063: if (g_yield_req) { g_resume = 0xF063u; g_yield_req = 0u; return; } 
+    tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F069: if (g_yield_req) { g_resume = 0xF069u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F062: if (g_yield_req) { g_resume = 0xF062u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F063;
+L_F11E: if (g_yield_req) { g_resume = 0xF11Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0002u);
+    tick(3u);
+    X = rd(0x0008u);
+    tick(2u);
+    Y = 0x01u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F124;
+L_F124: if (g_yield_req) { g_resume = 0xF124u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
+    tick(2u);
+    A = (u8)(A & 0x3Fu);
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F124; }
+    tick(2u);
+    goto L_F138;
+L_F138: if (g_yield_req) { g_resume = 0xF138u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F195: if (g_yield_req) { g_resume = 0xF195u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F197;
+L_F197: if (g_yield_req) { g_resume = 0xF197u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0006u);
+    tick(3u);
+    A = rd(0x0001u);
+    tick(3u);
+    wr(0x0009u, A);
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F19F;
+L_F19F: if (g_yield_req) { g_resume = 0xF19Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F19F; }
+    tick(2u);
+    goto L_F1A8;
+L_F1A8: if (g_yield_req) { g_resume = 0xF1A8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0007u) - 1u); wr(0x0007u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_F197; }
+    tick(2u);
+    goto L_F1B3;
+L_F1B3: if (g_yield_req) { g_resume = 0xF1B3u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F161: if (g_yield_req) { g_resume = 0xF161u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x01u;
+    tick(3u);
+    wr(0x000Au, Y);
+    tick(3u);
+    A = rd(0x0008u);
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0006u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_F16A;
+L_F16A: if (g_yield_req) { g_resume = 0xF16Au; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = A;
+    tick(3u);
+    wr(0x000Bu, A);
+    tick(3u);
+    X = rd(0x0006u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F16F;
+L_F16F: if (g_yield_req) { g_resume = 0xF16Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    A = Y;
+    tick(3u);
+    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    Y = rd(0x000Au);
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
+    tick(2u);
+    A = (u8)(A & 0x3Fu);
+    tick(2u);
+    A = (u8)(A ^ 0x40u);
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    wr(0x000Au, Y);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    Y = A;
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F16F; }
+    tick(2u);
+    goto L_F18D;
+L_F18D: if (g_yield_req) { g_resume = 0xF18Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x000Bu);
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0006u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Nf) { tick(3u); goto L_F16A; }
+    tick(2u);
+    goto L_F194;
+L_F194: if (g_yield_req) { g_resume = 0xF194u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F139: if (g_yield_req) { g_resume = 0xF139u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F13B;
+L_F13B: if (g_yield_req) { g_resume = 0xF13Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0006u);
+    tick(3u);
+    A = rd(0x0001u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x0009u, A);
+    goto L_F141;
+L_F141: if (g_yield_req) { g_resume = 0xF141u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0009u);
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0009u, A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    A = rd(0x0000u);
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F141; }
+    tick(2u);
+    goto L_F155;
+L_F155: if (g_yield_req) { g_resume = 0xF155u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0000u);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0007u) - 1u); wr(0x0007u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_F13B; }
+    tick(2u);
+    goto L_F160;
+L_F160: if (g_yield_req) { g_resume = 0xF160u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F10A: if (g_yield_req) { g_resume = 0xF10Au; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x0003u);
+    tick(2u);
+    Y = 0x00u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F10E;
+L_F10E: if (g_yield_req) { g_resume = 0xF10Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu;
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(3u);
+    A = rd(0x0002u);
+    tick(6u);
+    wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F10E; }
+    tick(2u);
+    goto L_F11D;
+L_F11D: if (g_yield_req) { g_resume = 0xF11Du; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F24E: if (g_yield_req) { g_resume = 0xF24Eu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    Y = A;
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    X = rd(0x0330u);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC000u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF2u); --SP;
+    wr(0x100u + SP, 0x5Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_F25F; goto L_F32D;
+L_F25F: if (g_yield_req) { g_resume = 0xF25Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC000u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(6u);
+    wr(0x100u + SP, 0xF2u); --SP;
+    wr(0x100u + SP, 0x68u); --SP;
+    ret_lbl[ret_sp++] = &&L_F269; goto L_F32D;
+L_F269: if (g_yield_req) { g_resume = 0xF269u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC000u + Y));
+    tick(2u);
+    A = (u8)(A & 0x87u);
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(2u);
+    A = (u8)(A & 0x07u);
+    tick(3u);
+    wr(0x0002u, A);
+    tick(2u);
+    A = X;
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(6u);
+    wr(0x100u + SP, 0xF2u); --SP;
+    wr(0x100u + SP, 0x7Cu); --SP;
+    ret_lbl[ret_sp++] = &&L_F27D; goto L_F32F;
+L_F27D: if (g_yield_req) { g_resume = 0xF27Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(4u);
+    wr(0x0330u, X);
+    tick(2u);
+    A = 0x00u;
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(2u);
+    Y = (u8)(Y + 1u);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xC000u + Y));
+    tick(3u);
+    wr(0x0003u, A);
+    tick(2u);
+    X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(2u);
+    Cf = false;
+    goto L_F28E;
+L_F28E: if (g_yield_req) { g_resume = 0xF28Eu; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0020u + Y));
+    tick(2u);
+    A = (u8)(A & 0x0Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F296; }
+    tick(2u);
+    goto L_F295;
+L_F295: if (g_yield_req) { g_resume = 0xF295u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    goto L_F296;
+L_F296: if (g_yield_req) { g_resume = 0xF296u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_F29A; }
+    tick(2u);
+    goto L_F298;
+L_F298: if (g_yield_req) { g_resume = 0xF298u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x24u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F29A;
+L_F29A: if (g_yield_req) { g_resume = 0xF29Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0002u) - 1u); wr(0x0002u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_F2C4; }
+    tick(2u);
+    goto L_F2A2;
+L_F2A2: if (g_yield_req) { g_resume = 0xF2A2u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0020u + Y));
+    tick(2u);
+    A = (u8)(A & 0xF0u);
+    tick(3u);
+    wr(0x100u + SP, (u8)(0x30u | (Nf?0x80u:0u) | (Vf?0x40u:0u) | (Df?0x08u:0u) | (If?0x04u:0u) | (Zf?0x02u:0u) | (Cf?0x01u:0u))); --SP;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(4u);
+    { ++SP; const u8 q = rd(0x100u + SP); Nf=(q&0x80u)!=0; Vf=(q&0x40u)!=0; Df=(q&0x08u)!=0; If=(q&0x04u)!=0; Zf=(q&0x02u)!=0; Cf=(q&0x01u)!=0; }
+    if (Zf) { tick(3u); goto L_F2B0; }
+    tick(2u);
+    goto L_F2AF;
+L_F2AF: if (g_yield_req) { g_resume = 0xF2AFu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    goto L_F2B0;
+L_F2B0: if (g_yield_req) { g_resume = 0xF2B0u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(3u); goto L_F2B4; }
+    tick(2u);
+    goto L_F2B2;
+L_F2B2: if (g_yield_req) { g_resume = 0xF2B2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x24u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F2B4;
+L_F2B4: if (g_yield_req) { g_resume = 0xF2B4u; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(3u);
+    A = rd(0x0003u);
+    tick(2u);
+    A = (u8)(A & 0x01u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F2BE; }
+    tick(2u);
+    goto L_F2BD;
+L_F2BD: if (g_yield_req) { g_resume = 0xF2BDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = true;
+    goto L_F2BE;
+L_F2BE: if (g_yield_req) { g_resume = 0xF2BEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y - 1u);
+    tick(2u);
+    X = (u8)(X - 1u);
+    tick(5u);
+    { u8 t = (u8)(rd(0x0002u) - 1u); wr(0x0002u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_F28E; }
+    tick(2u);
+    goto L_F2C4;
+L_F2C4: if (g_yield_req) { g_resume = 0xF2C4u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0003u);
+    tick(2u);
+    A = (u8)(A & 0x10u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F2D6; }
+    tick(2u);
+    goto L_F2CA;
+L_F2CA: if (g_yield_req) { g_resume = 0xF2CAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(3u);
+    Y = rd(0x0001u);
+    tick(2u);
+    Cf = false;
+    tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x0020u + Y));
+    tick(2u);
+    { const u8 v = 0x37u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    goto L_F2D6;
+L_F2D6: if (g_yield_req) { g_resume = 0xF2D6u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F32D: if (g_yield_req) { g_resume = 0xF32Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = (u8)(X + 1u);
+    tick(2u);
+    A = X; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F32F;
+L_F32F: if (g_yield_req) { g_resume = 0xF32Fu; g_yield_req = 0u; return; } 
+    if (A < 63u) { goto L_F33D; }
+    goto L_F333;
+L_F333: if (g_yield_req) { g_resume = 0xF333u; g_yield_req = 0u; return; } 
+    tick(4u);
+    X = rd(0x0330u);
+    tick(2u);
+    A = 0x00u;
+    tick(5u);
+    wr((u16)(0x0331u + X), A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F33D;
+L_F33D: if (g_yield_req) { g_resume = 0xF33Du; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F3E3: if (g_yield_req) { g_resume = 0xF3E3u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF3u); --SP;
+    wr(0x100u + SP, 0xE5u); --SP;
+    ret_lbl[ret_sp++] = &&L_F3E6; goto L_F426;
+L_F3E6: if (g_yield_req) { g_resume = 0xF3E6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (A < 10u) { goto L_F3EE; }
+    goto L_F3EC;
+L_F3EC: if (g_yield_req) { g_resume = 0xF3ECu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { const u8 v = 0x05u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_F3EE;
+L_F3EE: if (g_yield_req) { g_resume = 0xF3EEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    A = rd(0x0003u);
+    tick(2u);
+    A = (u8)(A & 0xF0u);
+    tick(3u);
+    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (!Cf) { tick(3u); goto L_F3FF; }
+    tick(2u);
+    goto L_F3FB;
+L_F3FB: if (g_yield_req) { g_resume = 0xF3FBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { const u8 v = 0x5Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    Cf = true;
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F3FF: if (g_yield_req) { g_resume = 0xF3FFu; g_yield_req = 0u; return; } 
+    if (A >= 160u) { goto L_F3FB; }
+    goto L_F403;
+L_F403: if (g_yield_req) { g_resume = 0xF403u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F404: if (g_yield_req) { g_resume = 0xF404u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xF4u); --SP;
+    wr(0x100u + SP, 0x06u); --SP;
+    ret_lbl[ret_sp++] = &&L_F407; goto L_F426;
+L_F407: if (g_yield_req) { g_resume = 0xF407u; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x0001u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    if (Cf) { tick(3u); goto L_F417; }
+    tick(2u);
+    goto L_F40D;
+L_F40D: if (g_yield_req) { g_resume = 0xF40Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    { const u8 v = 0x0Au; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(3u);
+    wr(0x0001u, A);
+    tick(3u);
+    A = rd(0x0002u);
+    tick(2u);
+    { const u8 v = 0x0Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(3u);
+    wr(0x0002u, A);
+    goto L_F417;
+L_F417: if (g_yield_req) { g_resume = 0xF417u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0003u);
+    tick(2u);
+    A = (u8)(A & 0xF0u);
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0002u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (Cf) { tick(3u); goto L_F423; }
+    tick(2u);
+    goto L_F420;
+L_F420: if (g_yield_req) { g_resume = 0xF420u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { const u8 v = 0xA0u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(2u);
+    Cf = false;
+    goto L_F423;
+L_F423: if (g_yield_req) { g_resume = 0xF423u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = (u8)(A | rd(0x0001u));
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F426: if (g_yield_req) { g_resume = 0xF426u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(2u);
+    A = (u8)(A & 0x0Fu);
+    tick(3u);
+    wr(0x0001u, A);
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    A = (u8)(A & 0xF0u);
+    tick(3u);
+    wr(0x0002u, A);
+    tick(3u);
+    A = rd(0x0003u);
+    tick(2u);
+    A = (u8)(A & 0x0Fu);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_F522: if (g_yield_req) { g_resume = 0xF522u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x08u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F524;
+L_F524: if (g_yield_req) { g_resume = 0xF524u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x100u + SP, A); --SP;
+    tick(4u + ((0x0016u + X) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0x4016u + X));
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    A = (u8)(A | rd(0x0000u));
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(4u);
+    ++SP; A = rd(0x100u + SP);
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_F524; }
+    tick(2u);
+    goto L_F533;
+L_F533: if (g_yield_req) { g_resume = 0xF533u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x0000u, X);
+    tick(5u);
+    { u8 t = rd(0x0000u); Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); wr(0x0000u, t); }
+    tick(3u);
+    X = rd(0x0000u);
+    tick(4u);
+    Y = rd((u16)(0x0014u + X));
+    tick(3u);
+    wr(0x0000u, Y);
+    tick(4u);
+    wr((u16)(0x0014u + X), A);
+    tick(2u);
+    A = (u8)(A & 0xFFu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Nf) { tick(3u); goto L_F549; }
+    tick(2u);
+    goto L_F543;
+L_F543: if (g_yield_req) { g_resume = 0xF543u; g_yield_req = 0u; return; } 
+    tick(3u);
+    { const u8 v = rd(0x0000u); Zf = ((A & v) == 0); Nf = ((v & 0x80u) != 0); Vf = ((v & 0x40u) != 0); }
+    if (!Nf) { tick(3u); goto L_F549; }
+    tick(2u);
+    goto L_F547;
+L_F547: if (g_yield_req) { g_resume = 0xF547u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x7Fu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_F549;
+L_F549: if (g_yield_req) { g_resume = 0xF549u; g_yield_req = 0u; return; } 
+    tick(4u);
+    Y = rd((u16)(0x0015u + X));
+    tick(4u);
+    wr((u16)(0x0015u + X), A);
+    tick(2u);
+    A = Y;
+    tick(2u);
+    A = (u8)(A & 0x0Fu);
+    tick(4u);
+    A = (u8)(A & rd((u16)(0x0015u + X))); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_F55A; }
+    tick(2u);
+    goto L_F554;
+L_F554: if (g_yield_req) { g_resume = 0xF554u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A | 0xF0u);
+    tick(4u);
+    A = (u8)(A & rd((u16)(0x0015u + X))); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr((u16)(0x0015u + X), A);
+    goto L_F55A;
+L_F55A: if (g_yield_req) { g_resume = 0xF55Au; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FB75: if (g_yield_req) { g_resume = 0xFB75u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F0u, A);
+    tick(3u);
+    wr(0x00FBu, A);
+    tick(2u);
+    Y = 0x08u;
+    tick(3u);
+    goto L_FD67;
+L_FB7E: if (g_yield_req) { g_resume = 0xFB7Eu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F0u, Y);
+    tick(2u);
+    A = 0x71u;
+    tick(2u);
+    Y = 0x00u;
+    tick(2u);
+    X = 0x9Fu; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFBu); --SP;
+    wr(0x100u + SP, 0x88u); --SP;
+    ret_lbl[ret_sp++] = &&L_FB89; goto L_FA8F;
+L_FB89: if (g_yield_req) { g_resume = 0xFB89u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00F2u);
+    tick(4u + ((0x0067u + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xFB67u + X));
+    tick(5u);
+    { u8 t = (u8)(rd(0x00F1u) - 1u); wr(0x00F1u, t); }
+    tick(3u);
+    A = rd(0x00F1u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FB75; }
+    tick(2u);
+    goto L_FB94;
+L_FB94: if (g_yield_req) { g_resume = 0xFB94u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x07u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FBA0; }
+    tick(2u);
+    goto L_FB98;
+L_FB98: if (g_yield_req) { g_resume = 0xFB98u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(4u + ((0x0067u + X) > 0xFFu ? 1u : 0u));
+    { const u8 v = rd((u16)(0xFB67u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    Y = A; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FBA7; }
+    tick(2u);
+    goto L_FBA0;
+L_FBA0: if (g_yield_req) { g_resume = 0xFBA0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x03u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FBB2; }
+    tick(2u);
+    goto L_FBA4;
+L_FBA4: if (g_yield_req) { g_resume = 0xFBA4u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00F2u) + 1u); wr(0x00F2u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    tick(2u);
+    Cf = false;
+    goto L_FBA7;
+L_FBA7: if (g_yield_req) { g_resume = 0xFBA7u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4002u, Y);
+    tick(2u);
+    Y = 0x28u;
+    if (!Cf) { tick(3u); goto L_FBAF; }
+    tick(2u);
+    goto L_FBAE;
+L_FBAE: if (g_yield_req) { g_resume = 0xFBAEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y + 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FBAF;
+L_FBAF: if (g_yield_req) { g_resume = 0xFBAFu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4003u, Y);
+    goto L_FBB2;
+L_FBB2: if (g_yield_req) { g_resume = 0xFBB2u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    goto L_FE00;
+L_FBB7: if (g_yield_req) { g_resume = 0xFBB7u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F0u, Y);
+    tick(2u);
+    A = 0x54u;
+    tick(2u);
+    Y = 0x6Au;
+    tick(2u);
+    X = 0x9Cu; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFBu); --SP;
+    wr(0x100u + SP, 0xC1u); --SP;
+    ret_lbl[ret_sp++] = &&L_FBC2; goto L_FA8F;
+L_FBC2: if (g_yield_req) { g_resume = 0xFBC2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00F2u);
+    tick(3u);
+    A = rd(0x00F1u);
+    tick(2u);
+    A = (u8)(A & 0x03u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FBD4; }
+    tick(2u);
+    goto L_FBCA;
+L_FBCA: if (g_yield_req) { g_resume = 0xFBCAu; g_yield_req = 0u; return; } 
+    if (A != 3u) { goto L_FBD9; }
+    goto L_FBCE;
+L_FBCE: if (g_yield_req) { g_resume = 0xFBCEu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFBu); --SP;
+    wr(0x100u + SP, 0xD0u); --SP;
+    ret_lbl[ret_sp++] = &&L_FBD1; goto L_FAD5;
+L_FBD1: if (g_yield_req) { g_resume = 0xFBD1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F2u, A);
+    tick(2u);
+    Y = A; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FBD4;
+L_FBD4: if (g_yield_req) { g_resume = 0xFBD4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    { const u8 v = rd(0x00F2u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    Y = A; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FBD9;
+L_FBD9: if (g_yield_req) { g_resume = 0xFBD9u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(4u);
+    wr(0x4002u, A);
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(4u);
+    wr(0x4003u, A);
+    tick(3u);
+    A = rd(0x00F1u);
+    if (A >= 24u) { goto L_FC44; }
+    goto L_FBEA;
+L_FBEA: if (g_yield_req) { g_resume = 0xFBEAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    A = (u8)(A | 0x90u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x4000u, A);
+    if (!Zf) { tick(4u); goto L_FC44; }
+    tick(2u);
+    goto L_FBF2;
+L_FBF2: if (g_yield_req) { g_resume = 0xFBF2u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00FFu);
+    tick(3u);
+    A = rd(0x00F0u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    if (Cf) { tick(3u); goto L_FB89; }
+    tick(2u);
+    goto L_FBF9;
+L_FBF9: if (g_yield_req) { g_resume = 0xFBF9u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x00FFu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FFu, t); }
+    if (Cf) { tick(3u); goto L_FB7E; }
+    tick(2u);
+    goto L_FBFD;
+L_FBFD: if (g_yield_req) { g_resume = 0xFBFDu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00FAu); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FC4B; }
+    tick(2u);
+    goto L_FC01;
+L_FC01: if (g_yield_req) { g_resume = 0xFC01u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    if (Cf) { tick(4u); goto L_FBC2; }
+    tick(2u);
+    goto L_FC04;
+L_FC04: if (g_yield_req) { g_resume = 0xFC04u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x00FFu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FFu, t); }
+    if (Cf) { tick(4u); goto L_FBB7; }
+    tick(2u);
+    goto L_FC08;
+L_FC08: if (g_yield_req) { g_resume = 0xFC08u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    if (Cf) { tick(3u); goto L_FC28; }
+    tick(2u);
+    goto L_FC0B;
+L_FC0B: if (g_yield_req) { g_resume = 0xFC0Bu; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x00FFu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FFu, t); }
+    if (Cf) { tick(3u); goto L_FC19; }
+    tick(2u);
+    goto L_FC0F;
+L_FC0F: if (g_yield_req) { g_resume = 0xFC0Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    if (Cf) { tick(3u); goto L_FC62; }
+    tick(2u);
+    goto L_FC12;
+L_FC12: if (g_yield_req) { g_resume = 0xFC12u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x00FFu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FFu, t); }
+    if (Cf) { tick(3u); goto L_FC51; }
+    tick(2u);
+    goto L_FC16;
+L_FC16: if (g_yield_req) { g_resume = 0xFC16u; g_yield_req = 0u; return; } 
+    tick(3u);
+    goto L_FC90;
+L_FC19: if (g_yield_req) { g_resume = 0xFC19u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F0u, Y);
+    tick(2u);
+    A = 0x22u;
+    tick(3u);
+    wr(0x00F1u, A);
+    tick(2u);
+    Y = 0x0Bu;
+    tick(3u);
+    wr(0x00F2u, Y);
+    tick(2u);
+    A = 0x20u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFCu); --SP;
+    wr(0x100u + SP, 0x27u); --SP;
+    ret_lbl[ret_sp++] = &&L_FC28; goto L_FA9F;
+L_FC28: if (g_yield_req) { g_resume = 0xFC28u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00F2u) - 1u); wr(0x00F2u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_FC30; }
+    tick(2u);
+    goto L_FC2C;
+L_FC2C: if (g_yield_req) { g_resume = 0xFC2Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x07u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00F2u, A);
+    goto L_FC30;
+L_FC30: if (g_yield_req) { g_resume = 0xFC30u; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00F2u);
+    tick(4u + ((0x00F5u + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xFAF5u + X));
+    tick(2u);
+    X = 0x5Au;
+    tick(3u);
+    A = rd(0x00F1u);
+    if (A >= 20u) { goto L_FC41; }
+    goto L_FC3D;
+L_FC3D: if (g_yield_req) { g_resume = 0xFC3Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    A = (u8)(A | 0x50u);
+    tick(2u);
+    X = A; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FC41;
+L_FC41: if (g_yield_req) { g_resume = 0xFC41u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFCu); --SP;
+    wr(0x100u + SP, 0x43u); --SP;
+    ret_lbl[ret_sp++] = &&L_FC44; goto L_FA95;
+L_FC44: if (g_yield_req) { g_resume = 0xFC44u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00F1u) - 1u); wr(0x00F1u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_FC16; }
+    tick(2u);
+    goto L_FC48;
+L_FC48: if (g_yield_req) { g_resume = 0xFC48u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFCu); --SP;
+    wr(0x100u + SP, 0x4Au); --SP;
+    ret_lbl[ret_sp++] = &&L_FC4B; goto L_FAE0;
+L_FC4B: if (g_yield_req) { g_resume = 0xFC4Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00F0u, A);
+    if (Zf) { tick(3u); goto L_FC16; }
+    tick(2u);
+    goto L_FC51;
+L_FC51: if (g_yield_req) { g_resume = 0xFC51u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F0u, Y);
+    tick(2u);
+    A = 0x0Au;
+    tick(3u);
+    wr(0x00F1u, A);
+    tick(4u);
+    Y = rd(0x06F0u);
+    tick(4u);
+    wr(0x4002u, Y);
+    tick(2u);
+    A = 0x88u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x4003u, A);
+    goto L_FC62;
+L_FC62: if (g_yield_req) { g_resume = 0xFC62u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x0018u);
+    tick(2u);
+    A = (u8)(A & 0x08u);
+    tick(2u);
+    Cf = false;
+    tick(3u);
+    { const u8 v = rd(0x00F1u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { const u8 v = 0xFEu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    X = A;
+    tick(4u + ((0x00E5u + X) > 0xFFu ? 1u : 0u));
+    Y = rd((u16)(0xFAE5u + X));
+    tick(2u);
+    X = 0x41u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FC41; }
+    tick(2u);
+    goto L_FC73;
+L_FC73: if (g_yield_req) { g_resume = 0xFC73u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x0Eu;
+    tick(4u);
+    wr(0x06A5u, A);
+    tick(2u);
+    Y = 0x85u;
+    tick(2u);
+    A = 0x46u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFCu); --SP;
+    wr(0x100u + SP, 0x7Eu); --SP;
+    ret_lbl[ret_sp++] = &&L_FC7F; goto L_FAB3;
+L_FC7F: if (g_yield_req) { g_resume = 0xFC7Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x06A5u) - 1u); wr(0x06A5u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (Zf) { tick(3u); goto L_FC9D; }
+    tick(2u);
+    goto L_FC84;
+L_FC84: if (g_yield_req) { g_resume = 0xFC84u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x06A5u);
+    tick(2u);
+    A = (u8)(A | 0x90u);
+    tick(2u);
+    Y = A;
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x4004u, Y);
+    if (!Zf) { tick(3u); goto L_FC9D; }
+    tick(2u);
+    goto L_FC90;
+L_FC90: if (g_yield_req) { g_resume = 0xFC90u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00F3u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FC9D; }
+    tick(2u);
+    goto L_FC94;
+L_FC94: if (g_yield_req) { g_resume = 0xFC94u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x06A5u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FC7F; }
+    tick(2u);
+    goto L_FC99;
+L_FC99: if (g_yield_req) { g_resume = 0xFC99u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00FEu); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Nf) { tick(3u); goto L_FC73; }
+    tick(2u);
+    goto L_FC9D;
+L_FC9D: if (g_yield_req) { g_resume = 0xFC9Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00FCu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_FD0B; }
+    tick(2u);
+    goto L_FCA1;
+L_FCA1: if (g_yield_req) { g_resume = 0xFCA1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00F9u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_FD0B; }
+    tick(2u);
+    goto L_FCA5;
+L_FCA5: if (g_yield_req) { g_resume = 0xFCA5u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00FEu);
+    tick(4u);
+    A = rd(0x06A1u);
+    tick(5u);
+    { u8 t = rd(0x00FEu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FEu, t); }
+    if (Cf) { tick(3u); goto L_FCBA; }
+    tick(2u);
+    goto L_FCAE;
+L_FCAE: if (g_yield_req) { g_resume = 0xFCAEu; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    if (Cf) { tick(3u); goto L_FCBE; }
+    tick(2u);
+    goto L_FCB1;
+L_FCB1: if (g_yield_req) { g_resume = 0xFCB1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    if (Cf) { tick(3u); goto L_FCF0; }
+    tick(2u);
+    goto L_FCB4;
+L_FCB4: if (g_yield_req) { g_resume = 0xFCB4u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x00FEu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FEu, t); }
+    if (Cf) { tick(3u); goto L_FCDB; }
+    tick(2u);
+    goto L_FCB8;
+L_FCB8: if (g_yield_req) { g_resume = 0xFCB8u; g_yield_req = 0u; return; } 
+    if (!Cf) { tick(4u); goto L_FD0B; }
+    tick(2u);
+    goto L_FCBA;
+L_FCBA: if (g_yield_req) { g_resume = 0xFCBAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x28u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FCDD; }
+    tick(2u);
+    goto L_FCBE;
+L_FCBE: if (g_yield_req) { g_resume = 0xFCBEu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00F5u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FCC6; }
+    tick(2u);
+    goto L_FCC2;
+L_FCC2: if (g_yield_req) { g_resume = 0xFCC2u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = rd(0x00FEu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FEu, t); }
+    if (Cf) { tick(3u); goto L_FCDB; }
+    tick(2u);
+    goto L_FCC6;
+L_FCC6: if (g_yield_req) { g_resume = 0xFCC6u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00F6u);
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    { const u8 v = rd(0x00F6u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    if (!Cf) { tick(4u); goto L_FD00; }
+    tick(2u);
+    goto L_FCD1;
+L_FCD1: if (g_yield_req) { g_resume = 0xFCD1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x06A1u, A);
+    tick(4u);
+    wr(0x4008u, A);
+    if (Zf) { tick(4u); goto L_FD0B; }
+    tick(2u);
+    goto L_FCDB;
+L_FCDB: if (g_yield_req) { g_resume = 0xFCDBu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFEu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FCDD;
+L_FCDD: if (g_yield_req) { g_resume = 0xFCDDu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x06A1u, Y);
+    tick(2u);
+    X = 0x0Eu;
+    tick(3u);
+    wr(0x00F5u, X);
+    tick(2u);
+    Y = 0xFFu;
+    tick(4u);
+    wr(0x4008u, Y);
+    tick(2u);
+    Y = 0x08u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x400Bu, Y);
+    if (!Zf) { tick(4u); goto L_FD00; }
+    tick(2u);
+    goto L_FCF0;
+L_FCF0: if (g_yield_req) { g_resume = 0xFCF0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFEu;
+    tick(3u);
+    Y = rd(0x00F5u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FCD1; }
+    tick(2u);
+    goto L_FCF6;
+L_FCF6: if (g_yield_req) { g_resume = 0xFCF6u; g_yield_req = 0u; return; } 
+    if (Y == 7u) { goto L_FD00; }
+    goto L_FCFA;
+L_FCFA: if (g_yield_req) { g_resume = 0xFCFAu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00F6u);
+    tick(2u);
+    Y = A; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFCu); --SP;
+    wr(0x100u + SP, 0xFFu); --SP;
+    ret_lbl[ret_sp++] = &&L_FD00; goto L_FAD7;
+L_FD00: if (g_yield_req) { g_resume = 0xFD00u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F6u, A);
+    tick(4u);
+    wr(0x400Au, A);
+    tick(3u);
+    A = rd(0x00F5u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FD0B; }
+    tick(2u);
+    goto L_FD09;
+L_FD09: if (g_yield_req) { g_resume = 0xFD09u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00F5u) - 1u); wr(0x00F5u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_FD0B;
+L_FD0B: if (g_yield_req) { g_resume = 0xFD0Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    X = rd(0x00FAu); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FD58; }
+    tick(2u);
+    goto L_FD0F;
+L_FD0F: if (g_yield_req) { g_resume = 0xFD0Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00FCu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FD18; }
+    tick(2u);
+    goto L_FD13;
+L_FD13: if (g_yield_req) { g_resume = 0xFD13u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x06A3u, A);
+    if (Zf) { tick(3u); goto L_FD58; }
+    tick(2u);
+    goto L_FD18;
+L_FD18: if (g_yield_req) { g_resume = 0xFD18u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = (u8)(A ^ rd(0x06A3u)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FD35; }
+    tick(2u);
+    goto L_FD1D;
+L_FD1D: if (g_yield_req) { g_resume = 0xFD1Du; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00FCu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x06A3u, A);
+    tick(6u);
+    wr(0x100u + SP, 0xFDu); --SP;
+    wr(0x100u + SP, 0x24u); --SP;
+    ret_lbl[ret_sp++] = &&L_FD25; goto L_FA86;
+L_FD25: if (g_yield_req) { g_resume = 0xFD25u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x00CDu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFFCDu + Y));
+    tick(4u);
+    wr(0x0680u, A);
+    tick(2u);
+    A = 0xD4u;
+    tick(3u);
+    wr(0x00F5u, A);
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(3u);
+    wr(0x00F6u, A);
+    if (!Zf) { tick(3u); goto L_FD3A; }
+    tick(2u);
+    goto L_FD35;
+L_FD35: if (g_yield_req) { g_resume = 0xFD35u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0698u) - 1u); wr(0x0698u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_FD58; }
+    tick(2u);
+    goto L_FD3A;
+L_FD3A: if (g_yield_req) { g_resume = 0xFD3Au; g_yield_req = 0u; return; } 
+    tick(4u);
+    Y = rd(0x0680u);
+    tick(6u);
+    { u8 t = (u8)(rd(0x0680u) + 1u); wr(0x0680u, t); }
+    tick(5u + (((rd(0x00F5u) | (static_cast<eng::u16>(rd(0x00F6u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x00F5u) | ((u16)rd(0x00F6u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FD1D; }
+    tick(2u);
+    goto L_FD44;
+L_FD44: if (g_yield_req) { g_resume = 0xFD44u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } A = t; }
+    tick(2u);
+    A = X;
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    A = (u8)(A & 0x07u);
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x0062u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFB62u + Y));
+    tick(4u);
+    wr(0x0698u, A);
+    tick(2u);
+    A = 0x10u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFDu); --SP;
+    wr(0x100u + SP, 0x57u); --SP;
+    ret_lbl[ret_sp++] = &&L_FD58; goto L_FABA;
+L_FD58: if (g_yield_req) { g_resume = 0xFD58u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00FDu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FD62; }
+    tick(2u);
+    goto L_FD5C;
+L_FD5C: if (g_yield_req) { g_resume = 0xFD5Cu; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0102u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FD9B; }
+    tick(2u);
+    goto L_FD61;
+L_FD61: if (g_yield_req) { g_resume = 0xFD61u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FD62: if (g_yield_req) { g_resume = 0xFD62u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFDu); --SP;
+    wr(0x100u + SP, 0x64u); --SP;
+    ret_lbl[ret_sp++] = &&L_FD65; goto L_FA86;
+L_FD65: if (g_yield_req) { g_resume = 0xFD65u; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00FBu, Y);
+    goto L_FD67;
+L_FD67: if (g_yield_req) { g_resume = 0xFD67u; g_yield_req = 0u; return; } 
+    tick(4u + ((0x0059u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFE59u + Y));
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x0059u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFE59u + Y));
+    tick(4u);
+    wr(0x068Du, A);
+    tick(4u + ((0x005Au + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFE5Au + Y));
+    tick(3u);
+    wr(0x00F7u, A);
+    tick(4u + ((0x005Bu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFE5Bu + Y));
+    tick(3u);
+    wr(0x00F8u, A);
+    tick(4u + ((0x005Cu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFE5Cu + Y));
+    tick(3u);
+    wr(0x00F9u, A);
+    tick(4u + ((0x005Du + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFE5Du + Y));
+    tick(3u);
+    wr(0x00FAu, A);
+    tick(2u);
+    A = 0x01u;
+    tick(4u);
+    wr(0x0695u, A);
+    tick(4u);
+    wr(0x0696u, A);
+    tick(4u);
+    wr(0x0698u, A);
+    tick(4u);
+    wr(0x0102u, A);
+    tick(2u);
+    Y = 0x00u;
+    tick(3u);
+    wr(0x00F3u, Y);
+    tick(3u);
+    A = rd(0x00FBu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FDA4; }
+    tick(2u);
+    goto L_FD9B;
+L_FD9B: if (g_yield_req) { g_resume = 0xFD9Bu; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00FAu); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FDD8; }
+    tick(2u);
+    goto L_FD9F;
+L_FD9F: if (g_yield_req) { g_resume = 0xFD9Fu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0696u) - 1u); wr(0x0696u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_FDD8; }
+    tick(2u);
+    goto L_FDA4;
+L_FDA4: if (g_yield_req) { g_resume = 0xFDA4u; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00FAu) + 1u); wr(0x00FAu, t); }
+    tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x00F7u) | ((u16)rd(0x00F8u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FDE9; }
+    tick(2u);
+    goto L_FDAA;
+L_FDAA: if (g_yield_req) { g_resume = 0xFDAAu; g_yield_req = 0u; return; } 
+    if (!Nf) { tick(3u); goto L_FDB8; }
+    tick(2u);
+    goto L_FDAC;
+L_FDAC: if (g_yield_req) { g_resume = 0xFDACu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFDu); --SP;
+    wr(0x100u + SP, 0xAEu); --SP;
+    ret_lbl[ret_sp++] = &&L_FDAF; goto L_FACA;
+L_FDAF: if (g_yield_req) { g_resume = 0xFDAFu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0691u, A);
+    tick(3u);
+    Y = rd(0x00FAu);
+    tick(5u);
+    { u8 t = (u8)(rd(0x00FAu) + 1u); wr(0x00FAu, t); }
+    tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x00F7u) | ((u16)rd(0x00F8u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FDB8;
+L_FDB8: if (g_yield_req) { g_resume = 0xFDB8u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFDu); --SP;
+    wr(0x100u + SP, 0xBAu); --SP;
+    ret_lbl[ret_sp++] = &&L_FDBB; goto L_FA9F;
+L_FDBB: if (g_yield_req) { g_resume = 0xFDBBu; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_FDC1; }
+    tick(2u);
+    goto L_FDBD;
+L_FDBD: if (g_yield_req) { g_resume = 0xFDBDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x10u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FDCF; }
+    tick(2u);
+    goto L_FDC1;
+L_FDC1: if (g_yield_req) { g_resume = 0xFDC1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x9Fu;
+    tick(3u);
+    A = rd(0x00FBu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FDCF; }
+    tick(2u);
+    goto L_FDC7;
+L_FDC7: if (g_yield_req) { g_resume = 0xFDC7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x06u;
+    tick(3u);
+    A = rd(0x00F9u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FDCF; }
+    tick(2u);
+    goto L_FDCD;
+L_FDCD: if (g_yield_req) { g_resume = 0xFDCDu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x86u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FDCF;
+L_FDCF: if (g_yield_req) { g_resume = 0xFDCFu; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFDu); --SP;
+    wr(0x100u + SP, 0xD1u); --SP;
+    ret_lbl[ret_sp++] = &&L_FDD2; goto L_FA93;
+L_FDD2: if (g_yield_req) { g_resume = 0xFDD2u; g_yield_req = 0u; return; } 
+    tick(4u);
+    A = rd(0x0691u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(4u);
+    wr(0x0696u, A);
+    goto L_FDD8;
+L_FDD8: if (g_yield_req) { g_resume = 0xFDD8u; g_yield_req = 0u; return; } 
+    tick(3u);
+    A = rd(0x00FBu); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(4u); goto L_FE31; }
+    tick(2u);
+    goto L_FDDC;
+L_FDDC: if (g_yield_req) { g_resume = 0xFDDCu; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0695u) - 1u); wr(0x0695u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(4u); goto L_FE31; }
+    tick(2u);
+    goto L_FDE1;
+L_FDE1: if (g_yield_req) { g_resume = 0xFDE1u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00F3u);
+    tick(5u);
+    { u8 t = (u8)(rd(0x00F3u) + 1u); wr(0x00F3u, t); }
+    tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x00F7u) | ((u16)rd(0x00F8u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(4u); goto L_FE09; }
+    tick(2u);
+    goto L_FDE9;
+L_FDE9: if (g_yield_req) { g_resume = 0xFDE9u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFDu); --SP;
+    wr(0x100u + SP, 0xEBu); --SP;
+    ret_lbl[ret_sp++] = &&L_FDEC; goto L_FAE0;
+L_FDEC: if (g_yield_req) { g_resume = 0xFDECu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x00u;
+    tick(3u);
+    wr(0x00FAu, A);
+    tick(3u);
+    wr(0x00F3u, A);
+    tick(3u);
+    wr(0x00F9u, A);
+    tick(4u);
+    wr(0x0102u, A);
+    tick(3u);
+    Y = rd(0x00FBu); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(4u); goto L_FE00; }
+    tick(2u);
+    goto L_FDFB;
+L_FDFB: if (g_yield_req) { g_resume = 0xFDFBu; g_yield_req = 0u; return; } 
+    tick(4u);
+    Y = rd(0x06A1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FE03; }
+    tick(2u);
+    goto L_FE00;
+L_FE00: if (g_yield_req) { g_resume = 0xFE00u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4008u, A);
+    goto L_FE03;
+L_FE03: if (g_yield_req) { g_resume = 0xFE03u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x10u;
+    tick(4u);
+    wr(0x4004u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FE09: if (g_yield_req) { g_resume = 0xFE09u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFEu); --SP;
+    wr(0x100u + SP, 0x0Bu); --SP;
+    ret_lbl[ret_sp++] = &&L_FE0C; goto L_FAC4;
+L_FE0C: if (g_yield_req) { g_resume = 0xFE0Cu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0695u, A);
+    tick(2u);
+    A = X;
+    tick(2u);
+    A = (u8)(A & 0x3Eu);
+    tick(2u);
+    Y = 0x7Fu; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFEu); --SP;
+    wr(0x100u + SP, 0x16u); --SP;
+    ret_lbl[ret_sp++] = &&L_FE17; goto L_FAB3;
+L_FE17: if (g_yield_req) { g_resume = 0xFE17u; g_yield_req = 0u; return; } 
+    if (!Zf) { tick(3u); goto L_FE1D; }
+    tick(2u);
+    goto L_FE19;
+L_FE19: if (g_yield_req) { g_resume = 0xFE19u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x10u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FE2E; }
+    tick(2u);
+    goto L_FE1D;
+L_FE1D: if (g_yield_req) { g_resume = 0xFE1Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x89u;
+    tick(4u);
+    A = rd(0x0695u);
+    if (A >= 24u) { goto L_FE2E; }
+    goto L_FE26;
+L_FE26: if (g_yield_req) { g_resume = 0xFE26u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x86u;
+    if (A >= 16u) { goto L_FE2E; }
+    goto L_FE2C;
+L_FE2C: if (g_yield_req) { g_resume = 0xFE2Cu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x84u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FE2E;
+L_FE2E: if (g_yield_req) { g_resume = 0xFE2Eu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4004u, X);
+    goto L_FE31;
+L_FE31: if (g_yield_req) { g_resume = 0xFE31u; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00F9u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FE58; }
+    tick(2u);
+    goto L_FE35;
+L_FE35: if (g_yield_req) { g_resume = 0xFE35u; g_yield_req = 0u; return; } 
+    tick(6u);
+    { u8 t = (u8)(rd(0x0698u) - 1u); wr(0x0698u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    if (!Zf) { tick(3u); goto L_FE58; }
+    tick(2u);
+    goto L_FE3A;
+L_FE3A: if (g_yield_req) { g_resume = 0xFE3Au; g_yield_req = 0u; return; } 
+    tick(5u);
+    { u8 t = (u8)(rd(0x00F9u) + 1u); wr(0x00F9u, t); }
+    tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
+    A = rd((u16)((rd(0x00F7u) | ((u16)rd(0x00F8u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(6u);
+    wr(0x100u + SP, 0xFEu); --SP;
+    wr(0x100u + SP, 0x40u); --SP;
+    ret_lbl[ret_sp++] = &&L_FE41; goto L_FAC4;
+L_FE41: if (g_yield_req) { g_resume = 0xFE41u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x0698u, A);
+    tick(2u);
+    Cf = false;
+    tick(2u);
+    { const u8 v = 0xFEu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    if (A < 56u) { goto L_FE4F; }
+    goto L_FE4D;
+L_FE4D: if (g_yield_req) { g_resume = 0xFE4Du; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x38u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FE4F;
+L_FE4F: if (g_yield_req) { g_resume = 0xFE4Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    Y = rd(0x00FBu); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FE55; }
+    tick(2u);
+    goto L_FE53;
+L_FE53: if (g_yield_req) { g_resume = 0xFE53u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0xFFu; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FE55;
+L_FE55: if (g_yield_req) { g_resume = 0xFE55u; g_yield_req = 0u; return; } 
+    tick(6u);
+    wr(0x100u + SP, 0xFEu); --SP;
+    wr(0x100u + SP, 0x57u); --SP;
+    ret_lbl[ret_sp++] = &&L_FE58; goto L_FABA;
+L_FE58: if (g_yield_req) { g_resume = 0xFE58u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FA8F: if (g_yield_req) { g_resume = 0xFA8Fu; g_yield_req = 0u; return; } 
+    tick(3u);
+    wr(0x00F1u, A);
+    tick(3u);
+    wr(0x00F2u, Y);
+    goto L_FA93;
+L_FA93: if (g_yield_req) { g_resume = 0xFA93u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x7Fu; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FA95;
+L_FA95: if (g_yield_req) { g_resume = 0xFA95u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4000u, X);
+    tick(4u);
+    wr(0x4001u, Y);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FAD5: if (g_yield_req) { g_resume = 0xFAD5u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = Y;
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_FAD7;
+L_FAD7: if (g_yield_req) { g_resume = 0xFAD7u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(2u);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; }
+    tick(3u);
+    wr(0x0000u, A);
+    tick(2u);
+    A = Y;
+    tick(2u);
+    Cf = true;
+    tick(3u);
+    { const u8 v = rd(0x0000u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FA9F: if (g_yield_req) { g_resume = 0xFA9Fu; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = 0x00u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FAA1;
+L_FAA1: if (g_yield_req) { g_resume = 0xFAA1u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x0001u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFB01u + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (Zf) { tick(3u); goto L_FAB2; }
+    tick(2u);
+    goto L_FAA7;
+L_FAA7: if (g_yield_req) { g_resume = 0xFAA7u; g_yield_req = 0u; return; } 
+    tick(5u);
+    wr((u16)(0x4002u + X), A);
+    tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFB00u + Y));
+    tick(2u);
+    A = (u8)(A | 0x08u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    tick(5u);
+    wr((u16)(0x4003u + X), A);
+    goto L_FAB2;
+L_FAB2: if (g_yield_req) { g_resume = 0xFAB2u; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FAE0: if (g_yield_req) { g_resume = 0xFAE0u; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = 0x90u;
+    tick(4u);
+    wr(0x4000u, A);
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FAB3: if (g_yield_req) { g_resume = 0xFAB3u; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4005u, Y);
+    tick(2u);
+    X = 0x04u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FAA1; }
+    tick(2u);
+    goto L_FABA;
+L_FABA: if (g_yield_req) { g_resume = 0xFABAu; g_yield_req = 0u; return; } 
+    tick(4u);
+    wr(0x4008u, A);
+    tick(2u);
+    A = X;
+    tick(2u);
+    A = (u8)(A & 0x3Eu);
+    tick(2u);
+    X = 0x08u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FAA1; }
+    tick(2u);
+    goto L_FAC4;
+L_FAC4: if (g_yield_req) { g_resume = 0xFAC4u; g_yield_req = 0u; return; } 
+    tick(2u);
+    X = A;
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } A = t; }
+    tick(2u);
+    A = X;
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; }
+    tick(2u);
+    { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
+    goto L_FACA;
+L_FACA: if (g_yield_req) { g_resume = 0xFACAu; g_yield_req = 0u; return; } 
+    tick(2u);
+    A = (u8)(A & 0x07u);
+    tick(2u);
+    Cf = false;
+    tick(4u);
+    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
+    tick(2u);
+    Y = A;
+    tick(4u + ((0x004Cu + Y) > 0xFFu ? 1u : 0u));
+    A = rd((u16)(0xFB4Cu + Y));
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+L_FA86: if (g_yield_req) { g_resume = 0xFA86u; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = 0x07u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    goto L_FA88;
+L_FA88: if (g_yield_req) { g_resume = 0xFA88u; g_yield_req = 0u; return; } 
+    tick(2u);
+    { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; }
+    if (Cf) { tick(3u); goto L_FA8E; }
+    tick(2u);
+    goto L_FA8B;
+L_FA8B: if (g_yield_req) { g_resume = 0xFA8Bu; g_yield_req = 0u; return; } 
+    tick(2u);
+    Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
+    if (!Zf) { tick(3u); goto L_FA88; }
+    tick(2u);
+    goto L_FA8E;
+L_FA8E: if (g_yield_req) { g_resume = 0xFA8Eu; g_yield_req = 0u; return; } 
+    tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
+}
+
+[[gnu::used]] void n2a_frame(void) { g_engine_mode = 1u; n2a_run(); }
+[[gnu::used]] void game_main(void) {
+    for (;;) { n2a_frame(); if (halted) { return; } }
+}
+#if !defined(__m68k__) && !defined(N2A_NO_HOST_MAIN)
+int main() { game_main(); return 0; }
+#endif
