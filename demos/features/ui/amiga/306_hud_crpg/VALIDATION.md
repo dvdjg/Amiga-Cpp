@@ -3,18 +3,21 @@
 ## Contenido (regla 25) y H5/H6
 
 - **Dos regiones simultáneas** (cierre del H5): la banda (verbos + rejilla + tooltip) y un **overlay** en pantalla con dos botones (EQUIP/DROP) pintados sobre el campo; el juego despacha de delante hacia atrás con `hud_hit_test_region` (las entradas llevan `HudHitRect::region`; HOST-469 lo verifica). El overlay se comprueba además por conteo de píxeles en su caja (9.984 px pintados en la captura).
-- **Tema con presets y cambio en caliente** (H6): `hud_theme_classic()` ↔ `hud_theme_amber()` cada 300 frames con repintado completo de la banda; el tema es **contrato de la región** (`set_region_theme`/`region_theme`, instantánea por valor en el modelo; HOST-472 verifica).
+- **Tema con presets y cambio en caliente** (H6): `hud_theme_classic()` ↔ `hud_theme_amber()` cada 300 frames con repintado completo de la banda; el tema es **contrato de la región** (`set_region_theme`/`region_theme`, instantánea por valor en el modelo; HOST-472 verifica). **Ciclo verificado en vivo** (2026-10-19): contador `iconset`=2 en 16,5 s (825 frames) y la secuencia captura el cambio (iconos rojo→blanco, verbos LOOK→TAKE→USE, fps 43,9→45,0).
+- **Conjunto de iconos conmutable** (H6): `IconSet` A/B (mapeo tipo→frame del atlas + remapeo de los colores del icono), cambiado con el tema y reconstruyendo las vistas por el puente RPG (`rebuild_slots`); contador 3 (`iconset`) como evidencia de memoria.
 - **Atlas de iconos integrado** (H6): `src/prebuild.sh` regenera `out/assets/hud/test_icons` con `tools/assets/hud-atlas.mjs` y la demo incbina el `.bin` (2 planos, interleaved por filas, color 0 = transparente) pintándolo por CPU en una **pasada de iconos** tras el `apply`; la visión lee las **formas** de las celdas (cuadrado, cruz, círculo, rombo — ya no son tiras de color).
+- **Espera de VBlank activa** (`run_demo(..., VblankWait::Active)`, familia 212/DT-011): con el bucle por señal la app quedaba **estancada de forma determinista a los ~262 frames** (el SO vivo apagaba el latido; el frame no volvía a avanzar y el ciclo de 300 frames nunca se disparaba). Con la espera activa (IRQ + sondeo de VPOS) la demo corre indefinidamente (825 frames medidos) y el ciclo se dispara.
 
-## Medidas (A500_debug, ventana de 8 s)
+## Medidas (A500_debug, ventana de 16,5 s, espera activa)
 
 | Métrica | Valor | Fuente |
 |---|---|---|
-| `fps10` | **499** (49,9 fps) | contador 0 |
+| `fps10` | **439-499** (43,9-49,9 fps; el mínimo coincide con las ventanas que contienen un repintado completo por cambio de tema) | contador 0 |
 | `state` | verbo*100 + selección (p. ej. 499 = verbo 4, sin selección) | contador 1 |
-| `aframe` | frames de guion (se **reinicia con entrada real**: ratón/joystick) | contador 2 |
+| `aframe` | frames de guion (se **reinicia con entrada real**: ratón/joystick); 726 en la ventana larga | contador 2 |
+| `iconset` | **2** — cambios de conjunto de iconos (dispara el ciclo de tema cada 300 frames) | contador 3 |
 
-Sin picos medidos con la instrumentación temporal (retirada): el frame repinta solo las celdas/verbos cuyo estado cambió + la línea del tooltip al expirar. La cadencia queda por debajo de los 49,9 de la 302 (misma familia que DT-036: pérdida de latidos fuera del coste del demo); **SIN VERIFICAR** el desglose por sección (DT-036 sigue abierta).
+Sin picos medidos con la instrumentación temporal (retirada): el frame repinta solo las celdas/verbos cuyo estado cambió + la línea del tooltip al expirar; el cambio de tema repinta la banda completa cada 300 frames. La pérdida de latidos de la familia DT-036 queda resuelta en esta demo con la espera activa.
 
 ## Evidencia de memoria (gate `analyze-sequence.sh`)
 

@@ -52,6 +52,18 @@ constexpr u16 kAtlasStrideWords = 16u; // palabras por frame y plano (16 filas x
 // Palabras por frame: planos x stride (interleaved por filas: [fila0 p0][fila0 p1]...).
 constexpr u16 kAtlasFrameWords = static_cast<u16>(kAtlasPlanes * kAtlasStrideWords);
 
+// **Conjuntos de iconos** (H6, lado juego): tipo de objeto -> frame del atlas + remapeo de
+// los 2 bits de color del atlas (indice de paleta de la franja). El modelo no cambia: el
+// puente resuelve `HudSlotView::icon_frame` con la tabla vigente y la pasada de iconos
+// recolorea. A = canonico (frame = tipo, colores identicos); B = intercambia los tipos 1 y 3
+// y recolorea los iconos (visible al ciclar el tema).
+constexpr u16 kIconFramesA[5] = {0u, 1u, 2u, 3u, 0u};
+constexpr u16 kIconFramesB[5] = {0u, 3u, 2u, 1u, 0u};
+constexpr u8 kIconColorsA[4] = {0u, 1u, 2u, 3u}; // identidad (0 = transparente)
+constexpr u8 kIconColorsB[4] = {0u, 2u, 3u, 1u}; // recoloreado del skin B
+constexpr eng::hud::IconSet kIconSetA {kIconFramesA, kIconColorsA, 5u};
+constexpr eng::hud::IconSet kIconSetB {kIconFramesB, kIconColorsB, 5u};
+
 constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
 
@@ -184,21 +196,14 @@ struct HudCrpgDemo {
 			}
 			m_equipment.slots[0u] = m_bag.at(0u); // la llave, equipada
 		}
-		// Tabla de iconos del juego: frame = tipo (0 = sin objeto).
-		constexpr u16 kIcons[5] = {0u, 1u, 2u, 3u, 4u};
-
-		// (4) Rejilla del inventario + puente RPG -> vistas.
+		// (4) Rejilla del inventario + puente RPG -> vistas (con el conjunto de iconos A).
 		m_grid = m_hud.add_grid(kGridRows, kGridCols, kCell, kCell);
 		if (!m_grid.valid()) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
-		eng::hud::HudSlotView slots[kSlotCount] {};
-		(void)eng::rpg::hud_slots_from_bag(
-			m_bag, m_store, eng::Span<const u16> {kIcons, 5u},
-			eng::Span<eng::hud::HudSlotView> {slots, kSlotCount}, &m_equipment);
-		if (!m_hud.bind_grid(m_grid, eng::Span<const eng::hud::HudSlotView> {slots,
-										    kSlotCount})) {
+		m_iconset = kIconSetA;
+		if (!rebuild_slots()) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
@@ -333,6 +338,8 @@ struct HudCrpgDemo {
 		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>(kCntFps10));
 		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("state"));
 		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("aframe"));
+		// Cambios de conjunto de iconos (H6): el gate comprueba que el skin cicla.
+		eng::debug::DebugPeripheral::counter_name(3u, reinterpret_cast<eng::u32>("iconset"));
 		eng::amiga::mark_ready();
 	}
 
@@ -432,6 +439,12 @@ struct HudCrpgDemo {
 			m_prev_theme = want;
 			m_theme = (want == 0u) ? eng::hud::hud_theme_classic()
 					       : eng::hud::hud_theme_amber();
+			// **Conjunto de iconos del skin** (H6): cambia con el tema y se reconstruyen
+			// las vistas (el puente resuelve tipo->frame con la tabla nueva; el modelo solo
+			// ve frames). El contador 3 prueba el cambio (evidencia de memoria del gate).
+			m_iconset = (want == 0u) ? kIconSetA : kIconSetB;
+			(void)rebuild_slots();
+			eng::debug::DebugPeripheral::counter_value(3u, ++m_iconset_changes);
 			// El tema es **contrato de la region** (H6): el modelo guarda la instantanea.
 			(void)m_hud.set_region_theme(m_region, m_theme);
 			repaint_all();
@@ -710,6 +723,19 @@ private:
 		}
 	}
 
+	/// (Re)construye las vistas de las celdas con el **conjunto de iconos** vigente (H6): el
+	/// puente RPG mapea tipo->frame con la tabla del conjunto activo y el modelo solo ve
+	/// frames ya resueltos. Se llama al init y al cambiar de conjunto en caliente.
+	bool rebuild_slots() {
+		eng::hud::HudSlotView slots[kSlotCount] {};
+		(void)eng::rpg::hud_slots_from_bag(
+			m_bag, m_store,
+			eng::Span<const u16> {m_iconset.frames, m_iconset.count},
+			eng::Span<eng::hud::HudSlotView> {slots, kSlotCount}, &m_equipment);
+		return m_hud.bind_grid(m_grid,
+				       eng::Span<const eng::hud::HudSlotView> {slots, kSlotCount});
+	}
+
 	/// **Pasada de iconos** (H6): lee el atlas (2 planos, interleaved por filas, bit 15 =
 	/// pixel 0, color 0 = transparente) y pinta la trama de cada celda marcada en el lienzo
 	/// de la banda; la barra de cantidad va encima. Debe correr DESPUES de `m_strip.apply`
@@ -742,9 +768,12 @@ private:
 						((p0 & bit) != 0u ? 1u : 0u) |
 						((p1 & bit) != 0u ? 2u : 0u));
 					if (c != 0u) {
+						// Recoloreado del **conjunto de iconos** (H6): el color del
+						// atlas se remapea al indice de paleta del skin vigente.
 						(void)surf.set_pixel(
 							static_cast<s16>(cx + static_cast<s16>(px)),
-							static_cast<s16>(cy + static_cast<s16>(row)), c);
+							static_cast<s16>(cy + static_cast<s16>(row)),
+							m_iconset.color_for(c));
 					}
 				}
 			}
@@ -938,6 +967,8 @@ private:
 	eng::hud::RegionHandle m_region {};
 	eng::hud::RegionHandle m_region2 {}; ///< overlay (segunda region: botones en pantalla)
 	eng::hud::HudTheme m_theme = eng::hud::hud_theme_classic(); ///< tema vigente (H6)
+	eng::hud::IconSet m_iconset = kIconSetA; ///< conjunto de iconos vigente (H6, lado juego)
+	u32 m_iconset_changes = 0u;              ///< cambios de conjunto de iconos (contador 3)
 	u8 m_prev_theme = 0u;  ///< 0 = clasico, 1 = ambar (para el cambio en caliente)
 	s16 m_ov_hover = -1;   ///< boton del overlay bajo el puntero (-1 = ninguno)
 	u16 m_icon_pass[kSlotCount] {}; ///< celdas marcadas para la pasada de iconos (H6)
@@ -992,5 +1023,9 @@ int main() {
 	// Interleaved: la escena expone su `CanvasPlayfield` y `band_from_view` lo compone.
 	display.layout = eng::graphics::PlaneLayout::Interleaved;
 	display.palette = kGamePalette;
-	return eng::amiga::run_demo(g_game, display);
+	// **Espera de VBlank activa** (familia 212/DT-011, receta DT-042): con la espera por
+	// senal el planificador del SO vivo apagaba el latido en ciertas fases y la tarea
+	// quedaba dormida para siempre (frame clavado a los ~262, ver DT-036); la espera
+	// activa (IRQ + sondeo de VPOS) es la variante recomendada con trabajo variable/frame.
+	return eng::amiga::run_demo(g_game, display, eng::amiga::VblankWait::Active);
 }

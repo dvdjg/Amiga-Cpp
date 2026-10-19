@@ -263,6 +263,36 @@ void test_region() {
 	CHECK(hud.region(eng::hud::RegionHandle {0u}).band.height == 48u);
 }
 
+/// **Conjunto de iconos** (H6): mapeo tipo->frame y recoloreado del atlas, lado juego; el
+/// modelo solo lleva el frame resuelto (`HudSlotView::icon_frame`).
+void test_icon_set() {
+	// Las tablas del conjunto necesitan direccion estable (el `IconSet` guarda punteros):
+	// `static` a nivel de funcion (patron del lado juego, que las declara en su .rodata).
+	static constexpr eng::u16 frames[3] = {1u, 3u, 0u};
+	static constexpr eng::u8 colors[4] = {0u, 2u, 3u, 1u};
+	static constexpr eng::hud::IconSet set {frames, colors, 3u};
+
+	CHECK(set.frame_for(0u) == 1u);
+	CHECK(set.frame_for(1u) == 3u);
+	CHECK(set.frame_for(2u) == 0u);
+	CHECK(set.frame_for(3u) == 0u); // tipo no declarado -> sin icono
+	CHECK(set.frame_for(200u) == 0u); // fuera de rango -> sin icono
+
+	CHECK(set.color_for(0u) == 0u); // el 0 sigue transparente (un skin no lo vuelve opaco)
+	CHECK(set.color_for(1u) == 2u);
+	CHECK(set.color_for(2u) == 3u);
+	CHECK(set.color_for(3u) == 1u);
+
+	constexpr eng::hud::IconSet identity {}; // vacío: todo resuelve a "sin icono"/identidad
+	CHECK(identity.frame_for(0u) == 0u);
+	CHECK(identity.color_for(2u) == 2u);
+	CHECK(identity.color_for(0u) == 0u);
+
+	constexpr eng::hud::IconSet no_colors {frames, nullptr, 3u};
+	CHECK(no_colors.color_for(2u) == 2u); // sin tabla de colores: identidad
+	CHECK(no_colors.frame_for(1u) == 3u);
+}
+
 } // namespace
 
 int main() {
@@ -272,6 +302,7 @@ int main() {
 	test_grid();
 	test_drag();
 	test_region();
+	test_icon_set();
 	if (g_fail == 0) {
 		std::printf("HOST-467 hud_model: OK\n");
 		return 0;

@@ -5,12 +5,14 @@
 # Doble evidencia (leccion DT-035): la captura por paso de este entorno puede
 # servir **video congelado**, asi que:
 #   1. **Memoria** (contadores del periferico tras una ventana larga): `fps10`
-#      (cadencia), `aframe` (el guion avanzo: recorre y activa) y `state`
-#      (verbo/seleccion vigentes). Un `aframe` alto prueba la interaccion sin
-#      depender del video.
-#   2. **Visual** (secuencia por paso): presencia de texto, amarillo (verbo
-#      activo), rojo (foco) y linea de estado en la franja; los chequeos de
-#      animacion del verificador son informativos (el video puede congelarse).
+#      (cadencia), `aframe` (el guion avanzo: recorre y activa), `state`
+#      (verbo/seleccion vigentes) e `iconset` (el **ciclo de tema/skin** se
+#      disparo: >=1 cambio en la ventana, con la app corriendo de verdad >300
+#      frames — familia 212/DT-011 resuelta con la espera activa de VBlank).
+#   2. **Visual** (secuencia por intervalos): presencia de texto, amarillo
+#      (verbo activo), rojo (foco) e iconos del atlas en la franja; los
+#      chequeos de animacion del verificador son informativos (el video puede
+#      congelarse: DT-023/035).
 #
 # Uso: demos/features/ui/amiga/306_hud_crpg/analyze-sequence.sh [--warp]
 # ---------------------------------------------------------------------------
@@ -20,15 +22,18 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 DEMO="demos/features/ui/amiga/306_hud_crpg"
 
 # --- 1) Evidencia de memoria: ventana larga + contadores --------------------
-COUNTERS_OUT="$(bash "$ROOT/tools/run/run-demo.sh" "$DEMO" --settle-ms 8000 \
+# 9 s (~450 frames a 50 fps) garantizan al menos un ciclo de tema (cada 300).
+COUNTERS_OUT="$(bash "$ROOT/tools/run/run-demo.sh" "$DEMO" --settle-ms 9000 \
 	--read-debugperiph counters 2>&1)"
-echo "$COUNTERS_OUT" | grep -E 'name="(fps10|aframe|state)"' || true
+echo "$COUNTERS_OUT" | grep -E 'name="(fps10|aframe|state|iconset)"' || true
 FPS10="$(echo "$COUNTERS_OUT" | grep 'name="fps10"' | grep -o 'value=[0-9]*' | cut -d= -f2)"
 AFRAME="$(echo "$COUNTERS_OUT" | grep 'name="aframe"' | grep -o 'value=[0-9]*' | cut -d= -f2)"
 STATE="$(echo "$COUNTERS_OUT" | grep 'name="state"' | grep -o 'value=[0-9]*' | cut -d= -f2)"
+ICONSET="$(echo "$COUNTERS_OUT" | grep 'name="iconset"' | grep -o 'value=[0-9]*' | cut -d= -f2)"
 FPS10="${FPS10:-0}"
 AFRAME="${AFRAME:-0}"
 STATE="${STATE:-0}"
+ICONSET="${ICONSET:-0}"
 if [ "$FPS10" -lt 400 ]; then
 	echo "FAIL: cadencia baja (fps10=$FPS10 < 400)" >&2
 	exit 1
@@ -39,7 +44,12 @@ if [ "$AFRAME" -lt 50 ] && [ "$STATE" -eq 0 ]; then
 	echo "FAIL: sin interaccion (aframe=$AFRAME, state=$STATE)" >&2
 	exit 1
 fi
-echo "[analyze] memoria OK: fps10=$FPS10, aframe=$AFRAME, state=$STATE"
+# Ciclo de tema/skin: al menos un cambio en la ventana (app corriendo >300 frames).
+if [ "$ICONSET" -lt 1 ]; then
+	echo "FAIL: el ciclo de tema/skin no se disparo (iconset=$ICONSET; app estancada o ventana corta)" >&2
+	exit 1
+fi
+echo "[analyze] memoria OK: fps10=$FPS10, aframe=$AFRAME, state=$STATE, iconset=$ICONSET"
 
 # --- 2) Evidencia visual: secuencia por INTERVALOS --------------------------
 # El modo `--sequence-step-frames` (probe + CPU parada por frame) sirve video

@@ -99,6 +99,17 @@ inline void mark_failed(::eng::debug::BootFail stage) {
 	::eng::debug::mark_failed(g_eng_run_status, stage);
 }
 
+/// **Modo de espera de VBlank** del bucle de `run_demo` (familia 212/DT-011; receta
+/// operativa DT-042): con la espera por **señal** el planificador de un SO vivo puede
+/// apagar el latido y la tarea duerme para siempre (parón determinista de frames, PC en
+/// el `STOP` del dispatcher); la espera **activa** (latido por IRQ + sondeo de VPOS) es
+/// la variante recomendada para demos con trabajo por frame variable (HUD de texto,
+/// blits síncronos). Ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
+enum class VblankWait : eng::u8 {
+	Signal = 0u, ///< duerme en `Wait()` (por defecto; no usar bajo SO vivo sin takeover)
+	Active,      ///< espera activa (`set_vblank_sleep(false)`)
+};
+
 namespace detail {
 
 /// Cuerpo compartido de `run_demo`: memoria del juego (inválida = perfil de juego), display
@@ -106,12 +117,19 @@ namespace detail {
 /// configuración opcional viaja como `eng::Ref` (referencia no propietaria, regla del repo),
 /// no como puntero crudo.
 template <class Demo>
-int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryConfig> memory) {
+int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryConfig> memory,
+		  VblankWait wait) {
 	ensure_boot();
 	::eng::debug::reset(g_eng_run_status);
 	::eng::debug::mark_init_started(g_eng_run_status);
 
 	AmigaBackend backend {};
+	// **Modo de espera de VBlank** (familia 212/DT-011, receta DT-042): con la espera por
+	// señal el planificador de un SO vivo puede apagar el latido y la tarea duerme para
+	// siempre (parón determinista); la espera activa (latido por IRQ + sondeo de VPOS) es
+	// la variante recomendada para demos con trabajo por frame variable (HUD de texto,
+	// blits síncronos). Se configura ANTES de `start` para que el bucle nazca en el modo.
+	backend.set_vblank_sleep(wait == VblankWait::Signal);
 	const bool memory_ok = memory.valid() ? backend.configure_memory(*memory)
 					      : backend.configure_game_memory();
 	if (!memory_ok) {
@@ -137,14 +155,27 @@ int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryC
 /// \param display  descripción imperativa del display (`GameDisplay`, con sus campos).
 template <class Demo>
 int run_demo(Demo& demo, const GameDisplay& display) {
-	return detail::run_demo_impl(demo, display, {});
+	return detail::run_demo_impl(demo, display, {}, VblankWait::Signal);
+}
+
+/// Igual, con el **modo de espera de VBlank** explícito (ver `VblankWait`).
+template <class Demo>
+int run_demo(Demo& demo, const GameDisplay& display, VblankWait wait) {
+	return detail::run_demo_impl(demo, display, {}, wait);
 }
 
 /// Igual, con un **presupuesto de memoria explícito** (`MemoryConfig` por banco) para apps
 /// que no usan el perfil de juego por defecto.
 template <class Demo>
 int run_demo(Demo& demo, const GameDisplay& display, const MemoryConfig& memory) {
-	return detail::run_demo_impl(demo, display, memory);
+	return detail::run_demo_impl(demo, display, eng::Ref<const MemoryConfig> {memory},
+				     VblankWait::Signal);
+}
+
+/// Igual, con memoria explícita y modo de espera de VBlank.
+template <class Demo>
+int run_demo(Demo& demo, const GameDisplay& display, const MemoryConfig& memory, VblankWait wait) {
+	return detail::run_demo_impl(demo, display, eng::Ref<const MemoryConfig> {memory}, wait);
 }
 
 } // namespace eng::amiga

@@ -62,6 +62,31 @@ struct IconAtlas {
 	}
 };
 
+/// **Conjunto de iconos** (*skin*, H6): mapea un **tipo** semántico de objeto (0..n-1) al
+/// **frame** del `IconAtlas` y recolorea los 2 bits del atlas a índices de paleta del skin.
+/// La app declara sus conjuntos (tablas constantes, lado juego) y cambia entre ellos en
+/// caliente; el modelo solo lleva el frame ya resuelto en `HudSlotView::icon_frame`, así que
+/// el HUD no conoce los tipos del juego. Un tipo no declarado resuelve al frame 0 (sin icono).
+struct IconSet {
+	const eng::u16* frames = nullptr; ///< frame por tipo (tabla de la app; 0 = sin icono)
+	const eng::u8* colors = nullptr;  ///< remapeo de los colores 0..3 del atlas (null = identidad)
+	eng::u8 count = 0u;               ///< tipos declarados en `frames`
+
+	/// Frame del atlas para un tipo (0 si no está declarado o el conjunto está vacío).
+	[[nodiscard]] constexpr eng::u16 frame_for(eng::u16 type) const noexcept {
+		return (frames != nullptr && type < count) ? frames[type] : 0u;
+	}
+
+	/// Índice de paleta para un color del atlas. El 0 sigue siendo **transparente** (un skin
+	/// no puede volver opacos los píxeles vacíos); sin remapeo, identidad.
+	[[nodiscard]] constexpr eng::u8 color_for(eng::u8 atlas_color) const noexcept {
+		if (atlas_color == 0u) {
+			return 0u;
+		}
+		return (colors != nullptr && atlas_color < 4u) ? colors[atlas_color] : atlas_color;
+	}
+};
+
 /// Tema del HUD: roles de color lógicos, métricas y atlas. Los índices se resuelven contra la
 /// paleta de la región (banda con paleta propia) o contra la paleta del juego (overlay).
 struct HudTheme {

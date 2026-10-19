@@ -621,5 +621,8 @@ int main() {
 	display.color_depth = kPlanes;
 	display.layout = eng::graphics::PlaneLayout::Contiguous; // las vistas del demo son contiguas (c2p y hojas)
 	display.palette = kPalette;
-	return eng::amiga::run_demo(g_game, display);
+	// **Espera de VBlank activa** (familia 212/DT-011, receta DT-042): el bucle por senal
+	// puede perder el despertar bajo un SO vivo y clavar los frames; con blits por frame
+	// (scroll + paneles) se usa la espera activa (IRQ + sondeo de VPOS).
+	return eng::amiga::run_demo(g_game, display, eng::amiga::VblankWait::Active);
 }
