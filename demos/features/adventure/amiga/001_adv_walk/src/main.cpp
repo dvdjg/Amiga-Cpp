@@ -415,6 +415,9 @@ struct AdvWalkDemo {
 		m_cam.place({0, 0});
 		m_ready = true;
 		set_destination(kTour[0][0], kTour[0][1], true);
+		// Secciones del perfilador (`ENG_PROF_BEGIN/END`): 4 (Frame/Blits/Hud/Dbg). Sin el
+		// `INIT` las muestras se acumulan igual, pero el fichero de perfil no las atribuye.
+		ENG_PROF_INIT(4u);
 		eng::amiga::mark_ready();
 	}
 
@@ -755,6 +758,7 @@ private:
 	}
 
 	// --- HUD ---
+
 	void draw_hud_static() {
 		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, 320u, kHudLines}};
 		hud.fill_rect(0, 0, 352, static_cast<s16>(kHudLines), 0u);

@@ -34,3 +34,17 @@ La ventana de un bob (`words`=2 palabras × `h` filas) se escribía completa aun
 
 - La demo vuelve a ser la versión commiteada (HUD de línea completa) **más** los fixes 3 y 4: escena limpia, sin cuelgues, visión OK (`src/VISION.md`).
 - **NO VERIFICADA por presupuesto**: ~10–17 fps (objetivo 50). El siguiente paso medible es arreglar el coste por palabra de la HUD (perfil por función + primitiva de escritura por filas de una sola llamada, o HUD por diferencias con el coste medido y explicado) y volver a medir con `measure-fps` (sin warp).
+
+## Paso 2 (misma sesión): primitiva por racha del engine y contradicción abierta
+
+Se añadió al engine Playfield::store_plane_word_rows (racha de 8 filas por palabra, dirección calculada una vez, ruta rápida con verificación de linealidad y fallback por fila para anillos) y Surface::draw_text_words la usa; test de equivalencia en HOST-449 (contiguo/interleaved/anillo/rechazos, verde).
+
+Medidas de la demo con esa primitiva (ablaciones con flags efectivos): sin HUD ~49,4 fps; HUD por línea completa con la primitiva ~17,6 fps; llamando la primitiva directamente desde la demo (sin la fachada Surface) ~17,6 fps.
+
+**Contradicción abierta:** una variante de diagnóstico previa que escribía la tira 1bpp con puntero crudo (hud_write_line_fast: misma estructura de bucle, mismos 8 stores por palabra, base calculada una vez) midió **~42 fps**, pero no se ha podido reproducir ni con la primitiva equivalente ni llamándola directamente. Mismos stores, resultado 2,4× distinto: queda **sin explicar**. Hipótesis a comprobar con perfil por sección (la demo ya llama ENG_PROF_INIT(4u)):
+
+1. coste real de la función out-of-line store_plane_word_rows (4 llamadas virtuales yte_for/planeline_for por invocación) en el .amigaprofile;
+2. coste de los ENG_PROF_* (lecturas al periférico de debug B7E928) que envuelven la sección HUD;
+3. contención de bus en las escrituras a Chip según dónde caigan respecto al DMA de bitplanes.
+
+DT-042 recoge esta deuda. Con el rol de coste entendido, la vía para cerrar los 50 fps es repintar **solo las palabras cambiadas** (o batchear la línea entera en una sola llamada), con el coste por palabra ya pequeño.

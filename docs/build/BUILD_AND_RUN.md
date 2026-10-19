@@ -66,12 +66,9 @@ out\demos\<demo>\<demo>.s
 
 ### Overrides por demo (`build.args`)
 
-Si una demo necesita un nivel de optimizacion distinto para su **TU** sin cambiar el `CONFIG_ID`
-(el resto del perfil sigue igual), puede incluir un fichero `build.args` en su carpeta con una
-asignacion `CLAVE=valor` por linea (comentarios con `#`). Claves admitidas: `ENGINE_OPT`, `DEMO_OPT`
-y `C_OPT`. Es el analogo de `run.args` para el build. Caso de uso: la demo 212 fija `DEMO_OPT=-O2`
-por un bug de codegen de gcc 15 m68k a `-O1` (ver
-`docs/debugging/investigaciones/pump-timer-o1-codegen.md`).
+Si una demo necesita un nivel de optimizacion distinto para su **TU** sin cambiar el `CONFIG_ID` (el resto del perfil sigue igual), puede incluir un fichero `build.args` en su carpeta con una asignacion `CLAVE=valor` por linea (comentarios con `#`). Claves admitidas: `ENGINE_OPT`, `DEMO_OPT`, `C_OPT`, `DEMO_FLAGS` y `FAST_STACK`. Es el analogo de `run.args` para el build. Caso de uso: la demo 212 fija `DEMO_OPT=-O2` por un bug de codegen de gcc 15 m68k a `-O1` (ver `docs/debugging/investigaciones/pump-timer-o1-codegen.md`).
+
+> **Sin BOM**: guardar `build.args`/`run.args` **sin BOM UTF-8** (p. ej. con el editor del repo o `printf`, no `Set-Content -Encoding utf8` de PowerShell 5.1). Un BOM hacía que la **primera** clave se leyese como `\ufeffDEMO_FLAGS` y se ignorase **en silencio** (dos builds «distintos», mismo binario; detectado por hash idéntico). El parser tolera el BOM desde el fix de `build-demo.sh` (2026-10), pero la norma del repo es sin BOM.
 
 ## Compilar todas las demos (barrido)
 
