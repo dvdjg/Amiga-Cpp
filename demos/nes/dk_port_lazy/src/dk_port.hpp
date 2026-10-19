@@ -1882,14 +1882,12 @@ L_C7B9:
     wr((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y), A);
     tick(2u);
     Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C7B9; }
-    tick(2u);
+    if (Y != 0) { goto L_C7B9; }
     goto L_C7BE;
 L_C7BE:
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Nf) { tick(3u); goto L_C7B9; }
-    tick(2u);
+    if (((ram[0x0001u] & 0x80u) == 0)) { goto L_C7B9; }
     goto L_C7C2;
 L_C7C2:
     tick(6u);
@@ -1993,20 +1991,17 @@ L_C889:
 L_C893:
     tick(3u);
     A = ram[0x004Eu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C8C1; }
-    tick(2u);
+    if (A != 0) { goto L_C8C1; }
     goto L_C897;
 L_C897:
     tick(3u);
     A = ram[0x004Fu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_C8D4; }
-    tick(2u);
+    if (A == 0) { goto L_C8D4; }
     goto L_C89B;
 L_C89B:
     tick(3u);
     A = ram[0x009Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C8A5; }
-    tick(2u);
+    if (A != 0) { goto L_C8A5; }
     goto L_C89F;
 L_C89F:
     tick(6u);
@@ -2029,8 +2024,7 @@ L_C8AC:
 L_C8AF:
     tick(3u);
     A = ram[0x0043u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C8D7; }
-    tick(2u);
+    if (A != 0) { goto L_C8D7; }
     goto L_C8B3;
 L_C8B3:
     tick(2u);
@@ -2048,8 +2042,7 @@ L_C8B3:
 L_C8C1:
     tick(3u);
     A = ram[0x0055u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C8CB; }
-    tick(2u);
+    if (A != 0) { goto L_C8CB; }
     goto L_C8C5;
 L_C8C5:
     tick(6u);
@@ -2352,16 +2345,14 @@ L_F0CB:
     { const u8 v = ram[0x0007u]; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F0CB; }
-    tick(2u);
+    if (X != 0) { goto L_F0CB; }
     goto L_F0D0;
 L_F0D0:
     tick(3u);
     wr(0x0008u, A);
     tick(3u);
     A = ram[0x000Fu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F0DC; }
-    tick(2u);
+    if (A != 0) { goto L_F0DC; }
     goto L_F0D6;
 L_F0D6:
     tick(6u);
@@ -2529,8 +2520,7 @@ L_F228:
     Y = 0x00u;
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(4u); goto L_F1EC; }
-    tick(2u);
+    if (A != 0) { goto L_F1EC; }
     goto L_F231;
 L_F231:
     tick(3u);
@@ -2622,8 +2612,7 @@ L_FA6B:
     A = Y;
     tick(4u);
     X = ram[0x06F1u]; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FA7F; }
-    tick(2u);
+    if (X != 0) { goto L_FA7F; }
     goto L_FA7A;
 L_FA7A:
     tick(2u);
@@ -2658,14 +2647,12 @@ L_CA59:
 L_CE7C:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CE94; }
-    tick(2u);
+    if (A == 0) { goto L_CE94; }
     goto L_CE80;
 L_CE80:
     tick(4u);
     A = ram[0x0102u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CE8B; }
-    tick(2u);
+    if (A != 0) { goto L_CE8B; }
     goto L_CE85;
 L_CE85:
     tick(4u);
@@ -2687,14 +2674,12 @@ L_CE91:
 L_CE94:
     tick(4u);
     A = ram[0x0516u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CEAE; }
-    tick(2u);
+    if (A != 0) { goto L_CEAE; }
     goto L_CE99;
 L_CE99:
     tick(4u);
     A = ram[0x0517u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CEA2; }
-    tick(2u);
+    if (A == 0) { goto L_CEA2; }
     goto L_CE9E;
 L_CE9E:
     tick(6u);
@@ -2721,8 +2706,7 @@ L_CEAE:
 L_CEB1:
     tick(3u);
     A = ram[0x00BFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CEB8; }
-    tick(2u);
+    if (A == 0) { goto L_CEB8; }
     goto L_CEB5;
 L_CEB5:
     tick(3u);
@@ -2744,8 +2728,7 @@ L_CEC5:
 L_CEC9:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CED3; }
-    tick(2u);
+    if (A == 0) { goto L_CED3; }
     goto L_CECD;
 L_CECD:
     tick(6u);
@@ -2868,8 +2851,7 @@ L_CF1C:
 L_CF1F:
     tick(4u);
     A = ram[0x0516u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CF2A; }
-    tick(2u);
+    if (A != 0) { goto L_CF2A; }
     goto L_CF24;
 L_CF24:
     tick(6u);
@@ -2933,8 +2915,7 @@ L_C823:
 L_CCF4:
     tick(4u);
     A = ram[0x0450u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(4u); goto L_CD07; }
-    tick(2u);
+    if (A != 0) { goto L_CD07; }
     goto L_CCF9;
 L_CCF9:
     tick(2u);
@@ -3066,8 +3047,7 @@ L_CD76:
     wr((u16)(0x0331u + Y), A);
     tick(2u);
     Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Nf) { tick(3u); goto L_CD76; }
-    tick(2u);
+    if (((Y & 0x80u) == 0)) { goto L_CD76; }
     goto L_CD7E;
 L_CD7E:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -3374,8 +3354,7 @@ L_F080:
 L_F082:
     tick(2u);
     A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F096; }
-    tick(2u);
+    if (A == 0) { goto L_F096; }
     goto L_F086;
 L_F086:
     tick(3u);
@@ -3384,8 +3363,7 @@ L_F086:
 L_F088:
     tick(2u);
     A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F096; }
-    tick(2u);
+    if (A != 0) { goto L_F096; }
     goto L_F08C;
 L_F08C:
     tick(3u);
@@ -3394,8 +3372,7 @@ L_F08C:
 L_F08E:
     tick(2u);
     A = 0x04u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F096; }
-    tick(2u);
+    if (A != 0) { goto L_F096; }
     goto L_F092;
 L_F2D7:
     tick(2u);
@@ -3463,8 +3440,7 @@ L_F306:
     wr((u16)(0x0331u + X), A);
     tick(5u);
     { u8 t = (u8)(rd(0x0006u) - 1u); wr(0x0006u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_F303; }
-    tick(2u);
+    if (ram[0x0006u] != 0) { goto L_F303; }
     goto L_F310;
 L_F310:
     tick(6u);
@@ -3490,8 +3466,7 @@ L_F313:
     wr(0x0330u, X);
     tick(5u);
     { u8 t = (u8)(rd(0x0005u) - 1u); wr(0x0005u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(4u); goto L_F2EA; }
-    tick(2u);
+    if (ram[0x0005u] != 0) { goto L_F2EA; }
     goto L_F327;
 L_F327:
     tick(2u);
@@ -3507,8 +3482,7 @@ L_CA30:
 L_CA33:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CA4A; }
-    tick(2u);
+    if (A != 0) { goto L_CA4A; }
     goto L_CA37;
 L_CA37:
     tick(3u);
@@ -3636,8 +3610,7 @@ L_CAB8:
 L_CBCA:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CBF4; }
-    tick(2u);
+    if (A != 0) { goto L_CBF4; }
     goto L_CBCE;
 L_CBCE:
     tick(3u);
@@ -3674,8 +3647,7 @@ L_CBE7:
 L_CBEB:
     tick(3u);
     A = ram[0x0052u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CBF4; }
-    tick(2u);
+    if (A == 0) { goto L_CBF4; }
     goto L_CBEF;
 L_CBEF:
     tick(2u);
@@ -3707,8 +3679,7 @@ L_CC03:
 L_C8F3:
     tick(4u);
     A = ram[0x0102u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C8FE; }
-    tick(2u);
+    if (A != 0) { goto L_C8FE; }
     goto L_C8F8;
 L_C8F8:
     tick(4u);
@@ -3719,8 +3690,7 @@ L_C8F8:
 L_C8FE:
     tick(4u);
     A = ram[0x0518u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C914; }
-    tick(2u);
+    if (A != 0) { goto L_C914; }
     goto L_C903;
 L_C903:
     tick(2u);
@@ -3741,8 +3711,7 @@ L_C903:
 L_C914:
     tick(4u);
     A = ram[0x0510u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C940; }
-    tick(2u);
+    if (A != 0) { goto L_C940; }
     goto L_C919;
 L_C919:
     tick(6u);
@@ -3805,8 +3774,7 @@ L_C94C:
     wr(0x0512u, A);
     tick(3u);
     A = ram[0x0044u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C95C; }
-    tick(2u);
+    if (A != 0) { goto L_C95C; }
     goto L_C955;
 L_C955:
     tick(2u);
@@ -3824,8 +3792,7 @@ L_C95D:
     wr(0x0044u, A);
     tick(4u);
     A = ram[0x0512u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C985; }
-    tick(2u);
+    if (A != 0) { goto L_C985; }
     goto L_C966;
 L_C966:
     tick(2u);
@@ -3859,8 +3826,7 @@ L_C976:
 L_C985:
     tick(3u);
     A = ram[0x0035u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C989; }
-    tick(2u);
+    if (A != 0) { goto L_C989; }
     goto L_C989;
 L_C989:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -3877,8 +3843,7 @@ L_C991:
     wr((u16)(0x0024u + X), A);
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_C991; }
-    tick(2u);
+    if (X != 0) { goto L_C991; }
     goto L_C996;
 L_C996:
     tick(4u);
@@ -3983,8 +3948,7 @@ L_C9B1:
     A = 0x03u;
     tick(3u);
     X = ram[0x0058u]; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CA06; }
-    tick(2u);
+    if (X == 0) { goto L_CA06; }
     goto L_CA04;
 L_CA04:
     tick(2u);
@@ -4001,8 +3965,7 @@ L_CA06:
     wr(0x040Bu, A);
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CA26; }
-    tick(2u);
+    if (A != 0) { goto L_CA26; }
     goto L_CA15;
 L_CA15:
     tick(2u);
@@ -4034,8 +3997,7 @@ L_F4AC:
     X = 0x09u;
     tick(5u);
     { u8 t = (u8)(rd(0x0034u) - 1u); wr(0x0034u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Nf) { tick(3u); goto L_F4B8; }
-    tick(2u);
+    if (((ram[0x0034u] & 0x80u) == 0)) { goto L_F4B8; }
     goto L_F4B2;
 L_F4B2:
     tick(2u);
@@ -4055,8 +4017,7 @@ L_F4BC:
 L_F4BE:
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Nf) { tick(3u); goto L_F4B8; }
-    tick(2u);
+    if (((X & 0x80u) == 0)) { goto L_F4B8; }
     goto L_F4C1;
 L_F4C1:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -4091,8 +4052,7 @@ L_CAE6:
 L_CAE7:
     tick(4u);
     A = ram[0x040Bu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CAF6; }
-    tick(2u);
+    if (A == 0) { goto L_CAF6; }
     goto L_CAEC;
 L_CAEC:
     tick(2u);
@@ -4194,8 +4154,7 @@ L_CB3C:
     { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); }
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CB46; }
-    tick(2u);
+    if (A != 0) { goto L_CB46; }
     goto L_CB42;
 L_CB42:
     tick(2u);
@@ -4665,14 +4624,12 @@ L_F435:
 L_F44A:
     tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0020u + Y) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F4A0; }
-    tick(2u);
+    if (A == 0) { goto L_F4A0; }
     goto L_F44F;
 L_F44F:
     tick(4u);
     A = ram[(u8)(0x0024u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F479; }
-    tick(2u);
+    if (A == 0) { goto L_F479; }
     goto L_F453;
 L_F453:
     tick(2u);
@@ -4716,8 +4673,7 @@ L_F472:
 L_F474:
     tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0020u + Y) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F4A9; }
-    tick(2u);
+    if (A != 0) { goto L_F4A9; }
     goto L_F479;
 L_F479:
     tick(2u);
@@ -4772,22 +4728,19 @@ L_F499:
     X = (u8)(X - 1u);
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Nf) { tick(3u); goto L_F44A; }
-    tick(2u);
+    if (((X & 0x80u) == 0)) { goto L_F44A; }
     goto L_F49F;
 L_F49F:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
 L_F4A0:
     tick(4u);
     A = ram[(u8)(0x0024u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F453; }
-    tick(2u);
+    if (A == 0) { goto L_F453; }
     goto L_F4A4;
 L_F4A4:
     tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0020u + Y) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F479; }
-    tick(2u);
+    if (A != 0) { goto L_F479; }
     goto L_F4A9;
 L_F4A9:
     tick(2u);
@@ -4798,16 +4751,14 @@ L_F4A9:
 L_CC04:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CC23; }
-    tick(2u);
+    if (A != 0) { goto L_CC23; }
     goto L_CC08;
 L_CC08:
     tick(3u);
     X = ram[0x0052u];
     tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0408u + X) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CC23; }
-    tick(2u);
+    if (A != 0) { goto L_CC23; }
     goto L_CC0F;
 L_CC0F:
     tick(2u);
@@ -4883,14 +4834,12 @@ L_F35E:
     X = A;
     tick(3u);
     A = ram[0x0004u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F38E; }
-    tick(2u);
+    if (A == 0) { goto L_F38E; }
     goto L_F367;
 L_F367:
     tick(4u);
     A = ram[(u8)(0x0024u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F392; }
-    tick(2u);
+    if (A == 0) { goto L_F392; }
     goto L_F36B;
 L_F36B:
     tick(2u);
@@ -4938,8 +4887,7 @@ L_F38B:
 L_F38E:
     tick(4u);
     A = ram[(u8)(0x0024u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F36B; }
-    tick(2u);
+    if (A == 0) { goto L_F36B; }
     goto L_F392;
 L_F392:
     tick(2u);
@@ -4985,20 +4933,17 @@ L_F3B2:
     wr((u16)(0x0025u + X), A);
     tick(4u);
     A = ram[(u8)(0x0025u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F3C0; }
-    tick(2u);
+    if (A != 0) { goto L_F3C0; }
     goto L_F3B8;
 L_F3B8:
     tick(4u);
     A = ram[(u8)(0x0026u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F3C0; }
-    tick(2u);
+    if (A != 0) { goto L_F3C0; }
     goto L_F3BC;
 L_F3BC:
     tick(4u);
     A = ram[(u8)(0x0027u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_F3C6; }
-    tick(2u);
+    if (A == 0) { goto L_F3C6; }
     goto L_F3C0;
 L_F3C0:
     if (Cf) { tick(3u); goto L_F3E2; }
@@ -5145,8 +5090,7 @@ L_CFA8:
 L_CFAC:
     tick(4u);
     A = ram[(u8)(0x0041u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CFB8; }
-    tick(2u);
+    if (A != 0) { goto L_CFB8; }
     goto L_CFB0;
 L_CFB0:
     tick(2u);
@@ -5182,8 +5126,7 @@ L_CFC5:
 L_EBDA:
     tick(4u);
     A = ram[0x050Bu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EBED; }
-    tick(2u);
+    if (A != 0) { goto L_EBED; }
     goto L_EBDF;
 L_EBDF:
     tick(2u);
@@ -5200,8 +5143,7 @@ L_EBDF:
 L_EBED:
     tick(4u);
     A = ram[0x050Cu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(4u); goto L_EC16; }
-    tick(2u);
+    if (A == 0) { goto L_EC16; }
     goto L_EBF2;
 L_EBF2:
     tick(4u);
@@ -5216,8 +5158,7 @@ L_EBF9:
 L_EBFF:
     tick(2u);
     A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EC0A; }
-    tick(2u);
+    if (A == 0) { goto L_EC0A; }
     goto L_EC03;
 L_EC03:
     tick(2u);
@@ -5310,8 +5251,7 @@ L_D199:
 L_EB06:
     tick(4u);
     A = ram[0x0503u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EB0C; }
-    tick(2u);
+    if (A != 0) { goto L_EB0C; }
     goto L_EB0B;
 L_EB0B:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -5345,8 +5285,7 @@ L_EB0C:
 L_EB27:
     tick(3u);
     A = ram[0x0044u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EB4F; }
-    tick(2u);
+    if (A == 0) { goto L_EB4F; }
     goto L_EB2B;
 L_EB2B:
     if (A != 19u) { goto L_EB32; }
@@ -5399,8 +5338,7 @@ L_EB5A:
 L_EB5E:
     tick(4u);
     A = ram[0x0515u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EB6F; }
-    tick(2u);
+    if (A == 0) { goto L_EB6F; }
     goto L_EB63;
 L_EB63:
     tick(6u);
@@ -5461,16 +5399,14 @@ L_EB9C:
 L_EBB6:
     tick(3u);
     A = ram[0x0045u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EBBB; }
-    tick(2u);
+    if (A == 0) { goto L_EBBB; }
     goto L_EBBA;
 L_EBBA:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
 L_EBBB:
     tick(3u);
     A = ram[0x002Eu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EBC4; }
-    tick(2u);
+    if (A != 0) { goto L_EBC4; }
     goto L_EBBF;
 L_EBBF:
     tick(2u);
@@ -5573,8 +5509,7 @@ L_D38B:
 L_D38E:
     tick(3u);
     A = ram[0x005Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D39C; }
-    tick(2u);
+    if (A == 0) { goto L_D39C; }
     goto L_D392;
 L_D392:
     tick(6u);
@@ -5632,8 +5567,7 @@ L_D3B8:
 L_D3BB:
     tick(3u);
     A = ram[0x005Bu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D3D0; }
-    tick(2u);
+    if (A == 0) { goto L_D3D0; }
     goto L_D3BF;
 L_D3BF:
     tick(2u);
@@ -5685,8 +5619,7 @@ L_D3E4:
 L_D3E7:
     tick(3u);
     A = ram[0x005Cu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D3F9; }
-    tick(2u);
+    if (A == 0) { goto L_D3F9; }
     goto L_D3EB;
 L_D3EB:
     tick(2u);
@@ -5773,8 +5706,7 @@ L_D42F:
 L_D432:
     tick(3u);
     A = ram[0x005Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D445; }
-    tick(2u);
+    if (A == 0) { goto L_D445; }
     goto L_D436;
 L_D436:
     tick(6u);
@@ -5833,8 +5765,7 @@ L_D45F:
 L_D463:
     tick(3u);
     A = ram[0x005Bu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D471; }
-    tick(2u);
+    if (A == 0) { goto L_D471; }
     goto L_D467;
 L_D467:
     tick(2u);
@@ -5880,8 +5811,7 @@ L_D488:
 L_D48B:
     tick(3u);
     A = ram[0x005Cu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D49D; }
-    tick(2u);
+    if (A == 0) { goto L_D49D; }
     goto L_D48F;
 L_D48F:
     tick(2u);
@@ -6076,8 +6006,7 @@ L_D589:
 L_D58C:
     tick(3u);
     A = ram[0x009Eu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D59A; }
-    tick(2u);
+    if (A == 0) { goto L_D59A; }
     goto L_D590;
 L_D590:
     tick(6u);
@@ -6098,8 +6027,7 @@ L_D59A:
 L_D5A1:
     tick(3u);
     A = ram[0x009Eu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D5AF; }
-    tick(2u);
+    if (A == 0) { goto L_D5AF; }
     goto L_D5A5;
 L_D5A5:
     tick(6u);
@@ -6128,8 +6056,7 @@ L_D5B3:
 L_D5BB:
     tick(3u);
     A = ram[0x0094u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D5E2; }
-    tick(2u);
+    if (A == 0) { goto L_D5E2; }
     goto L_D5BF;
 L_D5BF:
     tick(3u);
@@ -6260,8 +6187,7 @@ L_D620:
     wr(0x0096u, A);
     tick(3u);
     A = ram[0x00A0u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D64F; }
-    tick(2u);
+    if (A == 0) { goto L_D64F; }
     goto L_D631;
 L_D631:
     tick(2u);
@@ -6362,8 +6288,7 @@ L_D6C5:
 L_D6C6:
     tick(3u);
     A = ram[0x003Fu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D6CD; }
-    tick(2u);
+    if (A != 0) { goto L_D6CD; }
     goto L_D6CA;
 L_D6CA:
     tick(3u);
@@ -6422,8 +6347,7 @@ L_D6F2:
     wr(0x00A2u, A);
     tick(3u);
     A = ram[0x009Fu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D6FE; }
-    tick(2u);
+    if (A == 0) { goto L_D6FE; }
     goto L_D6FA;
 L_D6FA:
     if (A < 4u) { goto L_D703; }
@@ -6512,8 +6436,7 @@ L_D73E:
     wr(0x00FFu, A);
     tick(3u);
     A = ram[0x009Fu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D74F; }
-    tick(2u);
+    if (A == 0) { goto L_D74F; }
     goto L_D746;
 L_D746:
     if (A >= 6u) { goto L_D74F; }
@@ -6729,8 +6652,7 @@ L_F078:
 L_EA5F:
     tick(3u);
     A = ram[0x0039u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EA64; }
-    tick(2u);
+    if (A == 0) { goto L_EA64; }
     goto L_EA63;
 L_EA63:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -6836,14 +6758,12 @@ L_E1FD:
 L_E200:
     tick(3u);
     A = ram[0x0040u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E228; }
-    tick(2u);
+    if (A != 0) { goto L_E228; }
     goto L_E204;
 L_E204:
     tick(3u);
     A = ram[0x00ADu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E228; }
-    tick(2u);
+    if (A == 0) { goto L_E228; }
     goto L_E208;
 L_E208:
     if (A != 2u) { goto L_E228; }
@@ -6858,8 +6778,7 @@ L_E20C:
 L_E213:
     tick(3u);
     A = ram[0x0040u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E228; }
-    tick(2u);
+    if (A != 0) { goto L_E228; }
     goto L_E217;
 L_E217:
     tick(6u);
@@ -6910,8 +6829,7 @@ L_E237:
 L_E23D:
     tick(3u);
     A = ram[0x003Bu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E24F; }
-    tick(2u);
+    if (A != 0) { goto L_E24F; }
     goto L_E241;
 L_E241:
     tick(2u);
@@ -6941,8 +6859,7 @@ L_EE7F:
 L_EE80:
     tick(3u);
     A = ram[0x00BEu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EED8; }
-    tick(2u);
+    if (A == 0) { goto L_EED8; }
     goto L_EE84;
 L_EE84:
     if (Y != 4u) { goto L_EEF0; }
@@ -7087,8 +7004,7 @@ L_EEFF:
 L_EF07:
     tick(4u + ((0x00C9u + Y) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x00C9u + Y) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EF2F; }
-    tick(2u);
+    if (A != 0) { goto L_EF2F; }
     goto L_EF0C;
 L_EF0C:
     tick(2u);
@@ -7164,8 +7080,7 @@ L_DA20:
 L_DA27:
     tick(3u);
     A = ram[0x0036u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_DA40; }
-    tick(2u);
+    if (A != 0) { goto L_DA40; }
     goto L_DA2B;
 L_DA2B:
     tick(2u);
@@ -7209,8 +7124,7 @@ L_DA4B:
 L_E19A:
     tick(3u);
     A = ram[0x00ADu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E19F; }
-    tick(2u);
+    if (A != 0) { goto L_E19F; }
     goto L_E19E;
 L_E19E:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -7250,8 +7164,7 @@ L_E1B8:
 L_E1BF:
     tick(3u);
     A = ram[0x0038u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E1E4; }
-    tick(2u);
+    if (A != 0) { goto L_E1E4; }
     goto L_E1C3;
 L_E1C3:
     tick(2u);
@@ -7993,14 +7906,12 @@ L_D0CB:
 L_D0D1:
     tick(3u);
     A = ram[0x0098u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D0E4; }
-    tick(2u);
+    if (A != 0) { goto L_D0E4; }
     goto L_D0D5;
 L_D0D5:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D0DD; }
-    tick(2u);
+    if (A != 0) { goto L_D0DD; }
     goto L_D0D9;
 L_D0D9:
     tick(2u);
@@ -8019,8 +7930,7 @@ L_D0DD:
 L_D0E4:
     tick(3u);
     A = ram[0x003Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D0F8; }
-    tick(2u);
+    if (A == 0) { goto L_D0F8; }
     goto L_D0E8;
 L_D0E8:
     if (A < 14u) { goto L_D138; }
@@ -8028,8 +7938,7 @@ L_D0E8:
 L_D0EC:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D0F4; }
-    tick(2u);
+    if (A != 0) { goto L_D0F4; }
     goto L_D0F0;
 L_D0F0:
     tick(2u);
@@ -8074,8 +7983,7 @@ L_D110:
 L_D115:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D11D; }
-    tick(2u);
+    if (A == 0) { goto L_D11D; }
     goto L_D119;
 L_D119:
     tick(2u);
@@ -8116,8 +8024,7 @@ L_D130:
     wr(0x0098u, A);
     tick(3u);
     A = ram[0x003Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D139; }
-    tick(2u);
+    if (A == 0) { goto L_D139; }
     goto L_D138;
 L_D138:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -8131,8 +8038,7 @@ L_D139:
 L_D13E:
     tick(3u);
     A = ram[0x0055u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D14B; }
-    tick(2u);
+    if (A != 0) { goto L_D14B; }
     goto L_D142;
 L_D142:
     tick(2u);
@@ -8160,8 +8066,7 @@ L_D151:
     wr(0x0052u, X);
     tick(4u + ((0x0006u + X) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0406u + X) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D166; }
-    tick(2u);
+    if (A == 0) { goto L_D166; }
     goto L_D15D;
 L_D15D:
     tick(2u);
@@ -8202,8 +8107,7 @@ L_CF42:
 L_CF48:
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CF55; }
-    tick(2u);
+    if (A == 0) { goto L_CF55; }
     goto L_CF4C;
 L_CF4C:
     tick(2u);
@@ -8227,14 +8131,12 @@ L_CF5C:
     wr(0x0514u, A);
     tick(4u);
     A = ram[0x0516u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CF7A; }
-    tick(2u);
+    if (A == 0) { goto L_CF7A; }
     goto L_CF64;
 L_CF64:
     tick(4u);
     A = ram[0x0517u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CF79; }
-    tick(2u);
+    if (A != 0) { goto L_CF79; }
     goto L_CF69;
 L_CF69:
     tick(4u);
@@ -8282,8 +8184,7 @@ L_CF8F:
 L_CF92:
     tick(4u);
     A = ram[0x0517u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_CF9B; }
-    tick(2u);
+    if (A == 0) { goto L_CF9B; }
     goto L_CF97;
 L_CF97:
     tick(6u);
@@ -8292,8 +8193,7 @@ L_CF97:
 L_CF9B:
     tick(4u);
     A = ram[0x0516u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_CFA1; }
-    tick(2u);
+    if (A != 0) { goto L_CFA1; }
     goto L_CFA0;
 L_CFA0:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -8308,8 +8208,7 @@ L_CFA1:
 L_D04C:
     tick(3u);
     A = ram[0x009Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D092; }
-    tick(2u);
+    if (A != 0) { goto L_D092; }
     goto L_D050;
 L_D050:
     tick(3u);
@@ -8319,8 +8218,7 @@ L_D050:
 L_D056:
     tick(3u);
     A = ram[0x005Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D0BF; }
-    tick(2u);
+    if (A == 0) { goto L_D0BF; }
     goto L_D05A;
 L_D05A:
     tick(2u);
@@ -8341,8 +8239,7 @@ L_D063:
 L_D065:
     tick(4u);
     A = ram[(u8)(0x00C1u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D0BF; }
-    tick(2u);
+    if (A == 0) { goto L_D0BF; }
     goto L_D069;
 L_D069:
     tick(2u);
@@ -8399,8 +8296,7 @@ L_D086:
 L_D092:
     tick(3u);
     A = ram[0x003Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D0BF; }
-    tick(2u);
+    if (A != 0) { goto L_D0BF; }
     goto L_D096;
 L_D096:
     tick(5u);
@@ -8457,8 +8353,7 @@ L_D008:
     wr(0x100u + SP, A); --SP;
     tick(3u);
     A = ram[0x0058u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D02A; }
-    tick(2u);
+    if (A != 0) { goto L_D02A; }
     goto L_D010;
 L_D010:
     tick(3u);
@@ -8702,8 +8597,7 @@ L_D22E:
 L_D233:
     tick(3u);
     A = ram[0x009Bu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D23E; }
-    tick(2u);
+    if (A != 0) { goto L_D23E; }
     goto L_D237;
 L_D237:
     tick(2u);
@@ -8723,8 +8617,7 @@ L_D23E:
     wr(0x009Bu, A);
     tick(3u);
     A = ram[0x0097u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D262; }
-    tick(2u);
+    if (A == 0) { goto L_D262; }
     goto L_D24A;
 L_D24A:
     if (A == 8u) { goto L_D26D; }
@@ -8736,8 +8629,7 @@ L_D24E:
     wr(0x0097u, A);
     tick(3u);
     A = ram[0x0085u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D25B; }
-    tick(2u);
+    if (A == 0) { goto L_D25B; }
     goto L_D256;
 L_D256:
     tick(2u);
@@ -9133,14 +9025,12 @@ L_E045:
 L_D8EB:
     tick(3u);
     A = ram[0x005Au]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(4u); goto L_D917; }
-    tick(2u);
+    if (A != 0) { goto L_D917; }
     goto L_D8EF;
 L_D8EF:
     tick(3u);
     A = ram[0x0059u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(4u); goto L_D917; }
-    tick(2u);
+    if (A == 0) { goto L_D917; }
     goto L_D8F3;
 L_D8F3:
     tick(2u);
@@ -9281,14 +9171,12 @@ L_D8E8:
 L_EFEB:
     tick(2u);
     A = 0x00u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EFF5; }
-    tick(2u);
+    if (A == 0) { goto L_EFF5; }
     goto L_EFEF;
 L_EFEF:
     tick(2u);
     A = 0x01u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EFF5; }
-    tick(2u);
+    if (A != 0) { goto L_EFF5; }
     goto L_EFF3;
 L_EFF3:
     tick(2u);
@@ -9309,8 +9197,7 @@ L_EFF5:
     Y = 0x00u;
     tick(3u);
     A = ram[0x000Cu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F018; }
-    tick(2u);
+    if (A != 0) { goto L_F018; }
     goto L_F001;
 L_F001:
     tick(6u);
@@ -9814,8 +9701,7 @@ L_EF72:
     X = A;
     tick(4u + ((0x002Cu + X) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x042Cu + X) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EF94; }
-    tick(2u);
+    if (A != 0) { goto L_EF94; }
     goto L_EF7B;
 L_EF7B:
     tick(5u);
@@ -9901,8 +9787,7 @@ L_EFAD:
 L_D800:
     tick(3u);
     A = ram[0x00A0u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_D805; }
-    tick(2u);
+    if (A == 0) { goto L_D805; }
     goto L_D804;
 L_D804:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -9992,8 +9877,7 @@ L_D849:
 L_D84E:
     tick(4u);
     A = ram[0x0452u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D856; }
-    tick(2u);
+    if (A != 0) { goto L_D856; }
     goto L_D853;
 L_D853:
     tick(3u);
@@ -10016,8 +9900,7 @@ L_D856:
 L_D867:
     tick(4u);
     A = ram[0x0451u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_D86F; }
-    tick(2u);
+    if (A != 0) { goto L_D86F; }
     goto L_D86C;
 L_D86C:
     tick(3u);
@@ -10107,8 +9990,7 @@ L_E16A:
     wr((u16)(0x007Eu + Y), A);
     tick(2u);
     Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Nf) { tick(3u); goto L_E16A; }
-    tick(2u);
+    if (((Y & 0x80u) == 0)) { goto L_E16A; }
     goto L_E170;
 L_E170:
     tick(2u);
@@ -10117,8 +9999,7 @@ L_E170:
 L_E172:
     tick(4u + ((0x0068u + Y) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0068u + Y) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E17F; }
-    tick(2u);
+    if (A == 0) { goto L_E17F; }
     goto L_E177;
 L_E177:
     tick(2u);
@@ -10299,8 +10180,7 @@ L_DA9F:
 L_DAAE:
     tick(3u);
     A = ram[0x0037u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_DAFF; }
-    tick(2u);
+    if (A != 0) { goto L_DAFF; }
     goto L_DAB2;
 L_DAB2:
     tick(2u);
@@ -10315,8 +10195,7 @@ L_DAB2:
     wr((u16)(0x008Au + X), A);
     tick(3u);
     A = ram[0x00ADu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_DAC3; }
-    tick(2u);
+    if (A == 0) { goto L_DAC3; }
     goto L_DAC0;
 L_DAC0:
     tick(3u);
@@ -10324,8 +10203,7 @@ L_DAC0:
 L_DAC3:
     tick(3u);
     A = ram[0x005Du]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_DAFF; }
-    tick(2u);
+    if (A != 0) { goto L_DAFF; }
     goto L_DAC7;
 L_DAC7:
     tick(2u);
@@ -10343,14 +10221,12 @@ L_DAC7:
 L_DAD5:
     tick(3u);
     A = ram[0x0043u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_DAFF; }
-    tick(2u);
+    if (A != 0) { goto L_DAFF; }
     goto L_DAD9;
 L_DAD9:
     tick(3u);
     A = ram[0x005Du]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_DAFF; }
-    tick(2u);
+    if (A != 0) { goto L_DAFF; }
     goto L_DADD;
 L_DADD:
     tick(2u);
@@ -11080,8 +10956,7 @@ L_DD57:
 L_DD59:
     tick(3u);
     A = ram[0x0000u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_DD73; }
-    tick(2u);
+    if (A != 0) { goto L_DD73; }
     goto L_DD5D;
 L_DD5D:
     tick(3u);
@@ -11261,8 +11136,7 @@ L_DDF5:
 L_DE01:
     tick(4u + ((0x0017u + X) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0417u + X) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_DE0B; }
-    tick(2u);
+    if (A == 0) { goto L_DE0B; }
     goto L_DE06;
 L_DE06:
     tick(2u);
@@ -11338,8 +11212,7 @@ L_DE40:
     Y = ram[0x005Du];
     tick(4u + ((0x0017u + Y) > 0xFFu ? 1u : 0u));
     A = ram[(u16)(0x0417u + Y) & 0x7FFu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_DE50; }
-    tick(2u);
+    if (A != 0) { goto L_DE50; }
     goto L_DE47;
 L_DE47:
     tick(7u);
@@ -11499,8 +11372,7 @@ L_DFE8:
     { u8 t = (u8)(rd((u16)(0x008Au + X)) + 1u); wr((u16)(0x008Au + X), t); }
     tick(4u);
     A = ram[(u8)(0x008Au + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Nf) { tick(3u); goto L_DFF7; }
-    tick(2u);
+    if (((A & 0x80u) != 0)) { goto L_DFF7; }
     goto L_DFF0;
 L_DFF0:
     if (A >= 16u) { goto L_DFF7; }
@@ -11628,8 +11500,7 @@ L_E048:
 L_E050:
     tick(3u);
     A = ram[0x007Du]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E057; }
-    tick(2u);
+    if (A != 0) { goto L_E057; }
     goto L_E054;
 L_E054:
     tick(2u);
@@ -11825,8 +11696,7 @@ L_E0AB:
 L_DF40:
     tick(3u);
     A = ram[0x00C0u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_DF45; }
-    tick(2u);
+    if (A == 0) { goto L_DF45; }
     goto L_DF44;
 L_DF44:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -12374,8 +12244,7 @@ L_E2AA:
     X = ram[0x00AEu];
     tick(4u);
     A = ram[(u8)(0x00AFu + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E2B3; }
-    tick(2u);
+    if (A != 0) { goto L_E2B3; }
     goto L_E2B0;
 L_E2B0:
     tick(3u);
@@ -12543,8 +12412,7 @@ L_E377:
 L_E37C:
     tick(3u);
     A = ram[0x0099u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E385; }
-    tick(2u);
+    if (A != 0) { goto L_E385; }
     goto L_E380;
 L_E380:
     tick(5u);
@@ -12634,8 +12502,7 @@ L_E3C7:
 L_E3CE:
     tick(3u);
     A = ram[0x0099u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E3ED; }
-    tick(2u);
+    if (A == 0) { goto L_E3ED; }
     goto L_E3D2;
 L_E3D2:
     tick(3u);
@@ -12791,8 +12658,7 @@ L_E459:
     X = ram[0x00AEu];
     tick(4u);
     A = ram[(u8)(0x00E8u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E46D; }
-    tick(2u);
+    if (A == 0) { goto L_E46D; }
     goto L_E45F;
 L_E45F:
     if (A == 3u) { goto L_E466; }
@@ -13225,8 +13091,7 @@ L_E2B6:
     X = ram[0x00AEu];
     tick(4u);
     A = ram[(u8)(0x00D2u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_E2DD; }
-    tick(2u);
+    if (A != 0) { goto L_E2DD; }
     goto L_E2BC;
 L_E2BC:
     tick(2u);
@@ -13448,8 +13313,7 @@ L_E806:
     { u8 t = (u8)(rd((u16)(0x00E4u + X)) + 1u); wr((u16)(0x00E4u + X), t); }
     tick(4u);
     A = ram[(u8)(0x00E4u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Nf) { tick(3u); goto L_E815; }
-    tick(2u);
+    if (((A & 0x80u) != 0)) { goto L_E815; }
     goto L_E80E;
 L_E80E:
     if (A >= 16u) { goto L_E815; }
@@ -13737,8 +13601,7 @@ L_E7A3:
     X = ram[0x00AEu];
     tick(4u);
     A = ram[(u8)(0x00DBu + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E7AE; }
-    tick(2u);
+    if (A == 0) { goto L_E7AE; }
     goto L_E7A9;
 L_E7A9:
     tick(3u);
@@ -13769,8 +13632,7 @@ L_E7AE:
     X = ram[0x00AEu];
     tick(4u);
     Y = ram[(u8)(0x00E0u + X)]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E7F2; }
-    tick(2u);
+    if (Y == 0) { goto L_E7F2; }
     goto L_E7C5;
 L_E7C5:
     tick(2u);
@@ -13949,8 +13811,7 @@ L_E775:
     X = A;
     tick(4u);
     A = ram[(u8)(0x00C1u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E790; }
-    tick(2u);
+    if (A == 0) { goto L_E790; }
     goto L_E787;
 L_E787:
     tick(3u);
@@ -13965,8 +13826,7 @@ L_E787:
 L_E790:
     tick(4u);
     A = ram[(u8)(0x00C2u + X)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_E7A0; }
-    tick(2u);
+    if (A == 0) { goto L_E7A0; }
     goto L_E794;
 L_E794:
     tick(3u);
@@ -14066,8 +13926,7 @@ L_EA2F:
 L_EA34:
     tick(3u);
     A = ram[0x0036u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EA5E; }
-    tick(2u);
+    if (A != 0) { goto L_EA5E; }
     goto L_EA38;
 L_EA38:
     tick(3u);
@@ -14118,8 +13977,7 @@ L_EAA1:
     { u8 t = (u8)(rd(0x00B8u) + 1u); wr(0x00B8u, t); }
     tick(3u);
     A = ram[0x00B8u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Nf) { tick(3u); goto L_EAAE; }
-    tick(2u);
+    if (((A & 0x80u) != 0)) { goto L_EAAE; }
     goto L_EAA7;
 L_EAA7:
     if (A >= 16u) { goto L_EAAE; }
@@ -14180,8 +14038,7 @@ L_EB97:
 L_F33E:
     tick(2u);
     X = 0xFFu; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F344; }
-    tick(2u);
+    if (X != 0) { goto L_F344; }
     goto L_F342;
 L_EC44:
     tick(2u);
@@ -14246,8 +14103,7 @@ L_EC69:
 L_EC6F:
     tick(3u);
     A = ram[0x009Cu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EC80; }
-    tick(2u);
+    if (A == 0) { goto L_EC80; }
     goto L_EC73;
 L_EC73:
     tick(3u);
@@ -14260,8 +14116,7 @@ L_EC76:
 L_EC7C:
     tick(3u);
     A = ram[0x009Eu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_EC97; }
-    tick(2u);
+    if (A != 0) { goto L_EC97; }
     goto L_EC80;
 L_EC80:
     tick(3u);
@@ -14337,8 +14192,7 @@ L_ECBE:
 L_ECBF:
     tick(3u);
     A = ram[0x00A0u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_ECC6; }
-    tick(2u);
+    if (A != 0) { goto L_ECC6; }
     goto L_ECC3;
 L_ECC3:
     tick(3u);
@@ -14731,8 +14585,7 @@ L_EF51:
 L_EF57:
     tick(3u);
     A = ram[0x00A0u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_EF71; }
-    tick(2u);
+    if (A == 0) { goto L_EF71; }
     goto L_EF5B;
 L_EF5B:
     tick(2u);
@@ -14854,8 +14707,7 @@ L_F124:
     Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F124; }
-    tick(2u);
+    if (X != 0) { goto L_F124; }
     goto L_F138;
 L_F138:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -14886,8 +14738,7 @@ L_F19F:
     Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F19F; }
-    tick(2u);
+    if (X != 0) { goto L_F19F; }
     goto L_F1A8;
 L_F1A8:
     tick(3u);
@@ -14900,8 +14751,7 @@ L_F1A8:
     wr(0x0000u, A);
     tick(5u);
     { u8 t = (u8)(rd(0x0007u) - 1u); wr(0x0007u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_F197; }
-    tick(2u);
+    if (ram[0x0007u] != 0) { goto L_F197; }
     goto L_F1B3;
 L_F1B3:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -14966,8 +14816,7 @@ L_F16F:
     Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F16F; }
-    tick(2u);
+    if (X != 0) { goto L_F16F; }
     goto L_F18D;
 L_F18D:
     tick(3u);
@@ -15018,8 +14867,7 @@ L_F141:
     Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F141; }
-    tick(2u);
+    if (X != 0) { goto L_F141; }
     goto L_F155;
 L_F155:
     tick(3u);
@@ -15032,8 +14880,7 @@ L_F155:
     wr(0x0000u, A);
     tick(5u);
     { u8 t = (u8)(rd(0x0007u) - 1u); wr(0x0007u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_F13B; }
-    tick(2u);
+    if (ram[0x0007u] != 0) { goto L_F13B; }
     goto L_F160;
 L_F160:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -15062,8 +14909,7 @@ L_F10E:
     Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_F10E; }
-    tick(2u);
+    if (X != 0) { goto L_F10E; }
     goto L_F11D;
 L_F11D:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -15167,8 +15013,7 @@ L_F29A:
     X = (u8)(X - 1u);
     tick(5u);
     { u8 t = (u8)(rd(0x0002u) - 1u); wr(0x0002u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (Zf) { tick(3u); goto L_F2C4; }
-    tick(2u);
+    if (ram[0x0002u] == 0) { goto L_F2C4; }
     goto L_F2A2;
 L_F2A2:
     tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
@@ -15223,8 +15068,7 @@ L_F2BE:
     X = (u8)(X - 1u);
     tick(5u);
     { u8 t = (u8)(rd(0x0002u) - 1u); wr(0x0002u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_F28E; }
-    tick(2u);
+    if (ram[0x0002u] != 0) { goto L_F28E; }
     goto L_F2C4;
 L_F2C4:
     tick(3u);
@@ -15469,8 +15313,7 @@ L_FB89:
     { u8 t = (u8)(rd(0x00F1u) - 1u); wr(0x00F1u, t); }
     tick(3u);
     A = ram[0x00F1u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FB75; }
-    tick(2u);
+    if (A == 0) { goto L_FB75; }
     goto L_FB94;
 L_FB94:
     tick(2u);
@@ -15618,8 +15461,7 @@ L_FBF9:
 L_FBFD:
     tick(3u);
     X = ram[0x00FAu]; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FC4B; }
-    tick(2u);
+    if (X != 0) { goto L_FC4B; }
     goto L_FC01;
 L_FC01:
     tick(2u);
@@ -15680,8 +15522,7 @@ L_FC19:
 L_FC28:
     tick(5u);
     { u8 t = (u8)(rd(0x00F2u) - 1u); wr(0x00F2u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_FC30; }
-    tick(2u);
+    if (ram[0x00F2u] != 0) { goto L_FC30; }
     goto L_FC2C;
 L_FC2C:
     tick(2u);
@@ -15716,8 +15557,7 @@ L_FC41:
 L_FC44:
     tick(5u);
     { u8 t = (u8)(rd(0x00F1u) - 1u); wr(0x00F1u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_FC16; }
-    tick(2u);
+    if (ram[0x00F1u] != 0) { goto L_FC16; }
     goto L_FC48;
 L_FC48:
     tick(6u);
@@ -15765,8 +15605,7 @@ L_FC62:
     Y = PRG_ROM[((u16)(0xFAE5u + X) - 0x8000u) & (kPrgSize - 1u)];
     tick(2u);
     X = 0x41u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FC41; }
-    tick(2u);
+    if (X != 0) { goto L_FC41; }
     goto L_FC73;
 L_FC73:
     tick(2u);
@@ -15784,8 +15623,7 @@ L_FC73:
 L_FC7F:
     tick(6u);
     { u8 t = (u8)(rd(0x06A5u) - 1u); wr(0x06A5u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (Zf) { tick(3u); goto L_FC9D; }
-    tick(2u);
+    if (ram[0x06A5u] == 0) { goto L_FC9D; }
     goto L_FC84;
 L_FC84:
     tick(4u);
@@ -15804,32 +15642,27 @@ L_FC84:
 L_FC90:
     tick(3u);
     A = ram[0x00F3u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FC9D; }
-    tick(2u);
+    if (A != 0) { goto L_FC9D; }
     goto L_FC94;
 L_FC94:
     tick(4u);
     A = ram[0x06A5u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FC7F; }
-    tick(2u);
+    if (A != 0) { goto L_FC7F; }
     goto L_FC99;
 L_FC99:
     tick(3u);
     Y = ram[0x00FEu]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Nf) { tick(3u); goto L_FC73; }
-    tick(2u);
+    if (((Y & 0x80u) != 0)) { goto L_FC73; }
     goto L_FC9D;
 L_FC9D:
     tick(3u);
     A = ram[0x00FCu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(4u); goto L_FD0B; }
-    tick(2u);
+    if (A != 0) { goto L_FD0B; }
     goto L_FCA1;
 L_FCA1:
     tick(3u);
     A = ram[0x00F9u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(4u); goto L_FD0B; }
-    tick(2u);
+    if (A != 0) { goto L_FD0B; }
     goto L_FCA5;
 L_FCA5:
     tick(3u);
@@ -15866,14 +15699,12 @@ L_FCB8:
 L_FCBA:
     tick(2u);
     A = 0x28u; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FCDD; }
-    tick(2u);
+    if (A != 0) { goto L_FCDD; }
     goto L_FCBE;
 L_FCBE:
     tick(3u);
     A = ram[0x00F5u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FCC6; }
-    tick(2u);
+    if (A != 0) { goto L_FCC6; }
     goto L_FCC2;
 L_FCC2:
     tick(5u);
@@ -15936,8 +15767,7 @@ L_FCF0:
     A = 0xFEu;
     tick(3u);
     Y = ram[0x00F5u]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FCD1; }
-    tick(2u);
+    if (Y == 0) { goto L_FCD1; }
     goto L_FCF6;
 L_FCF6:
     if (Y == 7u) { goto L_FD00; }
@@ -15958,8 +15788,7 @@ L_FD00:
     wr(0x400Au, A);
     tick(3u);
     A = ram[0x00F5u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FD0B; }
-    tick(2u);
+    if (A == 0) { goto L_FD0B; }
     goto L_FD09;
 L_FD09:
     tick(5u);
@@ -15968,14 +15797,12 @@ L_FD09:
 L_FD0B:
     tick(3u);
     X = ram[0x00FAu]; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FD58; }
-    tick(2u);
+    if (X != 0) { goto L_FD58; }
     goto L_FD0F;
 L_FD0F:
     tick(3u);
     A = ram[0x00FCu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FD18; }
-    tick(2u);
+    if (A != 0) { goto L_FD18; }
     goto L_FD13;
 L_FD13:
     tick(4u);
@@ -16017,8 +15844,7 @@ L_FD25:
 L_FD35:
     tick(6u);
     { u8 t = (u8)(rd(0x0698u) - 1u); wr(0x0698u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_FD58; }
-    tick(2u);
+    if (ram[0x0698u] != 0) { goto L_FD58; }
     goto L_FD3A;
 L_FD3A:
     tick(4u);
@@ -16027,8 +15853,7 @@ L_FD3A:
     { u8 t = (u8)(rd(0x0680u) + 1u); wr(0x0680u, t); }
     tick(5u + (((rd(0x00F5u) | (static_cast<eng::u16>(rd(0x00F6u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x00F5u) | ((u16)rd(0x00F6u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FD1D; }
-    tick(2u);
+    if (A == 0) { goto L_FD1D; }
     goto L_FD44;
 L_FD44:
     tick(2u);
@@ -16060,14 +15885,12 @@ L_FD44:
 L_FD58:
     tick(3u);
     A = ram[0x00FDu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FD62; }
-    tick(2u);
+    if (A != 0) { goto L_FD62; }
     goto L_FD5C;
 L_FD5C:
     tick(4u);
     A = ram[0x0102u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FD9B; }
-    tick(2u);
+    if (A != 0) { goto L_FD9B; }
     goto L_FD61;
 L_FD61:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
@@ -16121,28 +15944,24 @@ L_FD67:
     wr(0x00F3u, Y);
     tick(3u);
     A = ram[0x00FBu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FDA4; }
-    tick(2u);
+    if (A == 0) { goto L_FDA4; }
     goto L_FD9B;
 L_FD9B:
     tick(3u);
     Y = ram[0x00FAu]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FDD8; }
-    tick(2u);
+    if (Y == 0) { goto L_FDD8; }
     goto L_FD9F;
 L_FD9F:
     tick(6u);
     { u8 t = (u8)(rd(0x0696u) - 1u); wr(0x0696u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_FDD8; }
-    tick(2u);
+    if (ram[0x0696u] != 0) { goto L_FDD8; }
     goto L_FDA4;
 L_FDA4:
     tick(5u);
     { u8 t = (u8)(rd(0x00FAu) + 1u); wr(0x00FAu, t); }
     tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x00F7u) | ((u16)rd(0x00F8u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FDE9; }
-    tick(2u);
+    if (A == 0) { goto L_FDE9; }
     goto L_FDAA;
 L_FDAA:
     if (!Nf) { tick(3u); goto L_FDB8; }
@@ -16175,24 +15994,21 @@ L_FDBB:
 L_FDBD:
     tick(2u);
     Y = 0x10u; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FDCF; }
-    tick(2u);
+    if (Y != 0) { goto L_FDCF; }
     goto L_FDC1;
 L_FDC1:
     tick(2u);
     X = 0x9Fu;
     tick(3u);
     A = ram[0x00FBu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FDCF; }
-    tick(2u);
+    if (A == 0) { goto L_FDCF; }
     goto L_FDC7;
 L_FDC7:
     tick(2u);
     X = 0x06u;
     tick(3u);
     A = ram[0x00F9u]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FDCF; }
-    tick(2u);
+    if (A != 0) { goto L_FDCF; }
     goto L_FDCD;
 L_FDCD:
     tick(2u);
@@ -16212,14 +16028,12 @@ L_FDD2:
 L_FDD8:
     tick(3u);
     A = ram[0x00FBu]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(4u); goto L_FE31; }
-    tick(2u);
+    if (A == 0) { goto L_FE31; }
     goto L_FDDC;
 L_FDDC:
     tick(6u);
     { u8 t = (u8)(rd(0x0695u) - 1u); wr(0x0695u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(4u); goto L_FE31; }
-    tick(2u);
+    if (ram[0x0695u] != 0) { goto L_FE31; }
     goto L_FDE1;
 L_FDE1:
     tick(3u);
@@ -16228,8 +16042,7 @@ L_FDE1:
     { u8 t = (u8)(rd(0x00F3u) + 1u); wr(0x00F3u, t); }
     tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x00F7u) | ((u16)rd(0x00F8u) << 8)) + Y)); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(4u); goto L_FE09; }
-    tick(2u);
+    if (A != 0) { goto L_FE09; }
     goto L_FDE9;
 L_FDE9:
     tick(6u);
@@ -16249,14 +16062,12 @@ L_FDEC:
     wr(0x0102u, A);
     tick(3u);
     Y = ram[0x00FBu]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(4u); goto L_FE00; }
-    tick(2u);
+    if (Y == 0) { goto L_FE00; }
     goto L_FDFB;
 L_FDFB:
     tick(4u);
     Y = ram[0x06A1u]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FE03; }
-    tick(2u);
+    if (Y != 0) { goto L_FE03; }
     goto L_FE00;
 L_FE00:
     tick(4u);
@@ -16293,8 +16104,7 @@ L_FE17:
 L_FE19:
     tick(2u);
     X = 0x10u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FE2E; }
-    tick(2u);
+    if (X != 0) { goto L_FE2E; }
     goto L_FE1D;
 L_FE1D:
     tick(2u);
@@ -16319,14 +16129,12 @@ L_FE2E:
 L_FE31:
     tick(3u);
     Y = ram[0x00F9u]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FE58; }
-    tick(2u);
+    if (Y == 0) { goto L_FE58; }
     goto L_FE35;
 L_FE35:
     tick(6u);
     { u8 t = (u8)(rd(0x0698u) - 1u); wr(0x0698u, t); { const u8 _n2az = t; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); } }
-    if (!Zf) { tick(3u); goto L_FE58; }
-    tick(2u);
+    if (ram[0x0698u] != 0) { goto L_FE58; }
     goto L_FE3A;
 L_FE3A:
     tick(5u);
@@ -16357,8 +16165,7 @@ L_FE4D:
 L_FE4F:
     tick(3u);
     Y = ram[0x00FBu]; { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FE55; }
-    tick(2u);
+    if (Y != 0) { goto L_FE55; }
     goto L_FE53;
 L_FE53:
     tick(2u);
@@ -16416,8 +16223,7 @@ L_FAA1:
     Y = A;
     tick(4u + ((0x0001u + Y) > 0xFFu ? 1u : 0u));
     A = PRG_ROM[((u16)(0xFB01u + Y) - 0x8000u) & (kPrgSize - 1u)]; { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (Zf) { tick(3u); goto L_FAB2; }
-    tick(2u);
+    if (A == 0) { goto L_FAB2; }
     goto L_FAA7;
 L_FAA7:
     tick(5u);
@@ -16442,8 +16248,7 @@ L_FAB3:
     wr(0x4005u, Y);
     tick(2u);
     X = 0x04u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FAA1; }
-    tick(2u);
+    if (X != 0) { goto L_FAA1; }
     goto L_FABA;
 L_FABA:
     tick(4u);
@@ -16454,8 +16259,7 @@ L_FABA:
     A = (u8)(A & 0x3Eu);
     tick(2u);
     X = 0x08u; { const u8 _n2az = X; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FAA1; }
-    tick(2u);
+    if (X != 0) { goto L_FAA1; }
     goto L_FAC4;
 L_FAC4:
     tick(2u);
@@ -16496,8 +16300,7 @@ L_FA88:
 L_FA8B:
     tick(2u);
     Y = (u8)(Y - 1u); { const u8 _n2az = Y; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    if (!Zf) { tick(3u); goto L_FA88; }
-    tick(2u);
+    if (Y != 0) { goto L_FA88; }
     goto L_FA8E;
 L_FA8E:
     tick(6u); SP = (u8)(SP + 2u); goto *ret_lbl[--ret_sp];
