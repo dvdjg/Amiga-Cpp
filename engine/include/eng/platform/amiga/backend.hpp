@@ -613,13 +613,15 @@ public:
 			       bool wait = true, const eng::s16* bbox = nullptr);
 
 	/// Rellena un **poligono convexo** (puntos de pantalla `xs`/`ys`, `n` vertices) con
-	/// `color` en `planes` planos. Limpia la mascara de su bbox, traza el contorno
-	/// (`ONEDOT`), hace area fill inclusivo (`FILL_OR`) y cookie-cut a cada plano.
-	/// Da caras solidas limpias (sin el filtrado del area-fill `XOR` en vertices).
+	/// `color` en `planes` planos: limpia la mascara de su bbox, la rellena con **spans
+	/// CPU** (el mismo generador convexo que la referencia) y expande el color con
+	/// **cookie-cut** por plano (Blitter). Sin estado de paridad: las filas con un solo
+	/// cruce (aristas horizontales y vertices extremos) no pueden rayar, a diferencia del
+	/// antiguo contorno ONEDOT + area fill inclusivo.
 	bool blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
 				  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask);
 
-	/// Igual que `blitter_fill_polygon` pero con la geometria del destino EXPLICITA,
+	/// Igual que `blitter_fill_polygon` (spans CPU + cookie-cut) pero con la geometria del destino EXPLICITA,
 	/// para servir tanto a planos CONTIGUOS (base + `plane_stride` entre planos,
 	/// `row_stride` = `row_bytes`) como INTERLEAVED (una fila de cada plano seguida:
 	/// `plane_stride` = `row_bytes`, `row_stride` = `planes*row_bytes`). `plane_base`

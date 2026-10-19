@@ -2,6 +2,7 @@
 # Regenerar tras justificar cada subida:
 #   node tools/check/generic-headers.mjs --update-raw-baseline
   2  adv/types.hpp
+  1  adv/verb.hpp
   2  ai/navigation/flow_field.hpp
   1  ai/navigation/navmesh_lite.hpp
   1  ai/perception/influence_map.hpp

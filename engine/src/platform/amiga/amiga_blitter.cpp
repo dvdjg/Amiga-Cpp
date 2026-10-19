@@ -2,6 +2,7 @@
 /// Servicio de **Blitter** del backend Amiga: ejecucion del `FramePlan` y operaciones
 /// (copias, cookie-cut, OR de BOBs, lineas, area fill, colision, relleno por plano).
 
+#include <eng/core/data/polygon.hpp>
 #include <eng/graphics/blit_queue.hpp>
 #include <eng/platform/amiga/blob_batch.hpp>
 
@@ -612,12 +613,26 @@ bool AmigaBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 		const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
 		const u16 h = static_cast<u16>(ymax - ymin + 1);
 
-		// 1) mascara limpia, 2) contorno, 3) area fill, 4) cookie-cut a color.
+		// Mascara limpia + spans CPU (misma referencia convexa que el relleno CPU) +
+		// cookie-cut por plano: sin paridad ni rayas de area fill.
 		blit_clear_region(mask.data(), row_bytes, wx0, ymin, words, h);
-		blit_line(mask.data(), row_bytes, t.x0, t.y0, t.x1, t.y1);
-		blit_line(mask.data(), row_bytes, t.x1, t.y1, t.x2, t.y2);
-		blit_line(mask.data(), row_bytes, t.x2, t.y2, t.x0, t.y0);
-		blit_fill_region(mask.data(), row_bytes, wx0, ymin, words, h);
+	wait_blitter(); // el clear es asincrono: los spans CPU escriben tras el
+		wait_blitter(); // el clear es asincrono: los spans CPU escriben tras el
+		{
+			eng::s32 vx[3] = {t.x0, t.x1, t.x2};
+			eng::s32 vy[3] = {t.y0, t.y1, t.y2};
+			const eng::s32 x_end = static_cast<eng::s32>(wx0) + static_cast<eng::s32>(words) * 16 - 1;
+			eng::math3d::convex_spans(
+				eng::Span<const eng::s32>(vx, 3u), eng::Span<const eng::s32>(vy, 3u),
+				[&](eng::s32 y, eng::s32 xl, eng::s32 xr) {
+					if (y < ymin || y > ymax) return;
+					if (xl < static_cast<eng::s32>(wx0)) xl = wx0;
+					if (xr > x_end) xr = x_end;
+					if (xl <= xr)
+						blit_mask_or_span(mask.data(), row_bytes, static_cast<s16>(y),
+								  static_cast<s16>(xl), static_cast<s16>(xr));
+				});
+		}
 		for (u8 p = 0; p < planes; ++p) {
 			blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
 					   row_bytes, wx0, ymin, words, h, ((t.color >> p) & 1u) != 0u);
@@ -667,11 +682,40 @@ bool AmigaBackend::blitter_fill_polygon_strided(eng::u8* plane_base, u8 planes, 
 
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	blit_clear_region(mask.data(), row_bytes, wx0, ymin, words, h);
-	for (u8 i = 0u; i < n; ++i) {
-		const u8 j = static_cast<u8>((static_cast<u8>(i) + 1u) % n);
-		blit_line(mask.data(), row_bytes, xs[i], ys[i], xs[j], ys[j]);
+	wait_blitter(); // el clear es asincrono: los spans CPU escriben tras el
+	// **Spans CPU en la máscara** + cookie-cut por Blitter (el color lo expande el Blitter).
+	// Sustituye a contorno ONEDOT + area fill: el fill inclusivo rayaba las filas con un
+	// solo cruce (aristas horizontales y vértices extremos) y el XOR exige el truco de
+	// DPTR con una fila de descarga. Los spans salen del mismo generador convexo que la
+	// referencia CPU (`convex_spans`), así que la forma es exacta en cualquier winding y
+	// no hay estado de paridad que cuidar.
+	{
+		constexpr u8 kMaxSpanVerts = 16u;
+		if (n <= kMaxSpanVerts) {
+			eng::s32 vx[kMaxSpanVerts] {};
+			eng::s32 vy[kMaxSpanVerts] {};
+			for (u8 k = 0u; k < n; ++k) {
+				vx[k] = xs[k];
+				vy[k] = ys[k];
+			}
+			const s32 x_end = static_cast<s32>(wx0) + static_cast<s32>(words) * 16 - 1;
+			eng::math3d::convex_spans(
+				eng::Span<const eng::s32>(vx, n), eng::Span<const eng::s32>(vy, n),
+				[&](eng::s32 y, eng::s32 xl, eng::s32 xr) {
+					if (y < ymin || y > ymax) {
+						return;
+					}
+					if (xl < static_cast<s32>(wx0)) xl = wx0;
+					if (xr > x_end) xr = x_end;
+					if (xl <= xr) {
+						blit_mask_or_span(mask.data(), row_bytes,
+								  static_cast<s16>(y),
+								  static_cast<s16>(xl),
+								  static_cast<s16>(xr));
+					}
+				});
+		}
 	}
-	blit_fill_region(mask.data(), row_bytes, wx0, ymin, words, h);
 	for (u8 p = 0u; p < planes; ++p) {
 		eng::u8* d = plane_base + static_cast<u32>(p) * plane_stride;
 		blit_mask_to_plane(d, row_stride, mask.data(), row_bytes, wx0, ymin, words, h,
@@ -1211,6 +1255,10 @@ bool AmigaBackend::blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes, 
 		return false;
 	}
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	// Semantica del fill fijada con la fuente: AHRM 3.a «Area Fill Mode» (fill exclusivo
+	// borra la linea del borde IZQUIERDO; FCI fuerza el exterior; descendente obligatorio)
+	// y WinUAE ../WinUAE-DBG/blitter.cpp:262-289 (tabla filltable: por byte, LSB=izquierda
+	// del par; el carry se resetea POR FILA en :521 con BLTFC=bit 2 de BLTCON1).
 	const u16 mod = static_cast<u16>(row_bytes - words * 2u);
 	eng::u8* seed = plane.data() + row_offset(static_cast<eng::s16>(y0 + rows - 1), row_bytes) +
 			(wx0 >> 3) + (words - 1u) * 2u;

@@ -538,6 +538,30 @@ inline void blit_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 wor
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((rows << 6) | words);
 }
 
+/// Escribe (OR) el tramo horizontal [xl, xr] (inclusivo, ya recortado) en la fila y de una
+/// mascara 1 bpp. La via CPU del relleno por spans del renderer 3D: escribe palabras
+/// completas en el interior y mascaras dobles en los extremos. NO toca fuera del tramo.
+inline void blit_mask_or_span(eng::u8* mask, eng::u16 row_bytes, eng::s16 y, eng::s16 xl,
+			      eng::s16 xr) {
+	if (mask == nullptr || xr < xl) {
+		return;
+	}
+	auto* row = reinterpret_cast<eng::u16*>(mask + row_offset(y, row_bytes));
+	const eng::u16 w0 = static_cast<eng::u16>(static_cast<eng::u16>(xl) >> 4);
+	const eng::u16 w1 = static_cast<eng::u16>(static_cast<eng::u16>(xr) >> 4);
+	const eng::u16 lm = static_cast<eng::u16>(0xffffu >> (static_cast<eng::u16>(xl) & 15u));
+	const eng::u16 rm = static_cast<eng::u16>(0xffffu << (15u - (static_cast<eng::u16>(xr) & 15u)));
+	if (w0 == w1) {
+		row[w0] = static_cast<eng::u16>(row[w0] | (lm & rm));
+		return;
+	}
+	row[w0] = static_cast<eng::u16>(row[w0] | lm);
+	for (eng::u16 w = static_cast<eng::u16>(w0 + 1u); w < w1; ++w) {
+		row[w] = 0xffffu;
+	}
+	row[w1] = static_cast<eng::u16>(row[w1] | rm);
+}
+
 /// Rellena un rectangulo de palabras de UN plano con 1s (D-only, minterm `$FF`; D=0 con
 /// `blit_clear_region`). `wx0` = x (pixel) de la primera palabra (multiplo de 16). No usa
 /// fuente, asi que no depende de que haya una mascara en Chip RAM.

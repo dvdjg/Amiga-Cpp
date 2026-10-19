@@ -82,17 +82,21 @@ inline u32 convex_spans(Span<const T> xs, Span<const T> ys, Emit&& emit) {
 		}
 	};
 
+	// Envoltura incremental: `% n` en un bucle por fila acaba en `__umodsi3` (~150
+	// ciclos) en 68000. Aquí n es runtime, así que se sustituye por comparación.
+	auto next = [n](u32 i) { return (i + 1u == n) ? 0u : (i + 1u); };
+	auto prev = [n](u32 i) { return (i == 0u) ? (n - 1u) : (i - 1u); };
 	u32 ia = top; // vértice actual de la cadena "hacia adelante"
 	u32 ib = top; // vértice actual de la cadena "hacia atrás"
 	// Salta aristas horizontales (altura 0) al inicio de cada cadena.
-	while (ia != bot && ys[(ia + 1u) % n] == ys[ia]) {
-		ia = (ia + 1u) % n;
+	while (ia != bot && ys[next(ia)] == ys[ia]) {
+		ia = next(ia);
 	}
-	while (ib != bot && ys[(ib + n - 1u) % n] == ys[ib]) {
-		ib = (ib + n - 1u) % n;
+	while (ib != bot && ys[prev(ib)] == ys[ib]) {
+		ib = prev(ib);
 	}
-	u32 na = (ia + 1u) % n;
-	u32 nb = (ib + n - 1u) % n;
+	u32 na = next(ia);
+	u32 nb = prev(ib);
 	Dda da {};
 	Dda db {};
 	setup(da, ia, na);
@@ -102,19 +106,19 @@ inline u32 convex_spans(Span<const T> xs, Span<const T> ys, Emit&& emit) {
 	for (T y = ys[top]; y < ys[bot]; ++y) {
 		while (na != bot && y >= ys[na]) {
 			ia = na;
-			na = (ia + 1u) % n;
+			na = next(ia);
 			while (na != bot && ys[na] == ys[ia]) {
 				ia = na;
-				na = (ia + 1u) % n;
+				na = next(ia);
 			}
 			setup(da, ia, na);
 		}
 		while (nb != bot && y >= ys[nb]) {
 			ib = nb;
-			nb = (ib + n - 1u) % n;
+			nb = prev(ib);
 			while (nb != bot && ys[nb] == ys[ib]) {
 				ib = nb;
-				nb = (ib + n - 1u) % n;
+				nb = prev(ib);
 			}
 			setup(db, ib, nb);
 		}
