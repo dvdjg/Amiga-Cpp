@@ -1,0 +1,5 @@
+{
+  "max_candidates": 12,
+  "max_blocks_low": 400,
+  "note": "Demo 002_adv_verbs: fondo estatico en un unico buffer con scroll por hardware (punteros/BPLCON1), actor/puntero/props por bobs con save-under y franja HUD 1bpp que se actualiza por diferencias. El detector determinista marca zonas de la franja (contador de frames, frase/replica y subrayado de verbo) y la ventana del actor/puntero: son ACTUALIZACIONES legítimas de UI/movimiento, no parpadeo de playfield (no hay doble buffer). Medido con la receta del gate (tools/vision-review/flicker-check.mjs --no-ollama): 2 candidatos en el arranque tranquilo (celda del contador + actor) y 8 con el guion de atracción activo (frase/replica/verbo cambian por diseño); bloques bajos max 375. Topes con margen (12/400) para cubrir ambas fases; superarlos es fallo."
+}

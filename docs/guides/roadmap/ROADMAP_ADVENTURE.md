@@ -8,8 +8,8 @@ Principio rector: un **vertical slice** (un muelle con parallax + caminar + usar
 
 | Hito | Contenido | Estado |
 |---|---|---|
-| **A0 — Núcleo de sala** | Sala, walkboxes, cámara de mundo, actor que camina | **HECHA** — navegación por walkboxes (`eng/adv/navigation.hpp`) y cámara (`eng/adv/camera.hpp`) con **HOST-475**; demo `001_adv_walk` **VERIFICADA** (ruta+cámara+HUD+click; ~48-49 fps estables ~1,0 campos/frame con `measure-fps`, flicker OK con `max_candidates: 0` y visión canónica OK; fixes: espera activa de VBlank por la carrera de despertar, HUD por diferencias con `Playfield::store_plane_words_row`, servicio de Blitter off y clamp de bobs). Detalle: `demos/features/adventure/amiga/001_adv_walk/VALIDATION.md` |
-| **A1 — Verbos e interacción** | Verbos (dato), hotspots, hit-test, say, inventario | Pendiente |
+| **A0 — Núcleo de sala** | Sala, walkboxes, cámara de mundo, actor que camina | **HECHA** — navegación por walkboxes (`eng/adv/navigation.hpp`) y cámara (`eng/adv/camera.hpp`) con **HOST-475**; demo `001_adv_walk` **VERIFICADA** (ruta+cámara+HUD+click; ~48-49 fps estables ~1,0 campos/frame con `measure-fps`, flicker OK con `max_candidates: 0` y visión canónica OK; fixes: espera activa de VBlank por la carrera de despertar, HUD por diferencias con `eng::playfield::DiffText` (sobre `Playfield::store_plane_words_row`), servicio de Blitter off y clamp de bobs). Detalle: `demos/features/adventure/amiga/001_adv_walk/VALIDATION.md` |
+| **A1 — Verbos e interacción** | Verbos (dato), hotspots, hit-test, say, inventario | **EN CURSO** — motor entregado (`eng::adv/verb.hpp` + `say.hpp` con **HOST-480**: tabla verbo×objetos, aridad, prioridad GUI→hotspot→suelo, timing de la cola) y demo **`002_adv_verbs`** construida y verificada por secuencia del guion de atracción (interacción completa: puerta con cerradura abierta con la llave, inventario como proyección de `ItemBag`, réplicas) y visión canónica; régimen ~48-49 fps. Pendiente: cierre del gate completo de flicker/regresión en entorno estable y click real por GDB (`VALIDATION.md`). |
 | **A2 — Diálogo y Director** | Árboles de diálogo con hechos + cutscenes | Pendiente |
 | **A3 — Stage Composer** | Capas, parallax, Copper Score, presupuesto y degradación | **EN CURSO** — formato **`adv-stage/1`** definido y validado ([`STAGE_FORMAT.md`](../../../tools/adventure/formats/STAGE_FORMAT.md)) con andamios generados desde el SIM; falta el compositor y las demos |
 | **A4 — Salas y streaming** | Manifiestos de sala, transiciones, carga desde disco | Pendiente |
@@ -51,6 +51,8 @@ Principio rector: un **vertical slice** (un muelle con parallax + caminar + usar
 **Dependencias**: [`ROADMAP_HUD.md`](ROADMAP_HUD.md) H2 (slots y hit-test). *Fallback declarado si H2 no está*: franja H1 + hit-test de rectángulos dentro de `adv`, anotado en el `VALIDATION.md` de la demo (no se inventa un segundo HUD permanente).
 
 **Verificación**: tests host (tabla verbo×objetivo: validez, dos-objetivos, prioridad de hit-test, timing de la cola de say) + demo con visión y presupuesto medido.
+
+**Estado (2026-10-19)**: entregables 1-5 construidos — `eng/adv/verb.hpp` (`VerbSet` de contenido con etiqueta/aridad/`CursorMode`, `AdvAction`/`resolve_action`, `pick_pointer`) y `eng/adv/say.hpp` (`SayQueue` con duración exacta por VBlank), verificados por **HOST-480**; la demo `002_adv_verbs` (sala de la 001 + barra 2×5, frase, réplicas, inventario proyectado a una rejilla de `eng::hud` —sin fallback H1— y puerta con `LockSet`) pasa la interacción completa por su **guion de atracción** (secuencia capturada y visión canónica). Dependencia de H2 cubierta por el núcleo de `eng/hud/input.hpp` (HOST-469). Pendiente para cerrar la fase: pasada completa de regresión/flicker en entorno estable y click real inyectado (`demos/features/adventure/amiga/002_adv_verbs/VALIDATION.md`).
 
 ## A2 — Diálogo y Director (cutscenes)
 
