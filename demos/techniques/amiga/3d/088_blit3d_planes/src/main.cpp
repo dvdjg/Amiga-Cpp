@@ -164,6 +164,15 @@ struct Blit3dPlanesDemo {
 		cam.near_z = CT::from_int(64);
 		cam.half_w = CT::from_int(160);
 		cam.half_h = CT::from_int(116);
+		// Vertices en espacio de camara (z + kZ0) para el test de frustum del objeto.
+		eng::graphics::CamVertex<eng::coord> wc[8] {};
+		for (u8 i = 0u; i < 8u; ++i) {
+			wc[i].x = world[i].v[0];
+			wc[i].y = world[i].v[1];
+			wc[i].z = world[i].v[2] + CT::from_int(kZ0);
+		}
+		// Fast path: si las 8 esquinas estan dentro del frustum, ninguna cara necesita clip.
+		const bool all_inside = eng::graphics::camera_contains_vertices(cam, wc, 8u);
 
 		// Vértices por cara: el builder guarda VISTAS, no copia; deben vivir hasta el fill.
 		s16 xs[6][16] {};
@@ -174,14 +183,14 @@ struct Blit3dPlanesDemo {
 		m_submitted = 0u;
 		for (u8 fi = 0u; fi < 6u; ++fi) {
 			eng::graphics::CamVertex<eng::coord> cv[4] {};
-			for (u8 k = 0u; k < 4u; ++k) {
-				const CamVec& v = world[kCubeFaces[fi][k]];
-				cv[k].x = v.v[0];
-				cv[k].y = v.v[1];
-				cv[k].z = v.v[2] + CT::from_int(kZ0);
-			}
+			for (u8 k = 0u; k < 4u; ++k) { cv[k] = wc[kCubeFaces[fi][k]]; }
 			eng::graphics::CamVertex<eng::coord> cl[16] {};
-			const u8 m = eng::graphics::clip_camera_polygon(cv, 4u, cam, cl, 16u);
+			u8 m = 4u;
+			if (all_inside) {
+				for (u8 k = 0u; k < 4u; ++k) { cl[k] = cv[k]; }
+			} else {
+				m = eng::graphics::clip_camera_polygon(cv, 4u, cam, cl, 16u);
+			}
 			if (m < 3u) continue;
 			bool ok = true;
 			for (u8 k = 0u; k < m; ++k) {

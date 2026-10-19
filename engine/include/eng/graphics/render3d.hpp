@@ -107,6 +107,26 @@ template <class S>
 	return v;
 }
 
+/// Los cinco planos del frustum (near + laterales) en el orden que usan el clip y el
+/// test de contención. Una sola definición para que ambos no se desincronicen.
+template <class S>
+struct CameraPlanes {
+	Plane<S> planes[5] {};
+};
+
+template <class S>
+[[nodiscard]] constexpr CameraPlanes<S> camera_planes(const Camera3D<S>& cam) {
+	const S zero = eng::math::scalar_traits<S>::zero();
+	const S one = eng::math::scalar_traits<S>::one();
+	return CameraPlanes<S> {{
+		Plane<S> {zero, zero, one, -cam.near_z}, // z >= near
+		Plane<S> {cam.focal, zero, cam.half_w, zero},
+		Plane<S> {-cam.focal, zero, cam.half_w, zero},
+		Plane<S> {zero, cam.focal, cam.half_h, zero},
+		Plane<S> {zero, -cam.focal, cam.half_h, zero},
+	}};
+}
+
 /// Fracción `num/den` en 12 bits (0..4095) con `0 <= num <= den`, por división
 /// shift-subtract de 12 iteraciones: sin `__udivsi3` y sin desbordar `u32`.
 [[nodiscard]] constexpr u16 ratio_q12(u32 num, u32 den) {
@@ -170,16 +190,8 @@ template <class S>
 	if (n > 16u) return 0u;
 	using detail3d::Plane;
 	using T = eng::math::scalar_traits<S>;
-	const S zero = T::zero();
-	const S one = T::one();
-	const S planes_near = cam.near_z;
-	const Plane<S> planes[5] = {
-		Plane<S> {zero, zero, one, -planes_near}, // z >= near
-		Plane<S> {cam.focal, zero, cam.half_w, zero},
-		Plane<S> {-cam.focal, zero, cam.half_w, zero},
-		Plane<S> {zero, cam.focal, cam.half_h, zero},
-		Plane<S> {zero, -cam.focal, cam.half_h, zero},
-	};
+	const detail3d::CameraPlanes<S> cam_planes = detail3d::camera_planes(cam);
+	const Plane<S>* planes = cam_planes.planes;
 	CamVertex<S> a[16] {};
 	CamVertex<S> b[16] {};
 	for (u8 i = 0u; i < n; ++i) {
@@ -190,7 +202,8 @@ template <class S>
 	u8 count = n;
 	CamVertex<S>* cur = a;
 	CamVertex<S>* nxt = b;
-	for (const Plane<S>& pl : planes) {
+	for (u8 pi = 0u; pi < 5u; ++pi) {
+		const Plane<S>& pl = planes[pi];
 		if (count == 0u) break;
 		u8 m = 0u;
 		for (u8 i = 0u; i < count; ++i) {
@@ -233,6 +246,42 @@ template <class S>
 		out[i] = v;
 	}
 	return count;
+}
+
+/// **Fast path de frustum**: `true` si TODOS los vértices están ESTRICTAMENTE dentro del
+/// frustum (near + laterales). Un vértice sobre un plano devuelve `false` (el clip resuelve
+/// el caso límite). Con `true` el llamador puede proyectar sin recortar: ahorra 5 planos ×
+/// vértice por cara y las copias de los buffers de recorte.
+template <class S>
+[[nodiscard]] inline bool camera_contains_vertices(const Camera3D<S>& cam, const CamVertex<S>* verts,
+						   u32 n) noexcept {
+	if (verts == nullptr || n == 0u) return false;
+	const detail3d::CameraPlanes<S> cp = detail3d::camera_planes(cam);
+	for (u32 i = 0u; i < n; ++i) {
+		for (u8 pi = 0u; pi < 5u; ++pi) {
+			const auto d = cp.planes[pi].dist(verts[i]);
+			const auto zero = decltype(d) {};
+			if (!(d > zero)) return false;
+		}
+	}
+	return true;
+}
+
+/// Igual, para vértices de malla (`Vec3t<S>`, ya en espacio de cámara).
+template <class S>
+[[nodiscard]] inline bool camera_contains_vertices(const Camera3D<S>& cam,
+						   const math3d::Vec3t<S>* verts, u32 n) noexcept {
+	if (verts == nullptr || n == 0u) return false;
+	const detail3d::CameraPlanes<S> cp = detail3d::camera_planes(cam);
+	for (u32 i = 0u; i < n; ++i) {
+		const CamVertex<S> v {verts[i].v[0], verts[i].v[1], verts[i].v[2]};
+		for (u8 pi = 0u; pi < 5u; ++pi) {
+			const auto d = cp.planes[pi].dist(v);
+			const auto zero = decltype(d) {};
+			if (!(d > zero)) return false;
+		}
+	}
+	return true;
 }
 
 /// Proyecta un vértice ya recortado (`z >= near_z > 0`). Devuelve `false` si el contrato
@@ -290,6 +339,8 @@ inline u32 render_solid(const math3d::PolyMeshViewT<S>& mesh, const Model& model
 	if (nv == 0u || nf == 0u) return 0u;
 	math3d::mesh_transform(mesh.vertices, model,
 			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+	// Fast path: si el objeto entero está dentro del frustum, ninguna cara necesita clip.
+	const bool all_inside = camera_contains_vertices<S>(cam, world, nv);
 	u32 drawn = 0;
 	for (u32 fi = 0u; fi < nf; ++fi) {
 		const eng::Span<const u16> idx = mesh.face_indices(fi);
@@ -307,12 +358,16 @@ inline u32 render_solid(const math3d::PolyMeshViewT<S>& mesh, const Model& model
 			cam_scratch[k].z = detail3d::saturate_coord(v.v[2]);
 		}
 		if (!valid) continue;
-		CamVertex<S> clipped[16] {};
-		const u8 m = clip_camera_polygon<S>(cam_scratch, n, cam, clipped, 16u);
-		if (m < 3u) continue;
+		u8 m = n;
+		if (!all_inside) {
+			CamVertex<S> clipped[16] {};
+			m = clip_camera_polygon<S>(cam_scratch, n, cam, clipped, 16u);
+			if (m < 3u) continue;
+			for (u8 k = 0u; k < m; ++k) cam_scratch[k] = clipped[k];
+		}
 		bool ok = true;
 		for (u8 k = 0u; k < m; ++k) {
-			if (!project_camera_vertex<S>(clipped[k], cam, xs[k], ys[k])) {
+			if (!project_camera_vertex<S>(cam_scratch[k], cam, xs[k], ys[k])) {
 				ok = false;
 				break;
 			}
@@ -339,6 +394,7 @@ inline u32 render_mesh(const math3d::MeshViewT<S>& mesh, const Model& model, con
 	if (nv == 0u || nf == 0u) return 0u;
 	math3d::mesh_transform(mesh.vertices, model,
 			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+	const bool all_inside = camera_contains_vertices<S>(cam, world, nv);
 	u32 drawn = 0;
 	for (u32 fi = 0u; fi < nf; ++fi) {
 		const math3d::Face& f = mesh.faces[fi];
@@ -355,12 +411,16 @@ inline u32 render_mesh(const math3d::MeshViewT<S>& mesh, const Model& model, con
 			cam_scratch[k].z = detail3d::saturate_coord(v.v[2]);
 		}
 		if (!valid) continue;
-		CamVertex<S> clipped[16] {};
-		const u8 m = clip_camera_polygon<S>(cam_scratch, 3u, cam, clipped, 16u);
-		if (m < 3u) continue;
+		u8 m = 3u;
+		if (!all_inside) {
+			CamVertex<S> clipped[16] {};
+			m = clip_camera_polygon<S>(cam_scratch, 3u, cam, clipped, 16u);
+			if (m < 3u) continue;
+			for (u8 k = 0u; k < m; ++k) cam_scratch[k] = clipped[k];
+		}
 		bool ok = true;
 		for (u8 k = 0u; k < m; ++k) {
-			if (!project_camera_vertex<S>(clipped[k], cam, xs[k], ys[k])) {
+			if (!project_camera_vertex<S>(cam_scratch[k], cam, xs[k], ys[k])) {
 				ok = false;
 				break;
 			}
