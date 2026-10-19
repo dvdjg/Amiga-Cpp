@@ -13,6 +13,7 @@
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/449_word_text
 
+#include <eng/field/diff_text.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/memory/mem_bank.hpp>
@@ -293,6 +294,84 @@ int main() {
 		check(e.word(0u, 4u, 10) != 0u && e.word(0u, 6u, 10) != 0u,
 		      "linea: palabras previas escritas antes del rechazo");
 		check(e.word(0u, 0u, 11) == 0u, "linea: palabra fuera no se escribe ni rebasa a la fila siguiente");
+	}
+
+	// 11) `DiffText`: equivalencia con el pintado directo, repintado SOLO de la celda que
+	//     cambia, celdas sobrantes rellenadas con espacio, contrato de fallo y `reset`.
+	{
+		// 11a) Primera pintura = línea completa (equivalencia con `draw_text_words`, 4
+		//      planos y color no contiguo: el helper reenvía color y geometría).
+		MockPlayfield a;
+		MockPlayfield b;
+		a.init(64, 64, 4);
+		b.init(64, 64, 4);
+		Surface sa {a, SurfaceRect {0, 0, 64, 64}};
+		Surface sb {b, SurfaceRect {0, 0, 64, 64}};
+		DiffText<8> d;
+		check(d.paint(sa, 16, 8, "FRM 1234", 0xAu), "diff: primera pintura ok");
+		check(sb.draw_text_words(16, 8, "FRM 1234", 0xAu), "diff: control directo ok");
+		check(a.mem == b.mem, "diff: primera pintura == linea completa directa (4 planos, color 0xA)");
+
+		// 11b) Texto idéntico: no escribe NADA (memoria intacta byte a byte).
+		const auto before = a.mem;
+		check(d.paint(sa, 16, 8, "FRM 1234", 0xAu), "diff: segunda pintura ok");
+		check(a.mem == before, "diff: texto identico -> cero escrituras");
+
+		// 11c) Cambio de una palabra: solo difiere la celda de x=48 ("12"->"99"); el
+		//      resto de la fila y de la pantalla queda intacto. Además el resultado es
+		//      idéntico a repintar la línea completa con el texto nuevo.
+		check(d.paint(sa, 16, 8, "FRM 99", 0xAu), "diff: cambio de palabra ok");
+		MockPlayfield c;
+		c.init(64, 64, 4);
+		Surface sc {c, SurfaceRect {0, 0, 64, 64}};
+		check(sc.draw_text_words(16, 8, "FRM 99", 0xAu), "diff: control texto nuevo");
+		check(a.mem == c.mem, "diff: cambio minimo == repintado completo del texto nuevo");
+		int diff_bytes = 0;
+		for (eng::usize i = 0; i < a.mem.size(); ++i) {
+			if (a.mem[i] == before[i]) continue;
+			++diff_bytes;
+			// Fila de 4 planos x 8 B = 32 B: y = i/32; dentro, plano = off/8, byte = off%8.
+			// Color 0xA = 0b1010: solo los planos 1 y 3 llevan patrón.
+			const eng::usize y = i / 32u;
+			const eng::usize off = i % 32u;
+			check(off / 8u == 1u || off / 8u == 3u, "diff: solo planos 1 y 3 cambian (color 0xA)");
+			check(off % 8u == 6u || off % 8u == 7u, "diff: byte cambiado dentro de la celda x=48");
+			check(y >= 8u && y < 16u, "diff: fila cambiada dentro de la linea");
+		}
+		check(diff_bytes > 0, "diff: la celda cambiada se repinta (hay bytes distintos)");
+
+		// 11d) Texto más corto: las celdas que sobran se rellenan con espacio (= pintado
+		//      directo del texto corto, que ya rellena la celda impar final con blanco).
+		check(d.paint(sa, 16, 8, "FRM", 0xAu), "diff: acortar ok");
+		MockPlayfield e;
+		e.init(64, 64, 4);
+		Surface se {e, SurfaceRect {0, 0, 64, 64}};
+		check(se.draw_text_words(16, 8, "FRM", 0xAu), "diff: control texto corto");
+		check(a.mem == e.mem, "diff: acortar borra con espacios lo que sobra");
+
+		// 11e) Contrato de fallo: x sin alinear -> false, sin tocar `prev` (reintento). El
+		//      mismo DiffText con x alineada pinta la línea completa.
+		MockPlayfield f;
+		f.init(64, 64, 4);
+		Surface sf {f, SurfaceRect {0, 0, 64, 64}};
+		DiffText<8> df;
+		check(!df.paint(sf, 24, 8, "AB", 1u), "diff: x sin alinear -> false");
+		check(!df.paint(sf, 24, 8, "AB", 1u), "diff: reintento sin alinear -> false otra vez");
+		check(df.paint(sf, 16, 8, "AB", 1u), "diff: con x alineada pinta (reintento tras fallo)");
+		MockPlayfield g;
+		g.init(64, 64, 4);
+		Surface sg {g, SurfaceRect {0, 0, 64, 64}};
+		check(sg.draw_text_words(16, 8, "AB", 1u), "diff: control alineado");
+		check(f.mem == g.mem, "diff: tras fallo+siguiente, igual que el pintado directo");
+
+		// 11f) `reset()`: con un emborronado manual encima, sin reset no se repara (texto
+		//      igual -> cero escrituras); tras reset, la misma cadena vuelve a pintarse.
+		(void)f.store_plane_word(16, 8, 0xFFFFu, 0xFu);
+		check(df.paint(sf, 16, 8, "AB", 1u), "diff: tras emborronar, texto igual ok");
+		check(f.word(0u, 2u, 8) == 0xFFFFu, "diff: sin reset no repara (prev == texto)");
+		df.reset();
+		check(df.paint(sf, 16, 8, "AB", 1u), "diff: tras reset ok");
+		check(f.mem == g.mem, "diff: reset -> la linea vuelve a quedar como el pintado directo");
 	}
 
 	if (g_fail != 0) {

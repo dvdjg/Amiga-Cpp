@@ -36,6 +36,7 @@
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/field/contiguous_playfield.hpp>
+#include <eng/field/diff_text.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/composition/compose.hpp>
@@ -758,21 +759,11 @@ private:
 	}
 
 	// --- HUD ---
-	/// Redibuja SOLO las palabras de 2 glifos de `text` (rellenada a `kHudCols`) que difieren
-	/// de `prev`, y actualiza `prev`. Con el bucle robusto (`run_frames_polling`, sin la
-	/// carrera de despertar del VBlank) el coste por frame es el de 1-2 palabras (FRM), no el
-	/// de la línea completa: el frame cabe en un campo.
-	void hud_paint_diff(playfield::Surface& hud, s32 x, s32 y, const char* text, char* prev) {
-		for (eng::u8 w = 0u; w * 2u < kHudCols; ++w) {
-			const char c0 = text[w * 2u];
-			const char c1 = text[w * 2u + 1u];
-			if (prev[w * 2u] == c0 && prev[w * 2u + 1u] == c1) continue;
-			const char cell[3] = {c0, c1, '\0'};
-			(void)hud.draw_text_words(x + static_cast<s32>(w) * 16, y, cell, 1u);
-			prev[w * 2u] = c0;
-			prev[w * 2u + 1u] = c1;
-		}
-	}
+	// El repintado por diferencias (solo las palabras que cambian) es lo que mantiene el frame
+	// en un campo de VBlank: lo aporta `eng::playfield::DiffText` (header documentado, coste
+	// de la palabra medido en HOST-449). Con el bucle robusto (espera activa, sin la carrera de
+	// despertar del VBlank) el coste por frame es el de 1-2 palabras (FRM), no el de la línea
+	// completa.
 
 	void draw_hud_static() {
 		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, 320u, kHudLines}};
@@ -807,7 +798,7 @@ private:
 #if defined(ADVWALK_HUD_1WORD)
 		(void)hud.draw_text_words(16, 22, "XY", 1u);
 #else
-		hud_paint_diff(hud, 16, 22, text, m_hud_prev1);
+		(void)m_hud_line1.paint(hud, 16, 22, text, 1u);
 #endif
 
 		// Etiqueta del hotspot bajo el puntero (o el estado del paseo).
@@ -833,7 +824,7 @@ private:
 		}
 		pad_to(text2, n, kHudCols);
 #if !defined(ADVWALK_HUD_1WORD)
-		hud_paint_diff(hud, 16, 32, text2, m_hud_prev2);
+		(void)m_hud_line2.paint(hud, 16, 32, text2, 1u);
 #endif
 	}
 
@@ -872,8 +863,8 @@ private:
 	s16 m_err_y = 0;
 	u32 m_walk_timer = 0u;
 	u32 m_blit_fail = 0u;
-	char m_hud_prev1[64] {}; // linea FRM/CAM/WP/BF ya dibujada
-	char m_hud_prev2[64] {}; // linea de estado/hotspot ya dibujada
+	playfield::DiffText<64> m_hud_line1 {}; // fila FRM/CAM/WP/BF (repinta solo lo cambiado)
+	playfield::DiffText<64> m_hud_line2 {}; // fila de estado/hotspot (repinta solo lo cambiado)
 
 	// Router: buffers de trabajo (sin heap).
 	eng::adv::walkbox_dist_t<s16> m_best[kBoxCount] {};
