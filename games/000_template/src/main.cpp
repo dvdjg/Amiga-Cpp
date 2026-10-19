@@ -143,5 +143,8 @@ int main() {
 
 	TemplateGame game {};
 	// `run_demo` configura la memoria del perfil de juego, arranca el display y conduce el bucle.
-	return eng::amiga::run_demo(game, display);
+	// **Sondeo** (familia 212/DT-011): bajo un SO vivo los bucles por IRQ/`Wait` pierden el
+	// latido o mueren (el engine rechaza la espera por señal con `0xE212`); el sondeo es la
+	// variante estable para juegos (patrón del 400).
+	return eng::amiga::run_demo(game, display, eng::amiga::VblankWait::Polling);
 }
