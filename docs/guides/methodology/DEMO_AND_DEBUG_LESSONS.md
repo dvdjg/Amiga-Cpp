@@ -128,3 +128,21 @@ por doble escritura de `DSKLEN` (`:4853`: con `dskdmaen==READ` y bit 14 a 0 **no
 `return`) y que el dato sale de `drv->bigmfmbuf` en `drv->mfmpos` (`getonebit`, `:4435`). Leccion:
 para el **comportamiento del chipset**, el fuente del emulador es la referencia de facto; el sondeo
 con contadores es el ultimo recurso, no el primero.
+
+## 4. Lecciones del borde del relleno por Blitter (2026-10)
+
+**Empieza por una postura quieta, no por la demo que se mueve.** El residuo del borde derecho de la 088 (una columna en `x≈319` con el cubo lejos del borde) se persiguió en una demo con **doble buffer, rotación por frame y deriva**: el mismo síntoma tenía tres candidatos (residuo, cara mal recortada, buffer viejo) y un frame suelto no los distingue. La **sonda estática** (una postura, caras sintéticas en bandas separadas, una sola pasada, sin doble buffer) lo aisló en minutos. La demo animada es para el **veredicto final**, no para el diagnóstico.
+
+**Dibuja por fases y mira el framebuffer.** Un flag de build (`-DPROBE_CONTOURS_ONLY`) que pinta **solo los contornos** con el mismo planificador y la misma llamada que el relleno convierte «no sé qué pasa» en «la vertical de `x=0` se dibuja en `x=319`». Ver clear / contornos / relleno por separado es más barato que razonar sobre registros.
+
+**El trazador de líneas del Blitter escribe un paso por detrás** (detalle en [`blitter-line-subpixel-fill.md` §2.1](../../reference/amiga/techniques/blitter-line-subpixel-fill.md)): una vertical dada en `x` se dibuja en `x-1` y sus filas empiezan una más abajo. Consecuencia: el contorno necesita un **margen seguro de 1 px por la izquierda**; `x=0` se convierte en `-1` y, por `(u32(-1)>>3)&~1`, en la cola de la fila anterior (`x≈width-1`). Esto **no se ve en los registros**: se ve en los píxeles.
+
+**Un píxel fuera del bbox no lo borra un clear por bbox.** Un artefacto que **persiste** en frames donde el objeto está lejos es, casi siempre, una escritura fuera del rectángulo sucio (o del buffer que se limpia). Antes de culpar al rasterizador, preguntar: «¿este píxel cae dentro de lo que se limpia?». Un A/B que limpia toda la zona lo responde en un build.
+
+**Instrumenta el dato, no el texto.** La consola del periférico de depuración no llegó a leerse y un anillo de aristas en RAM se quedó a medias; lo que funcionó fue (a) **publicar el veredicto como bits en `g_eng_run_status.detail`** con las comprobaciones hechas **en el propio programa**, y (b) un **watchpoint de escritura** sobre la palabra del borde (`winuae_watchpoint_set_ext`): paró dentro de `fill_polygons_by_plane_patterns` con modo línea y `dmin = 0`. El test estático con comparación CPU y bits es reutilizable; la consola no.
+
+**Compara con el oráculo CPU con tolerancia, no byte a byte.** El camino del Blitter lleva un desfase de 1 px respecto al relleno CPU **por diseño** (contorno un paso por detrás). Compara con **±1 px** en las 8 direcciones y exige invariantes duros (nada fuera del mundo, columnas del borde limpias, interiores rellenos); el byte exacto da falsos negativos.
+
+**A/B con una sola constante.** La prueba de que el test caza el bug fue cambiar `min_x = 1` → `0` y ver `detail` pasar de `0x1f` a `2`. Deja ese A/B escrito en el README del test para que el siguiente lo repita sin pensar.
+
+**Calibra el mapeo captura→bitmap antes de contar píxeles.** La captura de ventana del host sale a 2x con bordes (756x576 para un bitmap de 320x256): sin fijar el offset/escala con una referencia conocida (la posición del HUD) se «miden» columnas que no son. Para verificar píxeles, mejor la captura interna del monitor o el volcado de los planos por el canal lateral.

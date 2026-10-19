@@ -93,56 +93,29 @@ struct PlaneEdge {
 	eng::s16 y1 = 0;
 };
 
-/// **Planifica las aristas que hay que dibujar en el plano `bit`** con paridad *even-odd*:
-/// cada cara con ese bit aporta sus aristas una vez; las **compartidas** por dos caras del
-/// mismo bit se dibujan dos veces y el EOR las cancela. Como «dibujar 2× ≡ no dibujar»,
-/// el plan devuelve solo las aristas de **multiplicidad impar, una vez cada una**: mismo
-/// contorno (misma paridad por fila) con menos blits de línea. Devuelve el número de
-/// aristas escritas en `out`, o `cap + 1` si no caben (el llamador dibuja todas, como sin
-/// plan). `bit` = plano (0..7). Las aristas horizontales se incluyen en el recuento (el
-/// trazador EOR las descarta después por diseño).
-[[nodiscard]] inline eng::u32 plan_plane_edges(const PlanePolygon* faces, eng::u32 n, eng::u8 bit,
-					       PlaneEdge* out, eng::u32 cap) {
-	if (faces == nullptr || out == nullptr) {
-		return cap + 1u;
+namespace detail {
+
+/// Canoniza una arista por `(y0, x0) <= (y1, x1)` para que dos caras que comparten
+/// arista la aporten idéntica (la dedupe de paridad compara tuplas exactas).
+[[nodiscard]] inline PlaneEdge canon_edge(PlaneEdge e) {
+	const bool swap = (e.y0 > e.y1) || (e.y0 == e.y1 && e.x0 > e.x1);
+	if (swap) {
+		const eng::s16 tx = e.x0, ty = e.y0;
+		e.x0 = e.x1;
+		e.y0 = e.y1;
+		e.x1 = tx;
+		e.y1 = ty;
 	}
-	const auto canon = [](PlaneEdge e) {
-		const bool swap = (e.y0 > e.y1) || (e.y0 == e.y1 && e.x0 > e.x1);
-		if (swap) {
-			const eng::s16 tx = e.x0, ty = e.y0;
-			e.x0 = e.x1;
-			e.y0 = e.y1;
-			e.x1 = tx;
-			e.y1 = ty;
-		}
-		return e;
-	};
+	return e;
+}
+
+/// Dedupe por multiplicidad: deja solo las aristas de multiplicidad IMPAR (una vez cada
+/// una). Dibujar 2× con EOR equivale a no dibujar, así que el contorno resultante tiene
+/// la misma paridad por fila con menos blits. `out[i].x0 = 0x7fff` marca consumidas.
+[[nodiscard]] inline eng::u32 dedupe_plane_edges(PlaneEdge* out, eng::u32 e_count) {
 	const auto same = [](PlaneEdge a, PlaneEdge b) {
 		return a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
 	};
-	eng::u32 total = 0u;
-	for (eng::u32 f = 0u; f < n; ++f) {
-		if ((faces[f].color & (1u << bit)) == 0u || faces[f].count < 3u) {
-			continue;
-		}
-		total += faces[f].count;
-	}
-	if (total > cap) {
-		return cap + 1u;
-	}
-	// Recuento por multiplicidad (comparación canónica, O(E^2) con E pequeño).
-	eng::u32 e_count = 0u;
-	for (eng::u32 f = 0u; f < n; ++f) {
-		const PlanePolygon& face = faces[f];
-		if ((face.color & (1u << bit)) == 0u || face.count < 3u) {
-			continue;
-		}
-		for (eng::u8 i = 0u; i < face.count; ++i) {
-			const eng::u8 j = static_cast<eng::u8>((i + 1u) % face.count);
-			out[e_count] = canon(PlaneEdge {face.xs[i], face.ys[i], face.xs[j], face.ys[j]});
-			++e_count;
-		}
-	}
 	eng::u32 written = 0u;
 	for (eng::u32 i = 0u; i < e_count; ++i) {
 		if (out[i].x0 == 0x7fff) {
@@ -165,7 +138,207 @@ struct PlaneEdge {
 	return written;
 }
 
-/// **Rellena un conjunto de caras componiendo por bitplane (CPU)**: para cada plano `p`,
+} // namespace detail
+
+/// **Planifica las aristas que hay que dibujar en el plano `bit`** con paridad *even-odd*:
+/// cada cara con ese bit aporta sus aristas una vez; las **compartidas** por dos caras del
+/// mismo bit se dibujan dos veces y el EOR las cancela. Como «dibujar 2× ≡ no dibujar»,
+/// el plan devuelve solo las aristas de **multiplicidad impar, una vez cada una**: mismo
+/// contorno (misma paridad por fila) con menos blits de línea. Devuelve el número de
+/// aristas escritas en `out`, o `cap + 1` si no caben (el llamador dibuja todas, como sin
+/// plan). `bit` = plano (0..7). Las aristas horizontales se incluyen en el recuento (el
+/// trazador EOR las descarta después por diseño).
+///
+/// **No garantiza que las coordenadas estén dentro del bitmap**: para el Blitter usa
+/// `plan_plane_edges_in_bounds` (recorta cada cara antes de aportar sus aristas).
+[[nodiscard]] inline eng::u32 plan_plane_edges(const PlanePolygon* faces, eng::u32 n, eng::u8 bit,
+					       PlaneEdge* out, eng::u32 cap) {
+	if (faces == nullptr || out == nullptr) {
+		return cap + 1u;
+	}
+	eng::u32 total = 0u;
+	for (eng::u32 f = 0u; f < n; ++f) {
+		if ((faces[f].color & (1u << bit)) == 0u || faces[f].count < 3u) {
+			continue;
+		}
+		total += faces[f].count;
+	}
+	if (total > cap) {
+		return cap + 1u;
+	}
+	eng::u32 e_count = 0u;
+	for (eng::u32 f = 0u; f < n; ++f) {
+		const PlanePolygon& face = faces[f];
+		if ((face.color & (1u << bit)) == 0u || face.count < 3u) {
+			continue;
+		}
+		for (eng::u8 i = 0u; i < face.count; ++i) {
+			const eng::u8 j = static_cast<eng::u8>((i + 1u) % face.count);
+			out[e_count] = detail::canon_edge(
+				PlaneEdge {face.xs[i], face.ys[i], face.xs[j], face.ys[j]});
+			++e_count;
+		}
+	}
+	return detail::dedupe_plane_edges(out, e_count);
+}
+
+/// **Recorta una cara al rectángulo de píxeles** `[min_x, max_x] × [min_y, max_y]`
+/// (Sutherland–Hodgman contra los cuatro bordes, sin heap). `out_xs`/`out_ys` deben tener
+/// capacidad ≥ `n + 4` (un convexo gana como mucho un vértice por plano de recorte;
+/// con caras de hasta 16 vértices, 20 sobra). Devuelve el número de vértices (0 si no
+/// queda nada visible).
+///
+/// **Por qué es obligatorio antes del Blitter** (ver
+/// `docs/reference/amiga/techniques/blitter-line-subpixel-fill.md` §2 y las sondas 085/
+/// L1-003): el trazador de líneas escribe cada píxel **un paso por detrás** de la
+/// posición que lee (el primer píxel va por D y el resto por C, que ya avanzo), así que
+/// una vertical dada en `x` se dibuja en `x-1` (y sus filas, un paso más abajo). Por eso:
+/// un vértice con `x == width` (el borde del frustum, que la proyección deja a ±1 px del
+/// viewport) deja el contorno en la **palabra siguiente de la fila** y uno con `x == 0`
+/// lo deja en `x == -1`, que por el complemento a dos cae en la **cola de la fila
+/// anterior** (x≈width-1). El contorno queda fuera del bbox de la cara y el clear por
+/// rectángulo sucio no lo borra nunca en los frames siguientes (residuo).
+///
+/// El rectángulo de contorno debe ser por tanto **[1, width-1] × [0, height-1]**: el
+/// margen izquierdo de 1 px absorbe el desfase del trazador y deja la columna 0 sin
+/// pintar por el contorno (borde seguro de 1 px). El último píxel **incluido** sigue
+/// siendo `width-1` (el trazador lo dibuja en `width-2`, dentro del bitmap) y el borde
+/// inferior `height-1` (no escribe la fila `height`).
+template <class S = eng::s16>
+[[nodiscard]] inline eng::u8 clip_face_to_rect(const S* xs, const S* ys, eng::u8 n, S min_x,
+					       S max_x, S min_y, S max_y, S* out_xs, S* out_ys) {
+	if (xs == nullptr || ys == nullptr || out_xs == nullptr || out_ys == nullptr || n < 3u) {
+		return 0u;
+	}
+	if (n > 16u) {
+		return 0u;
+	}
+	// Coordenadas acotadas antes de interpolar: los productos de los cruces son
+	// `s32` y así no desbordan ni con basura de un llamador.
+	const auto sat = [](S v) -> S {
+		constexpr S lim = 16384;
+		if (v > lim) return lim;
+		if (v < -lim) return -lim;
+		return v;
+	};
+	// Buffer A: entrada saneada; A/B alternan como entrada/salida de los cuatro recortes.
+	S ax[20] {}, ay[20] {}, bx[20] {}, by[20] {};
+	eng::u8 in_n = n;
+	for (eng::u8 i = 0u; i < n; ++i) {
+		ax[i] = sat(xs[i]);
+		ay[i] = sat(ys[i]);
+	}
+	S* cx = ax;
+	S* cy = ay;
+	S* nx = bx;
+	S* ny = by;
+	// Cuatro semiplanos: x >= min_x, x <= max_x, y >= min_y, y <= max_y. `is_y` elige el
+	// eje, `keep_high` el lado interior (>= / <=) y `limit` el valor del borde.
+	for (eng::u8 plane = 0u; plane < 4u; ++plane) {
+		if (in_n < 3u) {
+			return 0u;
+		}
+		const bool is_y = plane >= 2u;
+		const bool keep_high = (plane == 0u || plane == 2u);
+		eng::s32 limit = 0;
+		if (plane == 1u) {
+			limit = static_cast<eng::s32>(max_x);
+		} else if (plane == 2u) {
+			limit = static_cast<eng::s32>(min_y);
+		} else if (plane == 3u) {
+			limit = static_cast<eng::s32>(max_y);
+		} else {
+			limit = static_cast<eng::s32>(min_x);
+		}
+		eng::u8 out_n = 0u;
+		for (eng::u8 i = 0u; i < in_n; ++i) {
+			// Sin `%`: la arista de cierre es n-1 -> 0 (este bucle es caliente).
+			const eng::u8 j = static_cast<eng::u8>((i + 1u == in_n) ? 0u : (i + 1u));
+			const eng::s32 p = static_cast<eng::s32>(is_y ? cy[i] : cx[i]);
+			const eng::s32 q = static_cast<eng::s32>(is_y ? cy[j] : cx[j]);
+			const bool pin = keep_high ? (p >= limit) : (p <= limit);
+			const bool qin = keep_high ? (q >= limit) : (q <= limit);
+			// Un vértice interior se copia TAL CUAL; solo el cruce se apoya en el borde
+			// (`limit`), de modo que el contorno del borde cae en el píxel incluido
+			// (width-1) y nunca en la palabra siguiente.
+			if (pin) {
+				nx[out_n] = cx[i];
+				ny[out_n] = cy[i];
+				++out_n;
+			}
+			if (pin != qin) {
+				// Cruce: se interpola la OTRA coordenada en el borde (una división por
+				// arista cortada; un convexo corta como mucho 2 veces por plano).
+				const eng::s32 lo = is_y ? cx[i] : cy[i];
+				const eng::s32 lo2 = is_y ? cx[j] : cy[j];
+				const eng::s32 den = q - p;
+				eng::s32 v = lo;
+				if (den != 0) {
+					v = lo + static_cast<eng::s32>((static_cast<eng::s32>(limit) - p) *
+								       (lo2 - lo) / den);
+				}
+				if (v < -16384) v = -16384;
+				if (v > 16384) v = 16384;
+				nx[out_n] = is_y ? static_cast<S>(v) : static_cast<S>(limit);
+				ny[out_n] = is_y ? static_cast<S>(limit) : static_cast<S>(v);
+				++out_n;
+			}
+			if (out_n >= 20u) {
+				return 0u;
+			}
+		}
+		in_n = out_n;
+		// Swap de punteros: la salida pasa a ser la entrada del siguiente plano.
+		S* t = cx; cx = nx; nx = t;
+		t = cy; cy = ny; ny = t;
+	}
+	for (eng::u8 i = 0u; i < in_n; ++i) {
+		out_xs[i] = cx[i];
+		out_ys[i] = cy[i];
+	}
+	return in_n;
+}
+
+/// **Planifica el contorno del plano `bit` recortando cada cara al rectángulo seguro**
+/// `[min_x, max_x] × [min_y, max_y]` (variante segura para el Blitter de
+/// `plan_plane_edges`). Es la que debe usar cualquier camino que dibuje el contorno con
+/// el Blitter: además de no escribir fuera del bitmap, el recorte **cierra** el contorno
+/// en el borde (el `FILL_XOR` necesita paridad par por fila dentro de la caja). El
+/// llamador pasa `min_x = 1` por el desfase de un píxel del trazador de líneas (ver
+/// `clip_face_to_rect`). Devuelve el nº de aristas escritas o `cap + 1` si no caben
+/// (el llamador debe dibujarlas igualmente, recortando cara a cara).
+[[nodiscard]] inline eng::u32 plan_plane_edges_in_bounds(const PlanePolygon* faces, eng::u32 n,
+							eng::u8 bit, eng::s16 min_x, eng::s16 max_x,
+							eng::s16 min_y, eng::s16 max_y,
+							PlaneEdge* out, eng::u32 cap) {
+	if (faces == nullptr || out == nullptr) {
+		return cap + 1u;
+	}
+	eng::u32 e_count = 0u;
+	eng::s16 cx[20] {};
+	eng::s16 cy[20] {};
+	for (eng::u32 f = 0u; f < n; ++f) {
+		const PlanePolygon& face = faces[f];
+		if ((face.color & (1u << bit)) == 0u || face.count < 3u) {
+			continue;
+		}
+		const eng::u8 m = clip_face_to_rect(face.xs, face.ys, face.count, min_x, max_x, min_y,
+						    max_y, cx, cy);
+		if (m < 3u) {
+			continue;
+		}
+		if (e_count + m > cap) {
+			return cap + 1u;
+		}
+		for (eng::u8 i = 0u; i < m; ++i) {
+			const eng::u8 j = static_cast<eng::u8>((i + 1u == m) ? 0u : (i + 1u));
+			out[e_count++] = detail::canon_edge(PlaneEdge {cx[i], cy[i], cx[j], cy[j]});
+		}
+	}
+	return detail::dedupe_plane_edges(out, e_count);
+}
+
+
 /// rasteriza por **scanline even-odd** la unión de las caras cuyo `color` tiene el bit `p`
 /// a 1 y escribe los spans en el plano `p` de `dest` (contiguo, `plane_bytes` por plano),
 /// **enmascarados por `pattern`** (el mismo para todos los planos de la llamada; `Solid` =

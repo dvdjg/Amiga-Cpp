@@ -166,8 +166,9 @@ struct Blit3dPlanesDemo {
 		cam.half_w = CT::from_int(160);
 		cam.half_h = CT::from_int(116);
 		// Vertices en espacio de camara (z + kZ0) para el test de frustum del objeto.
-		// Deriva lateral: el cubo entra y sale por el borde derecho. Se deja ON: valida el
-		// clip fino y el contrato del Blitter (coordenadas dentro del bitmap) en cada frame.
+		// Deriva lateral (kDrift): modo de VALIDACION del clip fino (entra/sale por el
+		// borde). Off por defecto para el presupuesto; al activarlo, el relleno por plano
+		// recorta las caras al rectangulo seguro del contorno (L1-003) y no deja residuo.
 		constexpr bool kDrift = false;
 		s32 ox = 0;
 		if constexpr (kDrift) {

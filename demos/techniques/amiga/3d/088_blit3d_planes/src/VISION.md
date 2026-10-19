@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-19T20:51:08.135Z
+- Fecha: 2026-10-19T23:13:14.753Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png (4)
 - Secuencia: `out/run/088_blit3d_planes/A500_debug/sequence`
@@ -17,19 +17,27 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Imagen 1:**
 
-*   **Objeto central:** Un objeto tridimensional compuesto por dos planos principales: uno rojo, que ocupa la mayor parte del volumen visible, y otro azul, que se superpone parcialmente al rojo en su parte inferior izquierda. El objeto tiene un contorno limpio, sin halos ni píxeles cortados. El fondo negro está completamente tapado por el objeto.
+*   **Objeto central:** Un objeto tridimensional compuesto por dos planos rectangulares superpuestos. El plano frontal es de color rojo sólido. El plano trasero, parcialmente oculto, es de color azul sólido. Ambos planos están rotados en 3D, mostrando una perspectiva isométrica.
+*   **Contorno:** Los bordes del objeto son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni colgando.
+*   **Fondo:** El fondo es completamente negro y uniforme. El objeto lo tapa completamente en su área de ocupación.
 *   **Texto en la parte inferior izquierda:**
     *   `088 BLIT3D PLANES`
-    *   `v1.0.5398`
-*   **Texto en la parte inferior derecha:** `F30`
+    *   `v1.0.5456`
+*   **Texto en la parte inferior derecha:**
+    *   `F52` (en color magenta)
 
 **Imagen 2:**
 
-*   **Objeto central:** El mismo objeto tridimensional, pero rotado. El plano rojo sigue siendo el más prominente, pero ahora el plano azul se encuentra en la parte superior derecha, superpuesto al rojo. El contorno del objeto es limpio y no presenta artefactos. El fondo negro está completamente tapado por el objeto.
-*   **Texto en la parte inferior izquierda:** Igual que en la imagen 1.
-*   **Texto en la parte inferior derecha:** `F969`
+*   **Objeto central:** El mismo objeto tridimensional, pero ahora rotado. El plano rojo sigue siendo frontal, pero el plano azul ahora está más a la derecha y ligeramente más adelantado, cambiando la apariencia de la superposición.
+*   **Contorno:** Los bordes del objeto son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni colgando.
+*   **Fondo:** El fondo es completamente negro y uniforme. El objeto lo tapa completamente en su área de ocupación.
+*   **Texto en la parte inferior izquierda:**
+    *   `088 BLIT3D PLANES`
+    *   `v1.0.5456`
+*   **Texto en la parte inferior derecha:**
+    *   `F925` (en color magenta)
 
-**Cambios entre imágenes:**
+**Cambio entre imágenes:**
 
-*   El objeto 3D ha cambiado de orientación (rotación).
-*   El texto en la esquina inferior derecha ha cambiado de `F30` a `F969`.
+*   El objeto 3D ha cambiado de orientación, lo que se evidencia en la posición relativa de los planos rojo y azul.
+*   El texto en la esquina inferior derecha ha cambiado de `F52` a `F925`.

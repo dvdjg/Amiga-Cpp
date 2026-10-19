@@ -889,15 +889,22 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 					  static_cast<u16>(cy1 - cy0 + 1u));
 			wait_blitter(); // el clear por rect depende de BLTDMOD: no pisarlo con las lineas
 		}
-		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1; las
-		//    aristas de multiplicidad PAR (compartidas por dos caras del mismo bit) se
-		//    SALTAN con el planificador de paridad (`plan_plane_edges`: dibujarlas dos
-		//    veces las cancela, así que no dibujarlas deja el mismo contorno con menos
-		//    blits); las impares se dibujan una vez. Si el plan no cabe, se dibujan todas
-		//    (como antes). Los registros comunes EOR se fijan UNA vez por plano.
+		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1, RECORTADAS
+		//    al rectangulo SEGURO del contorno (`plan_plane_edges_in_bounds`). El trazador
+		//    de lineas escribe cada pixel un paso por detras: una vertical dada en `x` se
+		//    dibuja en `x-1`. Con `min_x = 0` el borde izquierdo (x=0) se dibujaria en x=-1
+		//    y, por el complemento a dos, en la cola de la fila anterior (x≈width-1): el
+		//    contorno queda fuera del bbox y el clear sucio no lo borra (residuo del borde
+		//    derecho de la 088, reproducido en L1-003). min_x = 1 absorbe ese desfase; el
+		//    borde derecho se queda en width-1 (el trazador lo dibuja en width-2, dentro).
+		const s16 max_x = static_cast<s16>(width - 1u);
+		const s16 max_y = static_cast<s16>(height - 1u);
+		const s16 min_x = 1;
+		const s16 min_y = 0;
 		blitter_lines_begin(row_bytes);
 		graphics::PlaneEdge edges[64];
-		const u32 ne = graphics::plan_plane_edges(faces, n_faces, p, edges, 64u);
+		const u32 ne = graphics::plan_plane_edges_in_bounds(faces, n_faces, p, min_x, max_x,
+								    min_y, max_y, edges, 64u);
 		if (ne <= 64u) {
 			for (u32 e = 0u; e < ne; ++e) {
 				LineEorParams eor;
@@ -907,18 +914,24 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 				}
 			}
 		} else {
+			s16 cx[20] {};
+			s16 cy[20] {};
 			for (u32 f = 0; f < n_faces; ++f) {
 				const graphics::PlanePolygon& face = faces[f];
 				if ((face.color & (1u << p)) == 0u || face.count < 3u) {
 					continue;
 				}
-				for (u8 i = 0; i < face.count; ++i) {
+				const u8 m = graphics::clip_face_to_rect(face.xs, face.ys, face.count,
+									 min_x, max_x, min_y, max_y, cx, cy);
+				if (m < 3u) {
+					continue;
+				}
+				for (u8 i = 0; i < m; ++i) {
 					// Sin `%` por variable: en 68000 es `__modsi3` y este bucle es caliente.
-					const u8 j = static_cast<u8>((i + 1u == face.count) ? 0u : (i + 1u));
+					const u8 j = static_cast<u8>((i + 1u == m) ? 0u : (i + 1u));
 					LineEorParams eor;
-					if (blitter_line_eor_prepare(eor, row_bytes, face.xs[i],
-								     face.ys[i], face.xs[j],
-								     face.ys[j])) {
+					if (blitter_line_eor_prepare(eor, row_bytes, cx[i], cy[i], cx[j],
+								     cy[j])) {
 						blitter_line_draw(eor, plane.data(), plane.data());
 					}
 				}

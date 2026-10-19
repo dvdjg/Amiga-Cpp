@@ -129,6 +129,18 @@ El resto de octantes es simétrico (intercambiar los roles de los ejes). El cont
 
 Nota: las operaciones por `dy` necesitan **división** (`/dy`); conviene `dy != 0` (aristas horizontales no cubren filas) y aritmética de 16 bits con redondeo cuidadoso (12.4).
 
+## 2.1 El trazador escribe un paso por detrás: rectángulo seguro del contorno
+
+El lazo de línea de WinUAE (ver §1) dibuja el píxel con el puntero de C **del paso anterior** y el `BLTDPTR` inicial solo se usa para el primer píxel; después `BLTDPTR := BLTCPTR` en cada iteración (WinUAE-DBG `blitter.cpp:929-969`, `blitter_line_write` en `:704-710`). El efecto neto, medido con la sonda estática del repo (`tests/amiga/l1_backend/003_plane_fill_bounds`, modo “solo contornos”):
+
+- una **vertical** dada en `x` se dibuja en **`x−1`** y sus filas empiezan una fila más abajo (`y0+1`);
+- el **primer píxel** de cada línea va por el canal **D**, programado en `plane.data()` (la base del plano), y se pierde: no aparece en la línea. En un bitmap que es exactamente la ventana visible (el caso del engine) esa escritura es visible en la **fila 0** (`x≈0–15`) y el clear por rectángulo sucio no la cubre. El truco clásico de `BLTDPTR = base` solo es inocuo si la base del bitmap queda fuera de la ventana mostrada; aquí no lo está (defecto conocido, pendiente de una palabra de descarte Chip).
+- el **area fill** `FILL_XOR` trabaja sobre el contorno *dibujado*: para las aristas izquierda/derecha en `xl`/`xr` deja el tramo `[xl+1, xr]`. Como el contorno se dibuja un píxel a la izquierda, el **resultado relleno** coincide con el polígono pedido en `x` (p. ej. una cara `[40,120]` sale rellena en `[40,119]`, la convención `[x0, x1)` del relleno CPU), con una fila de desfase en `y`.
+
+**Regla**: las coordenadas que se entregan al trazador deben caer en el **rectángulo seguro** `[1, width−1] × [0, height−1]` (píxeles incluidos): el margen izquierdo de 1 px absorbe el desfase, el último píxel incluido se dibuja en `width−2` (dentro) y el contorno queda **cerrado** en el borde, que es lo que el `FILL_XOR` necesita para la paridad par dentro de la caja. Con `x = 0` la vertical se dibuja en `x = −1` y `(u32(-1) >> 3) & ~1` cae, por el complemento a dos, en la **cola de la fila anterior** (`x≈width−1`): el contorno queda fuera del bbox de la cara y el clear por rectángulo sucio no lo borra nunca (residuo que reaparece cuando el objeto se aleja del borde; era el artefacto de la demo 088). Con `x = width` ocurre lo simétrico (`x` cae en la primera palabra de la fila siguiente).
+
+En el engine lo aplica `eng::graphics::plan_plane_edges_in_bounds` (`polygon_planes.hpp`), que recorta cada cara con `clip_face_to_rect` antes de planificar el contorno; el camino del Blitter pasa `min_x = 1`, `max_x = width−1`, `max_y = height−1`. La cobertura está en `HOST-482` (host) y `L1-003` (on-target, con caras en `x=320`, `x=-1` e `y=232` y comparación contra el relleno CPU).
+
 ## 3. Receta: dibujar un polígono relleno (contorno `ONEDOT` + area fill)
 
 Secuencia canónica por frame (la del efecto `flatshade-convex`; ver §1 para el detalle de registros de cada paso):
