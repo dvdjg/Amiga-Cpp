@@ -603,7 +603,7 @@ struct DkXlGame {
 		m_sprite_height = m_sprite_tall ? 16u : 8u;
 		m_sprite_instance_words = static_cast<eng::u16>(m_sprite_height * 2u + 2u);
 
-		OamSprite sprites[64] {};
+		OamSprite sprites[64];
 		eng::u16 n = 0u;
 		for (eng::u8 i = 0; i < 64u; ++i) {
 			const eng::u8* const e = &oam[static_cast<eng::u32>(i) * 4u];
@@ -644,22 +644,19 @@ struct DkXlGame {
 		}
 
 
-		// Counting sort por Y (0..239): el emisor exige orden por vstart y la
-		// insercion O(n^2) se notaba en el perfil de OAM.
-		eng::u16 bucket[240] {};
-		for (eng::u16 i = 0u; i < n; ++i) ++bucket[sprites[i].oy];
-		eng::u16 off = 0u;
-		for (eng::u16 y = 0u; y < 240u; ++y) {
-			const eng::u16 c = bucket[y];
-			bucket[y] = off;
-			off = static_cast<eng::u16>(off + c);
+		// Insercion por Y: con 9-14 sprites activos es mas barata que un counting sort
+		// de 240 cubos (el cubo se ponia a cero cada frame).
+		for (eng::u16 i = 1u; i < n; ++i) {
+			const OamSprite key = sprites[i];
+			eng::u16 j = i;
+			while (j > 0u && sprites[j - 1u].oy > key.oy) {
+				sprites[j] = sprites[j - 1u];
+				--j;
+			}
+			sprites[j] = key;
 		}
-		OamSprite sorted[64] {};
-		for (eng::u16 i = 0u; i < n; ++i) {
-			const eng::u8 oy = sprites[i].oy;
-			sorted[bucket[oy]++] = sprites[i];
-		}
-		for (eng::u16 i = 0u; i < n; ++i) sprites[i] = sorted[i];
+
+
 
 		// Fin (exclusivo) del ultimo sprite del canal. Los objetos NES se tocan
 		// verticalmente (8x8 consecutivos), asi que el siguiente puede empezar justo en
@@ -1032,10 +1029,6 @@ struct DkXlGame {
 			return;
 		}
 		g_eng_frame_telemetry.frame = g_dk_updates;
-		g_eng_frame_telemetry.blit_jobs = static_cast<eng::u16>(m_bob_count);
-		g_eng_frame_telemetry.blit_words = static_cast<eng::u16>(m_placement_count);
-		g_eng_frame_telemetry.copper_words = static_cast<eng::u16>(g_dk_spr_overflow);
-		g_eng_frame_telemetry.fillup_extra = static_cast<eng::u16>(m_pre_hits_frame);
 		// Diagnostico fps: m_frames en bits 8-23, m_rebuilds en 24-31.
 		g_eng_run_status.detail = 0xE0000000u | ((static_cast<eng::u32>(m_frames) & 0xffffu) << 8u) |
 					  ((static_cast<eng::u32>(m_rebuilds) & 0xffu) << 24u);
