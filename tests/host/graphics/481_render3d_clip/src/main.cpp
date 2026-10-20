@@ -15,6 +15,7 @@
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/481_render3d_clip
 
 #include <eng/core/math/fixed.hpp>
+#include <eng/graphics/polygon_planes.hpp>
 #include <eng/graphics/render3d.hpp>
 #include <eng/memory/mem_bank.hpp>
 
@@ -103,6 +104,31 @@ struct RecordingPlayfield : Playfield {
 		return true;
 	}
 };
+
+/// CPU reference for the polygons emitted by Surface/renderer, in the same bitplane format
+/// consumed by the Amiga backend. This lets geometry fixtures check coverage, not only vertices.
+std::vector<u8> rasterize_recorded(const RecordingPlayfield& pf, u16 width, u16 height, u8 planes) {
+	const u16 row_bytes = static_cast<u16>((width + 7u) / 8u);
+	const u32 plane_bytes = static_cast<u32>(row_bytes) * height;
+	std::vector<PlanePolygon> faces;
+	faces.reserve(pf.polys.size());
+	for (const auto& p : pf.polys) {
+		faces.push_back(PlanePolygon {p.xs.data(), p.ys.data(), p.n, p.color});
+	}
+	std::vector<u8> pixels(static_cast<usize>(plane_bytes) * planes, 0u);
+	(void)fill_polygons_by_plane_cpu(Span<const PlanePolygon>(faces.data(), faces.size()),
+					 PlaneBytes {pixels.data(), static_cast<u32>(pixels.size())},
+					 row_bytes, plane_bytes, planes, width, height);
+	return pixels;
+}
+
+u32 count_set_pixels(const std::vector<u8>& pixels) {
+	u32 count = 0u;
+	for (u8 value : pixels) {
+		for (u8 bit = 0u; bit < 8u; ++bit) count += (value >> bit) & 1u;
+	}
+	return count;
+}
 
 /// Invariante del contrato en el otro sentido: |x|·focal <= z·half (sin ambigüedad).
 bool plane_ok(const CV& v) {
@@ -446,6 +472,123 @@ int main() {
 			}
 		}
 		check(ok, "cubo estático: cuatro laterales, cuatro esquinas y totalmente fuera");
+	}
+
+	// 11) El mismo pentágono n-gon se escala y se traslada hasta cruzar cada borde.
+	//     Cada pose debe sobrevivir al clip, tocar el borde esperado y producir cobertura
+	//     no vacía en la referencia CPU por plano.
+	{
+		static constexpr s16 kPX[5] = {0, 19, 12, -12, -19};
+		static constexpr s16 kPY[5] = {-20, -6, 16, 16, -6};
+		struct Pose {
+			s16 tx;
+			s16 ty;
+			s16 scale;
+			u8 edge;
+		};
+		static constexpr Pose kPoses[8] = {
+			{-170, 0, 1, 1u}, {-170, 0, 3, 1u}, {170, 0, 1, 2u}, {170, 0, 3, 2u},
+			{0, -110, 1, 4u}, {0, -110, 3, 4u}, {0, 110, 1, 8u}, {0, 110, 3, 8u}};
+		bool ok = true;
+		for (const Pose& pose : kPoses) {
+			CamVertex<MF> input[5] {};
+			for (u8 i = 0u; i < 5u; ++i) {
+				input[i] = {CTF::from_int(kPX[i] * pose.scale + pose.tx),
+					    CTF::from_int(kPY[i] * pose.scale + pose.ty),
+					    CTF::from_int(4000)};
+			}
+			CamVertex<MF> clipped[16] {};
+			const u8 n = clip_camera_polygon(input, 5u, kCamF, clipped, 16u);
+			ok = ok && n >= 3u;
+			s16 xs[16] {}, ys[16] {};
+			bool projected = n >= 3u;
+			for (u8 i = 0u; i < n; ++i) {
+				projected = project_camera_vertex(clipped[i], kCamF, xs[i], ys[i]) && projected;
+			}
+			ok = ok && projected;
+			RecordingPlayfield pf;
+			pf.init(320u, 200u, 2u);
+			Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
+			ok = ok && surf.fill_polygon(xs, ys, n, 3u) && pf.polys.size() == 1u;
+			s16 min_x = 32767, min_y = 32767, max_x = -32768, max_y = -32768;
+			for (const auto& poly : pf.polys) {
+				for (u8 i = 0u; i < poly.n; ++i) {
+					if (poly.xs[i] < min_x) min_x = poly.xs[i];
+					if (poly.xs[i] > max_x) max_x = poly.xs[i];
+					if (poly.ys[i] < min_y) min_y = poly.ys[i];
+					if (poly.ys[i] > max_y) max_y = poly.ys[i];
+				}
+			}
+			if ((pose.edge & 1u) != 0u) ok = ok && min_x <= 2;
+			if ((pose.edge & 2u) != 0u) ok = ok && max_x >= 317;
+			if ((pose.edge & 4u) != 0u) ok = ok && min_y <= 2;
+			if ((pose.edge & 8u) != 0u) ok = ok && max_y >= 197;
+			const std::vector<u8> cpu = rasterize_recorded(pf, 320u, 200u, 2u);
+			ok = ok && count_set_pixels(cpu) != 0u;
+		}
+		check(ok, "pentágono escalado: cuatro bordes y cobertura de referencia CPU");
+	}
+
+	// 12) Tetraedro irregular parcialmente fuera por la derecha. Las caras pasan por el
+	//     renderer n-gon, el clipping lateral, Surface y el rasterizador CPU por plano.
+	{
+		using Aff = math::Affine<3, MF, MF>;
+		const math3d::Vec3t<MF> verts[4] = {
+			math3d::vec3<MF>(120, -40, 4000), math3d::vec3<MF>(190, -40, 4000),
+			math3d::vec3<MF>(155, 40, 4000), math3d::vec3<MF>(155, 0, 4100)};
+		static constexpr u16 kIndices[12] = {0u, 2u, 1u, 0u, 1u, 3u, 1u, 2u, 3u, 2u, 0u, 3u};
+		static constexpr math3d::FaceSpan kFaces[4] = {{0u, 3u}, {3u, 3u}, {6u, 3u}, {9u, 3u}};
+		const math3d::PolyMeshViewT<MF> mesh {
+			Span<const math3d::Vec3t<MF>>(verts, 4u), Span<const u16>(kIndices, 12u),
+			Span<const math3d::FaceSpan>(kFaces, 4u)};
+		RecordingPlayfield pf;
+		pf.init(320u, 200u, 4u);
+		Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
+		math3d::Vec3t<MF> world[4] {};
+		CamVertex<MF> scratch[16] {};
+		s16 xs[16] {}, ys[16] {};
+		const u32 drawn = render_solid(mesh, Aff::identity(), kCamF, surf,
+					       [](u32 face) { return static_cast<u8>(face % 3u + 1u); },
+					       world, scratch, xs, ys, true);
+		bool bounded = drawn >= 2u && !pf.polys.empty();
+		bool reaches_right = false;
+		for (const auto& poly : pf.polys) {
+			bounded = bounded && poly.n >= 3u;
+			for (u8 i = 0u; i < poly.n; ++i) {
+				bounded = bounded && poly.xs[i] >= 0 && poly.xs[i] < 320 && poly.ys[i] >= 0 &&
+					 poly.ys[i] < 200;
+				reaches_right = reaches_right || poly.xs[i] >= 317;
+			}
+		}
+		const std::vector<u8> cpu = rasterize_recorded(pf, 320u, 200u, 4u);
+
+		// Oracle CPU independiente de render_solid: recorre las cuatro caras desde sus
+		// índices, aplica clip/proyección y rellena el Surface de referencia una por una.
+		RecordingPlayfield reference_pf;
+		reference_pf.init(320u, 200u, 4u);
+		Surface reference_surf {reference_pf, SurfaceRect {0, 0, 320, 200}};
+		bool reference_ok = true;
+		for (u8 face = 0u; face < 4u; ++face) {
+			eng::graphics::CamVertex<MF> input[3] {};
+			for (u8 k = 0u; k < 3u; ++k) {
+				const u16 vertex = kIndices[static_cast<u16>(face) * 3u + k];
+				input[k] = {verts[vertex].v[0], verts[vertex].v[1], verts[vertex].v[2]};
+			}
+			eng::graphics::CamVertex<MF> clipped[16] {};
+			const u8 n = clip_camera_polygon(input, 3u, kCamF, clipped, 16u);
+			if (n < 3u) continue;
+			s16 ref_x[16] {}, ref_y[16] {};
+			for (u8 k = 0u; k < n; ++k) {
+				reference_ok = project_camera_vertex(clipped[k], kCamF, ref_x[k], ref_y[k]) &&
+					       reference_ok;
+			}
+			if (!reference_ok || screen_area2(ref_x, ref_y, n) == 0) continue;
+			(void)reference_surf.fill_polygon(ref_x, ref_y, n,
+							 static_cast<u8>(face % 3u + 1u));
+		}
+		const std::vector<u8> reference_cpu = rasterize_recorded(reference_pf, 320u, 200u, 4u);
+		check(bounded && reaches_right && count_set_pixels(cpu) != 0u && cpu == reference_cpu,
+		      "tetraedro irregular: clipping parcial derecho y cobertura CPU por plano");
 	}
 
 	if (g_fail != 0) {
