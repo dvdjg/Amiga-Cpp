@@ -163,6 +163,83 @@ void case_partial(const char* name, const s16* xs, const s16* ys, u8 n, bool exp
 	check(bad == 0u, msg);
 }
 
+void test_camera_safe_rect_clip() {
+	const s16 min_x = 1, max_x = 95, min_y = 0, max_y = 63;
+	const s16 inside_x[4] = {10, 50, 50, 10};
+	const s16 inside_y[4] = {10, 10, 50, 50};
+	s16 out_x[20] {}, out_y[20] {};
+	const u8 inside_n = eng::graphics::clip_face_to_rect(
+		inside_x, inside_y, 4u, min_x, max_x, min_y, max_y, out_x, out_y);
+	bool same = inside_n == 4u;
+	for (u8 i = 0u; i < inside_n; ++i) {
+		same = same && out_x[i] == inside_x[i] && out_y[i] == inside_y[i];
+	}
+	check(same, "cara interior: clip_face_to_rect preserva los vértices");
+
+	const s16 crossing_x[4] = {-10, 50, 50, -10};
+	const s16 crossing_y[4] = {10, 10, 70, 70};
+	static constexpr s16 expected_x[4] = {1, 50, 50, 1};
+	static constexpr s16 expected_y[4] = {10, 10, 63, 63};
+	const u8 crossing_n = eng::graphics::clip_face_to_rect(
+		crossing_x, crossing_y, 4u, min_x, max_x, min_y, max_y, out_x, out_y);
+	same = crossing_n == 4u;
+	for (u8 i = 0u; i < crossing_n; ++i) {
+		same = same && out_x[i] == expected_x[i] && out_y[i] == expected_y[i];
+	}
+	check(same, "cara que cruza izquierda/abajo: recorte CPU exacto");
+
+	// Dos caras adyacentes recorren el borde compartido en sentidos opuestos. La
+	// intersección con x=1 debe ser idéntica para que el contorno EOR no abra una costura.
+	const s16 edge_a_x[3] = {0, 3, 3};
+	const s16 edge_a_y[3] = {0, 2, 5};
+	const s16 edge_b_x[3] = {3, 0, 3};
+	const s16 edge_b_y[3] = {2, 0, -5};
+	const s16 edge_min_y = -100, edge_max_y = 100;
+	const u8 edge_a_n = eng::graphics::clip_face_to_rect(
+		edge_a_x, edge_a_y, 3u, min_x, max_x, edge_min_y, edge_max_y, out_x, out_y);
+	s16 edge_b_out_x[20] {}, edge_b_out_y[20] {};
+	const u8 edge_b_n = eng::graphics::clip_face_to_rect(
+		edge_b_x, edge_b_y, 3u, min_x, max_x, edge_min_y, edge_max_y, edge_b_out_x,
+		edge_b_out_y);
+	bool shared_cut_a = false, shared_cut_b = false;
+	for (u8 i = 0u; i < edge_a_n; ++i) {
+		shared_cut_a = shared_cut_a || (out_x[i] == 1 && out_y[i] == 1);
+	}
+	for (u8 i = 0u; i < edge_b_n; ++i) {
+		shared_cut_b = shared_cut_b || (edge_b_out_x[i] == 1 && edge_b_out_y[i] == 1);
+	}
+	check(shared_cut_a && shared_cut_b,
+	      "arista compartida: el corte izquierdo no depende del winding");
+
+	// La unión de ambos triángulos es el triángulo P-S-R. Su raster CPU debe coincidir
+	// bit a bit con rasterizar las dos caras recortadas: una discrepancia sería una fila
+	// o columna negra interna, no una diferencia del límite exterior.
+	const s16 p_x[3] = {0, 3, 3};
+	const s16 p_y[3] = {10, 12, 15};
+	const s16 q_x[3] = {3, 0, 3};
+	const s16 q_y[3] = {12, 10, 5};
+	s16 p_out_x[20] {}, p_out_y[20] {}, q_out_x[20] {}, q_out_y[20] {};
+	const u8 p_n = eng::graphics::clip_face_to_rect(
+		p_x, p_y, 3u, min_x, max_x, edge_min_y, edge_max_y, p_out_x, p_out_y);
+	const u8 q_n = eng::graphics::clip_face_to_rect(
+		q_x, q_y, 3u, min_x, max_x, edge_min_y, edge_max_y, q_out_x, q_out_y);
+	const eng::graphics::PlanePolygon adjacent[2] = {
+		{p_out_x, p_out_y, p_n, 1u}, {q_out_x, q_out_y, q_n, 1u}};
+	const s16 union_x[4] = {1, 3, 3, 1};
+	const s16 union_y[4] = {8, 5, 15, 12};
+	const eng::graphics::PlanePolygon union_face {union_x, union_y, 4u, 1u};
+	std::vector<u8> got(kPlaneBytes, 0u), want(kPlaneBytes, 0u);
+	(void)eng::graphics::fill_polygons_by_plane_cpu(
+		eng::Span<const eng::graphics::PlanePolygon>(adjacent, 2u),
+		eng::PlaneBytes {got.data(), static_cast<u32>(got.size())}, kRowBytes, kPlaneBytes,
+		1u, kW, kH);
+	(void)eng::graphics::fill_polygons_by_plane_cpu(
+		eng::Span<const eng::graphics::PlanePolygon>(&union_face, 1u),
+		eng::PlaneBytes {want.data(), static_cast<u32>(want.size())}, kRowBytes, kPlaneBytes,
+		1u, kW, kH);
+	check(got == want, "caras adyacentes recortadas: raster CPU sin costura interna");
+}
+
 int main() {
 	// Regresion exacta del bug: el PRIMER vertice fuera de la arista derecha.
 	{
@@ -215,6 +292,7 @@ int main() {
 		const s16 ys[4] = {20, -30000, 30000, 30};
 		case_partial("span>s16 no de cierre", xs, ys, 4u, true);
 	}
+	test_camera_safe_rect_clip();
 	if (g_fail == 0) {
 		std::printf("OK: recorte 2D parcial (interior identico, sin perder vertices visibles)\n");
 	} else {

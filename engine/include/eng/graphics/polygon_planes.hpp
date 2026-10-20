@@ -268,14 +268,23 @@ template <class S = eng::s16>
 			}
 			if (pin != qin) {
 				// Cruce: se interpola la OTRA coordenada en el borde (una división por
-				// arista cortada; un convexo corta como mucho 2 veces por plano).
-				const eng::s32 lo = is_y ? cx[i] : cy[i];
-				const eng::s32 lo2 = is_y ? cx[j] : cy[j];
-				const eng::s32 den = q - p;
-				eng::s32 v = lo;
+				// arista cortada; un convexo corta como mucho 2 veces por plano). Canonizar
+				// dentro→fuera hace idénticos los cortes de caras vecinas que comparten una
+				// arista con winding opuesto; sin ello la truncación entera abre una costura
+				// para el contorno EOR (`../WinUAE-DBG/blitter.cpp:274-285,913-919`; AHRM 3.ª ed.,
+				// cap. 6, «Area Fill Mode», p. 184).
+				const eng::s32 inside_axis = pin ? p : q;
+				const eng::s32 outside_axis = pin ? q : p;
+				const eng::s32 inside_other = static_cast<eng::s32>(is_y ? (pin ? cx[i] : cx[j])
+										 : (pin ? cy[i] : cy[j]));
+				const eng::s32 outside_other = static_cast<eng::s32>(is_y ? (pin ? cx[j] : cx[i])
+										  : (pin ? cy[j] : cy[i]));
+				const eng::s32 den = outside_axis - inside_axis;
+				eng::s32 v = inside_other;
 				if (den != 0) {
-					v = lo + static_cast<eng::s32>((static_cast<eng::s32>(limit) - p) *
-								       (lo2 - lo) / den);
+					v = inside_other + static_cast<eng::s32>(
+								   (static_cast<eng::s32>(limit) - inside_axis) *
+								   (outside_other - inside_other) / den);
 				}
 				if (v < -16384) v = -16384;
 				if (v > 16384) v = 16384;

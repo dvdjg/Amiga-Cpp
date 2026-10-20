@@ -34,7 +34,7 @@ El mismo conjunto se pinta con la referencia CPU (`fill_polygons_by_plane_cpu`, 
 | 7 | junta contigua: x=199 (cara izquierda, plano 0) y x=201 (cara derecha, plano 1) pintadas |
 | 8 | adyacencia **diagonal**: dos triángulos que comparten la diagonal (10,150)-(110,190) en planos distintos, sin magenta ni hueco en toda la banda |
 
-`verify.sh` exige `detail == 0x3f` (los seis bits).
+`verify.sh` exige `detail == 0x1ff` (los nueve bits).
 
 ## Ejecución
 
@@ -45,7 +45,7 @@ bash tests/amiga/l1_backend/003_plane_fill_bounds/verify.sh
 Salida esperada:
 
 ```
-[L1-003] OK: relleno por plano con caras en x=320, x=-1 e y=232, sin residuo en el borde ni escritura fantasma en la fila 0.
+[L1-003] OK: relleno por plano con caras en x=320, x=-1 e y=232, sin residuo, con fila 0 limpia y juntas rectas/diagonales correctas.
 ```
 
 ## Evidencia del A/B
