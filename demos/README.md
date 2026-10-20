@@ -18,7 +18,7 @@ directorio; el `CONFIG_ID` del binario y el nombre de los assets llevan el perfi
 ## Estado
 
 - **`techniques/amiga/`**: 13 categorías (setup, copper, blitter, sprites, playfield, audio, c2p,
-  effects, 3d, input, os, io, debug), 82 demos. `demos/amiga/` ya **no existe**.
+  effects, 3d, input, os, io, debug), 83 demos. `demos/amiga/` ya **no existe**.
 - **`features/`**: extraídas `engine` (060), `board/chess` (123), `cards` (124) y `ui` (215, 300),
   todas variante `amiga`. Matriz de paridad en [`features/README.md`](features/README.md).
 - **Retiradas** (histórico, ya no están): `102_tile_scroll_dualpf`, `106_tile_field_showcase`.

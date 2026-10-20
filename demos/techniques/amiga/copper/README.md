@@ -15,6 +15,7 @@ Son **técnicas de hardware**: usan el vocabulario de chipset de Amiga, no son p
 | [030_ehb_palette_zones](030_ehb_palette_zones/README.md) | Paletas EHB por zonas (6 planos, `BPL1..BPL6`). |
 | [055_copper_rainbow](055_copper_rainbow/README.md) | Rainbow de Copper (gradiente por línea). |
 | [085_copper_plan_scene](085_copper_plan_scene/README.md) | `copper::Plan` dentro de `scene::compose` (composición por etapas). |
+| [086_palette_checkerboard](086_palette_checkerboard/README.md) | Matrices completas de parejas RGB444 en franjas 3/4/5 bitplanes y EHB; cercanía a la diagonal indica brillo compatible. |
 
 ## Build / run / analyze
 
