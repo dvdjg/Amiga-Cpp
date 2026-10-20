@@ -5,6 +5,7 @@ import * as path from 'path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { repoRoot } from '../lib/paths.js';
+import { isStrictReadyEnabled, readHunkCount, resolveStrictDataHunkAddress } from './run-status-resolver.js';
 
 const root = repoRoot(import.meta.url);
 // El conector de WinUAE (repo hermano mcp-winuae-emu) vive junto al repositorio.
@@ -415,7 +416,9 @@ async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalM
     // queda como reserva, con pausa + continue alrededor de la captura.
     let frame: Record<string, any>;
     if (sideChannel?.port) {
-      frame = await captureScreenshotViaSideChannel(sideChannel.port, framePath,
+      // El comando lateral responde `queued`; esperar a que el frame quede escrito antes de
+      // pedir el siguiente evita mezclar capturas de distintas VBlanks en la secuencia.
+      frame = await captureFramePreferred(protocol, sideChannel.port, framePath,
         sideChannel.timeoutMs ?? 20000);
       frame.pausedForCapture = false;
     } else {
@@ -895,13 +898,36 @@ function resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections)
 
 /// Resuelve la dirección runtime de `g_eng_run_status` de forma robusta.
 ///
-/// El mapeo por índice de `resolveRuntimeSymbolAddress` falla cuando el orden de
-/// las secciones runtime (devuelto por `state` del canal lateral) no coincide con
-/// el del `.map` (p. ej. al enlazar un `.s` adicional de `support/` que añade
-/// sub-secciones). Por eso se valida el magic y, si no coincide, se escanea cada
-/// sección runtime buscando el magic de `g_eng_run_status` (0x454e4752).
+/// El camino normal valida el mapeo de secciones y conserva el escaneo histórico.
+/// `RUN_DEMO_STRICT_READY=1` cambia únicamente el runner A1200: usa HUNK_HEADER
+/// para resolver el símbolo dentro del hunk `.data` y evita falsos READY causados
+/// por copias del magic que quedan en BSS.
 async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtimeSections) {
+  const strictReady = isStrictReadyEnabled(process.env.RUN_DEMO_STRICT_READY);
   const resolved = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections);
+
+  if (strictReady) {
+    // La lista `sections` del canal lateral son bases de hunk, no secciones ELF.
+    // En estos ejecutables, `.data` es el penúltimo hunk y `.bss` el último.
+    const hunkCount = readHunkCount(builtExe);
+    const data = resolveStrictDataHunkAddress(linkedSymbol, mapSections, runtimeSections, hunkCount);
+    if (data !== null) {
+      try {
+        const status = await client.command(`runstatus ${data.address.toString(16)}`, 1500);
+        console.log(
+          `[run-demo] A1200 .data hunk ${data.dataIndex}/${data.hunkCount} base=0x${data.dataBase.toString(16)} ` +
+            `runstatus=0x${data.address.toString(16)} state=${status?.state ?? '?'} frame=${status?.frame ?? '?'}`,
+        );
+        if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+          return data.address;
+        }
+      } catch { /* noop */ }
+    }
+    // Sin hunk `.data` verificable no se escanea BSS: es preferible fallar por
+    // timeout a aceptar un falso READY.
+    return null;
+  }
+
   if (resolved !== null && resolved > 0) {
     try {
       const status = await client.command(`runstatus ${resolved.toString(16)}`, 1500);
@@ -1230,8 +1256,12 @@ async function captureFramePreferred(protocol, sideChannelPort, imagePath, timeo
   while (!fs.existsSync(imagePath) && Date.now() < waitDeadline) {
     await sleep(60);
   }
-  if (!fs.existsSync(imagePath)) {
+  frame.exists = fs.existsSync(imagePath);
+  if (frame.exists) {
+    frame.captureSource = 'side-channel';
+  } else {
     frame = await captureScreenshot(protocol, imagePath);
+    frame.captureSource = 'monitor-fallback';
   }
   return frame;
 }

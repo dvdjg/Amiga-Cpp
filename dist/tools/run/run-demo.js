@@ -5,6 +5,7 @@ import * as path from 'path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'url';
 import { repoRoot } from '../lib/paths.js';
+import { isStrictReadyEnabled, readHunkCount, resolveStrictDataHunkAddress } from './run-status-resolver.js';
 const root = repoRoot(import.meta.url);
 // El conector de WinUAE (repo hermano mcp-winuae-emu) vive junto al repositorio.
 // Se importa dinamicamente desde la raiz para que la ruta valga tanto en el
@@ -378,7 +379,9 @@ async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalM
         // queda como reserva, con pausa + continue alrededor de la captura.
         let frame;
         if (sideChannel?.port) {
-            frame = await captureScreenshotViaSideChannel(sideChannel.port, framePath, sideChannel.timeoutMs ?? 20000);
+            // El comando lateral responde `queued`; esperar a que el frame quede escrito antes de
+            // pedir el siguiente evita mezclar capturas de distintas VBlanks en la secuencia.
+            frame = await captureFramePreferred(protocol, sideChannel.port, framePath, sideChannel.timeoutMs ?? 20000);
             frame.pausedForCapture = false;
         }
         else {
@@ -835,68 +838,37 @@ function resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections)
 }
 /// Resuelve la dirección runtime de `g_eng_run_status` de forma robusta.
 ///
-/// El mapeo por índice de `resolveRuntimeSymbolAddress` falla cuando el orden de
-/// las secciones runtime (devuelto por `state` del canal lateral) no coincide con
-/// el del `.map` (p. ej. al enlazar un `.s` adicional de `support/` que añade
-/// sub-secciones). Por eso se valida el magic y, si no coincide, se escanea cada
-/// sección runtime buscando el magic de `g_eng_run_status` (0x454e4752).
-/// Lee el numero de hunks del HUNK_HEADER de un ejecutable Amiga. Los hunks
-/// cargados por AmigaDOS conservan el orden del fichero, asi que el hunk `.data`
-/// es el penultimo y `.bss` el ultimo para el enlazador de amiga-gcc.
-function readHunkCount(exePath) {
-    try {
-        if (!exePath || !fs.existsSync(exePath)) return 0;
-        const b = fs.readFileSync(exePath);
-        if (b.length < 12 || b.readUInt32BE(0) !== 0x3f3) return 0;
-        let off = 4;
-        for (;;) {
-            if (off + 4 > b.length) return 0;
-            const n = b.readUInt32BE(off);
-            off += 4;
-            if (n === 0) break;
-            off += n * 4;
-            if (off > b.length) return 0;
-        }
-        if (off + 4 > b.length) return 0;
-        return b.readUInt32BE(off); // table size
-    }
-    catch { return 0; }
-}
-
+/// El camino normal valida el mapeo de secciones y conserva el escaneo histórico.
+/// `RUN_DEMO_STRICT_READY=1` cambia únicamente el runner A1200: usa HUNK_HEADER
+/// para resolver el símbolo dentro del hunk `.data` y evita falsos READY causados
+/// por copias del magic que quedan en BSS.
 async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtimeSections) {
-    // A1200/68020: el `.map` y los hunks no comparten orden; `sections` son bases
-    // de hunk. En modo estricto se resuelve `.data` por el HUNK_HEADER (penultimo
-    // hunk) y se lee el run status ahi, sin escanear BSS (donde hay copias viejas
-    // con magic valido que daban falsos `state=3`). Sin el flag, A500 intacto.
-    const strictReady = process.env.RUN_DEMO_STRICT_READY === '1';
-    const scanSections = strictReady
-        ? [...runtimeSections].sort((a, b) => parseHexNumber(b) - parseHexNumber(a))
-        : runtimeSections;
+    const strictReady = isStrictReadyEnabled(process.env.RUN_DEMO_STRICT_READY);
     const resolved = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections);
     if (strictReady) {
+        // La lista `sections` del canal lateral son bases de hunk, no secciones ELF.
+        // En estos ejecutables, `.data` es el penúltimo hunk y `.bss` el último.
         const hunkCount = readHunkCount(builtExe);
-        const dataIndex = hunkCount >= 2 ? hunkCount - 2 : -1;
-        const dataBase = dataIndex >= 0 ? parseHexNumber(runtimeSections?.[dataIndex]) : 0;
-        const dataSection = mapSections.find((s) => linkedSymbol >= s.start && linkedSymbol < s.end);
-        if (dataBase && dataSection) {
-            const dataAddr = dataBase + (linkedSymbol - dataSection.start);
+        const data = resolveStrictDataHunkAddress(linkedSymbol, mapSections, runtimeSections, hunkCount);
+        if (data !== null) {
             try {
-                const st = await client.command(`runstatus ${dataAddr.toString(16)}`, 1500);
-                console.log(`[run-demo] A1200 .data hunk ${dataIndex}/${hunkCount} base=0x${dataBase.toString(16)} `
-                    + `runstatus=0x${dataAddr.toString(16)} state=${st?.state ?? '?'} frame=${st?.frame ?? '?'}`);
-                if (st && st.ok && st.magic === '0x454e4752' && st.version === 1) {
-                    return dataAddr;
+                const status = await client.command(`runstatus ${data.address.toString(16)}`, 1500);
+                console.log(`[run-demo] A1200 .data hunk ${data.dataIndex}/${data.hunkCount} base=0x${data.dataBase.toString(16)} ` +
+                    `runstatus=0x${data.address.toString(16)} state=${status?.state ?? '?'} frame=${status?.frame ?? '?'}`);
+                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+                    return data.address;
                 }
             }
             catch { /* noop */ }
         }
-        // Sin hunk .data fiable no se escanea BSS: mejor timeout que falso READY.
+        // Sin hunk `.data` verificable no se escanea BSS: es preferible fallar por
+        // timeout a aceptar un falso READY.
         return null;
     }
     if (resolved !== null && resolved > 0) {
         try {
             const status = await client.command(`runstatus ${resolved.toString(16)}`, 1500);
-            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && (!strictReady || status.state === 3)) {
+            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
                 return resolved;
             }
         }
@@ -904,13 +876,13 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
     }
     // Fallback: escanear las secciones runtime buscando el magic.
     if (Array.isArray(runtimeSections)) {
-        for (const sec of scanSections) {
+        for (const sec of runtimeSections) {
             const addr = parseHexNumber(sec);
             if (!addr)
                 continue;
             try {
                 const status = await client.command(`runstatus ${addr.toString(16)}`, 1500);
-                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && (!strictReady || status.state === 3)) {
+                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
                     return addr;
                 }
             }
@@ -922,7 +894,7 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
         // trozo a trozo y validamos con `runstatus`; un falso positivo no corta el barrido.
         const CHUNK = 4096;
         const MAX_PER_SECTION = 1024 * 1024; // 1 MiB de tope por seccion
-        for (const sec of scanSections) {
+        for (const sec of runtimeSections) {
             const base = parseHexNumber(sec);
             if (!base)
                 continue;
@@ -937,7 +909,7 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
                         if ((idx & 1) === 0) {
                             const candidate = base + off + (idx >> 1);
                             const status = await client.command(`runstatus ${candidate.toString(16)}`, 1500);
-                            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && (!strictReady || status.state === 3)) {
+                            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
                                 return candidate;
                             }
                         }
@@ -1130,7 +1102,7 @@ async function waitForSideChannelRunStatus({ linkedSymbol, mapSections, timeoutM
             if (runtimeAddress !== null && runtimeAddress > 0) {
                 const status = await client.command(`runstatus ${runtimeAddress.toString(16)}`, 1500).catch(() => null);
                 last = { state, status, runtimeAddress };
-                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && status.state === 3) {
+                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
                     if (status.state === 3) {
                         return { status: 'ready', value: status, runtimeAddress, state };
                     }
@@ -1205,8 +1177,13 @@ async function captureFramePreferred(protocol, sideChannelPort, imagePath, timeo
     while (!fs.existsSync(imagePath) && Date.now() < waitDeadline) {
         await sleep(60);
     }
-    if (!fs.existsSync(imagePath)) {
+    frame.exists = fs.existsSync(imagePath);
+    if (frame.exists) {
+        frame.captureSource = 'side-channel';
+    }
+    else {
         frame = await captureScreenshot(protocol, imagePath);
+        frame.captureSource = 'monitor-fallback';
     }
     return frame;
 }
