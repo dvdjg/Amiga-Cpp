@@ -6,7 +6,7 @@ Categoría `platform/amiga` de la batería host (L1). El índice de categorías 
 
 | ID | Test | Qué cubre |
 |----|------|-----------|
-| HOST-006 | [input_decode](006_input_decode/README.md) | `eng::amiga::decode_joystick`: decodificación de los bits de `JOYxDAT` en direcciones (AHRM cap. 8) — backend de entrada. |
+| HOST-006 | [input_decode](006_input_decode/README.md) | `eng::amiga::decode_joystick` (Gray de `JOYxDAT` a direcciones) y `mouse_counter_delta` (delta signed con wrap de 8 bits, AHRM cap. 8) — backend de entrada. |
 | HOST-007 | [input_cd32](007_input_cd32/README.md) | `eng::amiga::decode_cd32_buttons`: decodificación del flujo serie CD32 (9 bits → botones) — backend de entrada. |
 | HOST-014 | [object3d](014_object3d/README.md) | `eng::object3d`: port 1:1 de `lib3d` (`Object3D`, transform, aristas/caras). |
 | HOST-051 | [object3d_affine](051_object3d_affine/README.md) | Bit-exactitud de `update_object_transformation` (barrido de ángulos). |

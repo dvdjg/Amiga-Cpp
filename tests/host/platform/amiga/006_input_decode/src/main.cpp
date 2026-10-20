@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-006: decodificación del joystick (eng::amiga::decode_joystick).
+// Test HOST-006: decodificación JOYxDAT del joystick y del ratón.
 // ============================================================================
 //
 // Valida en host la única pieza pura del backend de entrada: la decodificación
@@ -31,6 +31,7 @@ using eng::amiga::kJoyDown;
 using eng::amiga::kJoyLeft;
 using eng::amiga::kJoyRight;
 using eng::amiga::kJoyUp;
+using eng::amiga::mouse_counter_delta;
 
 int g_failures = 0;
 
@@ -70,6 +71,17 @@ void test_fire_is_cia() {
 	CHECK((decode_joystick(0xFFFFu) & eng::amiga::kJoyFire) == 0u);
 }
 
+void test_mouse_counter_delta_wrap() {
+	std::printf("input: delta signed de contador de raton con wrap de 8 bits\n");
+	CHECK(mouse_counter_delta(0x00u, 0x00u) == 0);
+	CHECK(mouse_counter_delta(0x3cu, 0x10u) == 44);
+	CHECK(mouse_counter_delta(0x10u, 0x3cu) == -44);
+	CHECK(mouse_counter_delta(0x05u, 0xfau) == 11);   // wrap al avanzar
+	CHECK(mouse_counter_delta(0xfau, 0x05u) == -11);  // wrap al retroceder
+	CHECK(mouse_counter_delta(0x7fu, 0x00u) == 127);
+	CHECK(mouse_counter_delta(0x80u, 0x00u) == -128);
+}
+
 } // namespace
 
 int main() {
@@ -80,9 +92,10 @@ int main() {
 	test_single_directions();
 	test_diagonals();
 	test_fire_is_cia();
+	test_mouse_counter_delta_wrap();
 
 	if (g_failures == 0) {
-		std::printf("OK: decodificacion del joystick validada (JOYxDAT -> direcciones).\n");
+		std::printf("OK: decodificacion de joystick y raton validada (JOYxDAT).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", g_failures);

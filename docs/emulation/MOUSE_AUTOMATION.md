@@ -31,16 +31,14 @@ La herramienta reutilizable es:
 .\tools\input\mouse-path.ps1 -From 32,40 -To 280,170 -Control 160,10 -Click
 ```
 
-Internamente se conecta al servidor GDB/monitor de WinUAE ya arrancado y envia:
+Internamente se conecta al servidor GDB/monitor de WinUAE ya arrancado y envía, por defecto, movimientos relativos del ratón emulado:
 
 ```text
-input mouse abs x y
+input mouse move dx dy
 input mouse button boton estado
 ```
 
-Eso mueve el raton emulado del Amiga sin usar el raton fisico del sistema. Las
-coordenadas se expresan en pantalla Amiga low-res y se limitan por defecto a
-`0..319` en X y `0..255` en Y.
+Así el trayecto parte de la posición lógica del puntero en el juego y no de la base absoluta del dispositivo host de WinUAE. `--from` y `--to` siguen expresándose en coordenadas Amiga low-res y se limitan por defecto a `0..319` en X y `0..255` en Y; el generador convierte cada par de puntos en deltas, por lo que no usa el ratón físico de Windows.
 
 ## Trayectorias soportadas
 
@@ -50,6 +48,11 @@ coordenadas se expresan en pantalla Amiga low-res y se limitan por defecto a
 - Con `-Click`: pulsa y suelta al final.
 - Con `-Drag`: mantiene pulsado durante toda la trayectoria.
 - Con `-Screenshot`: guarda una captura justo despues de inyectar la entrada.
+- Con `--coordinate-mode absolute`: usa `input mouse abs` para configuraciones mousehack/tablet; el modo `relative` es el predeterminado para juegos que leen `JOY0DAT`.
+
+El cálculo de puntos (`buildMousePathPoints`) es compartido con `winuae_input_mouse` del MCP para que ambas rutas usen la misma geometría y límites de pantalla; la CLI conserva el muestreo lineal en el parámetro de la curva y el MCP añade *ease-in/ease-out* por defecto.
+
+En una demo que lee `JOY0DAT`, la ruta del MCP usa deltas relativos desde la posición lógica del cursor (`coordinate_mode=relative`); no se debe confundir esa posición con la referencia interna del dispositivo host que WinUAE usa para convertir `input mouse abs`. `coordinate_mode=absolute` queda para configuraciones mousehack/tablet cuyo consumidor espera coordenadas absolutas (AHRM 3.ª ed., cap. 8; `WinUAE-DBG/doc/MOUSE-SYSTEMS.md` §3 e `inputdevice.cpp:9813-9837`).
 
 Ejemplo de arranque, trayectoria y cierre manual:
 
@@ -62,9 +65,7 @@ Ejemplo de arranque, trayectoria y cierre manual:
   -MouseClick
 ```
 
-El runner integrado es el camino recomendado para regresiones porque inyecta el
-movimiento mientras la conexion GDB original sigue abierta. En algunas sesiones
-WinUAE no vuelve a aceptar una conexion GDB nueva tras desconectar el cliente.
+El runner integrado es el camino recomendado para regresiones porque inyecta el movimiento mientras la conexión GDB original sigue abierta. En algunas sesiones WinUAE no vuelve a aceptar una conexión GDB nueva tras desconectar el cliente.
 
 Tambien existe una herramienta standalone para sesiones donde el servidor GDB ya
 este aceptando conexiones:

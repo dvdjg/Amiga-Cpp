@@ -140,10 +140,25 @@ struct MousePollState {
 	bool started = false;
 };
 
+/// Interpreta un byte de contador `JOYxDAT` como delta con signo y wrap módulo 256.
+///
+/// El AHRM recomienda aritmética signed de 8 bits al restar las lecturas del
+/// contador del ratón (cap. 8, “Reading Mouse/Trackball Controllers”,
+/// `docs/reference/ahrm/Amiga Hardware Reference Manual 3rd edition (Commodore
+/// Amiga Inc.) (Z-Library).cat.md:6854-6858`); ampliar primero a `s16` convierte,
+/// por ejemplo, el wrap `0x00 -> 0xFF` en +255 en vez de -1 y manda el puntero al
+/// borde opuesto.
+constexpr eng::s16 mouse_counter_delta(eng::u8 current, eng::u8 previous) {
+	const eng::u8 wrapped = static_cast<eng::u8>(current - previous);
+	return wrapped < 0x80u
+		? static_cast<eng::s16>(wrapped)
+		: static_cast<eng::s16>(static_cast<eng::s16>(wrapped) - 0x100);
+}
+
 /// Lee el ratón del puerto 0 (ratón): delta por contador y botones.
 ///
 /// El contador `JOY0DAT` ($DFF00A) acumula el movimiento en X (byte bajo) e Y
-/// (byte alto); el delta se obtiene restando el valor del frame anterior. El
+/// (byte alto); el delta signed con wrap se calcula por eje respecto al frame anterior. El
 /// botón izquierdo está en `CIAAPRA` bit 6 y el derecho en `POTINP` bit 10
 /// (pin 9), ambos con 0 = pulsado (AHRM cap. 8 y Sevgi).
 inline void poll_mouse(eng::input::MouseState& out, MousePollState& st) {
@@ -156,8 +171,8 @@ inline void poll_mouse(eng::input::MouseState& out, MousePollState& st) {
 		out.dx = 0;
 		out.dy = 0;
 	} else {
-		out.dx = static_cast<eng::s16>(x - static_cast<eng::u8>(st.prev_joy0 & 0xffu));
-		out.dy = static_cast<eng::s16>(y - static_cast<eng::u8>(st.prev_joy0 >> 8));
+		out.dx = mouse_counter_delta(x, static_cast<eng::u8>(st.prev_joy0 & 0xffu));
+		out.dy = mouse_counter_delta(y, static_cast<eng::u8>(st.prev_joy0 >> 8));
 		st.prev_joy0 = joy0;
 	}
 

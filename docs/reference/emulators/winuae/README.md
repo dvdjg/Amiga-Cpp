@@ -13,6 +13,7 @@ Lo **observado** en el código fuente de WinUAE (local: `../WinUAE-DBG/`) al con
 | Disco a nivel de device | `DSKPT`/`DSKLEN`/`DSKBYTR` (DMA, MFM) | [trackdisk.md](trackdisk.md) |
 | IRQ de audio (`AUD0..3`, nivel 4) | `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH` | [audio-irq.md](audio-irq.md) |
 | Inyección de teclado y handshake CIA-A | `input key`/`input event` (`256+sc`, ids permutados), `keymcu_execute` | [keyboard-injection.md](keyboard-injection.md) |
+| Inyección de ratón emulado | `input mouse move/abs/button`, activación del puerto y contadores `JOY0DAT` | [mouse-injection.md](mouse-injection.md) |
 
 ## Síntoma → fuente (empezar por aquí)
 
@@ -31,3 +32,4 @@ Al depurar, **leer primero la fuente** de la fila correspondiente (regla dura AG
 | Colisión de sprites (`CLXCON`/`CLXDAT`) | [collision.md](collision.md) |
 | IRQ de audio / DMA de audio | [audio-irq.md](audio-irq.md) |
 | Disco (`DSKPT`/`DSKLEN`) | [trackdisk.md](trackdisk.md) |
+| Clickes/arrastres emulados no llegan a una demo | [mouse-injection.md](mouse-injection.md) (`send_input_event`/`check_enable` frente a `setmousestate`) |

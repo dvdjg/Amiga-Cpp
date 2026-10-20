@@ -29,6 +29,7 @@ expuestas por `mcp-winuae-emu`. Léela junto a
 | `winuae_trace` | Trazas host de watch/protect/rewind → `%TEMP%\winuae-gdb.log` | Tener un registro de "qué pasó" durante una temporada |
 | `winuae_side_read` | Canal lateral `state`/`regs`/`mem`/`runstatus` | GDB inerte (tras rewind) u observación no intrusiva |
 | `winuae_debugperiph` | Periférico in-Amiga en `0xB70000` | Telemetría del propio programa + checkpoints — ver §4 |
+| `winuae_input_mouse` | Movimiento relativo/absoluto, botón, o trayectoria Bézier suave con click/arrastre | Interacción real en demos point-and-click y HUD; para `path`, indicar origen observado y destino |
 | `winuae_base` | Consulta/fija bases runtime de sección (`monitor base`) | Resolución de símbolos / corregir bases de un binario relocalizado |
 | `winuae_train` | Rompe al cambiar un valor `from→to` en cualquier dirección (`monitor train`) + ignore list | "Entrenar" un cheat: encontrar dónde cambia una variable |
 | `winuae_print` | Lee y formatea un valor en memoria (`monitor print`); con `mapPath` resuelve un símbolo del `.map` y **campos simples del struct vía DWARF** del `.elf` (offset de miembros, arrays `[N]` con heurística de tamaño, deref `*`) | Imprimir `g_game.m_scene.m_scroll_x`, un elemento `g_game.m_cells[100]` o dereferenciar un puntero |

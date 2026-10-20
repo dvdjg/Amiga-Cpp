@@ -7,8 +7,13 @@ const root = repoRoot(import.meta.url);
 // El conector de WinUAE (repo hermano mcp-winuae-emu) vive junto al repositorio.
 // Se importa dinamicamente desde la raiz para que la ruta valga tanto en el
 // fuente como en dist/ (compilar anade un nivel de directorio).
-const mcpWinuae = await import(pathToFileURL(path.join(path.dirname(root), 'mcp-winuae-emu', 'dist', 'winuae-connection.js')).href);
+const mcpRoot = path.join(path.dirname(root), 'mcp-winuae-emu', 'dist');
+const [mcpWinuae, mcpMousePath] = await Promise.all([
+    import(pathToFileURL(path.join(mcpRoot, 'winuae-connection.js')).href),
+    import(pathToFileURL(path.join(mcpRoot, 'mouse-path.js')).href),
+]);
 const { WinUAEConnection } = mcpWinuae;
+const { buildMousePathPoints } = mcpMousePath;
 function argValue(name, fallback = undefined) {
     const index = process.argv.indexOf(name);
     if (index >= 0 && index + 1 < process.argv.length) {
@@ -29,25 +34,6 @@ function parsePoint(text, name) {
     }
     return { x: Number(match[1]), y: Number(match[2]) };
 }
-function clampInt(value, min, max) {
-    return Math.max(min, Math.min(max, Math.round(value)));
-}
-function lerp(a, b, t) {
-    return a + (b - a) * t;
-}
-function quadraticBezier(from, control, to, t) {
-    const ab = { x: lerp(from.x, control.x, t), y: lerp(from.y, control.y, t) };
-    const bc = { x: lerp(control.x, to.x, t), y: lerp(control.y, to.y, t) };
-    return { x: lerp(ab.x, bc.x, t), y: lerp(ab.y, bc.y, t) };
-}
-function cubicBezier(from, c1, c2, to, t) {
-    const ab = { x: lerp(from.x, c1.x, t), y: lerp(from.y, c1.y, t) };
-    const bc = { x: lerp(c1.x, c2.x, t), y: lerp(c1.y, c2.y, t) };
-    const cd = { x: lerp(c2.x, to.x, t), y: lerp(c2.y, to.y, t) };
-    const abbc = { x: lerp(ab.x, bc.x, t), y: lerp(ab.y, bc.y, t) };
-    const bccd = { x: lerp(bc.x, cd.x, t), y: lerp(bc.y, cd.y, t) };
-    return { x: lerp(abbc.x, bccd.x, t), y: lerp(abbc.y, bccd.y, t) };
-}
 function buildPath() {
     const from = parsePoint(argValue('--from', '16,16'), '--from');
     const to = parsePoint(argValue('--to', '304,240'), '--to');
@@ -58,28 +44,19 @@ function buildPath() {
     const control2Text = argValue('--control2');
     const control = controlText ? parsePoint(controlText, '--control') : null;
     const control2 = control2Text ? parsePoint(control2Text, '--control2') : null;
-    const points = [];
     // The monitor command receives Amiga display coordinates, not Windows
     // pointer coordinates.  We round and clamp them here so tests can use curves
     // freely without producing values outside the visible low-res A500 area.
-    for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        let p;
-        if (control && control2) {
-            p = cubicBezier(from, control, control2, to, t);
-        }
-        else if (control) {
-            p = quadraticBezier(from, control, to, t);
-        }
-        else {
-            p = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
-        }
-        points.push({
-            x: clampInt(p.x, 0, maxX),
-            y: clampInt(p.y, 0, maxY),
-        });
-    }
-    return points;
+    return buildMousePathPoints({
+        from,
+        to,
+        control: control ?? undefined,
+        control2: control2 ?? undefined,
+        steps,
+        maxX,
+        maxY,
+        ease: 'linear',
+    });
 }
 function findExtensionRoot() {
     if (process.env.AMIGA_DEBUG_EXT && fs.existsSync(process.env.AMIGA_DEBUG_EXT)) {
@@ -122,6 +99,10 @@ async function sendMouseAbs(protocol, point) {
     const reply = await protocol.sendMonitorCommand(`input mouse abs ${point.x} ${point.y}`, 5000);
     return decodeMonitorReply(reply);
 }
+async function sendMouseMove(protocol, dx, dy) {
+    const reply = await protocol.sendMonitorCommand(`input mouse move ${dx} ${dy}`, 5000);
+    return decodeMonitorReply(reply);
+}
 async function sendMouseButton(protocol, button, state) {
     const reply = await protocol.sendMonitorCommand(`input mouse button ${button} ${state}`, 5000);
     return decodeMonitorReply(reply);
@@ -135,6 +116,7 @@ Opciones principales:
   --to x,y                Punto final en coordenadas Amiga. Default: 304,240
   --control x,y           Punto de control para curva cuadratica.
   --control2 x,y          Segundo punto de control para curva cubica.
+  --coordinate-mode mode  relative (default, delta desde el cursor del juego) o absolute (mousehack/tablet).
   --steps n               Numero de pasos de la trayectoria. Default: 48
   --duration-ms n         Duracion total de la trayectoria. Default: 800
   --button n              Boton Amiga/WinUAE: 0 izq, 1 der, 2 medio. Default: 0
@@ -152,6 +134,10 @@ const points = buildPath();
 const durationMs = Math.max(0, parseInt(argValue('--duration-ms', '800'), 10));
 const delayMs = points.length > 1 ? Math.floor(durationMs / (points.length - 1)) : 0;
 const button = Math.max(0, parseInt(argValue('--button', '0'), 10));
+const coordinateMode = argValue('--coordinate-mode', 'relative');
+if (coordinateMode !== 'relative' && coordinateMode !== 'absolute') {
+    throw new Error('--coordinate-mode debe ser relative o absolute.');
+}
 const config = {
     winuaePath: path.join(findExtensionRoot(), 'bin/win32'),
     configFile: path.resolve(argValue('--config', path.join(root, 'config/mcp-amiga-c-debug.uae'))),
@@ -165,6 +151,7 @@ const report = {
     first: points[0],
     last: points[points.length - 1],
     durationMs,
+    coordinateMode,
     button,
     clicked: hasArg('--click'),
     dragged: hasArg('--drag'),
@@ -173,11 +160,25 @@ const report = {
 try {
     await conn.connectExisting({ forceBreak: false, initializeStopped: false });
     const protocol = conn.getProtocol();
+    if (hasArg('--drag') && coordinateMode === 'absolute') {
+        await sendMouseAbs(protocol, points[0]);
+    }
     if (hasArg('--drag')) {
         await sendMouseButton(protocol, button, 1);
     }
+    let previous = points[0];
     for (const [index, point] of points.entries()) {
-        await sendMouseAbs(protocol, point);
+        if (coordinateMode === 'absolute') {
+            await sendMouseAbs(protocol, point);
+        }
+        else {
+            const dx = point.x - previous.x;
+            const dy = point.y - previous.y;
+            if (dx !== 0 || dy !== 0) {
+                await sendMouseMove(protocol, dx, dy);
+            }
+        }
+        previous = point;
         if (delayMs > 0 && index + 1 < points.length) {
             await sleep(delayMs);
         }

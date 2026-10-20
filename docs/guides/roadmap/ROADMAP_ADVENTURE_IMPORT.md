@@ -151,6 +151,14 @@ Ediciones de las copias locales (verificado en `scumm-md5.h`/`detection_tables.h
 - **Fidelidad de comportamiento**: el oráculo es ScummVM corriendo el juego original en PC; cuando un guion traducido difiera, la referencia es la ejecución del original (no la intuición), y el caso se documenta en `docs/debugging/` si revela una rareza de formato.
 - **Ruido de artefactos**: las extracciones reales van a `out/adventure/` (gitignored); al repo solo entran informes, esquemas, herramientas y fixtures sintéticos.
 
+## Prioridad de continuación
+
+1. **Cerrar I0 en el frontend V4 Amiga** materializando el ADF local y validando el índice `.LFL`, las salas y guiones contra los mismos contadores de aceptación del caso V3; I0 ya tiene SIM v2, fixtures y extracción V5 completas, por lo que este es el hueco de cobertura señalado.
+2. **Ampliar I1 por valor jugable**: atacar primero las familias de llamadas no soportadas que bloquean una sala o puzzle de MI1/MI2 y mantener las demás marcadas `REVISAR`; el reporte actual registra 4 803 llamadas MI1 y 7 451 MI2 sin mapeo, separadas de las 25 433 y 35 871 llamadas ya mapeadas.
+3. **Completar I2**: cocina de fondos/costumes/props a los formatos reales del engine, empaquetado UAF-R y round-trip visual al 100 %; esto convierte extracción y codegen en contenido consumible por el slice.
+4. **Construir I3 después del compositor A3**: el previewer debe cargar el mismo `adv-stage/1` y reutilizar el Stage Composer puro; adelantar el editor duplicaría una composición que todavía no existe.
+5. **Hacer I4 gate del contenido de A5** y dejar I5 (AGI/SCI/Cinématique adicionales) para cuando el SIM y la traducción de la primera familia estén estables; el informe de presupuesto debe detectar salas que exceden el perfil A500 antes del build.
+
 ## Próximo paso verificable
 
-I0 con el esquema del SIM + extractor de salas (fondo, walkboxes, objetos, textos) sobre el fixture sintético y una extracción real local de un juego V5/V6: sin un SIM validado, ni el traductor ni el previewer tienen contrato estable.
+Materializar una copia local del ADF V4 Amiga pendiente y ejecutar el frontend `frontends/scumm_v4_lfl/` para comprobar cobertura de salas, objetos y guiones con fixtures/goldens deterministas. La evidencia debe mantenerse fuera de git en `out/adventure/`; si la copia no está disponible, registrar el bloqueo de datos y seguir con I1 sobre fixtures propios, sin declarar cerrado el frontend V4 Amiga.

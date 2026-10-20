@@ -33,7 +33,7 @@ Plan de implementación del diseño canónico [`HUD_SYSTEM.md`](../../engine/arc
 - **Dependencia**: G9 de [`ROADMAP_GUI.md`](ROADMAP_GUI.md) (captura de puntero, `PointerMove`/`PointerCancel`, propagación y `UiAction`). Hasta que G9 cierre, H2 consume el subconjunto vigente de `UiEventKind` (`MouseMove`/`MouseDown`/`MouseUp`/`JoyButton`/`Tick`, más `KeyDown`/`KeyUp` con `eng::ui::keymap`) y converge con el contrato final sin duplicar la máquina de eventos.
 - **Detalle**: el *slot* se calcula al recibir el evento, no por frame; el *hit map* y el pintado comparten transformación; un *click* es *down* + *up* en el mismo objetivo; el joystick mueve el foco por filas/columnas.
 - **Verificación**: **HOST-469** — prioridad de regiones, rejilla con pitch no múltiplo de 16, *click* dentro/fuera, foco con bordes de rejilla, consumo y paso al juego según `capture_input`. **Demo `303_hud_icons`** (inventario en franja o panel) con selección por ratón y joystick; visión y medidas.
-- **Estado**: **parcial (2026-10-18)** — núcleo de entrada entregado: `engine/include/eng/hud/input.hpp` (`hud_hit_test` por capa y por fórmula con índice de slot + id lógico, `HudInput` con máquina de puntero, `Fire`/`Accept` = *click* del foco, `Move*` de navegación y política derivada de `HudRegionSpec::capture_input`), verificado por **HOST-469**. Pendiente: demo `303_hud_icons` (inventario con iconos del atlas, selección por ratón y joystick, visión por secuencia y medidas) y convergencia con el contrato final de G9 cuando cierre.
+- **Estado**: **núcleo y demo entregados (2026-10-19)** — `engine/include/eng/hud/input.hpp` (`hud_hit_test` por capa/fórmula, `HudInput`, selección/foco y política `capture_input`) verificado por **HOST-469**; la demo **`303_hud_icons`** está entregada y su pérdida de latidos DT-036 se cerró con la ruta de sondeo (`frame/vbl` = 0,998–0,999; ver su `VALIDATION.md`). Queda la convergencia con la captura/propagación de puntero del contrato G9; las herramientas MCP de ratón ahora admiten trayectorias curvas con easing, click y drag para la verificación end-to-end.
 
 ### H3 — *Drag & drop*
 
@@ -77,7 +77,7 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 | HOST-472 | test | Paneles, barra de verbos, *tooltips*, múltiples regiones y puente RPG. |
 | HOST-473 | test | Tema, atlas de iconos, *skins*, cambio en caliente y fachada. |
 | `302_hud_band` | demo | HUD de acción en franja propia: contador, medidor y vidas. **Entregada y verificada** (H1). |
-| `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. **Entregada** (H2; cadencia con nota DT-036 en su `VALIDATION.md`). |
+| `303_hud_icons` | demo | Rejilla de iconos, selección por ratón y foco de joystick. **Entregada** (H2; DT-036 cerrada con `frame/vbl` = 0,998–0,999 mediante sondeo, ver `VALIDATION.md`). |
 | `304_hud_drag` | demo | Inventario con arrastre, *ghost*, *drop* válido/inválido y cancelación. **Entregada** (H3; `VALIDATION.md`). |
 | `305_hud_overlay` | demo | Overlay sobre juego en movimiento, sprites y presupuesto. |
 | `306_hud_crpg` | demo | Panel/verbos/inventario y puente con `eng::rpg`. **Entregada y verificada** (H5; `VALIDATION.md`). |
@@ -96,4 +96,11 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 
 ## Estado
 
-**H0 y H1 HECHOS (2026-10).** `engine/include/eng/hud/` contiene el modelo (`Hud<...>` con *handles*, componentes y `DragSession`), el contrato de región con validadores, el tema/atlas y el presentador de franja (`HudStrip` + `apply_hud_ops`); verificado por **HOST-467** y **HOST-468** (catálogo `ui`) e instanciado con dos configuraciones de capacidad. La demo **`302_hud_band`** valida la fase H1 en hardware: franja de 2 planos con paleta propia en la línea 208, HUD por deltas, **49,9 fps (1 campo)**, *flicker* con gate OK, visión A/B/C + canónica y `VALIDATION.md` con la decisión de doble buffer medida. **H2 parcial (2026-10-18)**: el núcleo de entrada (`input.hpp`: `hud_hit_test` + `HudInput`) está entregado y verificado por **HOST-469**; el siguiente paso verificable es la demo **`303_hud_icons`** (inventario con selección por ratón y joystick, visión y medidas).
+**H0–H3 y H5 entregados**; el núcleo de H2 cuenta con **HOST-469** y la demo **`303_hud_icons`** (DT-036 cerrada mediante sondeo); H4 queda parcial en reserva/materialización de canales de sprite, cues de Copper y doble buffer de banda; H6 queda casi completo, con el mapa de paleta del atlas por skin y el cierre de **HOST-473** pendientes. H1 está respaldado por la `302` (49,9 fps, 1 campo, secuencia visual y gate de *flicker*); H3 por la `304`; H5 por la `306`.
+
+## Prioridad actual
+
+1. **Converger la entrada del HUD con el tramo de puntero de G9** (`capture → target → bubble`, `PointerCancel`, *hover* y `UiAction`), sin bloquearlo por el trabajo de edición de texto de la GUI; elimina el subconjunto paralelo de eventos que todavía describe H2.
+2. **Calibrar hit-test y arrastre reales en 303/304 o 002 de ADV** con `winuae_input_mouse` en modo `path`, capturando además selección/drop; una prueba en `002` ya confirmó que la trayectoria y el click llegan al HUD, pero el destino pedido MIRA se resolvió como CIERRA, así que la correspondencia de coordenadas sigue abierta.
+3. **Cerrar de H4 solo las piezas que consume el compositor de ADV**: reserva de canales de sprite y emisión de cues/split Copper con su test HOST-471; medir después el doble buffer de banda por punteros si un consumidor lo necesita.
+4. **Cerrar H6** con el remapeo de paleta por skin y HOST-473; su valor es fijar el contrato de atlas/tema, pero no debe adelantarse a la captura de entrada ni al primer consumidor Stage Composer.
