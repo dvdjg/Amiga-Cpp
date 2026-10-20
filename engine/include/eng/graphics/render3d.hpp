@@ -89,11 +89,13 @@ struct Plane {
 	S d {};
 
 	[[nodiscard]] constexpr auto dist(const CamVertex<S>& v) const {
-		const S one = eng::math::scalar_traits<S>::one();
+		// `d` se suma directamente: `inner(d, one) == d` en la escala cruda del escalar
+		// (para `Fixed` es `(d.v * one.v) >> E == d.v`; para `float`, `d * 1`), asi que
+		// multiplicarlo por uno solo anadia un `muls.w` por plano y vertice (medido con
+		// L1-004: es ~25 % del test de frustum).
 		return eng::math::scalar_traits<S>::inner(a, v.x) +
 		       eng::math::scalar_traits<S>::inner(b, v.y) +
-		       eng::math::scalar_traits<S>::inner(c, v.z) +
-		       eng::math::scalar_traits<S>::inner(d, one);
+		       eng::math::scalar_traits<S>::inner(c, v.z) + d;
 	}
 };
 

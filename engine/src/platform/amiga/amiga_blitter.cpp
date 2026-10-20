@@ -3,6 +3,7 @@
 /// (copias, cookie-cut, OR de BOBs, lineas, area fill, colision, relleno por plano).
 
 #include <eng/core/data/polygon.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/graphics/blit_queue.hpp>
 #include <eng/platform/amiga/blob_batch.hpp>
 
@@ -881,6 +882,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 		u16 cy1 = clear_y1 < height ? clear_y1 : static_cast<u16>(height - 1u);
 		if (cx0 > cx1) { const u16 sw = cx0; cx0 = cx1; cx1 = sw; }
 		if (cy0 > cy1) { const u16 sw = cy0; cy0 = cy1; cy1 = sw; }
+		ENG_PROF_BEGIN(::eng::debug::prof_fill_clear);
 		{
 			const u16 cwx0 = cx0 & 0xfff0u;
 			const u16 cwx1 = static_cast<u16>(cx1 | 0x000fu);
@@ -889,6 +891,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 					  static_cast<u16>(cy1 - cy0 + 1u));
 			wait_blitter(); // el clear por rect depende de BLTDMOD: no pisarlo con las lineas
 		}
+		ENG_PROF_END(::eng::debug::prof_fill_clear);
 		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1, RECORTADAS
 		//    al rectangulo SEGURO del contorno (`plan_plane_edges_in_bounds`). El trazador
 		//    de lineas escribe cada pixel un paso por detras: una vertical dada en `x` se
@@ -905,6 +908,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 		// plano` la palabra aterriza en la fila 0 visible (defecto aparte del recorte). La
 		// palabra de descarte Chip lo absorbe; sin ella se conserva el comportamiento anterior.
 		eng::u8* line_d_base = m_line_trash.valid() ? m_line_trash.data() : plane.data();
+		ENG_PROF_BEGIN(::eng::debug::prof_fill_lines);
 		blitter_lines_begin(row_bytes);
 		graphics::PlaneEdge edges[64];
 		const u32 ne = graphics::plan_plane_edges_in_bounds(faces, n_faces, p, min_x, max_x,
@@ -941,6 +945,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 				}
 			}
 		}
+		ENG_PROF_END(::eng::debug::prof_fill_lines);
 		// 3) area fill (FILL_XOR) acotado al bbox de las caras de este plano: barrer
 		//    320x232 por plano cuesta ~9k ciclos y el objeto suele ocupar una fraccion;
 		//    el contorno queda dentro del bbox por construccion. Se acota al plano
@@ -959,6 +964,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 				if (face.ys[i] > by1) by1 = face.ys[i];
 			}
 		}
+		ENG_PROF_BEGIN(::eng::debug::prof_fill_area);
 		if (bx1 >= bx0 && by1 >= by0) {
 			const s16 mx = static_cast<s16>(width - 1u);
 			const s16 my = static_cast<s16>(height - 1u);
@@ -975,6 +981,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 						       static_cast<u16>(by1 - by0 + 1), true);
 			}
 		}
+		ENG_PROF_END(::eng::debug::prof_fill_area);
 		// 4) patrón del plano: por fases (filas uniformes del catálogo / damero de mezcla)
 		//    o en un pase genérico `D = A & B` con el plano de patrón completo.
 		const eng::MaskBytes& pat = patterns[p];

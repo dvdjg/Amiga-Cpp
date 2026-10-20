@@ -58,6 +58,12 @@ extern "C" volatile eng::u32 g_prof_start[prof_max_sections];
 inline constexpr eng::u8 prof_sort_lines = 7;  ///< `Plan::sort_by_top`
 inline constexpr eng::u8 prof_sort_prio = 8;   ///< `Plan::sort_priority_within_lines`
 inline constexpr eng::u8 prof_emit = 9;        ///< `Plan::materialize` (emision al copper)
+/// Interior del relleno por plano del Blitter (`fill_polygons_by_plane_patterns`): clear del
+/// rectangulo sucio, contorno (lineas ONEDOT) y area fill, con sus esperas incluidas. Sirven
+/// para decidir que optimizar sin recompilar (el total de la seccion de la demo los contiene).
+inline constexpr eng::u8 prof_fill_clear = 10; ///< clear por plano (blit + espera)
+inline constexpr eng::u8 prof_fill_lines = 11; ///< contorno ONEDOT por plano (lineas + esperas)
+inline constexpr eng::u8 prof_fill_area = 12;  ///< area fill FILL_XOR por plano (+ espera)
 
 /// Reloj de ciclos del periferico de depuracion (7,09379 MHz en A500).
 inline eng::u32 prof_clock() {

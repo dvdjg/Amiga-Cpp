@@ -131,7 +131,7 @@ struct Blit3dPlanesDemo {
 			draw_hud_static();
 		}
 		m_ready = true;
-		ENG_PROF_INIT(3u);
+		ENG_PROF_INIT(13u); // 0..2 demo + 10..12 interior del relleno (engine)
 		eng::amiga::mark_ready();
 	}
 

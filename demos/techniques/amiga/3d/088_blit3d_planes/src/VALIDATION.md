@@ -29,6 +29,35 @@ El recorte de caras y la palabra de descarte no tienen coste medible en debug (3
 
 El relleno sigue siendo el coste dominante (60 %); la siguiente campaña de optimización va ahí. `profile.mjs` usa ahora el WinUAE del repo (`WINUAE_GDB_DIR` → `../WinUAE-DBG/bin`) con la misma prioridad que el runner; antes lanzaba el stock de la extensión y el arranque fallaba.
 
+## Perfil por secciones (debug)
+
+`node tools/debug/profile.mjs 088_blit3d_planes A500_debug` (175 frames, 204 486 ciclos/frame, 1.44 campos):
+
+| Sección | ciclos/frame | % |
+|---|---|---|
+| `actors` (transform + test de frustum) | 41 276 | 20.2 % |
+| `blits` (culling/proyección + builder) | 18 937 | 9.3 % |
+| `copper` (**relleno**: clear + contorno + area fill + esperas) | 123 348 | 60.3 % |
+| resto (espera de VBlank + bucle) | 20 925 | 10.2 % |
+
+El relleno es el coste dominante. Con las subsecciones del engine (`fill_clear` 10, `fill_lines` 11, `fill_area` 12, siempre activas) el reparto interno medido es **clear ≈ 30 %, contorno ≈ 47 %, area fill ≈ 22 %**: el objetivo son las esperas por arista del contorno (una por línea ONEDOT), no el área.
+
+## Coste del pipeline de CPU (`actors`) — sonda L1-004
+
+`tests/amiga/l1_backend/004_actors_cost` mide por vértice y repetición (determinista, 64 repeticiones, contador de ciclos del periférico):
+
+| Fase | ciclos/vértice (antes) | ciclos/vértice (después) |
+|---|---|---|
+| `mesh_transform` (+ `load_rotate`) | 1 312 | 1 312 |
+| `camera_contains_vertices` | 1 724 | **1 524** |
+| `project_camera_vertex` | 804 | 804 |
+
+Fix aplicado: `Plane::dist` sumaba `inner(d, one)` (un `muls.w` por plano y vértice que multiplica por 1); ahora suma `d` directamente (equivalente exacto en la escala cruda). A/B: −11.6 % en el test de frustum y la sección `actors` de la 088 baja ~1.6k ciclos/frame. El resto del coste (transform ~1.3k y proyección ~0.8k por vértice) es aritmética de la representación (`Fixed<s16,0>`/`divs.w`) y se atacaría con un pipeline por lotes o una ruta por columna, no con microcambios.
+
+## Cadencia
+
+La ventana de 5–20 s da **1.37–1.55 campos/frame** (29–37 fps, dispersión ~8): **alterna frames de 1 y 2 campos**, sin frames de 3+ campos y con el suelo de 25 fps cumplido. No se «bloquea a 1 campo» porque el trabajo real (~195–205k ciclos/frame) supera el campo PAL (~142k): el camino a 50 Hz es **solapar CPU y Blitter** (encadenar el relleno por IRQ y hacer trabajo de CPU durante los blits), no recortar la medida. Es el siguiente paso; hasta entonces la alternancia es el comportamiento esperado y así queda documentada.
+
 ## Bug del borde derecho (CERRADO)
 
 **Síntoma**: con el clip lateral (`kDrift`), algunos frames mostraban una **columna suelta en `x≈317–319`** con el cubo lejos del borde derecho, y persistía en frames posteriores (visión: `qwen3-vl` no la veía; la inspección de píxeles sí).
