@@ -3,9 +3,14 @@
 # Usa puertos propios (2445/2446) y lanzamiento legacy con -f <runner.uae>, de modo
 # que puede convivir con WinUAE A500 ya en marcha.
 #
+# Perfiles:
+#   - A1200_release: 68020 nativo (A1200 con Fast RAM/accelerador; 47,94 fps stock).
+#   - A500_release:  binario 68000 sobre A1200 stock (49,68 fps); usar
+#                    tools/run/run-demo-a1200-stock.sh o --config A500_release.
+#
 # Uso:
 #   ./tools/run/run-demo-a1200.sh dk_port_xl --config A1200_release \
-#       --wait-ms 5000 --telemetry-samples 20
+#       --wait-ms 5000 --settle-ms 11000
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
