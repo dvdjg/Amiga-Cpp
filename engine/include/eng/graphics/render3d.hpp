@@ -146,14 +146,26 @@ template <class S>
 	return q;
 }
 
-/// Punto de corte de la arista `a`(dentro) → `b`(fuera) con el plano.
+/// Punto de corte de una arista cruzada por el plano. Canoniza el sentido como
+/// `a`(dentro) → `b`(fuera), porque el winding de dos caras que comparten una arista es
+/// opuesto y la interpolación fija de 12 bits debe producir el mismo punto en ambos sentidos.
 /// Con escalares de representación cruda (`Fixed`) se interpola en 12 bits sobre los
 /// valores crudos (precisión sub-unidad, sin libcalls ni productos de 64 bits); con
 /// escalares fraccionarios nativos (`float`) se usa el cociente directo.
 template <class S, class W>
 [[nodiscard]] constexpr CamVertex<S> cut_edge(const CamVertex<S>& a, const CamVertex<S>& b, W da,
-					      W db) {
-	if (da == db) return a;
+						      W db) {
+	const W zero {};
+	const CamVertex<S>* first = &a;
+	const CamVertex<S>* second = &b;
+	if (da < zero && db >= zero) {
+		first = &b;
+		second = &a;
+		const W distance = da;
+		da = db;
+		db = distance;
+	}
+	if (da == db) return *first;
 	if constexpr (requires { eng::math::scalar_traits<W>::to_wide(da); } &&
 		      requires { eng::math::scalar_traits<S>::to_wide(a.x); }) {
 		using TW = decltype(eng::math::scalar_traits<W>::to_wide(da));
@@ -171,12 +183,14 @@ template <class S, class W>
 					       : ra + static_cast<TS>(mag);
 			return eng::math::scalar_traits<S>::from_wide(out);
 		};
-		return CamVertex<S> {lerp(a.x, b.x), lerp(a.y, b.y), lerp(a.z, b.z)};
+		return CamVertex<S> {lerp(first->x, second->x), lerp(first->y, second->y),
+				     lerp(first->z, second->z)};
 	} else {
 		const W t = da / (da - db);
 		const S s = static_cast<S>(t);
-		return CamVertex<S> {a.x + (b.x - a.x) * s, a.y + (b.y - a.y) * s,
-				     a.z + (b.z - a.z) * s};
+		return CamVertex<S> {first->x + (second->x - first->x) * s,
+				     first->y + (second->y - first->y) * s,
+				     first->z + (second->z - first->z) * s};
 	}
 }
 
@@ -184,18 +198,21 @@ template <class S, class W>
 
 /// **Recorta un polígono en espacio de cámara** contra near y los cuatro planos laterales
 /// del frustum. Devuelve el número de vértices de salida (0 si no queda nada).
-/// `out` debe tener capacidad ≥ `n + 6` (con caras ≤ 8: 16 sobra).
+/// `cap` es la capacidad real de `out`; devuelve 0 sin escribir una salida parcial si el
+/// polígono recortado no cabe. Las caras convexas de hasta 8 vértices caben en 16.
 template <class S>
 [[nodiscard]] inline u8 clip_camera_polygon(const CamVertex<S>* in, u8 n, const Camera3D<S>& cam,
-					    CamVertex<S>* out, u8 cap) noexcept {
-	if (in == nullptr || out == nullptr || n < 3u || cap < 6u) return 0u;
+						    CamVertex<S>* out, u8 cap) noexcept {
+	if (in == nullptr || out == nullptr || n < 3u || cap < 3u) return 0u;
 	if (n > 16u) return 0u;
 	using detail3d::Plane;
 	using T = eng::math::scalar_traits<S>;
 	const detail3d::CameraPlanes<S> cam_planes = detail3d::camera_planes(cam);
 	const Plane<S>* planes = cam_planes.planes;
-	CamVertex<S> a[16] {};
-	CamVertex<S> b[16] {};
+	// Solo se leen los `n/count` elementos escritos: `a[0..n)` se copia del input y cada
+	// pasada completa `nxt[0..m)` antes del swap. Evitar el zero-init elimina un memset por cara.
+	CamVertex<S> a[16];
+	CamVertex<S> b[16];
 	for (u8 i = 0u; i < n; ++i) {
 		a[i].x = detail3d::saturate_coord(in[i].x);
 		a[i].y = detail3d::saturate_coord(in[i].y);
@@ -207,24 +224,37 @@ template <class S>
 	for (u8 pi = 0u; pi < 5u; ++pi) {
 		const Plane<S>& pl = planes[pi];
 		if (count == 0u) break;
+		using Dist = decltype(pl.dist(cur[0]));
+		Dist dist[16];
+		bool inside[16];
+		bool all_inside = true;
+		bool all_outside = true;
+		// Una distancia por vértice/plano: las caras enteras dentro no se copian y las
+		// enteras fuera se descartan sin recorrer aristas ni volver a calcular `dist`.
+		for (u8 i = 0u; i < count; ++i) {
+			dist[i] = pl.dist(cur[i]);
+			const Dist zero {};
+			inside[i] = dist[i] >= zero;
+			all_inside = all_inside && inside[i];
+			all_outside = all_outside && !inside[i];
+		}
+		if (all_inside) continue;
+		if (all_outside) return 0u;
 		u8 m = 0u;
 		for (u8 i = 0u; i < count; ++i) {
 			// Sin `%` por variable: en 68000 es `__modsi3` y este bucle es caliente.
 			const u8 j = static_cast<u8>((i + 1u == count) ? 0u : (i + 1u));
 			const CamVertex<S>& p = cur[i];
 			const CamVertex<S>& q = cur[j];
-			const auto dp = pl.dist(p);
-			const auto dq = pl.dist(q);
-			const auto zero_w = decltype(dp) {};
-			const bool pin = dp >= zero_w;
-			const bool qin = dq >= zero_w;
+			const bool pin = inside[i];
+			const bool qin = inside[j];
 			if (pin) {
 				if (m >= 16u) return 0u;
 				nxt[m++] = p;
 			}
 			if (pin != qin) {
 				if (m >= 16u) return 0u;
-				nxt[m++] = detail3d::cut_edge<S>(p, q, dp, dq);
+				nxt[m++] = detail3d::cut_edge<S>(p, q, dist[i], dist[j]);
 			}
 		}
 		if (m < 3u) return 0u;
@@ -233,6 +263,9 @@ template <class S>
 		cur = nxt;
 		nxt = tmp;
 	}
+	// `cap` pertenece al buffer del llamador, no al scratch interno: rechazar antes de
+	// copiar evita sobreescribir memoria cuando una cara no cabe en la capacidad declarada.
+	if (count > cap) return 0u;
 	// Ajuste final: la interpolación truncada puede dejar el corte marginalmente fuera de
 	// un plano. Se acota a la intersección EXACTA para que el contrato aguante en el
 	// Blitter (|sx-cx| <= half_w sin depender del redondeo).

@@ -177,6 +177,38 @@ int main() {
 		check(clip_camera_polygon(behind, 3u, kCam, out, 4u) == 0u, "cap insuficiente: vacío");
 	}
 
+	// 5b) La capacidad declarada limita las escrituras incluso si el polígono cabe en
+	//     el scratch interno. Un octágono interior necesita 8 salidas; cap=6 debe fallar
+	//     sin tocar el primer elemento que queda fuera de la vista.
+	{
+		const CV octagon[8] = {{0.0f, -20.0f, 1000.0f}, {14.0f, -14.0f, 1000.0f},
+				       {20.0f, 0.0f, 1000.0f},  {14.0f, 14.0f, 1000.0f},
+				       {0.0f, 20.0f, 1000.0f},  {-14.0f, 14.0f, 1000.0f},
+				       {-20.0f, 0.0f, 1000.0f}, {-14.0f, -14.0f, 1000.0f}};
+		CV out[16] {};
+		out[6] = CV {1234.0f, 2345.0f, 3456.0f};
+		const u8 n = clip_camera_polygon(octagon, 8u, kCam, out, 6u);
+		check(n == 0u, "capacidad insuficiente: no publica un polígono parcial");
+		check(out[6].x == 1234.0f && out[6].y == 2345.0f && out[6].z == 3456.0f,
+		      "capacidad insuficiente: no escribe fuera de la vista declarada");
+	}
+
+	// 5c) Un shared edge puede llegar con cualquiera de sus dos sentidos desde caras
+	//     adyacentes. El corte fijo debe producir el mismo punto tanto dentro→fuera como
+	//     fuera→dentro (la llamada real recorre el winding original de cada cara).
+	{
+		const auto planes = detail3d::camera_planes(kCamF);
+		const CamVertex<MF> inside {CTF::from_int(0), CTF::from_int(50), CTF::from_int(900)};
+		const CamVertex<MF> outside {CTF::from_int(-600), CTF::from_int(-50), CTF::from_int(900)};
+		const auto& plane = planes.planes[1];
+		const auto d_inside = plane.dist(inside);
+		const auto d_outside = plane.dist(outside);
+		const CamVertex<MF> forward = detail3d::cut_edge<MF>(inside, outside, d_inside, d_outside);
+		const CamVertex<MF> reverse = detail3d::cut_edge<MF>(outside, inside, d_outside, d_inside);
+		check(forward.x == reverse.x && forward.y == reverse.y && forward.z == reverse.z,
+		      "corte fijo: una arista compartida no depende del sentido del winding");
+	}
+
 	// 6) Invariantes con polígonos deterministas (LCG) dentro/fuera/cruzando.
 	{
 		u32 seed = 0x12345678u;
@@ -361,6 +393,59 @@ int main() {
 					       [](u32) { return u8 {7u}; }, world, scratch, xs, ys);
 		check(drawn == 1u && pf.polys.size() == 1u && pf.polys[0].n == 5u,
 		      "pentagono: emitido con 5 vertices (sin triangular)");
+	}
+
+	// 10) Cubo estático: el renderer recorta sus caras al cruzar cada lateral y las cuatro
+	//     esquinas; completamente fuera por la derecha no emite caras. La superficie es la
+	//     última barrera 2D, así cada vértice entregado al raster queda dentro del viewport.
+	{
+		using Aff = math::Affine<3, MF, MF>;
+		static constexpr s16 kX[8] = {-12, 12, 12, -12, -12, 12, 12, -12};
+		static constexpr s16 kY[8] = {-12, -12, 12, 12, -12, -12, 12, 12};
+		static constexpr s16 kZ[8] = {-40, -40, -40, -40, 40, 40, 40, 40};
+		static constexpr u16 kIndices[24] = {
+			0u, 3u, 2u, 1u, 4u, 5u, 6u, 7u, 1u, 2u, 6u, 5u,
+			0u, 4u, 7u, 3u, 0u, 1u, 5u, 4u, 3u, 7u, 6u, 2u};
+		static constexpr math3d::FaceSpan kFaces[6] = {
+			{0u, 4u}, {4u, 4u}, {8u, 4u}, {12u, 4u}, {16u, 4u}, {20u, 4u}};
+		static constexpr s16 kCenterZ = 900;
+		struct Pose {
+			s16 x;
+			s16 y;
+			bool visible;
+		};
+		static constexpr Pose kPoses[13] = {
+			{0, 0, true}, {35, 0, true}, {-35, 0, true}, {0, -22, true}, {0, 22, true},
+			{35, -22, true}, {-35, -22, true}, {35, 22, true}, {-35, 22, true},
+			{60, 0, false}, {-60, 0, false}, {0, -40, false}, {0, 40, false}};
+		bool ok = true;
+		for (const Pose& pose : kPoses) {
+			math3d::Vec3t<MF> verts[8] {};
+			for (u8 i = 0u; i < 8u; ++i) {
+				verts[i] = math3d::vec3<MF>(kX[i] + pose.x, kY[i] + pose.y, kCenterZ + kZ[i]);
+			}
+			const math3d::PolyMeshViewT<MF> mesh {
+				Span<const math3d::Vec3t<MF>>(verts, 8u), Span<const u16>(kIndices, 24u),
+				Span<const math3d::FaceSpan>(kFaces, 6u)};
+			RecordingPlayfield pf;
+			pf.init(320u, 200u, 4u);
+			Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
+			math3d::Vec3t<MF> world[8] {};
+			CamVertex<MF> scratch[16] {};
+			s16 xs[16] {}, ys[16] {};
+			const u32 drawn = render_solid(mesh, Aff::identity(), kCamF, surf,
+						       [](u32 face) { return static_cast<u8>(face + 1u); },
+						       world, scratch, xs, ys);
+			ok = ok && (pose.visible ? drawn != 0u : drawn == 0u);
+			for (const auto& poly : pf.polys) {
+				ok = ok && poly.n >= 3u;
+				for (u8 i = 0u; i < poly.n; ++i) {
+					ok = ok && poly.xs[i] >= 0 && poly.xs[i] < 320 && poly.ys[i] >= 0 &&
+					     poly.ys[i] < 200;
+				}
+			}
+		}
+		check(ok, "cubo estático: cuatro laterales, cuatro esquinas y totalmente fuera");
 	}
 
 	if (g_fail != 0) {
