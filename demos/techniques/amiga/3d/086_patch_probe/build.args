@@ -1,0 +1,2 @@
+# -O2: mismo motivo que la 080 (DT-038).
+DEMO_OPT=-O2

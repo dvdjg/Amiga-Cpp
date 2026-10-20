@@ -24,6 +24,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Codegen 68000 | `docs/engine/architecture/EXPRESSION_TEMPLATES.md`, `docs/engine/architecture/MATH_LIBRARY.md` §4 | `tools/analyze/codegen-report.mjs`, `tools/analyze/expr-asm-compare.mjs` |
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
+| Conversión de imágenes a Amiga (png2amiga) | `docs/tools/png2amiga-cli.md` | `../png2amiga/build-msvc/png2amiga.exe` (repo hermano; modos, paletas, sliced/strips, dither, métricas PSNR/S2, nombres auto-descriptivos) |
 | Conversión de aventuras clásicas (SCUMM) | `tools/adventure/README.md`, `docs/guides/roadmap/ROADMAP_ADVENTURE_IMPORT.md` | `tools/adventure/build-scummvm-tools.sh` (oráculo host: compila `descumm` en local); pipeline SIM/traducción/cocina (I0–I5, planificado) |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
 | Márgenes del FastCopy (F5) | `docs/reference/amiga/techniques/dual-playfield-fastbobs.md`, `docs/guides/roadmap/ROADMAP_SPRITES_COMPLETO.md` §3.4 | `tools/assets/sprite-pad.ts` (+ `test-sprite-pad.ts`; paridad con `fast_bob_margins`/HOST-437) |

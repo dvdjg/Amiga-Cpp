@@ -840,12 +840,63 @@ function resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections)
 /// el del `.map` (p. ej. al enlazar un `.s` adicional de `support/` que añade
 /// sub-secciones). Por eso se valida el magic y, si no coincide, se escanea cada
 /// sección runtime buscando el magic de `g_eng_run_status` (0x454e4752).
+/// Lee el numero de hunks del HUNK_HEADER de un ejecutable Amiga. Los hunks
+/// cargados por AmigaDOS conservan el orden del fichero, asi que el hunk `.data`
+/// es el penultimo y `.bss` el ultimo para el enlazador de amiga-gcc.
+function readHunkCount(exePath) {
+    try {
+        if (!exePath || !fs.existsSync(exePath)) return 0;
+        const b = fs.readFileSync(exePath);
+        if (b.length < 12 || b.readUInt32BE(0) !== 0x3f3) return 0;
+        let off = 4;
+        for (;;) {
+            if (off + 4 > b.length) return 0;
+            const n = b.readUInt32BE(off);
+            off += 4;
+            if (n === 0) break;
+            off += n * 4;
+            if (off > b.length) return 0;
+        }
+        if (off + 4 > b.length) return 0;
+        return b.readUInt32BE(off); // table size
+    }
+    catch { return 0; }
+}
+
 async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtimeSections) {
+    // A1200/68020: el `.map` y los hunks no comparten orden; `sections` son bases
+    // de hunk. En modo estricto se resuelve `.data` por el HUNK_HEADER (penultimo
+    // hunk) y se lee el run status ahi, sin escanear BSS (donde hay copias viejas
+    // con magic valido que daban falsos `state=3`). Sin el flag, A500 intacto.
+    const strictReady = process.env.RUN_DEMO_STRICT_READY === '1';
+    const scanSections = strictReady
+        ? [...runtimeSections].sort((a, b) => parseHexNumber(b) - parseHexNumber(a))
+        : runtimeSections;
     const resolved = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections);
+    if (strictReady) {
+        const hunkCount = readHunkCount(builtExe);
+        const dataIndex = hunkCount >= 2 ? hunkCount - 2 : -1;
+        const dataBase = dataIndex >= 0 ? parseHexNumber(runtimeSections?.[dataIndex]) : 0;
+        const dataSection = mapSections.find((s) => linkedSymbol >= s.start && linkedSymbol < s.end);
+        if (dataBase && dataSection) {
+            const dataAddr = dataBase + (linkedSymbol - dataSection.start);
+            try {
+                const st = await client.command(`runstatus ${dataAddr.toString(16)}`, 1500);
+                console.log(`[run-demo] A1200 .data hunk ${dataIndex}/${hunkCount} base=0x${dataBase.toString(16)} `
+                    + `runstatus=0x${dataAddr.toString(16)} state=${st?.state ?? '?'} frame=${st?.frame ?? '?'}`);
+                if (st && st.ok && st.magic === '0x454e4752' && st.version === 1) {
+                    return dataAddr;
+                }
+            }
+            catch { /* noop */ }
+        }
+        // Sin hunk .data fiable no se escanea BSS: mejor timeout que falso READY.
+        return null;
+    }
     if (resolved !== null && resolved > 0) {
         try {
             const status = await client.command(`runstatus ${resolved.toString(16)}`, 1500);
-            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && (!strictReady || status.state === 3)) {
                 return resolved;
             }
         }
@@ -853,13 +904,13 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
     }
     // Fallback: escanear las secciones runtime buscando el magic.
     if (Array.isArray(runtimeSections)) {
-        for (const sec of runtimeSections) {
+        for (const sec of scanSections) {
             const addr = parseHexNumber(sec);
             if (!addr)
                 continue;
             try {
                 const status = await client.command(`runstatus ${addr.toString(16)}`, 1500);
-                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && (!strictReady || status.state === 3)) {
                     return addr;
                 }
             }
@@ -871,7 +922,7 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
         // trozo a trozo y validamos con `runstatus`; un falso positivo no corta el barrido.
         const CHUNK = 4096;
         const MAX_PER_SECTION = 1024 * 1024; // 1 MiB de tope por seccion
-        for (const sec of runtimeSections) {
+        for (const sec of scanSections) {
             const base = parseHexNumber(sec);
             if (!base)
                 continue;
@@ -886,7 +937,7 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
                         if ((idx & 1) === 0) {
                             const candidate = base + off + (idx >> 1);
                             const status = await client.command(`runstatus ${candidate.toString(16)}`, 1500);
-                            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+                            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && (!strictReady || status.state === 3)) {
                                 return candidate;
                             }
                         }
@@ -1079,7 +1130,7 @@ async function waitForSideChannelRunStatus({ linkedSymbol, mapSections, timeoutM
             if (runtimeAddress !== null && runtimeAddress > 0) {
                 const status = await client.command(`runstatus ${runtimeAddress.toString(16)}`, 1500).catch(() => null);
                 last = { state, status, runtimeAddress };
-                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1 && status.state === 3) {
                     if (status.state === 3) {
                         return { status: 'ready', value: status, runtimeAddress, state };
                     }
