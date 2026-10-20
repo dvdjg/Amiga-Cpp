@@ -58,6 +58,16 @@ Fix aplicado: `Plane::dist` sumaba `inner(d, one)` (un `muls.w` por plano y vér
 
 La ventana de 5–20 s da **1.37–1.55 campos/frame** (29–37 fps, dispersión ~8): **alterna frames de 1 y 2 campos**, sin frames de 3+ campos y con el suelo de 25 fps cumplido. No se «bloquea a 1 campo» porque el trabajo real (~195–205k ciclos/frame) supera el campo PAL (~142k): el camino a 50 Hz es **solapar CPU y Blitter** (encadenar el relleno por IRQ y hacer trabajo de CPU durante los blits), no recortar la medida. Es el siguiente paso; hasta entonces la alternancia es el comportamiento esperado y así queda documentada.
 
+## Optimización del relleno (análisis medido; sin cambio aplicado)
+
+Con las subsecciones permanentes del engine (`fill_clear`, `fill_lines`, `fill_area`), el relleno de la 088 se reparte en **clear ≈ 30 %, contorno ≈ 47 %, area fill ≈ 22 %**. Conclusiones del análisis:
+
+- **Cadena async por IRQ del fill completo** (clear + líneas + area fill en un `FramePlan` lanzado con `execute_frame_plan_async`): se implementó y se validó *estáticamente* en L1-003 (la cadena produce el mismo resultado que la referencia CPU), pero **se descartó**: cada job encadenado paga el arranque del Blitter + la IRQ de nivel 3 + la reprogramación en la ISR (~2,5–4k), y con ~10 líneas por frame el sobrecoste (~50k) supera cualquier solape. Es el mismo veredicto ya medido en la 116 (DT-026: 8,9 fps con 51 líneas en async vs 18,05 en síncrono). Detalle en `blitter-line-subpixel-fill.md` §5.
+- **Fusión de aristas colineales**: no aplica al cubo (las aristas visibles no son colineales; la dedupe de paridad ya elimina las compartidas del mismo plano).
+- **Una máscara por plano** (camino `fill_polygons_by_plane_spans`): medido 4× más lento en este objeto (los spans de CPU no amortizan).
+- **Clear**: ya es solo el rectángulo sucio (unión de N-1/N-2/actual, el mínimo seguro con doble buffer); barrer el plano completo costaría ~2×.
+- **Siguiente palanca real**: el *contorno* está serializado por el hardware (una línea por blit, con su espera) y el *coste por línea* (~2,7k con contención de bus) no baja con el pipeline actual; para 50 Hz habría que reducir el trabajo de CPU (transform 1,3k/vértice, frustum 1,5k/vértice) o cambiar el algoritmo de relleno (una máscara por plano generada por hardware), no microoptimizar el clear o el área.
+
 ## Bug del borde derecho (CERRADO)
 
 **Síntoma**: con el clip lateral (`kDrift`), algunos frames mostraban una **columna suelta en `x≈317–319`** con el cubo lejos del borde derecho, y persistía en frames posteriores (visión: `qwen3-vl` no la veía; la inspección de píxeles sí).
