@@ -81,18 +81,23 @@ const CUSTOM_NAMES = (namesArgIdx >= 0 && process.argv[namesArgIdx + 1])
   ? process.argv[namesArgIdx + 1].split(',')
   : null;
 
-// WinUAE de la extension Bartman: autodetecta la version MAS NUEVA instalada (fijar una antigua
-// colgaba el arranque de algunas demos y con ello fallaban las lecturas GDB).
-const EXT_BIN = (() => {
+// WinUAE: misma prioridad que el runner (WINUAE_GDB_DIR → fork del repo → extension
+// Bartman, la version MAS NUEVA instalada). Usar el stock de la extension cuando el
+// proyecto tiene el fork `../WinUAE-DBG` rompe el canal lateral y el arranque.
+const WINUAE_BIN = (() => {
+  const override = process.env.WINUAE_GDB_DIR;
+  if (override && fs.existsSync(`${override}/winuae-gdb.exe`)) return override;
+  const own = `${ROOT}/../WinUAE-DBG/bin`;
+  if (fs.existsSync(`${own}/winuae-gdb.exe`)) return own;
   const base = `${process.env.USERPROFILE || process.env.HOME || ''}/.vscode/extensions`;
   try {
     const dirs = fs.readdirSync(base).filter((d) => d.startsWith('bartmanabyss.amiga-debug-')).sort();
-    if (dirs.length) return `${base}/${dirs[dirs.length - 1]}/bin`;
+    if (dirs.length) return `${base}/${dirs[dirs.length - 1]}/bin/win32`;
   } catch { /* fallback */ }
-  return `${base}/bartmanabyss.amiga-debug-1.8.2/bin`;
+  return `${base}/bartmanabyss.amiga-debug-1.8.2/bin/win32`;
 })();
 const conn = new WinUAEConnection({
-  winuaePath: `${EXT_BIN}/win32`,
+  winuaePath: WINUAE_BIN,
   configFile: `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}/runner.uae`,
   gdbPort: GDB_PORT,
 });

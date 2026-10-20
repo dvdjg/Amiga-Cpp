@@ -16,6 +16,19 @@ Cubo convexo rotando sobre 2 bitplanes, relleno por plano con Blitter (contorno 
 
 El recorte de caras y la palabra de descarte no tienen coste medible en debug (32.56 → 32.33, dentro del ruido del medidor; en release la ventana de 20 s con 8 muestras da 32.92 frente a 33.87 previos, dentro de la dispersión de ±4 fps). **Cadencia**: alterna frames de 1 y 2 campos (29–37 fps, dispersión ~8 en la ventana de 5 s); no hay frames de 3+ campos; el suelo de 25 fps se cumple en la deriva. El relleno (≈65 %) sigue siendo el coste dominante.
 
+## Perfil por secciones (debug)
+
+`node tools/debug/profile.mjs 088_blit3d_planes A500_debug` (175 frames, 204 486 ciclos/frame, 1.44 campos):
+
+| Sección | ciclos/frame | % |
+|---|---|---|
+| `actors` (transform + test de frustum) | 41 276 | 20.2 % |
+| `blits` (culling/proyección + builder) | 18 937 | 9.3 % |
+| `copper` (**relleno**: clear + contorno + area fill + esperas) | 123 348 | 60.3 % |
+| resto (espera de VBlank + bucle) | 20 925 | 10.2 % |
+
+El relleno sigue siendo el coste dominante (60 %); la siguiente campaña de optimización va ahí. `profile.mjs` usa ahora el WinUAE del repo (`WINUAE_GDB_DIR` → `../WinUAE-DBG/bin`) con la misma prioridad que el runner; antes lanzaba el stock de la extensión y el arranque fallaba.
+
 ## Bug del borde derecho (CERRADO)
 
 **Síntoma**: con el clip lateral (`kDrift`), algunos frames mostraban una **columna suelta en `x≈317–319`** con el cubo lejos del borde derecho, y persistía en frames posteriores (visión: `qwen3-vl` no la veía; la inspección de píxeles sí).
