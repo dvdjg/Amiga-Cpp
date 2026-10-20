@@ -1,0 +1,14 @@
+{
+  "name": "dk_port_gen",
+  "rom": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\RetroReverse\\repo\\roms\\nes\\Donkey Kong (World) (Rev A).nes",
+  "rom_crc32": "e40b593b",
+  "driver": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\RetroReverse\\repo\\conversion\\nes-to-amiga500\\drivers\\dk.n2a",
+  "header": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\Amiga-Cpp\\demos\\nes\\dk_port_gen\\src\\port.hpp",
+  "runtime_template": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\Amiga-Cpp\\demos\\nes\\dk_port_xl",
+  "planes": 4,
+  "auto_start": true,
+  "start_frame": 30,
+  "region": "pal",
+  "target": "A1200",
+  "notes": "per-game HLE belongs in the driver; renderer is shared"
+}

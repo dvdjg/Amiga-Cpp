@@ -1,0 +1,14 @@
+{
+  "name": "popeye_port_xl",
+  "rom": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\RetroReverse\\repo\\roms\\nes\\Popeye (World) (Rev A).nes",
+  "rom_crc32": "fb1a91d0",
+  "driver": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\RetroReverse\\repo\\conversion\\nes-to-amiga500\\drivers\\popeye.n2a",
+  "header": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\Amiga-Cpp\\demos\\nes\\popeye_port_xl\\src\\port.hpp",
+  "runtime_template": "C:\\Users\\dvdjg\\Documents\\programa\\AI\\Amiga\\Amiga-Cpp\\demos\\nes\\dk_port_xl",
+  "planes": 4,
+  "auto_start": true,
+  "start_frame": 30,
+  "region": "pal",
+  "target": "A1200",
+  "notes": "per-game HLE belongs in the driver; renderer is shared"
+}
