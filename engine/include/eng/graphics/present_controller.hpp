@@ -35,6 +35,7 @@ struct PresentStep {
 	bool publish = false; ///< publicar el Full pendiente (al INICIO del update, antes del patch)
 	bool async_ok = false; ///< el camino asíncrono (cola IRQ) es aconsejable en esta máquina
 	eng::s16 offset_x = 0; ///< ventana del frame PRESENTADO (px respecto al centro), clampeada
+	eng::s16 offset_y = 0; ///< paneo vertical de la ventana, en filas completas, clampeado
 };
 
 /// Configuración del controlador (política base y tope de fakes).
@@ -54,46 +55,59 @@ public:
 		m_async_ok = eng::hw::has_fast_ram(hw);
 	}
 
-	/// Ancla el estado al paneo inicial (una vez, tras configurar).
-	constexpr void reset(eng::s32 pan) {
+	/// Ancla el estado al paneo inicial (una vez, tras configurar); `pan_y` se expresa en filas.
+	constexpr void reset(eng::s32 pan_x, eng::s32 pan_y = 0) {
 		m_pan_state = PanWindowState {};
 		m_pending = false;
-		m_pending_pan = pan;
-		m_shown_pan = pan;
+		m_pending_pan_x = pan_x;
+		m_pending_pan_y = pan_y;
+		m_shown_pan_x = pan_x;
+		m_shown_pan_y = pan_y;
 	}
 
-	/// Decide el frame para el paneo `pan`: llamar AL INICIO del update. Si `publish`, el
-	/// llamador muestra el buffer pendiente (cambio de punteros/ventana en ese orden);
-	/// si `full`, renderizará la pasada completa y cerrará con `commit(pan)`.
-	[[nodiscard]] constexpr PresentStep begin(eng::s32 pan) {
+	/// Decide el frame para el paneo `(pan_x, pan_y)`: llamar AL INICIO del update. Si `publish`, el
+	/// llamador muestra el buffer pendiente (cambio de punteros/ventana en ese orden); si `full`,
+	/// renderiza la pasada completa y cierra con `commit(pan_x, pan_y)`. Omitir `pan_y` conserva el
+	/// contrato horizontal existente.
+	[[nodiscard]] constexpr PresentStep begin(eng::s32 pan_x, eng::s32 pan_y = 0) {
 		PresentStep out {};
 		if (m_pending) {
-			m_shown_pan = m_pending_pan;
+			m_shown_pan_x = m_pending_pan_x;
+			m_shown_pan_y = m_pending_pan_y;
 			m_pending = false;
 			out.publish = true;
 		}
-		// Ventana del frame presentado: el paneo avanzado respecto al Full publicado,
-		// clampeado al margen de la política (S en 1..31 == off −15..+15 con centro 16).
-		eng::s32 off = pan - m_shown_pan;
-		const eng::s16 margin = static_cast<eng::s16>(m_policy.margin_x);
-		if (off > margin) {
-			off = margin;
+		// La ventana mostrada es el delta respecto a ambos ejes del Full publicado; OCS desplaza
+		// verticalmente solo en scanlines completas, mientras que X también admite fine-scroll.
+		eng::s32 off_x = pan_x - m_shown_pan_x;
+		eng::s32 off_y = pan_y - m_shown_pan_y;
+		const eng::s16 margin_x = m_policy.margin_x;
+		const eng::s16 margin_y = m_policy.margin_y;
+		if (off_x > margin_x) {
+			off_x = margin_x;
 		}
-		if (off < -margin) {
-			off = -margin;
+		if (off_x < -margin_x) {
+			off_x = -margin_x;
 		}
-		out.offset_x = static_cast<eng::s16>(off);
+		if (off_y > margin_y) {
+			off_y = margin_y;
+		}
+		if (off_y < -margin_y) {
+			off_y = -margin_y;
+		}
+		out.offset_x = static_cast<eng::s16>(off_x);
+		out.offset_y = static_cast<eng::s16>(off_y);
 		out.async_ok = m_async_ok;
-		const PanWindowStep st = pan_window_step(m_pan_state, pan, 0, m_policy);
+		const PanWindowStep st = pan_window_step(m_pan_state, pan_x, pan_y, m_policy);
 		out.full = st.full;
 		return out;
 	}
 
-	/// Cierra el render de un frame en el que `begin` pidió `full`: el buffer renderizado
-	/// queda pendiente y se publicará en el `begin` del frame siguiente.
-	constexpr void commit(eng::s32 pan) {
+	/// Cierra el render Full: el buffer queda pendiente y se publica en el `begin` siguiente.
+	constexpr void commit(eng::s32 pan_x, eng::s32 pan_y = 0) {
 		m_pending = true;
-		m_pending_pan = pan;
+		m_pending_pan_x = pan_x;
+		m_pending_pan_y = pan_y;
 	}
 
 	/// Coste medido de la pasada completa (ciclos): re-ajusta la racha adaptativa de fakes
@@ -104,7 +118,12 @@ public:
 	}
 
 	[[nodiscard]] constexpr bool pending() const { return m_pending; }
-	[[nodiscard]] constexpr eng::s32 shown_pan() const { return m_shown_pan; }
+	/// Paneo horizontal del Full que actualmente lee el display.
+	[[nodiscard]] constexpr eng::s32 shown_pan() const { return m_shown_pan_x; }
+	/// Paneo horizontal del Full que actualmente lee el display.
+	[[nodiscard]] constexpr eng::s32 shown_pan_x() const { return m_shown_pan_x; }
+	/// Paneo vertical (filas) del Full que actualmente lee el display.
+	[[nodiscard]] constexpr eng::s32 shown_pan_y() const { return m_shown_pan_y; }
 	[[nodiscard]] constexpr bool async_ok() const { return m_async_ok; }
 	[[nodiscard]] constexpr eng::u8 max_consecutive_fakes() const {
 		return m_policy.max_consecutive_fakes;
@@ -118,8 +137,10 @@ private:
 	RenderPacing m_pacing {};
 	bool m_async_ok = false;
 	bool m_pending = false;
-	eng::s32 m_pending_pan = 0;
-	eng::s32 m_shown_pan = 0;
+	eng::s32 m_pending_pan_x = 0;
+	eng::s32 m_pending_pan_y = 0;
+	eng::s32 m_shown_pan_x = 0;
+	eng::s32 m_shown_pan_y = 0;
 };
 
 } // namespace eng::graphics

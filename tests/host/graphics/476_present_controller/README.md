@@ -4,15 +4,15 @@ Test host de la pieza de presentación de F2 (`engine/include/eng/graphics/prese
 
 ## Qué comprueba
 
-1. **Publicación diferida**: el primer frame es un Full de ancla; `commit(pan)` deja el Full pendiente y el `begin` del frame siguiente reporta `publish` (una publicación por commit, y solo una); el offset de display del Full publicado es el paneo avanzado desde su render (p. ej. 1 px), creciendo en los fakes sobre el mismo buffer.
-2. **Clamp al margen**: el offset de la ventana se clampa al `margin_x` de la política (arriba y abajo).
+1. **Publicación diferida**: el primer frame es un Full de ancla; `commit(pan_x, pan_y)` deja el Full pendiente y el `begin` del frame siguiente reporta `publish` (una publicación por commit, y solo una); el offset de display del Full publicado es el paneo avanzado desde su render, creciendo en los fakes sobre el mismo buffer.
+2. **Paneo 2D y clamp**: los offsets X/Y se calculan independientemente; X admite píxeles finos y Y filas completas. Ambos ejes fuerzan Full al superar su margen y el offset mostrado se clampa a la guarda.
 3. **Racha adaptativa**: `observe_full(ciclos)` re-ajusta `max_consecutive_fakes` vía `affordable_fakes` (con ~2 campos de coste, K=0 → Full casi cada frame; la corrida de 12 frames cuadra fulls+fakes).
 4. **Gate asíncrono por hardware**: `async_ok` es falso sin Fast RAM y verdadero con ella (`eng::hw::has_fast_ram`), y el paso lo refleja — la base del camino de cola de blits por IRQ condicionado a hardware (veredicto medido de la campaña 218 en el roadmap).
 
 ## Salida de referencia
 
 ```
-OK: present controller (publicacion diferida, offsets, racha y gate async)
+OK: present controller (publicacion diferida 2D, pacing adaptativo y gate async)
 ```
 
 ## Ejecutar

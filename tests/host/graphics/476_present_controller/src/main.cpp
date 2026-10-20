@@ -76,6 +76,35 @@ void test_publish_and_offsets() {
 	check(s.offset_x == -15, "offset clampeado al margen negativo");
 }
 
+void test_two_axis_offsets() {
+	PresentController pc;
+	pc.configure(PresentControllerConfig {eng::graphics::PanWindowPolicy {15, 8, 2}, 3u},
+		     hw_with(0u));
+	pc.reset(0, 0);
+	PresentStep s = pc.begin(0, 0);
+	check(s.full && s.offset_x == 0 && s.offset_y == 0, "2D: primer paso Full en origen");
+	pc.commit(0, 0);
+
+	// La publicación conserva ambos panes; el fake mueve X por píxel y Y por scanline.
+	s = pc.begin(5, 3);
+	check(s.publish && !s.full && s.offset_x == 5 && s.offset_y == 3,
+	      "2D: fake publica ambos offsets exactos");
+	check(pc.shown_pan_x() == 0 && pc.shown_pan_y() == 0,
+	      "2D: el Full mostrado mantiene su ancla original");
+
+	// Sobrepasar el margen vertical fuerza un Full, y la ventana vieja se clampa a la guarda.
+	s = pc.begin(5, 9);
+	check(s.full && s.offset_x == 5 && s.offset_y == 8,
+	      "2D: exceder margen vertical fuerza Full y clampa el frame mostrado");
+
+	pc.reset(0, 0);
+	(void)pc.begin(0, 0);
+	pc.commit(0, 0);
+	s = pc.begin(0, -9);
+	check(s.full && s.offset_x == 0 && s.offset_y == -8,
+	      "2D: el margen vertical negativo también fuerza Full y se clampa");
+}
+
 void test_adaptive_run() {
 	PresentController pc;
 	pc.configure(PresentControllerConfig {eng::graphics::PanWindowPolicy {15, 0, 4}, 3u},
@@ -133,10 +162,11 @@ void test_async_gate() {
 
 int main() {
 	test_publish_and_offsets();
+	test_two_axis_offsets();
 	test_adaptive_run();
 	test_async_gate();
 	if (g_fail == 0) {
-		std::printf("OK: present controller (publicacion diferida, offsets, racha y gate async)\n");
+		std::printf("OK: present controller (publicacion diferida 2D, pacing adaptativo y gate async)\n");
 	} else {
 		std::printf("FALLOS: %u\n", g_fail);
 	}

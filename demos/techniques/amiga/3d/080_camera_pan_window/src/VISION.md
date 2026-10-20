@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-19T12:20:25.774Z
+- Fecha: 2026-10-20T23:06:16.792Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_010.png, frame_020.png, frame_029.png, frame_039.png (5)
+- Frames: frame_000_f0081.png, frame_004_f0085.png, frame_009_f0090.png, frame_013_f0094.png, frame_018_f0099.png, frame_022_f0103.png, frame_027_f0108.png, frame_031_f0112.png (8)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,34 +15,28 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes muestran una secuencia de captura de pantalla de un programa de animación 3D, probablemente de una computadora antigua, que muestra una escena con columnas y una interfaz de control en la parte inferior.
+Las cuatro imágenes muestran una escena gráfica estática, con una única variación entre ellas: el valor del parámetro "PAN" en la línea de texto inferior.
 
-**Elementos gráficos observables:**
+**Descripción general de la escena:**
+- **Fondo:** Una pared de color verde oscuro a ambos lados, con un techo de color azul oscuro en la parte superior.
+- **Suelo:** Una superficie marrón que se extiende desde la parte inferior de la imagen hacia el fondo.
+- **Objetos centrales:** Dos pares de barras verticales, cada par compuesto por dos barras adyacentes. El par de la izquierda es azul cian y amarillo; el par de la derecha es azul cian y naranja. Están situados en el fondo, sobre el suelo.
+- **Texto inferior:** Una línea de texto en blanco sobre fondo negro que muestra parámetros de la cámara.
 
-*   **Escena 3D:** En el centro de cada imagen, hay una representación de una escena en perspectiva. Contiene:
-    *   **Columnas:** Cuatro columnas verticales, dos a la izquierda y dos a la derecha. Las columnas de la izquierda son cian y amarillas; las de la derecha son cian y naranjas. Las columnas están dispuestas en una fila.
-    *   **Suelo y paredes:** El suelo es de color marrón. Las paredes laterales son de color verde oscuro. El fondo es de un azul oscuro.
-    *   **Líneas de referencia:** Hay dos líneas horizontales delgadas que cruzan la escena, una cerca del suelo y otra más arriba, que parecen ser líneas de referencia para la cámara o el sistema de coordenadas.
-*   **Interfaz de texto:** En la parte inferior de cada imagen, hay una línea de texto en blanco sobre fondo negro que muestra parámetros de la cámara y el estado de la animación.
+**Cambio entre imágenes:**
+- Las imágenes 1 y 2 son idénticas.
+- Las imágenes 3 y 4 son idénticas.
+- La única diferencia es en el valor del parámetro "PAN" en la línea de texto:
+  - En las imágenes 1 y 2: `PAN -19`
+  - En las imágenes 3 y 4: `PAN 13`
 
-**Cambios entre imágenes:**
+**Elementos observables:**
+- **Contorno de los objetos:** Los contornos de las barras son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni colgando en los bordes.
+- **Fondo alrededor de los objetos:** El fondo permanece uniforme y sin alteraciones alrededor de las barras.
+- **Textura y color:** Los colores son sólidos y uniformes en todas las imágenes.
+- **Posición de los objetos:** La posición de las barras y el suelo no cambia entre las imágenes.
 
-*   **Posición de la cámara (Pan):** La cámara se mueve horizontalmente (pan) hacia la derecha en la secuencia.
-    *   En la imagen 1, la cámara está más a la izquierda, mostrando más de la pared izquierda y menos de la derecha.
-    *   En la imagen 2, la cámara se ha movido hacia la derecha, mostrando más de la pared derecha y menos de la izquierda.
-    *   En la imagen 3, la cámara está aún más a la derecha, casi centrada en las columnas de la derecha.
-*   **Parámetros de la interfaz:**
-    *   **FRAME:** El número de fotogramas aumenta progresivamente: 96 → 250 → 352.
-    *   **PAN:** El valor de "PAN" cambia de +12K a +77K y luego a -87K, lo que indica un movimiento de la cámara hacia la derecha, luego hacia la izquierda, y nuevamente hacia la derecha.
-    *   **K:** El valor de "K" cambia de 1 a 2, lo que probablemente indica un cambio en la configuración de la cámara o el modo de renderizado.
-    *   **FAKE OFF:** El valor cambia de 0 a 12 y luego a -2, lo que sugiere un cambio en el modo de renderizado o en la configuración de la cámara.
-
-**Elementos extraños o incoherentes:**
-
-*   **Artefactos visuales:** Las imágenes muestran un ligero efecto de "banda" o "halo" alrededor de los bordes de los objetos, especialmente en las columnas y las líneas de referencia. Esto es típico de la resolución baja y la interpolación de píxeles de las computadoras de la época.
-*   **Recortes y píxeles cortados:** No hay recortes visibles de objetos, pero los bordes de los objetos y las líneas de referencia no son completamente limpios, lo que sugiere que el sistema de renderizado no es perfecto.
-*   **Fondo:** El fondo permanece uniforme en cada imagen, sin artefactos visibles.
-
-**Conclusión:**
-
-Las imágenes muestran una secuencia de animación 3D en la que la cámara se mueve horizontalmente (pan) a través de una escena con columnas. La interfaz de texto muestra los parámetros de la cámara y el estado de la animación, que cambian de forma coherente con el movimiento de la cámara. Los artefactos visuales son típicos de la tecnología de la época.
+**Observaciones:**
+- No hay parpadeo, recortes ni elementos superpuestos.
+- La escena es completamente estática excepto por el cambio en el valor del parámetro "PAN" en la línea de texto.
+- El cambio en "PAN" no se refleja en la posición visual de los objetos en la pantalla, lo que sugiere que este parámetro es un valor de configuración o estado interno del programa, no una transformación visual aplicada a la escena.

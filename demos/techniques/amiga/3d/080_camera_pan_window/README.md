@@ -1,12 +1,12 @@
 # 080_camera_pan_window — fotogramas intermedios por paneo de cámara (F1)
 
-Demo de la fase F1 del [`ROADMAP_3D_PRESENTACION.md`](../../../../docs/guides/roadmap/ROADMAP_3D_PRESENTACION.md): pasadas completas de escena 3D poligonal con **base ≥12,5 Hz** y display interpolado **≥25 Hz**, moviendo solo la **ventana de display** dentro de un framebuffer horizontal más ancho que el viewport para interpolar varios fotogramas por pasada. Técnica documentada en [`camera-pan-fake-frames.md`](../../../../docs/reference/amiga/techniques/camera-pan-fake-frames.md).
+Demo de presentación 3D Full/Fake: una pasada completa renderiza la sala y el display interpola movimientos pequeños desplazando una ventana dentro de un framebuffer sobredimensionado. El modo predeterminado prueba yaw/Y con paneo horizontal (F1); `K080_PITCH_TEST=1` prueba pitch/X con paneo vertical por filas completas (F3 experimental). Técnica documentada en [`camera-pan-fake-frames.md`](../../../../docs/reference/amiga/techniques/camera-pan-fake-frames.md).
 
 - Sala 3D (tubo: suelo, techo, paredes, pared del fondo) + 4 paneles verticales de color (uno **naranja único**, marcador de movimiento), rellenos con el relleno por plano del Blitter (`PlaneFillBuilder` + `AmigaBackend::fill_polygons_by_plane`).
-- Framebuffer 352×208 (viewport 320 con margen de 16 px por lado). **Full**: render del FB entero y ventana centrada (S=16). **Fake**: sin render; solo se parchean `BPLxPT` (coarse) y `BPLCON1` (fino) con la convención de `playfield_scroll.hpp` para desplazar la ventana: el Fake es **exactamente** el Full anterior desplazado (contrato de píxel).
-- Política `eng::graphics::pan_window.hpp` (HOST-470): margen 15 px; fase lenta (1 px/frame) = fakes con el offset exacto y fase rápida (16 px/frame) = Full cada frame. El **número de fakes por pasada es adaptativo** y la presentación va por el **`PresentController`** (`eng::graphics::present_controller.hpp`, HOST-476): política de paneo + EMA del coste medido del Full en campos PAL (`render_pacing.hpp`, HOST-471) + **publicación diferida al inicio de campo** (el Full se muestra entero en el update siguiente; latencia de 1 frame). El camino asíncrono por cola de blits se aconseja solo con Fast RAM (`async_ok`).
+- Framebuffer 352×224 con viewport 320×208, márgenes de 16 px en X y ocho filas en Y. **Full**: render del FB entero y ventana centrada (S=16, T=8). **Fake**: sin render; se parchean `BPLxPT` y `BPLCON1` para X, y el puntero por filas completas para Y; el Fake representa el Full anterior desplazado (contrato de píxel).
+- La política 2D `eng::graphics::pan_window.hpp` (HOST-470) comprueba ambos márgenes; `PresentController` (HOST-476) devuelve offsets X/Y, aplica pacing medido y publica el Full al inicio de campo. El modo predeterminado panea yaw/eje Y en X; el build diagnóstico `K080_PITCH_TEST=1` panea pitch/eje X en Y usando filas OCS completas y clipping de cámara general. El camino asíncrono por cola de blits se aconseja solo con Fast RAM (`async_ok`).
 - **Mezcla de colores con damero a nivel de píxel** (`eng::graphics::fill_pattern.hpp`, HOST-474): los dos planos de la sala llevan el **damero 1×1 y su inverso** (`fill_dither_plane_cpu`, 2 filas por plano), y el backend los aplica por fases (`D = A & B`) tras el fill; cada cara queda **fundiendo dos índices base** (paredes/suelo con pares 0/1, 0/2, 1/2) — la paleta gana tonos que no están en ella (oliva = 1⊕2, malva = 1⊕0). Los paneles quedan sólidos (el marcador naranja conserva su color). `-DK080_NO_PATTERN` deja la sala sólida (A/B del coste del paso de patrón, ~+50k al Full).
-- HUD en franja de 1 bitplane (líneas 252..299) con versión y telemetría (FRAME/FULL/FAKE, modo+OFF, caras/tamaño, PAN, K).
+- HUD en franja de 1 bitplane (líneas 252..299) con versión y telemetría (FRAME/FULL/FAKE, modo+OFF, caras/tamaño, PAN o TILT, K).
 
 ## Búsqueda previa
 
@@ -27,9 +27,9 @@ No se usan los patrones de bajo nivel vigilados por el gate `prior-art` (`planar
 - `src/VISION.md` — evaluación con el modelo de visión local (prompt canónico).
 - `VALIDATION.md` — evidencia: contrato de aislamiento, secuencia, visión, cadencia y deuda.
 
-## Estado (2026-10-18): **ABIERTA / NO VERIFICADA**
+## Estado (2026-10-20): **YAW VERIFICADO EN EL ALCANCE MEDIDO; PITCH EXPERIMENTAL**
 
-El contrato de píxel del paneo (mecanismo exacto) y la política Full/Fake adaptativa están probados; el **display cumple su suelo (≥25 Hz: medido ~28 fps, 1,79–1,80 campos/frame con K=2)**, pero la **base (Full ≥12,5 Hz) aún no**: la pasada completa mide ~3,4 campos (426k–551k ciclos) y con la regla de pacing sale K=2, dejando la base en ~9 Hz. Cerrar F1 exige bajar el Full a ≤3,0 campos (K=1) con la campaña de optimización (deuda DT-032…DT-034 en VALIDATION §7); la secuencia de contrato con la política adaptativa queda pendiente de recapturar (DT-033, captura por paso bloqueada).
+El contrato Full/Fake de yaw pasó una nueva secuencia de 32 frames tras los cambios del controlador, y el culling no cambia los píxeles en poses congeladas de pan +13/+65. El build de prueba `K080_PITCH_TEST=1` activa paneo vertical/pitch; su contrato paso-a-paso pasa 32 frames con `--axis y`, y una secuencia visual de intervalo cambia en 23/23 pares. Ollama dio falsos negativos e interpretaciones parciales incluso al comparar extremos recortados; los diffs objetivos y la inspección de frames confirman el desplazamiento, con alcance y costuras documentados en `VALIDATION.md`. La cadencia base de F1 sigue por debajo de 12,5 Hz; el usuario acepta provisionalmente los FPS actuales para continuar sin relajar el umbral del roadmap.
 
 ## Build / run / analyze
 
@@ -37,9 +37,11 @@ El contrato de píxel del paneo (mecanismo exacto) y la política Full/Fake adap
 bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --debug --clean
 bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window
 bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --sequence-step-frames 16
-# La captura por paso esta bloqueada por DT-033 (GDB socket timeout); alternativa que funciona:
-bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --sequence-frames 32 --sequence-interval-ms 60
 node ./tools/analyze/verify-080-pan-window.mjs --sequence-dir out/run/080_camera_pan_window/A500_debug/sequence
+DEMO_OPT=-O3 DEMO_FLAGS="-fno-tree-vectorize -DK080_PITCH_TEST=1" bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --debug --clean
+bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --sequence-step-frames 16
+node ./tools/analyze/verify-080-pan-window.mjs --sequence-dir out/run/080_camera_pan_window/A500_debug/sequence --axis y
+node ./tools/analyze/analyze-frame-sequence.sh out/run/080_camera_pan_window/A500_debug/sequence
 node ./tools/debug/profile.mjs 080_camera_pan_window A500_debug 4
 ```
 

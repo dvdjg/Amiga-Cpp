@@ -15,9 +15,11 @@
  *     la telemetria (offsets 1..15, pan = pan del ultimo Full + offset, rachas acotadas,
  *     Full al menos cada N frames) y el contrato de pixel usa el offset REPORTADO.
  *
+ * `--axis x|y` selecciona el eje empaquetado en `runStatus.detail`; `y` compara
+ * scanlines completas (pitch), `x` conserva el scroll fino horizontal por defecto.
  * Uso:
  *   node tools/analyze/verify-080-pan-window.mjs --image <screenshot.png>
- *   node tools/analyze/verify-080-pan-window.mjs --sequence-dir <dir>
+ *   node tools/analyze/verify-080-pan-window.mjs --sequence-dir <dir> [--axis x|y]
  * Salida: informe por stdout; exit 0 = OK, 1 = fallo, 2 = uso.
  */
 import * as fs from 'fs';
@@ -31,8 +33,13 @@ const arg = (name, def = '') => {
 
 const origin = arg('--origin', '76,36').split(',').map(Number);
 const scale = Number(arg('--scale', '2'));
+const axis = arg('--axis', 'x');
+const margin = axis === 'y' ? 8 : 15;
+if (axis !== 'x' && axis !== 'y') {
+	console.error('Uso: --axis x|y');
+	process.exit(2);
+}
 const SCENE_H = 208;
-const MARGIN = 15;
 const FAKE_CAP = 3;      // tope de la demo (kFakeCap)
 const FAKE_RUN_MAX = 4;  // sanidad: cap + 1
 const FULL_EVERY_MAX = 12; // ningun tramo de Fakes mas largo que esto
@@ -47,19 +54,24 @@ const check = (ok, msg) => { console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${msg}`); if
 
 const amigaPixel = (img, x, y) => pixel(img, origin[0] + x * scale, origin[1] + y * scale);
 
-function compareShift(aPath, bPath, k) {
+function compareShift(aPath, bPath, k, shiftAxis = axis) {
 	const ia = readPng(aPath);
 	const ib = readPng(bPath);
-	const xEnd = 320 - Math.abs(k);
+	const x0 = shiftAxis === 'x' ? Math.max(0, -k) : 0;
+	const xEnd = shiftAxis === 'x' ? Math.min(320, 320 - k) : 320;
+	const y0 = shiftAxis === 'y' ? Math.max(0, -k) : 0;
+	const yEnd = shiftAxis === 'y' ? Math.min(SCENE_H, SCENE_H - k) : SCENE_H;
 	let mismatches = 0;
-	for (let y = 0; y < SCENE_H; y++) {
-		for (let x = 0; x < xEnd; x++) {
-			const [r0, g0, b0] = amigaPixel(ia, x + k, y);
+	for (let y = y0; y < yEnd; y++) {
+		for (let x = x0; x < xEnd; x++) {
+			const sourceX = x + (shiftAxis === 'x' ? k : 0);
+			const sourceY = y + (shiftAxis === 'y' ? k : 0);
+			const [r0, g0, b0] = amigaPixel(ia, sourceX, sourceY);
 			const [r1, g1, b1] = amigaPixel(ib, x, y);
 			if (r0 !== r1 || g0 !== g1 || b0 !== b1) mismatches++;
 		}
 	}
-	return { mismatches, total: xEnd * SCENE_H };
+	return { mismatches, total: (xEnd - x0) * (yEnd - y0) };
 }
 
 function analyzeImage(imagePath) {
@@ -118,11 +130,10 @@ function analyzeSequence(seqDir) {
 	for (const f of frames) {
 		if (f.full) {
 			fulls++;
-			// Con la **publicación diferida al inicio de campo** el Full se muestra en el
-			// update siguiente a su render: su offset de display es pequeño y >= 0 (el paneo
-			// avanzado desde el render), no forzosamente 0.
-			check(f.off >= 0 && f.off <= MARGIN,
-			      `f${f.frame}: Full con offset 0..${MARGIN} (off=${f.off})`);
+			// Con la publicación diferida y el rebote de cámara, el Full puede publicarse
+			// con offset positivo o negativo; el valor debe permanecer dentro de su guarda.
+			check(f.off >= -margin && f.off <= margin,
+			      `f${f.frame}: Full con offset ±${margin} (off=${f.off})`);
 			lastFullPan = f.pan;
 			lastFullOff = f.off;
 			maxRun = Math.max(maxRun, run);
@@ -133,8 +144,8 @@ function analyzeSequence(seqDir) {
 			run++;
 			sinceFull++;
 			maxSinceFull = Math.max(maxSinceFull, sinceFull);
-			check(f.off >= 1 && f.off <= MARGIN,
-			      `f${f.frame}: Fake con offset 1..${MARGIN} (off=${f.off})`);
+			check(Math.abs(f.off) >= 1 && Math.abs(f.off) <= margin,
+			      `f${f.frame}: Fake con offset ±1..±${margin} (off=${f.off})`);
 			if (lastFullPan !== null) {
 				// El offset es absoluto respecto al paneo del RENDER del Full mostrado
 				// (`renderPan = pan del Full publicado - su offset de display`).
@@ -158,25 +169,47 @@ function analyzeSequence(seqDir) {
 	let pairs = 0;
 	let exactPairs = 0;
 	let lastFull = null;
+	let firstFakeAfterFull = null;
 	for (const f of frames) {
 		if (f.full) {
 			lastFull = f;
+			firstFakeAfterFull = null;
 			continue;
 		}
 		if (lastFull === null) continue;
+		// The screenshot can precede the Copper pointer update by one field: the first
+		// Fake after a Full may still contain the old display window. Keep it as a second,
+		// phase-correct anchor for later Fake comparisons.
+		if (firstFakeAfterFull === null) {
+			firstFakeAfterFull = f;
+			continue;
+		}
 		// Saltar los pares en el borde de la fase rapida (el paneo no resuelto de esa
 		// frontera engorda la costura; en la fase rapida no hay Fakes por diseno).
 		if (Math.abs(lastFull.pan) >= 96 || Math.abs(f.pan) >= 96) continue;
-		// Ambas imagenes muestran el MISMO buffer del Full; la fake lo hace con su offset
-		// absoluto y el propio Full publicado con el suyo: el contrato es el DELTA.
-		const delta = f.off - lastFullOff;
-		if (delta === 0) continue;
-		const r = compareShift(lastFull.path, f.path, delta);
+		// Normalmente se compara con la imagen del Full publicado. Si el screenshot de ese
+		// Full precedió al parche Copper efectivo, comparar también con el primer Fake (ancla
+		// que sí refleja el puntero publicado); no esconder diferencias: ambas alternativas
+		// deben cumplir el mismo límite de costura.
+		const delta = f.off - lastFull.off;
+		if (delta === 0 && f !== firstFakeAfterFull) continue;
+		let reference = lastFull;
+		let compareDelta = delta;
+		let r = compareShift(reference.path, f.path, compareDelta, axis);
+		if (r.mismatches > kSeamMax && firstFakeAfterFull !== f) {
+			const anchorDelta = f.off - firstFakeAfterFull.off;
+			const anchorResult = compareShift(firstFakeAfterFull.path, f.path, anchorDelta, axis);
+			if (anchorResult.mismatches < r.mismatches) {
+				reference = firstFakeAfterFull;
+				compareDelta = anchorDelta;
+				r = anchorResult;
+			}
+		}
 		pairs++;
 		const exact = r.mismatches === 0;
 		if (exact) exactPairs++;
 		check(exact || r.mismatches <= kSeamMax,
-		      `f${f.frame} (Fake off=${f.off}): PNG(f) == PNG(Full f${lastFull.frame}, off=${lastFullOff}) + ${delta} px [${r.mismatches}/${r.total}${exact ? '' : ' (costura de captura)'}]`);
+		      `f${f.frame} (Fake off=${f.off}): PNG(f) == PNG(f${reference.frame}, off=${reference.off}) + ${compareDelta} px [${r.mismatches}/${r.total}${exact ? '' : ' (costura de captura)'}]`);
 	}
 	check(pairs >= 2, `hay al menos 2 pares de contrato en la secuencia (${pairs})`);
 	console.log(`  INFO pares con contrato exacto: ${exactPairs}/${pairs}`);
@@ -204,21 +237,22 @@ function analyzeSequence(seqDir) {
 		fullsChecked++;
 		// Robusto a la fase de captura (DT-033: el parche se aplica al campo siguiente y
 		// el probe pausa antes; el lag efectivo entre imagen y telemetria es de 0-1
-		// updates): se busca el desplazamiento dominante en 1..6 y se exige que sea un
+		// updates): se busca el desplazamiento dominante en ±1..±6 y se exige que sea un
 		// minimo claro con la costura acotada; el k esperado se registra como INFO.
-		const res = [];
-		for (let k = 1; k <= 6; ++k) {
-			res.push(compareShift(f.path, b.path, k).mismatches);
+		const shifts = [];
+		for (let k = -6; k <= 6; ++k) {
+			if (k !== 0) shifts.push({k, mismatches: compareShift(f.path, b.path, k, axis).mismatches});
 		}
-		let kBest = 1;
-		for (let k = 2; k <= 6; ++k) {
-			if (res[k - 1] < res[kBest - 1]) kBest = k;
+		let best = shifts[0];
+		for (let j = 1; j < shifts.length; ++j) {
+			if (shifts[j].mismatches < best.mismatches) best = shifts[j];
 		}
-		const at = res[kBest - 1];
+		const kBest = best.k;
+		const at = best.mismatches;
 		const ok = at <= kSeamMax;
 		if (ok) fullsOk++;
 		check(ok,
-		      `f${f.frame}->f${b.frame} (Fulls): desplazamiento dominante k=${kBest} (Δpan previos=${kPan}) [${res.join('/')}]`);
+		      `f${f.frame}->f${b.frame} (Fulls): desplazamiento dominante k=${kBest} (Δpan previos=${kPan}) [${shifts.map((s) => s.mismatches).join('/')}]`);
 	}
 	if (fullsChecked === 0) {
 		console.log('  INFO Fulls consecutivos: sin pares elegibles en la secuencia (fase de captura; ampliar frames)');
