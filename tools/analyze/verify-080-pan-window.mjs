@@ -15,11 +15,11 @@
  *     la telemetria (offsets 1..15, pan = pan del ultimo Full + offset, rachas acotadas,
  *     Full al menos cada N frames) y el contrato de pixel usa el offset REPORTADO.
  *
- * `--axis x|y` selecciona el eje empaquetado en `runStatus.detail`; `y` compara
- * scanlines completas (pitch), `x` conserva el scroll fino horizontal por defecto.
+ * `--axis x|y` selecciona el eje empaquetado en `runStatus.detail`; `xy` comprueba una
+ * traslación bidimensional en los Fakes de la trayectoria Lissajous.
  * Uso:
  *   node tools/analyze/verify-080-pan-window.mjs --image <screenshot.png>
- *   node tools/analyze/verify-080-pan-window.mjs --sequence-dir <dir> [--axis x|y]
+ *   node tools/analyze/verify-080-pan-window.mjs --sequence-dir <dir> [--axis x|y|xy]
  * Salida: informe por stdout; exit 0 = OK, 1 = fallo, 2 = uso.
  */
 import * as fs from 'fs';
@@ -34,9 +34,9 @@ const arg = (name, def = '') => {
 const origin = arg('--origin', '76,36').split(',').map(Number);
 const scale = Number(arg('--scale', '2'));
 const axis = arg('--axis', 'x');
-const margin = axis === 'y' ? 8 : 15;
-if (axis !== 'x' && axis !== 'y') {
-	console.error('Uso: --axis x|y');
+const margin = axis === 'y' ? 24 : 15;
+if (axis !== 'x' && axis !== 'y' && axis !== 'xy') {
+	console.error('Uso: --axis x|y|xy');
 	process.exit(2);
 }
 const SCENE_H = 208;
@@ -53,25 +53,41 @@ let failures = 0;
 const check = (ok, msg) => { console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${msg}`); if (!ok) failures++; };
 
 const amigaPixel = (img, x, y) => pixel(img, origin[0] + x * scale, origin[1] + y * scale);
+const pngCache = new Map();
+const imageFor = (imagePath) => {
+	if (!pngCache.has(imagePath)) pngCache.set(imagePath, readPng(imagePath));
+	return pngCache.get(imagePath);
+};
 
-function compareShift(aPath, bPath, k, shiftAxis = axis) {
-	const ia = readPng(aPath);
-	const ib = readPng(bPath);
-	const x0 = shiftAxis === 'x' ? Math.max(0, -k) : 0;
-	const xEnd = shiftAxis === 'x' ? Math.min(320, 320 - k) : 320;
-	const y0 = shiftAxis === 'y' ? Math.max(0, -k) : 0;
-	const yEnd = shiftAxis === 'y' ? Math.min(SCENE_H, SCENE_H - k) : SCENE_H;
+function compareShift(aPath, bPath, k, shiftAxis = axis, dy = 0) {
+	const ia = imageFor(aPath);
+	const ib = imageFor(bPath);
+	const dx = shiftAxis === 'y' ? 0 : k;
+	const shiftY = shiftAxis === 'y' ? k : (shiftAxis === 'xy' ? dy : 0);
+	const x0 = Math.max(0, -dx);
+	const xEnd = Math.min(320, 320 - dx);
+	const y0 = Math.max(0, -shiftY);
+	const yEnd = Math.min(SCENE_H, SCENE_H - shiftY);
 	let mismatches = 0;
 	for (let y = y0; y < yEnd; y++) {
 		for (let x = x0; x < xEnd; x++) {
-			const sourceX = x + (shiftAxis === 'x' ? k : 0);
-			const sourceY = y + (shiftAxis === 'y' ? k : 0);
+			const sourceX = x + dx;
+			const sourceY = y + shiftY;
 			const [r0, g0, b0] = amigaPixel(ia, sourceX, sourceY);
 			const [r1, g1, b1] = amigaPixel(ib, x, y);
 			if (r0 !== r1 || g0 !== g1 || b0 !== b1) mismatches++;
 		}
 	}
 	return { mismatches, total: (xEnd - x0) * (yEnd - y0) };
+}
+
+function bestVerticalShift(aPath, bPath, dx) {
+	let best = {dy: -24, ...compareShift(aPath, bPath, dx, 'xy', -24)};
+	for (let dy = -23; dy <= 24; ++dy) {
+		const result = compareShift(aPath, bPath, dx, 'xy', dy);
+		if (result.mismatches < best.mismatches) best = {dy, ...result};
+	}
+	return best;
 }
 
 function analyzeImage(imagePath) {
@@ -103,6 +119,10 @@ function analyzeSequence(seqDir) {
 	}
 	const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 	const all = report.sequence?.frames ?? [];
+	if (all.some((fr) => !Number.isInteger(fr.frozenFrame))) {
+		check(false, 'captura por paso requerida (usa --sequence-step-frames; el modo por intervalo no lleva telemetría alineada)');
+		return;
+	}
 	const frames = all
 		.filter((fr) => fr.path && fs.existsSync(fr.path) && fr.runStatus)
 		.map((fr) => {
@@ -177,16 +197,25 @@ function analyzeSequence(seqDir) {
 			continue;
 		}
 		if (lastFull === null) continue;
-		// The screenshot can precede the Copper pointer update by one field: the first
-		// Fake after a Full may still contain the old display window. Keep it as a second,
-		// phase-correct anchor for later Fake comparisons.
+		// La captura puede preceder un campo al parche Copper: el primer Fake tras un Full
+		// aún puede mostrar la ventana anterior. Se conserva como ancla alineada para los
+		// pares posteriores.
 		if (firstFakeAfterFull === null) {
 			firstFakeAfterFull = f;
 			continue;
 		}
-		// Saltar los pares en el borde de la fase rapida (el paneo no resuelto de esa
-		// frontera engorda la costura; en la fase rapida no hay Fakes por diseno).
-		if (Math.abs(lastFull.pan) >= 96 || Math.abs(f.pan) >= 96) continue;
+		// Saltar el borde de la fase rápida en barridos de un eje; Lissajous usa búsqueda 2D.
+		if (axis !== 'xy' && (Math.abs(lastFull.pan) >= 96 || Math.abs(f.pan) >= 96)) continue;
+		if (axis === 'xy') {
+			const dx = f.off - firstFakeAfterFull.off;
+			const r = bestVerticalShift(firstFakeAfterFull.path, f.path, dx);
+			pairs++;
+			const exact = r.mismatches === 0;
+			if (exact) exactPairs++;
+			check(exact || r.mismatches <= kSeamMax,
+			      `f${f.frame} (Fake): PNG(f) == PNG(f${firstFakeAfterFull.frame}) + (${dx}, ${r.dy}) px [${r.mismatches}/${r.total}${exact ? '' : ' (costura de captura)'}]`);
+			continue;
+		}
 		// Normalmente se compara con la imagen del Full publicado. Si el screenshot de ese
 		// Full precedió al parche Copper efectivo, comparar también con el primer Fake (ancla
 		// que sí refleja el puntero publicado); no esconder diferencias: ambas alternativas
@@ -213,6 +242,10 @@ function analyzeSequence(seqDir) {
 	}
 	check(pairs >= 2, `hay al menos 2 pares de contrato en la secuencia (${pairs})`);
 	console.log(`  INFO pares con contrato exacto: ${exactPairs}/${pairs}`);
+	if (axis === 'xy') {
+		console.log('  INFO Fulls consecutivos: la trayectoria 2D se evalúa por su diff temporal, no por un único desplazamiento X.');
+		return;
+	}
 
 	// --- Fulls consecutivos: el contenido sigue el paneo -----------------------------
 	// Fase de captura (DT-033): el parche de un update se aplica al campo SIGUIENTE, así

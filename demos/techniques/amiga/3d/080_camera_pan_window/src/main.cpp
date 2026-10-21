@@ -2,30 +2,17 @@
 // Demo 080 (3d): fotogramas intermedios por paneo de camara (Full/Fake)
 // ============================================================================
 //
-// Implementa la fase F1 del ROADMAP_3D_PRESENTACION: una pasada completa (render
-// 3D poligonal con relleno por plano) a 25 Hz y fotogramas intermedios GRATIS a
-// 50 Hz desplazando solo la VENTANA DE DISPLAY dentro de un framebuffer mas
-// ancho que el viewport.
+// Presentación Full/Fake con barridos de cámara de 120° en yaw y pitch, seguidos de una
+// trayectoria Lissajous combinada. Los Fake desplazan la ventana dentro del framebuffer
+// sobredimensionado mientras el siguiente render completo se reparte entre VBlanks.
 //
-//   framebuffer de escena (352 px de ancho; viewport de 320 centrado en S=16)
-//   +--------------------------------------------------+
-//   | margen 16 |      VIEWPORT 320x208      | margen 16|
-//   +--------------------------------------------------+
+//   framebuffer 352×256; viewport 320×208; guardas X=16 px, Y=24 filas
 //
-// - **Full**: se proyectan la sala (tubo) y los paneles con la camara actual
-//   (yaw = pan/focal) y se rellena el FB entero (margenes incluidos) con 1
-//   contorno XOR + 1 area fill por plano (`PlaneFillBuilder`,
-//   `AmigaBackend::fill_polygons_by_plane`). La ventana se centra: puntero
-//   `fine_scroll_coarse(16)` + fino 0.
+// - **Full**: clipping general de cámara + sala de colores separados (techo verde, fondo
+//   azul) y paneles de color singular; relleno por plano con el Blitter.
 // - **Fake**: no se toca el FB; solo se parchean los `BPLxPT` (coarse) y
-//   `BPLCON1` (fine) con la convencion de `graphics/playfield_scroll.hpp` para
-//   desplazar la ventana `offset` px. Como el FB ya tiene el contenido de los
-//   margenes, el Fake es EXACTO: el Full anterior desplazado (contrato de pixel
-//   que verifica `tools/analyze/verify-080-pan-window.mjs`).
-// - Politica Full/Fake: `eng::graphics/pan_window.hpp` (HOST-470) con margen de
-//   15 px y racha 1. Fase lenta (1 px/frame): Full/Fake alternos (Full a 25 Hz).
-//   Fase rapida (16 px/frame): el offset supera el margen y fuerza Full cada
-//   frame (la camara gira mas rapido de lo que el paneo puede aproximar).
+//   `BPLCON1` fino para X y avanza el puntero por filas completas para Y. La amplitud
+//   del Lissajous y las velocidades respetan ambas guardas durante el render rebanado.
 // - HUD de depuracion en la franja inferior (48 lineas): desde la linea 252 el
 //   Copper conmuta a **1 bitplane** con la tira del HUD y COLOR00/01 propios;
 //   texto por palabras (`Surface::draw_text_words`).
@@ -80,16 +67,16 @@ using eng::u32;
 using eng::u8;
 
 // --- Geometria del display ----------------------------------------------------------
-// FB de escena 352x224 (viewport 320x208 con márgenes de 16 px en X y 8 filas en Y).
-// En modo yaw solo se mueve X; el build K080_PITCH_TEST ejercita el paneo Y de scanline.
+// FB de escena 352x256 (viewport 320x208 con márgenes de 16 px en X y 24 filas en Y).
+// Las guardas permiten Fake frames durante giros combinados; la cámara se recorta al FB.
 // La ventana visible mantiene 208 filas y la conmutación al HUD cae en 44+208=252.
 constexpr u16 kFbW = 352u;
-constexpr u16 kFbH = 224u;
+constexpr u16 kFbH = 256u;
 constexpr u16 kRowBytes = kFbW / 8u;      // 44 B por fila de plano
 constexpr u16 kViewportW = 320u;
 constexpr u16 kViewportH = 208u;
 constexpr u16 kCenterS = (kFbW - kViewportW) / 2u; // 16
-constexpr u16 kMarginY = (kFbH - kViewportH) / 2u;  // 8 filas completas para paneo de pitch
+constexpr u16 kMarginY = (kFbH - kViewportH) / 2u; // 24 filas completas para paneo de pitch
 constexpr u8 kPlanes = 4u;
 constexpr u8 kBuffers = 2u;
 constexpr u16 kSceneBytes = kRowBytes * kFbH;
@@ -118,8 +105,22 @@ constexpr s16 kCy = static_cast<s16>(kMarginY + kViewportH / 2u); // centro de l
 
 constexpr s16 kRoomX = 160;
 constexpr s16 kRoomY = 96;
-constexpr s16 kRoomZ0 = 256;
+constexpr s16 kRoomZ0 = 32; // la sala llega cerca de cámara para seguir visible al mirar ±60°
 constexpr s16 kRoomZ1 = 1024;
+
+// ±268 px en el mapeo focal=256 representan ±60° (barrido total de 120°).
+constexpr s32 kSweepPan = 268;
+constexpr s32 kYawCullPanLimit = 65; // poses congeladas HOST-478: ±13/±65, no el barrido amplio
+constexpr s32 kYawSweepStep = 1;   // 0,22°/update; conserva margen para la publicación diferida
+constexpr s32 kPitchSweepStep = 1; // 0,22°/update; el Fake vertical avanza una fila
+constexpr s32 kLissajousPan = 180; // ±40° por eje para la fase combinada
+constexpr u16 kLissajousPhaseStep = 5; // 819 updates; Δpitch máx. < 2,8 filas/update
+constexpr u16 kLissajousFrames = 4096u / kLissajousPhaseStep;
+constexpr u32 kRoomFaceCount = 5u; // suelo, techo, paredes laterales y pared del fondo
+constexpr u32 kPanelCount = 4u;
+constexpr u32 kFaceCount = 9u;
+
+enum class MotionMode : u8 { YawSweep, PitchSweep, Lissajous };
 
 // Paleta (4 planos, 16 colores). La asignacion de BITS importa: el relleno por plano
 // compone por PARIDAD y los planos son independientes, asi que la region de un objeto que
@@ -129,7 +130,7 @@ constexpr s16 kRoomZ1 = 1024;
 //    bits (4..7, 8..11, 12..15) llevan el MISMO color, de modo que el panel se ve de su
 //    color sea cual sea la pared que tiene detras (4 bits del fondo no lo tinen).
 constexpr eng::Palette32 kPalette {{
-	0x124, 0x764, 0x474, 0x246, 0xfd0, 0xfd0, 0xfd0, 0xfd0,
+	0x124, 0x986, 0x485, 0x269, 0xfd0, 0xfd0, 0xfd0, 0xfd0,
 	0x0ff, 0x0ff, 0x0ff, 0x0ff, 0xf80, 0xf80, 0xf80, 0xf80,
 }};
 
@@ -164,9 +165,17 @@ constexpr bool kRoomDither = false;
 #ifndef K080_PITCH_TEST
 #define K080_PITCH_TEST 0
 #endif
+#ifndef K080_LISSAJOUS_TEST
+#define K080_LISSAJOUS_TEST 0
+#endif
 static_assert(K080_PITCH_TEST == 0 || K080_PITCH_TEST == 1,
-	      "K080_PITCH_TEST selecciona el paneo yaw (0) o pitch vertical (1)");
-constexpr bool kPitchTest = K080_PITCH_TEST != 0;
+	      "K080_PITCH_TEST fuerza el barrido pitch para validación");
+static_assert(K080_LISSAJOUS_TEST == 0 || K080_LISSAJOUS_TEST == 1,
+	      "K080_LISSAJOUS_TEST fuerza la trayectoria Lissajous para validación");
+static_assert(K080_PITCH_TEST == 0 || K080_LISSAJOUS_TEST == 0,
+	      "selecciona una sola trayectoria de validación");
+constexpr bool kForcePitch = K080_PITCH_TEST != 0;
+constexpr bool kForceLissajous = K080_LISSAJOUS_TEST != 0;
 constexpr eng::u8 kRoomDitherA = 1u; // índice base A (marrón) de la mezcla
 constexpr eng::u8 kRoomDitherB = 2u; // índice base B (verde)
 
@@ -187,8 +196,7 @@ constexpr eng::u8 kFakeCap = kSliceEnabled ? 0u : 3u;
 constexpr eng::graphics::PanWindowPolicy kPanPolicyBase {
 	15, static_cast<s16>(kMarginY), kFakeCap};
 
-// --- Escena: sala (5 caras) + 4 paneles en fila (mismo z: sin solapes entre ellos) ---
-constexpr u32 kFaceCount = 9u;
+// --- Escena: sala con techo verde separado del fondo azul + cuatro paneles ----------
 constexpr u8 kMaxVerts = 16u; // margen para clip de cámara seguido del rectángulo del framebuffer
 
 struct FaceSpec {
@@ -200,50 +208,43 @@ constexpr eng::math3d::Vec3 p3(s16 x, s16 y, s16 z) {
 	return eng::math3d::vec3(x, y, z);
 }
 
-// Orden de pintado: sala y paneles despues (estan por delante). Los 4 paneles viven a
-// z=640 (mismo plano; dos quads coplanares separados en x no pueden solaparse en
-// proyeccion) y usan bits 2-3; el naranja 12 (x=+100) es el marcador unico.
-// Los paneles llevan un sesgo de z (+-5 px entre su borde izquierdo y el derecho):
-// asi sus aristas superior/inferior NO son exactamente horizontales y el contorno EOR
-// las dibuja (el trazador del Blitter DESCARTA las horizontales; sin ellas el area fill
-// no cierra la region del quad y el panel sale hueco).
-constexpr FaceSpec kFaces[kFaceCount] = {
-	{{p3(-kRoomX, kRoomY, kRoomZ0), p3(-kRoomX, kRoomY, kRoomZ1),
-	  p3(kRoomX, kRoomY, kRoomZ1), p3(kRoomX, kRoomY, kRoomZ0)}, 1u},
-	{{p3(-kRoomX, -kRoomY, kRoomZ0), p3(kRoomX, -kRoomY, kRoomZ0),
-	  p3(kRoomX, -kRoomY, kRoomZ1), p3(-kRoomX, -kRoomY, kRoomZ1)}, 3u},
-	{{p3(-kRoomX, -kRoomY, kRoomZ0), p3(-kRoomX, -kRoomY, kRoomZ1),
-	  p3(-kRoomX, kRoomY, kRoomZ1), p3(-kRoomX, kRoomY, kRoomZ0)}, 2u},
-	{{p3(kRoomX, -kRoomY, kRoomZ0), p3(kRoomX, kRoomY, kRoomZ0),
-	  p3(kRoomX, kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1)}, 2u},
-	{{p3(-kRoomX, -kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1),
-	  p3(kRoomX, kRoomY, kRoomZ1), p3(-kRoomX, kRoomY, kRoomZ1)}, 3u},
+// Los paneles usan bits 2-3; el naranja es marcador único. El sesgo de profundidad evita
+// aristas horizontales exactas, que el trazador EOR descarta.
+constexpr FaceSpec kPanelFaces[kPanelCount] = {
 	{{p3(-112, -80, 635), p3(-88, -80, 645), p3(-88, 80, 645), p3(-112, 80, 635)}, 8u},
 	{{p3(-72, -80, 635), p3(-48, -80, 645), p3(-48, 80, 645), p3(-72, 80, 635)}, 4u},
 	{{p3(48, -80, 635), p3(72, -80, 645), p3(72, 80, 645), p3(48, 80, 635)}, 8u},
 	{{p3(88, -80, 635), p3(112, -80, 645), p3(112, 80, 645), p3(88, 80, 635)}, 12u},
 };
 
-// Caja FIJA de la sala (planos 0-1): la proyeccion del tubo cabe en las filas 8..200
-// para TODO el rango de paneo (en yaw 0 el borde cercano de suelo/techo toca 8 y 200;
-// con yaw los bordes se meten hacia dentro). El barrido de clear+area fill se acota a
-// esta caja (~7% menos palabras por plano); cubre tambien la posicion de los renders
-// anteriores del mismo buffer (el contenido varia poco entre rerenders).
-constexpr s16 kRoomBoxY = static_cast<s16>(kMarginY + 8u);
-constexpr u16 kRoomBoxH = 193u; // margen interior de ocho filas dentro del buffer sobredimensionado
+constexpr FaceSpec kFaces[kFaceCount] = {
+	{{p3(-kRoomX, kRoomY, kRoomZ0), p3(-kRoomX, kRoomY, kRoomZ1),
+	  p3(kRoomX, kRoomY, kRoomZ1), p3(kRoomX, kRoomY, kRoomZ0)}, 1u},
+	{{p3(-kRoomX, -kRoomY, kRoomZ0), p3(kRoomX, -kRoomY, kRoomZ0),
+	  p3(kRoomX, -kRoomY, kRoomZ1), p3(-kRoomX, -kRoomY, kRoomZ1)}, 2u},
+	{{p3(-kRoomX, -kRoomY, kRoomZ0), p3(-kRoomX, -kRoomY, kRoomZ1),
+	  p3(-kRoomX, kRoomY, kRoomZ1), p3(-kRoomX, kRoomY, kRoomZ0)}, 3u},
+	{{p3(kRoomX, -kRoomY, kRoomZ0), p3(kRoomX, kRoomY, kRoomZ0),
+	  p3(kRoomX, kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1)}, 3u},
+	{{p3(-kRoomX, -kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1),
+	  p3(kRoomX, kRoomY, kRoomZ1), p3(-kRoomX, kRoomY, kRoomZ1)}, 3u},
+	kPanelFaces[0], kPanelFaces[1], kPanelFaces[2], kPanelFaces[3],
+};
+
+// El clipping y el clear cubren todo el framebuffer: los giros de ±60° llevan caras y
+// paneles fuera del viewport central y deben poder entrar por cualquiera de sus bordes.
+constexpr s16 kRoomBoxY = 0;
+constexpr u16 kRoomBoxH = kFbH;
 // Reparto del relleno de sala (F2) por PLANO: una llamada por plano sobre la caja completa
 // (mismo contorno y misma paridad que la llamada de 2 planos; solo cambia la frontera de
 // llamada, no la geometria). Cada etapa cuesta ~1/2 del fill de sala y el resultado es
 // pixel-identico (sin costura de corte: el area fill no ve bordes artificiales).
 
-// Caja FIJA de los planos de panel (2-3): cubre la posicion de los paneles para todo el
-// rango de paneo (+-29 grados). Debe cubrir tambien la posicion en el render ANTERIOR del
-// mismo buffer (hasta 64 px de paneo entre rerenders en la fase rapida), o quedarian
-// paneles fantasma al limpiar solo la caja del frame actual. Filas 44..163.
+// Limpiar toda la guarda de paneles evita restos cuando una barra entra/sale del frustum.
 constexpr s16 kPanelBoxX = 0;
 constexpr u16 kPanelBoxW = kFbW;      // 352 px (22 palabras)
-constexpr s16 kPanelBoxY = static_cast<s16>(kMarginY + 52u);
-constexpr u16 kPanelBoxH = 104u;
+constexpr s16 kPanelBoxY = 0;
+constexpr u16 kPanelBoxH = kFbH;
 
 /// Decimal de `v` en `out` (NUL incluido); devuelve los caracteres escritos.
 u8 u16_to_str(u16 v, char* out) {
@@ -364,7 +365,7 @@ struct PanWindowDemo {
 		scene::SceneResources res {};
 		res.width = kFbW;
 		res.height = kViewportH + kHudLines; // ventana visible 208 + HUD 48 = 256 filas
-		res.rows = kFbH;                    // 224 filas físicas: viewport más guarda vertical
+		res.rows = kFbH;                    // 256 filas físicas: viewport más guarda vertical
 		res.planes = kPlanes;
 		res.buffers = kBuffers;
 		res.copper_bytes = 4096u;
@@ -387,7 +388,7 @@ struct PanWindowDemo {
 		m_scene.takeover(backend); // muestra el buffer 0; el primer Full dibuja el 1
 		m_show_buf = 0u;
 		m_draw_buf = 1u;
-		// El framebuffer tiene ocho filas de guarda arriba y abajo; centrar la ventana antes
+		// El framebuffer tiene 24 filas de guarda arriba y abajo; centrar la ventana antes
 		// del primer update evita enseñar una vista desplazada durante el arranque.
 		patch_window(kCenterS, kMarginY);
 
@@ -410,7 +411,7 @@ struct PanWindowDemo {
 		(void)eng::hw::probe(hw);
 		m_present.configure(eng::graphics::PresentControllerConfig {kPanPolicyBase, kFakeCap},
 				    hw);
-		m_present.reset(camera_pan_x(), camera_pan_y());
+		m_present.reset(0, 0);
 		eng::debug::mark_ready(g_eng_run_status, 0u);
 	}
 
@@ -420,19 +421,26 @@ struct PanWindowDemo {
 			return;
 		}
 		const u32 f = context.frame.frame_index;
+		apply_camera_motion();
 #if defined(K080_OFFSET_TEST)
-		// PRUEBA DE AISLAMIENTO (VALIDATION §3): camara congelada en pan=-128 y ciclo de
+		// PRUEBA DE AISLAMIENTO (VALIDATION §3): cámara congelada y ciclo de offsets 0..16
 		// offsets 0..16 (8 frames cada uno) sobre la ventana. Con el contenido fijo,
 		// cada desplazamiento pedido debe producir EXACTAMENTE ese desplazamiento.
-		m_pan = -128;
+		m_yaw_pan = -128;
+		m_pitch_pan = 0;
 #endif
 #if defined(K080_PAN_FREEZE)
-		// Vista estática para verificación de geometría (captura sin tearing): camara
-		// congelada en el paneo dado (p. ej. 0 = vista simétrica del túnel).
-		m_pan = static_cast<s16>(K080_PAN_FREEZE);
+		// Vista estática para verificación geométrica (captura sin movimiento de cámara).
+		if constexpr (kForcePitch) {
+			m_yaw_pan = 0;
+			m_pitch_pan = static_cast<s16>(K080_PAN_FREEZE);
+		} else {
+			m_yaw_pan = static_cast<s16>(K080_PAN_FREEZE);
+			m_pitch_pan = 0;
+		}
 #endif
-		const s32 pan_x = camera_pan_x();
-		const s32 pan_y = camera_pan_y();
+		const s32 pan_x = m_yaw_pan;
+		const s32 pan_y = m_pitch_pan;
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfFrame);
 		// **Presentación (F2)**: publicación diferida al inicio del campo (el update corre
@@ -448,17 +456,15 @@ struct PanWindowDemo {
 				m_draw_buf = static_cast<u8>(m_pending_buf ^ 1u);
 			}
 			if (pstep.full) {
-				if (kSliceEnabled && (kPitchTest || (m_pan < 96 && m_pan > -96))) {
-					// Fase lenta: rebanado (etapas de <=1 campo; el pan avanza 1 px por
-					// update, muy por debajo del margen de 15 -> los fakes cubren la
-					// latencia de publicacion).
+				if (kSliceEnabled) {
+					// Cada Full se reparte entre VBlanks; el recorrido limita el delta para que
+					// la ventana Fake permanezca dentro de las guardas X/Y durante las etapas.
 					m_stage = Stage::Clip;
 					m_stage_pan_x = pan_x;
 					m_stage_pan_y = pan_y;
 					m_stage_cycles = 0u;
 				} else {
-					// Fase rapida: 16 px/update; no hay margen para interpolar. Pasada
-					// completa de una vez (las etapas encadenadas en este update).
+					// Ruta de diagnóstico sin rebanado: las etapas se encadenan en este update.
 					ENG_PROF_BEGIN(kProfFull);
 #if defined(ENG_AMIGA)
 					const eng::u32 full_c0 = eng::debug::prof_clock();
@@ -501,7 +507,7 @@ struct PanWindowDemo {
 							   12, 13, 14, 15, 16};
 			pstep.full = false;
 			pstep.publish = false;
-			if constexpr (kPitchTest) {
+			if constexpr (kForcePitch) {
 				pstep.offset_y = static_cast<s16>(kCycle[(f / 8u) % 9u] - 4);
 			} else {
 				pstep.offset_x = kCycle[(f / 8u) % 17u];
@@ -538,27 +544,18 @@ struct PanWindowDemo {
 #endif
 		ENG_PROF_END(kProfPatch);
 
-		// Telemetria por frame (la leen el canal lateral y el verificador):
-		// [31:24] modo, [23:16] offset del eje activo +128, [15:0] pan del eje activo.
-		const s16 active_offset = kPitchTest ? pstep.offset_y : pstep.offset_x;
-		const s32 active_pan = kPitchTest ? pan_y : pan_x;
+		// El verificador lee el eje de la pasada pura; Lissajous publica X y se contrasta por imagen.
+		const bool active_pitch = m_motion_mode == MotionMode::PitchSweep;
+		const s16 active_offset = active_pitch ? pstep.offset_y : pstep.offset_x;
+		const s32 active_pan = active_pitch ? pan_y : pan_x;
 		g_eng_run_status.detail =
 			(static_cast<u32>(pstep.publish ? 0xa1u : 0xa2u) << 24u) |
 			(static_cast<u32>(static_cast<u8>(active_offset + 128)) << 16u) |
 			(static_cast<u32>(static_cast<u16>(active_pan)) & 0xffffu);
 
-		// El modo pitch prueba ±8 scanlines; el yaw recorre ±128 px con una zona lenta
-		// de interpolación (1 px/frame) y extremos rápidos de 16 px/update.
-		const s32 v = kPitchTest ? 1 : ((m_pan < 96 && m_pan > -96) ? 1 : 16);
-		m_pan += m_dir * v;
-		const s32 pan_limit = kPitchTest ? static_cast<s32>(kMarginY) : 128;
-		if (m_pan > pan_limit) {
-			m_pan = static_cast<s16>(pan_limit);
-			m_dir = -1;
-		} else if (m_pan < -pan_limit) {
-			m_pan = static_cast<s16>(-pan_limit);
-			m_dir = 1;
-		}
+#if !defined(K080_OFFSET_TEST) && !defined(K080_PAN_FREEZE)
+		advance_camera_motion();
+#endif
 		ENG_PROF_END(kProfFrame);
 	}
 
@@ -567,10 +564,72 @@ struct PanWindowDemo {
 	}
 
 private:
-	/// Paneo horizontal de la ventana; en el modo pitch el eje X permanece centrado.
-	s32 camera_pan_x() const { return kPitchTest ? 0 : m_pan; }
-	/// Paneo vertical en filas completas; el modo yaw no altera el origen vertical.
-	s32 camera_pan_y() const { return kPitchTest ? m_pan : 0; }
+	/// Escala la tabla Q12 a la unidad de paneo: 268 representa 60° de cámara.
+	static s32 lissajous_pan(u16 phase, s32 amplitude) {
+		const s32 sine = eng::retro::kSinQ12[phase & (eng::retro::kAngleSteps - 1u)];
+		return (sine * amplitude) >> 12;
+	}
+
+	/// Prepara la pose del update actual usando tabla de seno, sin trigonometría en runtime.
+	void apply_camera_motion() {
+		switch (m_motion_mode) {
+		case MotionMode::YawSweep:
+			m_yaw_pan = m_sweep_pan;
+			m_pitch_pan = 0;
+			break;
+		case MotionMode::PitchSweep:
+			m_yaw_pan = 0;
+			m_pitch_pan = m_sweep_pan;
+			break;
+		case MotionMode::Lissajous:
+			m_yaw_pan = lissajous_pan(m_lissajous_phase, kLissajousPan);
+			m_pitch_pan = lissajous_pan(static_cast<u16>(m_lissajous_phase * 2u),
+						   kLissajousPan);
+			break;
+		}
+	}
+
+	/// Recorre yaw −60°..+60°, después pitch −60°..+60° y cierra con una curva 1:2.
+	void advance_camera_motion() {
+		if (m_motion_mode == MotionMode::Lissajous) {
+			m_lissajous_phase = static_cast<u16>(m_lissajous_phase + kLissajousPhaseStep);
+			++m_lissajous_frames;
+			if (m_lissajous_frames >= kLissajousFrames) {
+				m_lissajous_phase = 0u;
+				m_lissajous_frames = 0u;
+				if (!kForceLissajous) {
+					m_motion_mode = MotionMode::YawSweep;
+					m_sweep_pan = 0;
+					m_sweep_dir = 1;
+				}
+			}
+			return;
+		}
+
+		const s32 previous = m_sweep_pan;
+		const s32 step = m_motion_mode == MotionMode::YawSweep ? kYawSweepStep : kPitchSweepStep;
+		s32 next = previous + m_sweep_dir * step;
+		if (next >= kSweepPan) {
+			next = kSweepPan;
+			m_sweep_dir = -1;
+		} else if (next <= -kSweepPan) {
+			next = -kSweepPan;
+			m_sweep_dir = 1;
+		}
+		if (!kForcePitch && !kForceLissajous && m_sweep_dir > 0 && previous < 0 && next >= 0) {
+			m_sweep_pan = 0;
+			m_sweep_dir = 1;
+			if (m_motion_mode == MotionMode::YawSweep) {
+				m_motion_mode = MotionMode::PitchSweep;
+			} else {
+				m_motion_mode = MotionMode::Lissajous;
+				m_lissajous_phase = 0u;
+				m_lissajous_frames = 0u;
+			}
+			return;
+		}
+		m_sweep_pan = next;
+	}
 
 	// --- Display: emitido una vez; punteros y BPLCON1 parcheables --------------------
 	void emit_display(scene::Scene& sc) {
@@ -644,27 +703,26 @@ private:
 	}
 
 	// --- Pasada completa por ETAPAS (F2) ----------------------------------------------
-	// El Full se divide en etapas de coste <= 1 campo (clip -> sala en 2 bandas ->
-	// paneles), una por update. Entre etapas el bucle vuelve al VBlank y la pantalla
-	// sigue presentando el Full anterior desplazado (fakes); la publicacion sigue
-	// diferida al inicio de campo. En la fase rapida (16 px/update) no hay margen para
-	// interpolar: se renderiza de una vez (etapas encadenadas en el mismo update).
+	// Clip -> sala (dos planos) -> paneles; entre etapas se muestra el Full anterior
+	// desplazado. Los recorridos limitan la velocidad para que el delta permanezca dentro
+	// de ambas guardas durante la publicación diferida.
 	enum class Stage : u8 { None, Clip, Room0, Room1, Panels };
-
 	void stage_clip(s32 pan_x, s32 pan_y) {
 		// Sin `wait_blitter` inicial: los fills son sincronos (esperan al Blitter al
 		// terminar) y el buffer de dibujo no se publica hasta completar la pasada.
-		// Vista mundo→cámara: yaw (Ry) usa pan_x; la sonda pitch (Rx) usa pan_y. `retro::turns`
-		// tiene 4096 pasos/vuelta: 1 px de imagen ≈ 2,5465 pasos, calculado como (pan*10430)>>12.
+		// Vista mundo→cámara: yaw (Ry) y pitch (Rx) se calibran a 4096 pasos/vuelta;
+		// 268 px equivalen a ±60° usando 2,5465 pasos por px.
 		eng::math3d::Affine3<> view = eng::math3d::Affine3<>::identity();
-		const s16 yaw_steps = kPitchTest
-				      ? 0
-				      : static_cast<s16>(-((pan_x * 10430) >> 12));
-		const s16 pitch_steps = kPitchTest ? static_cast<s16>((pan_y * 10430) >> 12) : 0;
+		const s16 yaw_steps = static_cast<s16>(-((pan_x * 10430) >> 12));
+		const s16 pitch_steps = static_cast<s16>((pan_y * 10430) >> 12);
 		eng::math3d::load_rotate(view.m, eng::retro::turns(static_cast<u16>(pitch_steps)),
 					 eng::retro::turns(static_cast<u16>(yaw_steps)),
 					 eng::retro::turns(0u));
-#if !defined(K080_NO_CULL) && !K080_PITCH_TEST
+		using CT = eng::math::scalar_traits<eng::coord>;
+		const eng::graphics::Camera3D<eng::coord> camera {
+			CT::from_int(kFocal), kCx, kCy, CT::from_int(4),
+			CT::from_int(kFbW / 2u), CT::from_int(kFbH / 2u)};
+#if !defined(K080_NO_CULL)
 		// --- Culling de entrada (3D_GAME_ARCHITECTURE §Visibilidad) -------------------------
 		// Mismas formulas que `eng::math3d::aabb_visible` (frustum.hpp): AABB de la cara
 		// contra la cuna yaw + franja + profundidad. Aqui el escalar partido de la demo
@@ -691,13 +749,6 @@ private:
 		constexpr s32 kYB2 =
 			(static_cast<s32>(kFbH / 2u) * 1536 / static_cast<s32>(kFocal)) * 2;
 #endif
-#if K080_PITCH_TEST
-		using CT = eng::math::scalar_traits<eng::coord>;
-		const eng::graphics::Camera3D<eng::coord> camera {
-			CT::from_int(kFocal), kCx, kCy, CT::from_int(4),
-			CT::from_int(kFbW / 2u), CT::from_int(kFbH / 2u)};
-#endif
-
 		// Proyeccion + recorte 2D. El recorte de Sutherland-Hodgman (4 pasadas) solo se
 		// paga cuando la cara CRUZA el borde: si su AABB esta dentro se envia tal cual y
 		// si esta fuera se descarta (fast path; la mayoria de las caras en la vista tipica).
@@ -713,7 +764,10 @@ private:
 
 		ENG_PROF_BEGIN(kProfClip);
 		for (u32 i = 0u; i < kFaceCount; ++i) {
-#if !defined(K080_NO_CULL) && !K080_PITCH_TEST
+			// El culling yaw-only solo se usa en su rango A/B validado; pitch y giros amplios
+			// se resuelven con clipping de cámara para no descartar caras que entran al frustum.
+#if !defined(K080_NO_CULL)
+			if (pan_y == 0 && pan_x >= -kYawCullPanLimit && pan_x <= kYawCullPanLimit) {
 			{
 				// AABB crudo de la cara; centro/extension DOBLADOS (2c = min+max,
 				// 2h = max-min) para no dividir a 2. Test conservador (cruzar = visible).
@@ -756,14 +810,11 @@ private:
 					continue;
 				}
 			}
+			}
 #endif
 			eng::math3d::Vec3 cam[4];
 			eng::math3d::mesh_transform(eng::Span<const eng::math3d::Vec3>(kFaces[i].v, 4),
 						    view, eng::Span<eng::math3d::Vec3>(cam, 4));
-			u32 n = 4u;
-#if K080_PITCH_TEST
-			// Pitch puede cruzar near o los laterales: el clip de cámara general es el fallback
-			// verificado por HOST-481; se desactiva el culling yaw-only en esta sonda.
 			eng::graphics::CamVertex<eng::coord> cam_face[4];
 			eng::graphics::CamVertex<eng::coord> clipped[16];
 			for (u8 k = 0u; k < 4u; ++k) {
@@ -775,8 +826,8 @@ private:
 				m_fn[i] = 0u;
 				continue;
 			}
-			n = clipped_n;
-			for (u8 k = 0u; k < n; ++k) {
+			u32 n = clipped_n;
+			for (u8 k = 0u; k < clipped_n; ++k) {
 				s16 sx = 0, sy = 0;
 				if (!eng::graphics::project_camera_vertex(clipped[k], camera, sx, sy)) {
 					n = 0u;
@@ -788,14 +839,6 @@ private:
 				m_fn[i] = 0u;
 				continue;
 			}
-#else
-			for (u32 k = 0u; k < 4u; ++k) {
-				s16 sx = 0;
-				s16 sy = 0;
-				eng::graphics::project_perspective(cam[k], kFocal, kCx, kCy, sx, sy);
-				in[k] = eng::retro::v2(sx, sy);
-			}
-#endif
 			if (box_inside(in, n, clip)) {
 				// Fast path: la cara completa cabe en el framebuffer sobredimensionado.
 			} else if (box_outside(in, n, clip)) {
@@ -810,9 +853,8 @@ private:
 				m_fn[i] = 0u;
 				continue;
 			}
-			if (i < 5u) {
-				// Sala: coords locales a la caja del tubo (la banda se recorta en la
-				// etapa de relleno, con la misma caja como referencia).
+			if (i < kRoomFaceCount) {
+				// Las caras de la sala comparten el clip y la caja del framebuffer.
 				if (!box_inside(in, n, room_box)) {
 					n = box_outside(in, n, room_box)
 						    ? 0u
@@ -902,7 +944,7 @@ private:
 		// Los vertices ya estan en coords locales de la caja de sala (sin recorte extra:
 		// el contorno y la paridad son los mismos que en la llamada de 2 planos).
 		eng::graphics::PlaneFillBuilder<kFaceCount> fb {};
-		for (u32 i = 0u; i < 5u; ++i) {
+		for (u32 i = 0u; i < kRoomFaceCount; ++i) {
 			if (m_fn[i] < 3u) {
 				continue;
 			}
@@ -958,7 +1000,7 @@ private:
 		eng::retro::Vec2 in[kMaxVerts];
 		eng::retro::Vec2 tmp[kMaxVerts];
 		eng::graphics::PlaneFillBuilder<kFaceCount> fb {};
-		for (u32 i = 5u; i < kFaceCount; ++i) {
+		for (u32 i = kRoomFaceCount; i < kFaceCount; ++i) {
 			u32 n = m_fn[i];
 			if (n < 3u) {
 				continue;
@@ -1072,21 +1114,16 @@ private:
 		(void)u16_to_str(static_cast<u16>(m_fakes), buf);
 		m = str_cat(text, m, buf);
 		pad_to(text, m, kHudLineChars);
-		// Linea 4: diagnostico del frame (modo, offset, caras/vertices) y paneo.
+		// Línea 4: modo de cámara y ángulos yaw/pitch reales del recorrido.
 		char text2[64] {};
 		u8 n = 0u;
-		n = str_cat(text2, n, step.publish ? "FULL OFF " : "FAKE OFF ");
-		const s16 shown_offset = kPitchTest ? step.offset_y : step.offset_x;
-		(void)i16_to_str(shown_offset, buf);
+		n = str_cat(text2, n, "MODE ");
+		n = str_cat(text2, n, motion_mode_name(m_motion_mode));
+		n = str_cat(text2, n, " Y ");
+		(void)i16_to_str(pan_degrees(m_yaw_pan), buf);
 		n = str_cat(text2, n, buf);
-		n = str_cat(text2, n, " FAC ");
-		(void)u16_to_str(static_cast<u16>(m_dbg_faces), buf);
-		n = str_cat(text2, n, buf);
-		n = str_cat(text2, n, " VER ");
-		(void)u16_to_str(static_cast<u16>(m_dbg_verts), buf);
-		n = str_cat(text2, n, buf);
-		n = str_cat(text2, n, kPitchTest ? " TILT " : " PAN ");
-		(void)i16_to_str(static_cast<s16>(m_pan), buf);
+		n = str_cat(text2, n, " P ");
+		(void)i16_to_str(pan_degrees(m_pitch_pan), buf);
 		n = str_cat(text2, n, buf);
 		n = str_cat(text2, n, " K ");
 		(void)u16_to_str(static_cast<u16>(m_present.max_consecutive_fakes()), buf);
@@ -1101,6 +1138,19 @@ private:
 		ENG_PROF_END(kProfHudLine2);
 	}
 
+	static const char* motion_mode_name(MotionMode mode) {
+		switch (mode) {
+		case MotionMode::YawSweep: return "YAW";
+		case MotionMode::PitchSweep: return "PITCH";
+		case MotionMode::Lissajous: return "LISSAJOUS";
+		}
+		return "YAW";
+	}
+
+	static s16 pan_degrees(s32 pan) {
+		return static_cast<s16>((pan * 60) / kSweepPan);
+	}
+
 private:
 	bool m_ready = false;
 	scene::Scene m_scene {};
@@ -1111,8 +1161,15 @@ private:
 	eng::copper::MoveSlot m_plane_hi[kPlanes] {};
 	eng::copper::MoveSlot m_plane_lo[kPlanes] {};
 	eng::graphics::PresentController m_present {};
-	s32 m_pan = kPitchTest ? -static_cast<s32>(kMarginY) : -128; ///< paneo del eje activo, en píxeles
-	s32 m_dir = 1;
+	MotionMode m_motion_mode = kForcePitch ? MotionMode::PitchSweep
+				      : (kForceLissajous ? MotionMode::Lissajous
+							 : MotionMode::YawSweep);
+	s32 m_yaw_pan = 0;
+	s32 m_pitch_pan = 0;
+	s32 m_sweep_pan = 0;
+	s32 m_sweep_dir = 1;
+	u16 m_lissajous_phase = 0u;
+	u16 m_lissajous_frames = 0u;
 	u8 m_show_buf = 0u;
 	u8 m_draw_buf = 1u;
 	u8 m_pending_buf = 0u; ///< buffer del Full pendiente de publicar (lo decide `m_present`)

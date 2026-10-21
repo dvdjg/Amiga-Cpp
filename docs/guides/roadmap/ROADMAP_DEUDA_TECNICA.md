@@ -538,7 +538,7 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Plan:** (a) comparar el asm de -O2 vs -O3 de las funciones calientes del TU (bucle de caras, litter_line_eor_prepare inline y los helpers de fill) para localizar el punto; (b) si es un bug del compilador, registrar la bandera/version y evitarla en los uild.args de demos (documentar la comprobacion visual obligatoria cuando se active -O3 en un TU); (c) revisar las demas demos con DEMO_OPT=-O3 (p. ej. 116) con el pase C de vision.
 
-## DT-043 - 080: la sala se renderiza INVERTIDA con yaw positivo (pan > 0) - ABIERTA (preexistente a F2)
+## DT-043 - 080: sala invertida con yaw positivo - RESUELTA EN EL ALCANCE MEDIDO (causa raíz no aislada)
 
 **Síntoma:** con la cámara congelada en pan=+13 (`-DK080_PAN_FREEZE=13`) la sala muestra el **suelo (marrón) arriba** y el **techo (azul) abajo**, con las paredes como cuñas invertidas; los **paneles (planos 2-3) están correctos**. A pan 0 y −13 el render es correcto. En la corrida dinámica el defecto aparece al cruzar a pan positivo (capturas a PAN +13/+43 con la sala «desplegada»). El modelo de visión (`qwen3-vl:8b`) describe la imagen invertida como **coherente** («suelo abajo»): el eval sin contraste no vale como veredicto.
 
@@ -546,7 +546,7 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Bisección (2026-10-19):** con `-DK080_CPU_FILL` (mismas caras, mismo clip, relleno CPU) el +13 sale **correcto** ⇒ geometría/clip bien; el defecto está en el **camino Blitter** y solo en el **plano 1**. Descartados por A/B el **dedupe de aristas** (misma imagen rota al desactivarlo) y los **vértices duplicados** (VER=40, ninguno). El volcado de la chip RAM por canal lateral devuelve ceros en la zona de la escena (el programa sí se lee): usar memwatch/GDB o la consola 0xB70000 para el volcado fino.
 
-**Siguiente paso:** reproducir en un HOST el trazado ONEDOT + area fill con los polígonos exactos a +13 y comparar la paridad por fila contra `fill_polygons_by_plane_cpu` (el clip ya está descartado); sospecha: cruces de contorno que faltan por aristas exactamente horizontales o por el redondeo de la línea. Si se confirma estructural, dibujar las aristas horizontales del contorno con un blit de rectángulo (ONEDOT no las traza) o corregir la paridad del fill. Después, añadir el caso +yaw a la verificación congelada de la demo.
+**Verificación de cierre (2026-10-20–21):** el síntoma histórico no se reproduce en yaw a `K080_PAN_FREEZE=13` y `65`; el suelo queda abajo y el techo arriba, con capturas pixel-idénticas culling ON/OFF (`MAD=0`). La secuencia de 128 updates anterior pasa el contrato Full/Fake. Para los barridos nuevos ±60°, el culling yaw-only se desactiva fuera de `|pan|≤65`: en el ángulo +60° el camino culling habilitado antes descartaba superficie visible y mostraba solo una franja; con el fallback de clipping general la pared entra al encuadre. Yaw/pitch puros y Lissajous pasan secuencias de 32 updates y el ciclo integrado muestra el frustum en ambos sentidos. HOST-479 coincide temporalmente con la mejora de clipping, pero la causa raíz histórica no está aislada; el alcance funcional nuevo queda descrito en `080_camera_pan_window/VALIDATION.md` §§13–14. Flicker/tearing y cadencia objetivo siguen abiertos en DT-034.
 
 ## DT-041 - `clip_edge` desborda con tramos de arista > s16 (cruce basura lejos del real) - RESUELTA
 

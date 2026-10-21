@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-20T23:06:16.792Z
+- Fecha: 2026-10-21T00:54:08.202Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000_f0081.png, frame_004_f0085.png, frame_009_f0090.png, frame_013_f0094.png, frame_018_f0099.png, frame_022_f0103.png, frame_027_f0108.png, frame_031_f0112.png (8)
+- Frames: frame_000.png, frame_037.png, frame_074.png, frame_111.png, frame_148.png, frame_185.png, frame_222.png, frame_259.png (8)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,28 +15,28 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las cuatro imágenes muestran una escena gráfica estática, con una única variación entre ellas: el valor del parámetro "PAN" en la línea de texto inferior.
+**Imagen 1:**
+- **Escena:** Vista frontal de un pasillo o sala con paredes azules, techo verde y suelo marrón. En el centro, hay cuatro columnas verticales: dos azules cian a los lados, una amarilla en el centro izquierdo y una naranja en el centro derecho.
+- **Texto en la parte inferior:** `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 04FUELLO FAKEFAKE 337`, `MODE YAW Y 09PP00KK00`.
+- **Estado:** La cámara está centrada en las columnas.
 
-**Descripción general de la escena:**
-- **Fondo:** Una pared de color verde oscuro a ambos lados, con un techo de color azul oscuro en la parte superior.
-- **Suelo:** Una superficie marrón que se extiende desde la parte inferior de la imagen hacia el fondo.
-- **Objetos centrales:** Dos pares de barras verticales, cada par compuesto por dos barras adyacentes. El par de la izquierda es azul cian y amarillo; el par de la derecha es azul cian y naranja. Están situados en el fondo, sobre el suelo.
-- **Texto inferior:** Una línea de texto en blanco sobre fondo negro que muestra parámetros de la cámara.
+**Imagen 2:**
+- **Escena:** La cámara ha girado hacia la derecha. La vista ahora muestra principalmente una pared azul, con el suelo marrón en la parte inferior derecha. Las columnas están parcialmente visibles en el borde derecho.
+- **Texto en la parte inferior:** `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 8848FULLL2162FAKE6997`, `MODE PANCY 446 P 09KK00`.
+- **Estado:** La cámara ha realizado un movimiento de panning (girar horizontalmente).
 
-**Cambio entre imágenes:**
-- Las imágenes 1 y 2 son idénticas.
-- Las imágenes 3 y 4 son idénticas.
-- La única diferencia es en el valor del parámetro "PAN" en la línea de texto:
-  - En las imágenes 1 y 2: `PAN -19`
-  - En las imágenes 3 y 4: `PAN 13`
+**Imagen 3:**
+- **Escena:** La cámara ha girado hacia la izquierda. La vista muestra ahora una pared verde en el techo y las paredes laterales, con las columnas visibles en el centro. El suelo es marrón.
+- **Texto en la parte inferior:** `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 2696 FULL 534 FAKE 1879`, `MODE BISCAJOU8 P 019 K K 0`.
+- **Estado:** La cámara ha girado hacia la izquierda desde la posición de la imagen 2.
 
-**Elementos observables:**
-- **Contorno de los objetos:** Los contornos de las barras son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni colgando en los bordes.
-- **Fondo alrededor de los objetos:** El fondo permanece uniforme y sin alteraciones alrededor de las barras.
-- **Textura y color:** Los colores son sólidos y uniformes en todas las imágenes.
-- **Posición de los objetos:** La posición de las barras y el suelo no cambia entre las imágenes.
+**Imagen 4:**
+- **Escena:** La cámara ha girado hacia la derecha nuevamente. Las columnas están ahora en el lado derecho de la pantalla, con el suelo marrón en la parte inferior y una pared azul en el fondo.
+- **Texto en la parte inferior:** `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 3560 FULL 650 FAKE 2931`, `MODE EANSBJOUPY0-K P 3 K 0`.
+- **Estado:** La cámara ha girado hacia la derecha desde la posición de la imagen 3.
 
-**Observaciones:**
-- No hay parpadeo, recortes ni elementos superpuestos.
-- La escena es completamente estática excepto por el cambio en el valor del parámetro "PAN" en la línea de texto.
-- El cambio en "PAN" no se refleja en la posición visual de los objetos en la pantalla, lo que sugiere que este parámetro es un valor de configuración o estado interno del programa, no una transformación visual aplicada a la escena.
+**Cambios entre imágenes:**
+- Las columnas se mueven horizontalmente en la pantalla a medida que la cámara gira, pero sus contornos son limpios y no presentan bandas, halos ni píxeles cortados.
+- El fondo (paredes, techo, suelo) cambia de forma coherente con el movimiento de la cámara, sin artefactos visibles.
+- El texto en la parte inferior cambia en cada imagen, reflejando el estado de la cámara y el marco de video, pero no hay elementos superpuestos ni incompletos.
+- No hay parpadeos ni recortes visibles en ninguna de las imágenes.

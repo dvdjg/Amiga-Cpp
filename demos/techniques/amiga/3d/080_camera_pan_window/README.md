@@ -1,10 +1,10 @@
-# 080_camera_pan_window — fotogramas intermedios por paneo de cámara (F1)
+# 080_camera_pan_window — barridos de cámara 3D Full/Fake
 
-Demo de presentación 3D Full/Fake: una pasada completa renderiza la sala y el display interpola movimientos pequeños desplazando una ventana dentro de un framebuffer sobredimensionado. El modo predeterminado prueba yaw/Y con paneo horizontal (F1); `K080_PITCH_TEST=1` prueba pitch/X con paneo vertical por filas completas (F3 experimental). Técnica documentada en [`camera-pan-fake-frames.md`](../../../../docs/reference/amiga/techniques/camera-pan-fake-frames.md).
+Demo de presentación 3D Full/Fake: el recorrido predeterminado barre yaw ±60° (120° de campo), luego pitch ±60° y finalmente combina ambos ejes con una curva Lissajous 1:2 de ±40°. Los Fakes desplazan la ventana en X/Y mientras el Full siguiente se renderiza; el framebuffer sobredimensionado y el clipping general dejan ver superficies y paneles entrando y saliendo del frustum. Técnica documentada en [`camera-pan-fake-frames.md`](../../../../docs/reference/amiga/techniques/camera-pan-fake-frames.md).
 
-- Sala 3D (tubo: suelo, techo, paredes, pared del fondo) + 4 paneles verticales de color (uno **naranja único**, marcador de movimiento), rellenos con el relleno por plano del Blitter (`PlaneFillBuilder` + `AmigaBackend::fill_polygons_by_plane`).
-- Framebuffer 352×224 con viewport 320×208, márgenes de 16 px en X y ocho filas en Y. **Full**: render del FB entero y ventana centrada (S=16, T=8). **Fake**: sin render; se parchean `BPLxPT` y `BPLCON1` para X, y el puntero por filas completas para Y; el Fake representa el Full anterior desplazado (contrato de píxel).
-- La política 2D `eng::graphics::pan_window.hpp` (HOST-470) comprueba ambos márgenes; `PresentController` (HOST-476) devuelve offsets X/Y, aplica pacing medido y publica el Full al inicio de campo. El modo predeterminado panea yaw/eje Y en X; el build diagnóstico `K080_PITCH_TEST=1` panea pitch/eje X en Y usando filas OCS completas y clipping de cámara general. El camino asíncrono por cola de blits se aconseja solo con Fast RAM (`async_ok`).
+- Sala 3D con suelo ocre, techo verde y paredes/fondo azul (colores separados) + techo y pared del fondo distinguibles por color; 4 paneles verticales cian/amarillo/naranja, con el **naranja único** como marcador de frustum. Se rellenan por plano con el Blitter (`PlaneFillBuilder` + `AmigaBackend::fill_polygons_by_plane`).
+- Framebuffer 352×256, viewport 320×208 y guardas de 16 px en X/24 filas en Y. **Full**: clipping de cámara general y render del framebuffer; **Fake**: sin render, ventana X por `BPLxPT`/`BPLCON1` y Y por filas completas del puntero. Ambos ejes conservan el contrato de desplazar el último Full dentro de sus márgenes.
+- `eng::graphics::PresentController` (HOST-476) aplica pacing y publica Full al inicio de campo. `K080_PITCH_TEST=1` y `K080_LISSAJOUS_TEST=1` fuerzan una fase para validarla por separado. El culling yaw-only se limita a ±65 unidades de paneo (≈14,5°); en pitch y giros amplios se usa el clipping general. La cola asíncrona de blits se aconseja solo con Fast RAM (`async_ok`).
 - **Mezcla de colores con damero a nivel de píxel** (`eng::graphics::fill_pattern.hpp`, HOST-474): los dos planos de la sala llevan el **damero 1×1 y su inverso** (`fill_dither_plane_cpu`, 2 filas por plano), y el backend los aplica por fases (`D = A & B`) tras el fill; cada cara queda **fundiendo dos índices base** (paredes/suelo con pares 0/1, 0/2, 1/2) — la paleta gana tonos que no están en ella (oliva = 1⊕2, malva = 1⊕0). Los paneles quedan sólidos (el marcador naranja conserva su color). `-DK080_NO_PATTERN` deja la sala sólida (A/B del coste del paso de patrón, ~+50k al Full).
 - HUD en franja de 1 bitplane (líneas 252..299) con versión y telemetría (FRAME/FULL/FAKE, modo+OFF, caras/tamaño, PAN o TILT, K).
 
@@ -15,7 +15,7 @@ Antes de escribir la demo se comprobó qué existe ya en el engine para no dupli
 - **Relleno de la escena**: `eng::graphics::PlaneFillBuilder` + `AmigaBackend::fill_polygons_by_plane` (relleno por plano con contorno EOR + area fill; patrón de `demos/techniques/amiga/blitter/203_polygon_planes`); no se añadió ningún rasterizador nuevo.
 - **Política de paneo**: nueva cabecera `eng::graphics/pan_window.hpp` (con test host **HOST-470**): no existía nada equivalente (se buscó `pan`, `fake`, `window` en `engine/`).
 - **Convención de scroll fino**: `eng::graphics::fine_scroll_coarse`/`fine_delay`/`fine_scroll_ddfstrt` (`engine/include/eng/graphics/playfield_scroll.hpp`); no se re-derivó la aritmética.
-- **Cámara/proyección**: `eng::graphics::project_perspective` + `eng::math3d::load_rotate` (`gfx3d.hpp`) y recorte 2D `eng::retro::clip_polygon` (lib2d); no se duplicó geometría.
+- **Cámara/proyección**: `eng::math3d::load_rotate` (`gfx3d.hpp`) y clipping/proyección de cámara `eng::graphics::{clip_camera_polygon, project_camera_vertex}` (`render3d.hpp`); el recorte 2D final reutiliza `eng::retro::clip_polygon`.
 - **Composición de display**: `eng::graphics::composition` (`Scene`, `Scheduler`, `Plan`, `bplcon0_for`) con la lista emitida una vez y parcheada por frame (patrón de `TileScrollScene` en `graphics/drivers/tile_scroll.hpp`).
 - **HUD**: `eng::playfield::Surface::draw_text_words` (texto por palabras, demo 120); no se añadió fuente ni bucle por píxel.
 
@@ -27,9 +27,9 @@ No se usan los patrones de bajo nivel vigilados por el gate `prior-art` (`planar
 - `src/VISION.md` — evaluación con el modelo de visión local (prompt canónico).
 - `VALIDATION.md` — evidencia: contrato de aislamiento, secuencia, visión, cadencia y deuda.
 
-## Estado (2026-10-20): **YAW VERIFICADO EN EL ALCANCE MEDIDO; PITCH EXPERIMENTAL**
+## Estado (2026-10-21): **BARRIDOS 120° Y LISSAJOUS IMPLEMENTADOS; VALIDACIÓN EN CURSO**
 
-El contrato Full/Fake de yaw pasó una nueva secuencia de 32 frames tras los cambios del controlador, y el culling no cambia los píxeles en poses congeladas de pan +13/+65. El build de prueba `K080_PITCH_TEST=1` activa paneo vertical/pitch; su contrato paso-a-paso pasa 32 frames con `--axis y`, y una secuencia visual de intervalo cambia en 23/23 pares. Ollama dio falsos negativos e interpretaciones parciales incluso al comparar extremos recortados; los diffs objetivos y la inspección de frames confirman el desplazamiento, con alcance y costuras documentados en `VALIDATION.md`. La cadencia base de F1 sigue por debajo de 12,5 Hz; el usuario acepta provisionalmente los FPS actuales para continuar sin relajar el umbral del roadmap.
+Los barridos puros yaw y pitch pasan 32 frames por paso, con contrato de ventana en X/Y, y la trayectoria Lissajous pasa 15 pares de Fake en comparación bidimensional. Las pruebas congeladas ±60° muestran superficies y paneles entrando/saliendo del frustum; el culling se omite fuera de su alcance yaw validado. La secuencia integrada de 260 muestras cubre yaw, pitch, Lissajous y el retorno al inicio; cambian 258 pares adyacentes y el modelo de visión reconoce los giros aunque confunde algunos valores del HUD. La cadencia base continúa aceptada provisionalmente por el usuario y no se optimiza en esta pasada. Los límites están en `VALIDATION.md`.
 
 ## Build / run / analyze
 
@@ -41,6 +41,9 @@ node ./tools/analyze/verify-080-pan-window.mjs --sequence-dir out/run/080_camera
 DEMO_OPT=-O3 DEMO_FLAGS="-fno-tree-vectorize -DK080_PITCH_TEST=1" bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --debug --clean
 bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --sequence-step-frames 16
 node ./tools/analyze/verify-080-pan-window.mjs --sequence-dir out/run/080_camera_pan_window/A500_debug/sequence --axis y
+DEMO_OPT=-O3 DEMO_FLAGS="-fno-tree-vectorize -DK080_LISSAJOUS_TEST=1" bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --debug --clean
+bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/080_camera_pan_window --sequence-step-frames 32
+node ./tools/analyze/verify-080-pan-window.mjs --sequence-dir out/run/080_camera_pan_window/A500_debug/sequence --axis xy
 node ./tools/analyze/analyze-frame-sequence.sh out/run/080_camera_pan_window/A500_debug/sequence
 node ./tools/debug/profile.mjs 080_camera_pan_window A500_debug 4
 ```
