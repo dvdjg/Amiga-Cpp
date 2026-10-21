@@ -3,8 +3,8 @@
 // ============================================================================
 //
 // Presentación Full/Fake con barridos de cámara de 120° en yaw y pitch, seguidos de una
-// trayectoria Lissajous combinada. Los Fake desplazan la ventana dentro del framebuffer
-// sobredimensionado mientras el siguiente render completo se reparte entre VBlanks.
+// trayectoria Lissajous combinada. Tras cada Full, 1–3 Fake frames desplazan la ventana
+// dentro del framebuffer sobredimensionado según el tiempo real del render.
 //
 //   framebuffer 352×256; viewport 320×208; guardas X=16 px, Y=24 filas
 //
@@ -114,24 +114,50 @@ constexpr s32 kYawCullPanLimit = 65; // poses congeladas HOST-478: ±13/±65, no
 constexpr s32 kYawSweepStep = 1;   // 0,22°/update; conserva margen para la publicación diferida
 constexpr s32 kPitchSweepStep = 1; // 0,22°/update; el Fake vertical avanza una fila
 constexpr s32 kLissajousPan = 180; // ±40° por eje para la fase combinada
-constexpr u16 kLissajousPhaseStep = 5; // 819 updates; Δpitch máx. < 2,8 filas/update
+#ifndef K080_LISSAJOUS_PHASE_STEP
+#define K080_LISSAJOUS_PHASE_STEP 5
+#endif
+#ifndef K080_CUBE_FREEZE
+#define K080_CUBE_FREEZE 0
+#endif
+#ifndef K080_CUBE_PROBE
+#define K080_CUBE_PROBE 0
+#endif
+#ifndef K080_CUBE_START_PHASE
+#define K080_CUBE_START_PHASE 0
+#endif
+static_assert(K080_LISSAJOUS_PHASE_STEP > 0 && K080_LISSAJOUS_PHASE_STEP <= 64,
+	      "K080_LISSAJOUS_PHASE_STEP debe estar entre 1 y 64");
+static_assert(K080_CUBE_FREEZE == 0 || K080_CUBE_FREEZE == 1,
+	      "K080_CUBE_FREEZE congela las cajas para capturas A/B");
+static_assert(K080_CUBE_PROBE == 0 || K080_CUBE_PROBE == 1,
+	      "K080_CUBE_PROBE muestra una sola caja centrada para validar sus caras");
+static_assert(K080_CUBE_START_PHASE < eng::retro::kAngleSteps,
+	      "K080_CUBE_START_PHASE es un índice de la tabla seno");
+constexpr u16 kLissajousPhaseStep = K080_LISSAJOUS_PHASE_STEP;
+// Default 5 = 819 updates/ciclo, Δpitch máx. < 2,8 filas/update; el override solo permite
+// someter el mismo giro combinado a otras velocidades en builds de validación.
 constexpr u16 kLissajousFrames = 4096u / kLissajousPhaseStep;
 constexpr u32 kRoomFaceCount = 5u; // suelo, techo, paredes laterales y pared del fondo
 constexpr u32 kPanelCount = 4u;
 constexpr u32 kFaceCount = 9u;
+constexpr u8 kCubeCount = 2u;
+constexpr u8 kCubeFaceCount = 6u;
+constexpr u8 kCubeFaceSlots = kCubeCount * kCubeFaceCount;
+constexpr s16 kCubeHalf = 28;
+constexpr s16 kCubeOrbitX = 100;
+constexpr s16 kCubeOrbitZ = 80;
+constexpr s16 kCubeOrbitCenterZ = 480;
+constexpr u16 kCubePhaseStep = 5u; // órbita común; spins individuales multiplican la fase
 
 enum class MotionMode : u8 { YawSweep, PitchSweep, Lissajous };
 
-// Paleta (4 planos, 16 colores). La asignacion de BITS importa: el relleno por plano
-// compone por PARIDAD y los planos son independientes, asi que la region de un objeto que
-// tapa a otro conserva los bits del fondo + los del objeto. Diseno por RANGOS:
-//  - Suelo/techo/paredes usan SOLO los bits 0-1 (indices 1..3).
-//  - Los paneles usan SOLO los bits 2-3; y las 4 entradas de cada combinacion de esos
-//    bits (4..7, 8..11, 12..15) llevan el MISMO color, de modo que el panel se ve de su
-//    color sea cual sea la pared que tiene detras (4 bits del fondo no lo tinen).
+// Paleta (4 planos, 16 colores). Sala: índices 1..3; paneles: 4, 8 y 12, elegidos
+// conservando sus colores de marcador. Las cajas escriben los cuatro planos y usan índices
+// distintos por cara (4..15), así sus colores no dependen del color de fondo.
 constexpr eng::Palette32 kPalette {{
-	0x124, 0x986, 0x485, 0x269, 0xfd0, 0xfd0, 0xfd0, 0xfd0,
-	0x0ff, 0x0ff, 0x0ff, 0x0ff, 0xf80, 0xf80, 0xf80, 0xf80,
+	0x124, 0x986, 0x485, 0x269, 0xfd0, 0xfff, 0xf0f, 0x0f0,
+	0x0ff, 0x00f, 0xff0, 0x08f, 0xf80, 0x8f0, 0x0af, 0x80f,
 }};
 
 constexpr eng::debug::Version kVersion {1u, 0u};
@@ -179,20 +205,16 @@ constexpr bool kForceLissajous = K080_LISSAJOUS_TEST != 0;
 constexpr eng::u8 kRoomDitherA = 1u; // índice base A (marrón) de la mezcla
 constexpr eng::u8 kRoomDitherB = 2u; // índice base B (verde)
 
-// Margen 15 px por lado (ventana centrada en S=16; el FB admite S en [1..31]) y racha
-// ADAPTATIVA: el numero de Fakes entre Fulls lo fija `RenderPacing` a partir del coste
-// medido de la pasada completa (HOST-471), con tope `kFakeCap` (tolerancia visual: en la
-// fase lenta cada Fake acumula 1 px de paneo no resuelto). Sin medida aun, racha 1.
-// Full rebanado (F2): en la fase lenta el propio Full produce un update por campo, asi
-// que no hacen falta fakes "de espera"; K=0 publica un Full cada 4 updates (12,5 Hz) y la
-// pantalla se refresca a 50 Hz con las ventanas de la pasada en curso. Sin rebanado
-// (`-DK080_NO_SLICE`, A/B) se mantiene el pacing medido (hasta 3 fakes).
-#if defined(K080_NO_SLICE)
-constexpr bool kSliceEnabled = false;
-#else
+// Los márgenes son 15 px X y 24 filas Y. `RenderPacing` elige 0..3 Fakes usando el máximo
+// de las dos últimas duraciones Full: una medida cara sube la racha inmediatamente y una
+// barata aislada no la reduce. El camino predeterminado rinde un Full y luego inserta los
+// Fakes que justifica su coste; `K080_SLICE_FULL` conserva el render rebanado como A/B.
+#if defined(K080_SLICE_FULL) && !defined(K080_NO_SLICE)
 constexpr bool kSliceEnabled = true;
+#else
+constexpr bool kSliceEnabled = false;
 #endif
-constexpr eng::u8 kFakeCap = kSliceEnabled ? 0u : 3u;
+constexpr eng::u8 kFakeCap = 3u;
 constexpr eng::graphics::PanWindowPolicy kPanPolicyBase {
 	15, static_cast<s16>(kMarginY), kFakeCap};
 
@@ -207,6 +229,7 @@ struct FaceSpec {
 constexpr eng::math3d::Vec3 p3(s16 x, s16 y, s16 z) {
 	return eng::math3d::vec3(x, y, z);
 }
+constexpr eng::math3d::Vec3 kPanAnchor = p3(100, 0, 640); // centro del panel naranja único
 
 // Los paneles usan bits 2-3; el naranja es marcador único. El sesgo de profundidad evita
 // aristas horizontales exactas, que el trazador EOR descarta.
@@ -229,6 +252,24 @@ constexpr FaceSpec kFaces[kFaceCount] = {
 	{{p3(-kRoomX, -kRoomY, kRoomZ1), p3(kRoomX, -kRoomY, kRoomZ1),
 	  p3(kRoomX, kRoomY, kRoomZ1), p3(-kRoomX, kRoomY, kRoomZ1)}, 3u},
 	kPanelFaces[0], kPanelFaces[1], kPanelFaces[2], kPanelFaces[3],
+};
+
+// Caja convexa con el mismo winding ya validado por HOST-481. Las órbitas tienen
+// posiciones opuestas alrededor de (0,0,kCubeOrbitCenterZ); al cruzar la vista frontal,
+// una caja queda claramente delante de la otra y el pintor por profundidad las compone.
+constexpr eng::math3d::Vec3 kCubeVertices[8] = {
+	p3(-kCubeHalf, -kCubeHalf, -kCubeHalf), p3(kCubeHalf, -kCubeHalf, -kCubeHalf),
+	p3(kCubeHalf, kCubeHalf, -kCubeHalf), p3(-kCubeHalf, kCubeHalf, -kCubeHalf),
+	p3(-kCubeHalf, -kCubeHalf, kCubeHalf), p3(kCubeHalf, -kCubeHalf, kCubeHalf),
+	p3(kCubeHalf, kCubeHalf, kCubeHalf), p3(-kCubeHalf, kCubeHalf, kCubeHalf),
+};
+constexpr u8 kCubeFaceIndices[kCubeFaceCount][4] = {
+	{0u, 3u, 2u, 1u}, {4u, 5u, 6u, 7u}, {1u, 2u, 6u, 5u},
+	{0u, 4u, 7u, 3u}, {0u, 1u, 5u, 4u}, {3u, 7u, 6u, 2u},
+};
+constexpr u8 kCubeFaceColors[kCubeCount][kCubeFaceCount] = {
+	{4u, 5u, 6u, 7u, 8u, 9u},       // caja A: seis índices RGB distintos
+	{10u, 11u, 12u, 13u, 14u, 15u}, // caja B: otros seis índices RGB distintos
 };
 
 // El clipping y el clear cubren todo el framebuffer: los giros de ±60° llevan caras y
@@ -315,6 +356,46 @@ bool box_outside(const eng::retro::Vec2* v, u32 n, const eng::retro::Rect& r) {
 }
 
 struct PanWindowDemo {
+	struct ScreenPan {
+		s32 x = 0;
+		s32 y = 0;
+	};
+	struct CubeScreenFace {
+		s16 x[kMaxVerts] {};
+		s16 y[kMaxVerts] {};
+		s32 depth = 0;
+		u8 count = 0u;
+		u8 color = 0u;
+	};
+
+	/// Vista mundo→cámara; la misma matriz alimenta el Full y la predicción del ancla.
+	static eng::math3d::Affine3<> camera_view(s32 yaw_pan, s32 pitch_pan) {
+		eng::math3d::Affine3<> view = eng::math3d::Affine3<>::identity();
+		const s16 yaw_steps = static_cast<s16>(-((yaw_pan * 10430) >> 12));
+		const s16 pitch_steps = static_cast<s16>((pitch_pan * 10430) >> 12);
+		eng::math3d::load_rotate(view.m, eng::retro::turns(static_cast<u16>(pitch_steps)),
+					 eng::retro::turns(static_cast<u16>(yaw_steps)),
+					 eng::retro::turns(0u));
+		return view;
+	}
+
+	/// Convierte el movimiento de la cara naranja proyectada en el offset de ventana X/Y.
+	/// La aproximación es local a la profundidad del ancla (z≈640), no a toda la escena.
+	static ScreenPan projected_anchor_pan(s32 yaw_pan, s32 pitch_pan) {
+		const eng::math3d::Affine3<> view = camera_view(yaw_pan, pitch_pan);
+		const eng::math3d::Vec3 world[1] {kPanAnchor};
+		eng::math3d::Vec3 camera[1] {};
+		eng::math3d::mesh_transform(eng::Span<const eng::math3d::Vec3>(world, 1u), view,
+					    eng::Span<eng::math3d::Vec3>(camera, 1u));
+		if (camera[0].v[2].v <= 4) {
+			return {};
+		}
+		s16 sx = 0;
+		s16 sy = 0;
+		eng::graphics::project_perspective(camera[0], kFocal, kCx, kCy, sx, sy);
+		return ScreenPan {static_cast<s32>(kCx) - sx, static_cast<s32>(kCy) - sy};
+	}
+
 	// --- Setup -----------------------------------------------------------------------
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -411,7 +492,8 @@ struct PanWindowDemo {
 		(void)eng::hw::probe(hw);
 		m_present.configure(eng::graphics::PresentControllerConfig {kPanPolicyBase, kFakeCap},
 				    hw);
-		m_present.reset(0, 0);
+		const ScreenPan anchor = projected_anchor_pan(m_yaw_pan, m_pitch_pan);
+		m_present.reset(anchor.x, anchor.y);
 		eng::debug::mark_ready(g_eng_run_status, 0u);
 	}
 
@@ -439,15 +521,16 @@ struct PanWindowDemo {
 			m_pitch_pan = 0;
 		}
 #endif
-		const s32 pan_x = m_yaw_pan;
-		const s32 pan_y = m_pitch_pan;
+		// El pan de ventana no es el ángulo: es el desplazamiento estimado del panel naranja
+		// al proyectarlo en pantalla. Cada Full vuelve a anclar esta estimación a su pose real.
+		const ScreenPan window_pan = projected_anchor_pan(m_yaw_pan, m_pitch_pan);
+		const s32 pan_x = window_pan.x;
+		const s32 pan_y = window_pan.y;
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfFrame);
-		// **Presentación (F2)**: publicación diferida al inicio del campo (el update corre
-		// justo tras el VBlank, antes de los `MOVE` de punteros) y política de paneo. Con
-		// el Full rebanado, mientras hay una pasada en curso NO se consulta al
-		// controlador: se presenta el Full anterior desplazado (fakes) y se avanza UNA
-		// etapa por update; el render terminado se publica al inicio del campo siguiente.
+		// **Presentación (F2)**: al inicio de campo publica el Full pendiente y la política
+		// decide si toca otro Full o una Fake. En el modo rebanado A/B se conservan el Full
+		// anterior y sus desplazamientos mientras avanzan las etapas del nuevo render.
 		eng::graphics::PresentStep pstep {};
 		if (m_stage == Stage::None) {
 			pstep = m_present.begin(pan_x, pan_y);
@@ -460,8 +543,11 @@ struct PanWindowDemo {
 					// Cada Full se reparte entre VBlanks; el recorrido limita el delta para que
 					// la ventana Fake permanezca dentro de las guardas X/Y durante las etapas.
 					m_stage = Stage::Clip;
-					m_stage_pan_x = pan_x;
-					m_stage_pan_y = pan_y;
+					m_stage_yaw = m_yaw_pan;
+					m_stage_pitch = m_pitch_pan;
+					m_stage_cube_phase = m_cube_phase;
+					m_stage_window_x = pan_x;
+					m_stage_window_y = pan_y;
 					m_stage_cycles = 0u;
 				} else {
 					// Ruta de diagnóstico sin rebanado: las etapas se encadenan en este update.
@@ -469,7 +555,8 @@ struct PanWindowDemo {
 #if defined(ENG_AMIGA)
 					const eng::u32 full_c0 = eng::debug::prof_clock();
 #endif
-					render_full_now(backend, pan_x, pan_y);
+					m_stage_cube_phase = m_cube_phase;
+					render_full_now(backend, m_yaw_pan, m_pitch_pan);
 					ENG_PROF_END(kProfFull);
 					m_pending_buf = m_draw_buf;
 					m_present.commit(pan_x, pan_y);
@@ -548,13 +635,20 @@ struct PanWindowDemo {
 		const bool active_pitch = m_motion_mode == MotionMode::PitchSweep;
 		const s16 active_offset = active_pitch ? pstep.offset_y : pstep.offset_x;
 		const s32 active_pan = active_pitch ? pan_y : pan_x;
+		// A1=Full publicado; A2=Fake; A3=se inicia un Full por coste/guarda mientras el
+		// buffer anterior sigue visible con offset clampado. El verificador distingue A3.
+		const u8 status_tag = pstep.publish ? 0xa1u : (pstep.full ? 0xa3u : 0xa2u);
 		g_eng_run_status.detail =
-			(static_cast<u32>(pstep.publish ? 0xa1u : 0xa2u) << 24u) |
+			(static_cast<u32>(status_tag) << 24u) |
 			(static_cast<u32>(static_cast<u8>(active_offset + 128)) << 16u) |
 			(static_cast<u32>(static_cast<u16>(active_pan)) & 0xffffu);
 
 #if !defined(K080_OFFSET_TEST) && !defined(K080_PAN_FREEZE)
 		advance_camera_motion();
+#endif
+#if !defined(K080_OFFSET_TEST) && !K080_CUBE_FREEZE
+		m_cube_phase = static_cast<u16>((m_cube_phase + kCubePhaseStep) &
+						(eng::retro::kAngleSteps - 1u));
 #endif
 		ENG_PROF_END(kProfFrame);
 	}
@@ -706,18 +800,14 @@ private:
 	// Clip -> sala (dos planos) -> paneles; entre etapas se muestra el Full anterior
 	// desplazado. Los recorridos limitan la velocidad para que el delta permanezca dentro
 	// de ambas guardas durante la publicación diferida.
-	enum class Stage : u8 { None, Clip, Room0, Room1, Panels };
+	enum class Stage : u8 { None, Clip, Room0, Room1, Panels, Cubes };
 	void stage_clip(s32 pan_x, s32 pan_y) {
 		// Sin `wait_blitter` inicial: los fills son sincronos (esperan al Blitter al
 		// terminar) y el buffer de dibujo no se publica hasta completar la pasada.
-		// Vista mundo→cámara: yaw (Ry) y pitch (Rx) se calibran a 4096 pasos/vuelta;
-		// 268 px equivalen a ±60° usando 2,5465 pasos por px.
-		eng::math3d::Affine3<> view = eng::math3d::Affine3<>::identity();
-		const s16 yaw_steps = static_cast<s16>(-((pan_x * 10430) >> 12));
-		const s16 pitch_steps = static_cast<s16>((pan_y * 10430) >> 12);
-		eng::math3d::load_rotate(view.m, eng::retro::turns(static_cast<u16>(pitch_steps)),
-					 eng::retro::turns(static_cast<u16>(yaw_steps)),
-					 eng::retro::turns(0u));
+		// El paneo de cámara se calibra a 4096 pasos/vuelta; 268 unidades son ±60°.
+		const eng::math3d::Affine3<> view = camera_view(pan_x, pan_y);
+		const bool use_general_clip = pan_x < -kYawCullPanLimit || pan_x > kYawCullPanLimit ||
+					      pan_y < -64 || pan_y > 64;
 		using CT = eng::math::scalar_traits<eng::coord>;
 		const eng::graphics::Camera3D<eng::coord> camera {
 			CT::from_int(kFocal), kCx, kCy, CT::from_int(4),
@@ -815,29 +905,45 @@ private:
 			eng::math3d::Vec3 cam[4];
 			eng::math3d::mesh_transform(eng::Span<const eng::math3d::Vec3>(kFaces[i].v, 4),
 						    view, eng::Span<eng::math3d::Vec3>(cam, 4));
-			eng::graphics::CamVertex<eng::coord> cam_face[4];
-			eng::graphics::CamVertex<eng::coord> clipped[16];
-			for (u8 k = 0u; k < 4u; ++k) {
-				cam_face[k] = {cam[k].v[0], cam[k].v[1], cam[k].v[2]};
-			}
-			const u8 clipped_n = eng::graphics::clip_camera_polygon(
-				cam_face, 4u, camera, clipped, 16u);
-			if (clipped_n < 3u) {
-				m_fn[i] = 0u;
-				continue;
-			}
-			u32 n = clipped_n;
-			for (u8 k = 0u; k < clipped_n; ++k) {
-				s16 sx = 0, sy = 0;
-				if (!eng::graphics::project_camera_vertex(clipped[k], camera, sx, sy)) {
-					n = 0u;
-					break;
+			u32 n = 4u;
+			const bool face_needs_camera_clip =
+				use_general_clip ||
+				!eng::graphics::camera_vertices_at_or_beyond_near(camera, cam, 4u);
+			if (face_needs_camera_clip) {
+				// La cámara de ángulo moderado también puede cruzar near con las caras cercanas
+				// de la sala (z=32): recortar antes de dividir evita proyecciones invertidas.
+				eng::graphics::CamVertex<eng::coord> cam_face[4];
+				eng::graphics::CamVertex<eng::coord> clipped[16];
+				for (u8 k = 0u; k < 4u; ++k) {
+					cam_face[k] = {cam[k].v[0], cam[k].v[1], cam[k].v[2]};
 				}
-				in[k] = eng::retro::v2(sx, sy);
+				const u8 clipped_n = eng::graphics::clip_camera_polygon(
+					cam_face, 4u, camera, clipped, 16u);
+				if (clipped_n < 3u) {
+					m_fn[i] = 0u;
+					continue;
+				}
+				n = clipped_n;
+				for (u8 k = 0u; k < clipped_n; ++k) {
+					s16 sx = 0, sy = 0;
+					if (!eng::graphics::project_camera_vertex(clipped[k], camera, sx, sy)) {
+						n = 0u;
+						break;
+					}
+					in[k] = eng::retro::v2(sx, sy);
+				}
+				if (n < 3u) {
+					m_fn[i] = 0u;
+					continue;
+				}
+			} else {
+				// En la franja central sin cruces de near, la proyección directa es el fast path.
+				for (u32 k = 0u; k < 4u; ++k) {
+					s16 sx = 0;
+					s16 sy = 0;
+					eng::graphics::project_perspective(cam[k], kFocal, kCx, kCy, sx, sy);
+					in[k] = eng::retro::v2(sx, sy);
 			}
-			if (n < 3u) {
-				m_fn[i] = 0u;
-				continue;
 			}
 			if (box_inside(in, n, clip)) {
 				// Fast path: la cara completa cabe en el framebuffer sobredimensionado.
@@ -927,6 +1033,140 @@ private:
 		}
 		m_dbg_faces = faces;
 		ENG_PROF_END(kProfClip);
+		prepare_cube_faces(view, camera, clip);
+	}
+
+	/// Proyecta las cajas compuestas, recortando cada cara antes de dividir por z. Las caras
+	/// visibles se ordenan lejos→cerca; el relleno CPU sobrescribe el índice completo de color.
+	void prepare_cube_faces(const eng::math3d::Affine3<>& view,
+				const eng::graphics::Camera3D<eng::coord>& camera,
+				const eng::retro::Rect& clip) {
+		m_cube_face_count = 0u;
+		const u16 phase = m_stage_cube_phase & (eng::retro::kAngleSteps - 1u);
+		const s32 sin_q12 = eng::retro::kSinQ12[phase];
+		const s32 cos_q12 = eng::retro::kSinQ12[
+			static_cast<u16>(phase + eng::retro::kAngleSteps / 4u) &
+			(eng::retro::kAngleSteps - 1u)];
+		const s16 orbit_x = static_cast<s16>((cos_q12 * kCubeOrbitX) >> 12);
+		const s16 orbit_z = static_cast<s16>((sin_q12 * kCubeOrbitZ) >> 12);
+		const s16 centers[kCubeCount][3] = {
+			{K080_CUBE_PROBE ? static_cast<s16>(0) : orbit_x, 0,
+			 static_cast<s16>(kCubeOrbitCenterZ + (K080_CUBE_PROBE ? 0 : orbit_z))},
+			{static_cast<s16>(-orbit_x), 0, static_cast<s16>(kCubeOrbitCenterZ - orbit_z)},
+		};
+		using CT = eng::math::scalar_traits<eng::coord>;
+
+		const u8 cube_count = K080_CUBE_PROBE ? 1u : kCubeCount;
+		for (u8 cube = 0u; cube < cube_count; ++cube) {
+			const u16 rate = (cube == 0u) ? 1u : 2u;
+			const u16 spin = static_cast<u16>((m_stage_cube_phase * rate) &
+							   (eng::retro::kAngleSteps - 1u));
+			eng::math3d::Affine3<> model = eng::math3d::Affine3<>::identity();
+			eng::math3d::load_rotate(
+				model.m,
+				eng::retro::turns(static_cast<u16>((spin * (cube == 0u ? 2u : 3u)) & 4095u)),
+				eng::retro::turns(static_cast<u16>((spin * (cube == 0u ? 3u : 5u)) & 4095u)),
+				eng::retro::turns(static_cast<u16>((spin * (cube == 0u ? 5u : 7u)) & 4095u)));
+			eng::math3d::Vec3 world[8] {};
+			eng::math3d::Vec3 cam_vertices[8] {};
+			eng::math3d::mesh_transform(
+				eng::Span<const eng::math3d::Vec3>(kCubeVertices, 8u), model,
+				eng::Span<eng::math3d::Vec3>(world, 8u));
+			for (u8 v = 0u; v < 8u; ++v) {
+				world[v].v[0] = world[v].v[0] + CT::from_int(centers[cube][0]);
+				world[v].v[1] = world[v].v[1] + CT::from_int(centers[cube][1]);
+				world[v].v[2] = world[v].v[2] + CT::from_int(centers[cube][2]);
+			}
+			eng::math3d::mesh_transform(eng::Span<const eng::math3d::Vec3>(world, 8u), view,
+						    eng::Span<eng::math3d::Vec3>(cam_vertices, 8u));
+
+			for (u8 f = 0u; f < kCubeFaceCount; ++f) {
+				const u8 a = kCubeFaceIndices[f][0];
+				const u8 b = kCubeFaceIndices[f][1];
+				const u8 c = kCubeFaceIndices[f][2];
+				if (!cube_face_front_facing(cam_vertices[a], cam_vertices[b], cam_vertices[c])) {
+					continue;
+				}
+				eng::graphics::CamVertex<eng::coord> input[4] {};
+				for (u8 k = 0u; k < 4u; ++k) {
+					const eng::math3d::Vec3& v = cam_vertices[kCubeFaceIndices[f][k]];
+					input[k] = {v.v[0], v.v[1], v.v[2]};
+				}
+				eng::graphics::CamVertex<eng::coord> clipped[16] {};
+				u32 n = eng::graphics::clip_camera_polygon(input, 4u, camera, clipped, 16u);
+				if (n < 3u) continue;
+				eng::retro::Vec2 screen[16] {};
+				eng::retro::Vec2 tmp[16] {};
+				s32 depth = 0;
+				const u32 depth_vertices = n;
+				bool project_ok = true;
+				for (u8 k = 0u; k < n; ++k) {
+					s16 sx = 0, sy = 0;
+					project_ok = eng::graphics::project_camera_vertex(clipped[k], camera, sx, sy) &&
+						     project_ok;
+					screen[k] = eng::retro::v2(sx, sy);
+					depth += CT::to_int(clipped[k].z);
+				}
+				if (!project_ok) continue;
+				if (!box_inside(screen, n, clip)) {
+					if (box_outside(screen, n, clip)) continue;
+					n = eng::retro::clip_polygon(
+						clip, screen, tmp, n,
+						static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
+								eng::retro::PF_RIGHT | eng::retro::PF_BOTTOM));
+				}
+				if (n < 3u) continue;
+				s16 xs[kMaxVerts] {}, ys[kMaxVerts] {};
+				for (u8 k = 0u; k < n; ++k) {
+					// `clip` conserva su borde máximo geométrico (width/height); el raster CPU
+					// recibe índices de píxel, así el borde inclusivo cae en width-1/height-1.
+					const s16 x = screen[k].x().v;
+					const s16 y = screen[k].y().v;
+					xs[k] = (x >= static_cast<s16>(kFbW)) ? static_cast<s16>(kFbW - 1u) : x;
+					ys[k] = (y >= static_cast<s16>(kFbH)) ? static_cast<s16>(kFbH - 1u) : y;
+				}
+				if (eng::graphics::screen_area2(xs, ys, static_cast<u8>(n)) == 0) continue;
+
+				CubeScreenFace candidate {};
+				candidate.count = static_cast<u8>(n);
+				candidate.color = kCubeFaceColors[cube][f];
+				candidate.depth = depth / static_cast<s32>(depth_vertices);
+				for (u8 k = 0u; k < candidate.count; ++k) {
+					candidate.x[k] = xs[k];
+					candidate.y[k] = ys[k];
+				}
+				u8 insert = m_cube_face_count;
+				while (insert > 0u && m_cube_faces[insert - 1u].depth < candidate.depth) {
+					m_cube_faces[insert] = m_cube_faces[insert - 1u];
+					--insert;
+				}
+				m_cube_faces[insert] = candidate;
+				++m_cube_face_count;
+			}
+		}
+	}
+
+	/// Normal del triángulo en cámara · vector hacia el origen. El cubo es pequeño y cercano
+	/// a z<700, así los productos y la suma caben en s32/`mul_wide` (sin `__muldi3` en 68000).
+	static bool cube_face_front_facing(const eng::math3d::Vec3& a,
+					   const eng::math3d::Vec3& b,
+					   const eng::math3d::Vec3& c) {
+		const s16 abx = static_cast<s16>(b.v[0].v - a.v[0].v);
+		const s16 aby = static_cast<s16>(b.v[1].v - a.v[1].v);
+		const s16 abz = static_cast<s16>(b.v[2].v - a.v[2].v);
+		const s16 acx = static_cast<s16>(c.v[0].v - a.v[0].v);
+		const s16 acy = static_cast<s16>(c.v[1].v - a.v[1].v);
+		const s16 acz = static_cast<s16>(c.v[2].v - a.v[2].v);
+		const s32 nx = eng::math::mul_wide(aby, acz) - eng::math::mul_wide(abz, acy);
+		const s32 ny = eng::math::mul_wide(abz, acx) - eng::math::mul_wide(abx, acz);
+		const s32 nz = eng::math::mul_wide(abx, acy) - eng::math::mul_wide(aby, acx);
+		const s16 to_camera_x = static_cast<s16>(-a.v[0].v);
+		const s16 to_camera_y = static_cast<s16>(-a.v[1].v);
+		const s16 to_camera_z = static_cast<s16>(-a.v[2].v);
+		const s32 facing = eng::math::mul_wide(static_cast<s16>(nx), to_camera_x) +
+				   eng::math::mul_wide(static_cast<s16>(ny), to_camera_y) +
+				   eng::math::mul_wide(static_cast<s16>(nz), to_camera_z);
+		return facing > 0;
 	}
 
 	/// Rellena UN plano de la sala (0 o 1) sobre la caja completa del tubo. El color se
@@ -942,7 +1182,8 @@ private:
 					    false);
 #else
 		// Los vertices ya estan en coords locales de la caja de sala (sin recorte extra:
-		// el contorno y la paridad son los mismos que en la llamada de 2 planos).
+		// el contorno y la paridad son los mismos que en la llamada de 2 planos). Cada plano
+		// se limpia completo de forma independiente para eliminar restos del contorno anterior.
 		eng::graphics::PlaneFillBuilder<kFaceCount> fb {};
 		for (u32 i = 0u; i < kRoomFaceCount; ++i) {
 			if (m_fn[i] < 3u) {
@@ -970,23 +1211,24 @@ private:
 					    false);
 		(void)fb.fill_cpu(dst, kRowBytes, kSceneBytes, 1u, kFbW, kRoomBoxH);
 #else
-		if (fb.count() != 0u) {
-			(void)backend.fill_polygons_by_plane_patterns(
-				fb.faces().data(), fb.count(), dst, kRowBytes, kSceneBytes, 1u,
-				kFbW, kRoomBoxH, eng::Span<const eng::MaskBytes>(pats, 1u), 2u);
-		} else {
-			(void)backend.blitter_clear(dst, 1u, kRowBytes, kSceneBytes, kFbW,
-						    kRoomBoxH, false);
-		}
+		(void)backend.fill_polygons_by_plane_patterns(
+			fb.faces().data(), fb.count(), dst, kRowBytes, kSceneBytes, 1u, kFbW,
+			kRoomBoxH, eng::Span<const eng::MaskBytes>(pats, 1u), 2u);
 #endif
 		ENG_PROF_END(kProfFill);
 #endif
 	}
 
-	/// Rellena los paneles (planos 2-3) en su caja fija, con los colores remapeados a
-	/// los bits 0-1 de esa ventana de 2 planos.
+	/// Los paneles escriben un índice completo: los colores de la paleta 4/8/12 quedan
+	/// estables aunque las entradas vecinas se usen para distinguir las caras de los cubos.
 	void stage_panels(eng::amiga::AmigaBackend& backend) {
 		const eng::PlaneBytes buf = m_scene.buffer(m_draw_buf);
+		// Borra bits de overlay heredados por el buffer alterno; los dos planos base de sala
+		// quedan intactos y las cajas/paneles escribirán su índice completo a continuación.
+		const eng::PlaneBytes overlay =
+			buf.subspan(2u * kSceneBytes, 2u * kSceneBytes);
+		(void)backend.blitter_clear(overlay, 2u, kRowBytes, kSceneBytes, kFbW, kFbH,
+					    false);
 		const s16 wx0 = kPanelBoxX;
 		const u16 pw = kPanelBoxW;
 		const u16 ph = kPanelBoxH;
@@ -999,7 +1241,11 @@ private:
 			wx0, by0, static_cast<s16>(wx0 + pw), static_cast<s16>(by0 + ph));
 		eng::retro::Vec2 in[kMaxVerts];
 		eng::retro::Vec2 tmp[kMaxVerts];
-		eng::graphics::PlaneFillBuilder<kFaceCount> fb {};
+		playfield::ContiguousPlayfield panel_pf {};
+		if (!panel_pf.bind_raw(buf.data(), static_cast<u32>(buf.size()), kFbW, kFbH,
+				       kPlanes, kSceneBytes)) {
+			return;
+		}
 		for (u32 i = kRoomFaceCount; i < kFaceCount; ++i) {
 			u32 n = m_fn[i];
 			if (n < 3u) {
@@ -1016,44 +1262,59 @@ private:
 				continue;
 			}
 			for (u32 k = 0u; k < n; ++k) {
-				m_bx[i][k] = static_cast<s16>(tmp[k].x().v - wx0);
-				m_by[i][k] = static_cast<s16>(tmp[k].y().v - by0);
+				// `clip_polygon` deja la salida en `in`; `tmp` es solo alternancia interna de trabajo.
+				m_bx[i][k] = static_cast<s16>(in[k].x().v - wx0);
+				m_by[i][k] = static_cast<s16>(in[k].y().v - by0);
 			}
-			// Color remapeado: 4->1, 8->2, 12->3 (bits 0-1 de los planos 2-3).
-			(void)fb.submit(m_bx[i], m_by[i], static_cast<u8>(n),
-					static_cast<u8>(kFaces[i].color >> 2u));
-		}
-		if (fb.count() != 0u) {
-			const u32 dest_off = 2u * kSceneBytes +
-					     static_cast<u32>(by0) * kRowBytes +
-					     static_cast<u32>(wx0 >> 3);
-			ENG_PROF_BEGIN(kProfFill);
-			(void)backend.fill_polygons_by_plane(fb.faces().data(), fb.count(),
-							    buf.subspan(dest_off), kRowBytes,
-							    kSceneBytes, 2u, pw, ph);
-			ENG_PROF_END(kProfFill);
+			(void)panel_pf.fill_polygon(
+				eng::Span<const s16>(m_bx[i], n), eng::Span<const s16>(m_by[i], n),
+				kFaces[i].color);
 		}
 #endif
 	}
 
-	/// Pasada completa de una vez (fase rapida / `K080_NO_SLICE`): las tres etapas en el
-	/// mismo update (sala plano a plano, como en el camino rebanado).
+	/// Las cajas se rasterizan en painter order sobre los cuatro planos: cada cara conserva su
+	/// índice RGB propio y la caja cercana reemplaza a la lejana en las zonas de solapamiento.
+	void stage_cubes() {
+		if (m_cube_face_count == 0u) return;
+		const eng::PlaneBytes buf = m_scene.buffer(m_draw_buf);
+		playfield::ContiguousPlayfield cube_pf {};
+		if (!cube_pf.bind_raw(buf.data(), static_cast<u32>(buf.size()), kFbW, kFbH,
+				     kPlanes, kSceneBytes)) {
+			return;
+		}
+		ENG_PROF_BEGIN(kProfFill);
+		for (u8 i = 0u; i < m_cube_face_count; ++i) {
+			const CubeScreenFace& face = m_cube_faces[i];
+			// `prepare_cube_faces` ya recortó a todo el FB; el hook base conserva hasta 16
+			// vértices, incluso si near+frustum+viewport llevan una cara a 13.
+			(void)cube_pf.fill_polygon(
+				eng::Span<const s16>(face.x, face.count),
+				eng::Span<const s16>(face.y, face.count),
+				face.color);
+		}
+		ENG_PROF_END(kProfFill);
+	}
+
+	/// Pasada completa de una vez (fase rapida / `K080_NO_SLICE`): clip, dos planos de sala,
+	/// paneles y cubos se completan en el mismo update.
 	void render_full_now(eng::amiga::AmigaBackend& backend, s32 pan_x, s32 pan_y) {
 		stage_clip(pan_x, pan_y);
 		stage_room(backend, 0u);
 		stage_room(backend, 1u);
 		stage_panels(backend);
+		stage_cubes();
 	}
 
-	/// Ejecuta la siguiente etapa del Full rebanado; al terminar los paneles deja el
-	/// buffer pendiente de publicacion (se muestra en el update siguiente).
+	/// Ejecuta la siguiente etapa del Full rebanado; al terminar los cubos deja el buffer
+	/// pendiente de publicación (se muestra en el update siguiente).
 	void run_stage(eng::amiga::AmigaBackend& backend) {
 #if defined(ENG_AMIGA)
 		const u32 c0 = eng::debug::prof_clock();
 #endif
 		switch (m_stage) {
 		case Stage::Clip:
-			stage_clip(m_stage_pan_x, m_stage_pan_y);
+			stage_clip(m_stage_yaw, m_stage_pitch);
 			m_stage = Stage::Room0;
 			break;
 		case Stage::Room0:
@@ -1066,12 +1327,16 @@ private:
 			break;
 		case Stage::Panels:
 			stage_panels(backend);
+			m_stage = Stage::Cubes;
+			break;
+		case Stage::Cubes:
+			stage_cubes();
 #if defined(ENG_AMIGA)
 			m_stage_cycles += eng::debug::prof_clock() - c0;
 			m_present.observe_full(m_stage_cycles);
 #endif
 			m_pending_buf = m_draw_buf;
-			m_present.commit(m_stage_pan_x, m_stage_pan_y);
+			m_present.commit(m_stage_window_x, m_stage_window_y);
 			m_stage = Stage::None;
 			return;
 		case Stage::None:
@@ -1125,6 +1390,9 @@ private:
 		n = str_cat(text2, n, " P ");
 		(void)i16_to_str(pan_degrees(m_pitch_pan), buf);
 		n = str_cat(text2, n, buf);
+		n = str_cat(text2, n, " F ");
+		(void)u16_to_str(m_present.pacing().full_fields(), buf);
+		n = str_cat(text2, n, buf);
 		n = str_cat(text2, n, " K ");
 		(void)u16_to_str(static_cast<u16>(m_present.max_consecutive_fakes()), buf);
 		n = str_cat(text2, n, buf);
@@ -1161,6 +1429,7 @@ private:
 	eng::copper::MoveSlot m_plane_hi[kPlanes] {};
 	eng::copper::MoveSlot m_plane_lo[kPlanes] {};
 	eng::graphics::PresentController m_present {};
+	CubeScreenFace m_cube_faces[kCubeFaceSlots] {};
 	MotionMode m_motion_mode = kForcePitch ? MotionMode::PitchSweep
 				      : (kForceLissajous ? MotionMode::Lissajous
 							 : MotionMode::YawSweep);
@@ -1170,12 +1439,17 @@ private:
 	s32 m_sweep_dir = 1;
 	u16 m_lissajous_phase = 0u;
 	u16 m_lissajous_frames = 0u;
+	u16 m_cube_phase = K080_CUBE_START_PHASE;
+	u8 m_cube_face_count = 0u;
 	u8 m_show_buf = 0u;
 	u8 m_draw_buf = 1u;
 	u8 m_pending_buf = 0u; ///< buffer del Full pendiente de publicar (lo decide `m_present`)
 	Stage m_stage = Stage::None; ///< etapa en curso del Full rebanado (None = sin pasada)
-	s32 m_stage_pan_x = 0;       ///< paneo X de la cámara con el que se capturó la pasada en curso
-	s32 m_stage_pan_y = 0;       ///< paneo Y de la cámara con el que se capturó la pasada en curso
+	s32 m_stage_yaw = 0;         ///< yaw (proxy de grados) con el que se capturó el Full
+	s32 m_stage_pitch = 0;       ///< pitch (proxy de grados) con el que se capturó el Full
+	u16 m_stage_cube_phase = 0u;  ///< órbita/spin congelados con el Full pendiente
+	s32 m_stage_window_x = 0;    ///< offset acumulado de ventana X del Full renderizado
+	s32 m_stage_window_y = 0;    ///< offset acumulado de ventana Y del Full renderizado
 	u32 m_stage_cycles = 0u;     ///< ciclos acumulados de la pasada (pacing al terminar)
 	u32 m_fulls = 0u;
 	u32 m_fakes = 0u;

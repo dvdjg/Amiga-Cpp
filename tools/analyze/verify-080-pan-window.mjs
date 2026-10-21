@@ -12,7 +12,8 @@
  *     offset k (su Full es F-1), PNG(F) = ventana del Full y PNG(F+1) = la misma ventana
  *     movida k px -> PNG(F+1) debe ser PNG(F) desplazado k px.
  *     Como la racha es adaptativa, la secuencia NO se replica: se validan invariantes de
- *     la telemetria (offsets 1..15, pan = pan del ultimo Full + offset, rachas acotadas,
+ *     la telemetria (offsets dentro de margen, pan de ventana derivado del ancla proyectada,
+ *     relación `pan = pan Full + offset`, rachas acotadas,
  *     Full al menos cada N frames) y el contrato de pixel usa el offset REPORTADO.
  *
  * `--axis x|y` selecciona el eje empaquetado en `runStatus.detail`; `xy` comprueba una
@@ -46,7 +47,7 @@ const FULL_EVERY_MAX = 12; // ningun tramo de Fakes mas largo que esto
 
 const c444 = (v) => [((v >> 8) & 15) * 0x11, ((v >> 4) & 15) * 0x11, (v & 15) * 0x11];
 const eq = (r, g, b, v) => { const [R, G, B] = c444(v); return r === R && g === G && b === B; };
-const BG = 0x124;
+const ROOM_COLORS = [0x124, 0x986, 0x485, 0x269]; // fondo, suelo/techo y paredes
 const POST_UNIQUE = 0xf80; // panel 12: marcador unico de movimiento
 
 let failures = 0;
@@ -92,14 +93,14 @@ function bestVerticalShift(aPath, bPath, dx) {
 
 function analyzeImage(imagePath) {
 	const img = readPng(imagePath);
-	let bg = 0;
+	let room = 0;
 	let unique = 0;
 	let text = 0;
 	for (let y = 0; y < SCENE_H; y++) {
 		for (let x = 0; x < 320; x++) {
 			const [r, g, b] = amigaPixel(img, x, y);
-			if (eq(r, g, b, BG)) bg++;
-			else if (eq(r, g, b, POST_UNIQUE)) unique++;
+			if (ROOM_COLORS.some((color) => eq(r, g, b, color))) room++;
+			if (eq(r, g, b, POST_UNIQUE)) unique++;
 		}
 	}
 	for (let y = 208; y < 256; y++) {
@@ -108,7 +109,7 @@ function analyzeImage(imagePath) {
 			if (r === 255 && g === 255 && b === 255) text++;
 		}
 	}
-	return { bg, unique, text };
+	return { room, unique, text };
 }
 
 function analyzeSequence(seqDir) {
@@ -131,6 +132,7 @@ function analyzeSequence(seqDir) {
 				frame: fr.frozenFrame,
 				path: fr.path,
 				full: ((d >>> 24) & 0xff) === 0xa1,
+				fullRequested: ((d >>> 24) & 0xff) === 0xa3,
 				off: ((d >>> 16) & 0xff) - 128,
 				pan: (d & 0xffff) << 16 >> 16,
 			};
@@ -164,13 +166,17 @@ function analyzeSequence(seqDir) {
 			run++;
 			sinceFull++;
 			maxSinceFull = Math.max(maxSinceFull, sinceFull);
-			check(Math.abs(f.off) >= 1 && Math.abs(f.off) <= margin,
-			      `f${f.frame}: Fake con offset ±1..±${margin} (off=${f.off})`);
+			check(Math.abs(f.off) <= margin,
+			      `f${f.frame}: Fake con offset 0..±${margin} (off=${f.off})`);
 			if (lastFullPan !== null) {
 				// El offset es absoluto respecto al paneo del RENDER del Full mostrado
 				// (`renderPan = pan del Full publicado - su offset de display`).
-				check(f.pan - (lastFullPan - lastFullOff) === f.off,
-				      `f${f.frame}: offset (${f.off}) == pan (${f.pan}) - renderPan (${lastFullPan - lastFullOff})`);
+				const requested = f.pan - (lastFullPan - lastFullOff);
+				const displayOffset = Math.max(-margin, Math.min(margin, requested));
+				check(f.fullRequested ? displayOffset === f.off : requested === f.off,
+				      f.fullRequested
+					      ? `f${f.frame}: Full empieza; display offset clamped ${requested}→${displayOffset} (off=${f.off})`
+					      : `f${f.frame}: offset (${f.off}) == pan (${f.pan}) - renderPan (${lastFullPan - lastFullOff})`);
 			}
 			check(run <= FAKE_RUN_MAX, `f${f.frame}: racha de Fakes acotada (${run})`);
 			check(sinceFull <= FULL_EVERY_MAX, `f${f.frame}: Full al menos cada ${FULL_EVERY_MAX} frames`);
@@ -300,12 +306,12 @@ const seqDir = arg('--sequence-dir');
 if (image) {
 	const s = analyzeImage(image);
 	check(s.unique > 40, `panel unico (color 12) presente: ${s.unique} px`);
-	check(s.bg > 1000, `fondo de escena presente: ${s.bg} px`);
+	check(s.room > 1000, `superficies de sala presentes: ${s.room} px`);
 	check(s.text > 200, `HUD con texto blanco: ${s.text} px`);
 } else if (seqDir) {
 	analyzeSequence(seqDir);
 } else {
-	console.log('Uso: verify-080-pan-window.mjs --image <png> | --sequence-dir <dir>');
+	console.log('Uso: verify-080-pan-window.mjs --image <png> | --sequence-dir <dir> [--axis x|y|xy]');
 	process.exit(2);
 }
 
