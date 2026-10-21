@@ -17,6 +17,7 @@
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/copper/plan.hpp>
+#include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
@@ -186,6 +187,36 @@ public:
 		}
 	}
 
+	/// Instala una copperlist **estática** propia en Chip (`takeover`, una vez en `init`).
+	/// Es el camino de mínima CPU: el driver construye la estructura una vez y por frame solo
+	/// parchea palabras de dato con `copper::patch_data`.
+	template <class B = Backend>
+	bool takeover_copper(eng::ChipView<eng::CopperTag> list) {
+		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.takeover_display(v); }) {
+			if (list.empty()) return false;
+			m_backend.takeover_display(list);
+			return true;
+		} else {
+			(void)list;
+			return false;
+		}
+	}
+
+	/// Instala una copperlist de doble buffer propia (una vez, en `init`). Se usa cuando un
+	/// driver del juego recompone directamente un programa ordenado en cada frame y no necesita
+	/// el arbitraje de intenciones de `copper::Plan`.
+	template <class B = Backend>
+	bool takeover_copper(eng::copper::DoubleBuffer& lists) {
+		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.takeover_display(v); }) {
+			if (!lists.ok()) return false;
+			lists.takeover(m_backend);
+			return true;
+		} else {
+			(void)lists;
+			return false;
+		}
+	}
+
 	/// Publica un programa de Copper propio (swap de `COP1LC`, tras VBlank).
 	/// \param plan  el programa de Copper ya emitido.
 	/// \return `false` si el backend no lo publica.
@@ -196,6 +227,19 @@ public:
 			return true;
 		} else {
 			(void)plan;
+			return false;
+		}
+	}
+
+	/// Publica la lista activa de un doble buffer ya construido (swap de `COP1LC` en VBlank).
+	template <class B = Backend>
+	bool commit_copper(eng::copper::DoubleBuffer& lists) {
+		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.install_copper_list(v); }) {
+			if (!lists.ok()) return false;
+			lists.install(m_backend);
+			return true;
+		} else {
+			(void)lists;
 			return false;
 		}
 	}

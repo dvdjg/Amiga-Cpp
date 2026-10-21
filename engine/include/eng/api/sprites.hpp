@@ -49,13 +49,14 @@ public:
 	/// \param b  `{sprite_channels, bob_budget_words, layer_slots}`.
 	void set_budget(const eng::scene::RepresentationBudget& b) noexcept { m_alloc.reset(b); }
 
-	/// **Pool Chip para los pares *attached***: donde `emit` cocina las estructuras DMA de los
-	/// actores con contenido de par *attached* (4 planos y 16 px; dos por par,
-	/// `attached_pair_structure_words(h) * 2` bytes cada una). Sin pool, un actor *attached*
-	/// provoca rechazo controlado. El bloque lo posee el llamador; aquí solo se referencia
-	/// (vista Chip tipada, la lee el DMA).
-	/// \param pool  vista Chip de las estructuras (tamaño = pares vivos × 2 × estructura).
-	void set_cooked_pool(eng::ChipView<eng::SpriteTag> pool) noexcept { m_cooked = pool; }
+	/// **Pool Chip para los pares *attached***: `emit` cocina sus estructuras DMA (dos por par).
+	/// La DATA estática se cocina una vez y se reutiliza; el contenido animado se recocina al
+	/// cambiar su fuente/altura. El llamador mantiene el pool vivo durante la escena.
+	/// \param pool  vista Chip con capacidad para todos los pares que puedan estar vivos.
+	void set_cooked_pool(eng::ChipView<eng::SpriteTag> pool) noexcept {
+		m_cooked = pool;
+		invalidate_cooked_cache();
+	}
 
 	/// **Cadenas DMA por canal** (F3, `sprite_chain.hpp`): el juego aporta ≥8
 	/// `SpriteDmaChain` con sus storages **Chip** puestas a cero (con runway de ceros tras
@@ -94,15 +95,23 @@ public:
 	/// \param desc  descripción del actor (visual + posición + prioridad + …).
 	/// \return id del actor, o `ActorId{}` si no se pudo dar de alta.
 	[[nodiscard]] eng::scene::ActorId add(const eng::scene::ActorDesc& desc) noexcept {
+		invalidate_cooked_cache();
 		return m_store.add(desc, m_alloc);
 	}
 	/// \param id  id devuelto por `add`.
 	/// \return `true` si se quitó el actor.
-	[[nodiscard]] bool remove(eng::scene::ActorId id) noexcept { return m_store.remove(id); }
+	[[nodiscard]] bool remove(eng::scene::ActorId id) noexcept {
+		const bool removed = m_store.remove(id);
+		if (removed) invalidate_cooked_cache();
+		return removed;
+	}
 	/// \return nº de actores vivos.
 	[[nodiscard]] eng::u16 count() const noexcept { return m_store.count(); }
 	/// Vacía el almacén (todos los actores).
-	void clear() noexcept { m_store.reset(); }
+	void clear() noexcept {
+		m_store.reset();
+		invalidate_cooked_cache();
+	}
 
 	[[nodiscard]] eng::scene::ActorStore<MaxActors>& store() noexcept { return m_store; }
 	[[nodiscard]] const eng::scene::ActorStore<MaxActors>& store() const noexcept { return m_store; }
@@ -129,8 +138,13 @@ public:
 		// Memoria del **orden Y incremental** (secuencia de actores del frame anterior).
 		sc.prev_actors = eng::Span<eng::u16> {m_prev_actors, MaxActors};
 		sc.prev_count = m_prev_count;
+		sc.sort_intents = eng::Span<eng::scene::SpriteIntent> {m_sort_intents, kMaxIntents};
+		sc.sort_actor = eng::Span<eng::u16> {m_sort_actor, kMaxIntents};
+		sc.y_offsets = eng::Span<eng::u16> {m_y_offsets, kRasterLines};
+		sc.cooked_pairs = eng::Span<eng::scene::AttachedCookedCache> {m_cooked_pairs, MaxActors};
 		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper);
 		m_prev_count = sc.prev_count; // la secuencia de este frame queda para el siguiente
+		m_cooked_used = sc.cooked_used;
 		return m_result;
 	}
 
@@ -167,12 +181,22 @@ public:
 	[[nodiscard]] const eng::scene::SpriteComposeResult& result() const noexcept { return m_result; }
 
 private:
+	/// Invalida los pares cocinados al cambiar el conjunto de actores o la vista del pool.
+	void invalidate_cooked_cache() noexcept {
+		m_cooked_used = 0u;
+		for (eng::u16 i = 0u; i < MaxActors; ++i) {
+			m_cooked_pairs[i] = eng::scene::AttachedCookedCache {};
+		}
+	}
+
 	static constexpr eng::u16 kCopperMax = static_cast<eng::u16>(MaxActors * 4u); ///< intents/actor
 	/// Capacidad por buffer: un actor normal usa 1; un par *attached*, 2; una plantilla de
 	/// franjas, una por segmento. Por defecto se dimensiona para **hasta 4 por actor**.
 	static constexpr eng::u16 kMaxIntents = static_cast<eng::u16>(MaxActors * 4u);
 	/// Capacidad de eventos de paleta (switches de plantilla): hasta 4 por actor.
 	static constexpr eng::u16 kPaletteMax = static_cast<eng::u16>(MaxActors * 4u);
+	/// Claves de raster PAL/ECS (0..511) para counting-sort estable de placements.
+	static constexpr eng::u16 kRasterLines = 512u;
 	eng::scene::ActorStore<MaxActors> m_store {};
 	eng::scene::RepresentationAllocator m_alloc {};
 	eng::scene::ActorId m_order[MaxActors] {};
@@ -182,6 +206,11 @@ private:
 	eng::u16 m_intent_actor[kMaxIntents] {};
 	eng::scene::SpriteSlot m_slots[kMaxIntents] {};
 	eng::scene::HwSpritePlacement m_placements[kMaxIntents] {};
+	eng::scene::SpriteIntent m_sort_intents[kMaxIntents] {}; ///< staging de counting-sort para intents
+	eng::u16 m_sort_actor[kMaxIntents] {};                   ///< índice de actor paralelo al staging
+	eng::u16 m_y_offsets[kRasterLines] {};                   ///< histograma y cursor de cada línea
+	eng::scene::AttachedCookedCache m_cooked_pairs[MaxActors] {}; ///< DATA attached cacheada por actor
+	eng::usize m_cooked_used = 0u;                            ///< high-water del pool de DATA cocinada
 	eng::scene::CopperIntent m_copper[kCopperMax] {};
 	eng::graphics::SpritePaletteEvent m_palette[kPaletteMax] {};
 	eng::ChipView<eng::SpriteTag> m_cooked {}; ///< pool de estructuras de pares *attached*

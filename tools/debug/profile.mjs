@@ -73,7 +73,7 @@ function runtimeAddr(linked, ms, rs) {
 }
 const u32delta = (a, b) => { let d = b - a; if (d < 0) d += 4294967296; return d; };
 
-const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit', 'calib', 'loop'];
+const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit', 'calib', 'loop', 'actor_order', 'actor_intents', 'sprite_allocate', 'actor_publish'];
 // Los nombres de seccion son por demo. `--names a,b,c` los fija (indice 0..); si no, se usa
 // el mapa generico de arriba y, para indices sin nombre, `seccionN`.
 const namesArgIdx = process.argv.indexOf('--names');
@@ -216,7 +216,7 @@ const total = u32delta(a.clock, z.clock) / frames;
 console.log(`[prof] ${DEMO}/${CONFIG_NAME} | ${frames} frames | total ${total.toFixed(0)} ciclos/frame (${(total / FIELD).toFixed(2)} campos)`);
 console.log('  seccion   ciclos/frame      %   llam/frame   min/llam   max/llam');
 let sum = 0;
-for (let i = 0; i < Math.max(a.sections, 10); ++i) {
+for (let i = 0; i < Math.max(a.sections, SECTION_NAMES.length, 10); ++i) {
   const perFrame = u32delta(a.cycles[i], z.cycles[i]) / frames;
   const calls = u32delta(a.calls[i], z.calls[i]) / frames;
   // min/max del bloque `z` (ultimo estado) ya son por-llamada; si la seccion no se

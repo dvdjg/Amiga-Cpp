@@ -238,6 +238,31 @@ int main() {
 	check(rpal2.sprites == 2u, "A y B siguen como sprites");
 	check(rpal2.palette == 1u, "B conmuta (A en otra franja)");
 
+	// --- Telemetría de reparto: 8 canales × 5 franjas = 40 placements ------------------
+	// Cada canal sirve un objeto por banda (Y separadas por 40 px > alto+gap): el allocator
+	// debe reutilizarlo cinco veces y la telemetría del frame lo refleja sin contenedores.
+	eng::SpriteScene<40u> grid {};
+	grid.set_budget(eng::scene::RepresentationBudget {40u, 0u, 0u});
+	for (eng::u8 band = 0u; band < 5u; ++band) {
+		for (eng::u8 ch = 0u; ch < 8u; ++ch) {
+			eng::scene::ActorDesc g = d;
+			g.y = static_cast<eng::s16>(40u + band * 40u);
+			g.x = static_cast<eng::s16>(16u + ch * 36u);
+			g.preferred_channel = ch;
+			g.assign_rank = 1u;
+			if (!grid.add(g).valid()) {
+				check(false, "alta de la rejilla 8x5");
+				break;
+			}
+		}
+	}
+	eng::graphics::FramePlan plan_grid {};
+	const auto rgrid = grid.emit(plan_grid, ctx);
+	check(rgrid.ok && rgrid.degraded == 0u, "rejilla 8x5 sin degradados");
+	check(rgrid.sprites == 40u, "40 placements (8 canales x 5 franjas)");
+	check(rgrid.channels == 0xffu, "telemetria: los 8 canales ocupados");
+	check(rgrid.max_reuse == 5u, "telemetria: 5 reusos verticales por canal");
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

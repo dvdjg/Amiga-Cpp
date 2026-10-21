@@ -20,7 +20,22 @@ struct SpriteComposeResult {
 	eng::u16 bobs = 0;     ///< actores finalmente dibujados como BOB
 	eng::u16 copper = 0;   ///< intenciones de Copper escritas (ancladas a los actores)
 	eng::u16 palette = 0;  ///< eventos de paleta por franja (plantillas + arbitraje F7)
+	/// **Telemetría de reparto** (para el planner y la batería de estrés): máscara de canales
+	/// HW que el frame usa (bit n = `SPRn`) y máximo de placements publicados en un canal.
+	/// Se calcula en la misma pasada final, sin alloc ni contenedores.
+	eng::u8 channels = 0;  ///< bitmask de canales ocupados (0 = ninguno)
+	eng::u8 max_reuse = 0; ///< reusos verticales del canal más cargado
 	bool ok = false;       ///< false = rechazo controlado (ver `OBJECT_SYSTEM.md`)
+};
+
+/// Copia cocinada de un actor attached estático. Las vistas apuntan a Chip RAM y no cambian
+/// de posición con el actor; `source`/`height` invalidan la caché si cambia el contenido.
+struct AttachedCookedCache {
+	eng::ChipView<eng::SpriteTag> even {}; ///< estructura DMA de los planos 0–1
+	eng::ChipView<eng::SpriteTag> odd {};  ///< estructura DMA attached de los planos 2–3
+	const eng::u16* source = nullptr;       ///< inicio del frame planar que produjo ambas estructuras
+	eng::u16 height = 0u;                   ///< alto en filas incluido en las vistas
+	bool valid = false;                     ///< falso hasta completar la primera cocción
 };
 
 /// Buffers del llamador para `compose_sprites` (capacidad fija, sin heap).
@@ -44,6 +59,11 @@ struct SpriteComposeScratch {
 	/// empates conservan su orden entre frames (determinista). Opcional: vacío = sin memoria.
 	eng::Span<eng::u16> prev_actors {};
 	eng::u16 prev_count = 0u;
+	/// Scratch opcional para counting-sort estable por línea; evita mover intents grandes en inserción.
+	eng::Span<SpriteIntent> sort_intents {};
+	eng::Span<eng::u16> sort_actor {};
+	eng::Span<eng::u16> y_offsets {};
+	eng::Span<AttachedCookedCache> cooked_pairs {};
 };
 
 /// Compone los sprites del frame a partir de los actores:
@@ -90,7 +110,7 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 	    s.slots.empty() || s.placements.empty()) {
 		return r;
 	}
-	s.cooked_used = 0u; // el pool se reutiliza entero cada frame
+	if (s.cooked_pairs.empty()) s.cooked_used = 0u; // callers sin caché usan un pool temporal por frame
 	const eng::u16 ordered = plan_actor_order(store, s.order);
 	if (ordered == 0u) {
 		return r; // no caben en el buffer del llamador
@@ -127,8 +147,9 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		}
 	}
 	// `n` cuenta INTENTS, no actores: un par *attached* produce dos (líder + impar).
-	const eng::u16 n =
-		build_sprite_intents(store, s.order.first(ordered), ctx, s.intents, s.intent_actor);
+	const eng::u16 n = build_sprite_intents(store, s.order.first(ordered), ctx, s.intents,
+						 s.intent_actor, s.sort_intents, s.sort_actor,
+						 s.y_offsets);
 	if (n == 0u) {
 		return r;
 	}
@@ -226,7 +247,6 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			}
 		}
 	}
-
 	// Un actor puede aportar varios intents (par *attached*, cadena de franjas): el
 	// Copper y la paleta se emiten UNA vez (su primer intent); los placements, uno por
 	// intent en el orden (ascendente por `top`) que exonera `emit_placements_into`.
@@ -330,21 +350,41 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			const eng::usize struct_bytes =
 				static_cast<eng::usize>(
 					eng::graphics::attached_pair_structure_words(h)) * 2u;
+			const eng::Span<const eng::u16> source =
+				a->desc.visual.pixels.subspan(word_off, src_words);
+			AttachedCookedCache* cache = s.cooked_pairs.size() > slot
+							? &s.cooked_pairs[slot]
+							: nullptr;
+			eng::ChipView<eng::SpriteTag> even {};
+			eng::ChipView<eng::SpriteTag> odd {};
+			bool cook_needed = true;
+			if (cache != nullptr && cache->valid && cache->even.size() >= struct_bytes &&
+			    cache->odd.size() >= struct_bytes) {
+				even = cache->even.subview(0u, struct_bytes);
+				odd = cache->odd.subview(0u, struct_bytes);
+				cook_needed = cache->source != source.data() || cache->height != h;
+			}
+		if (even.empty() || odd.empty()) {
 			if (s.cooked.empty() || s.cooked_used > s.cooked.size() ||
 			    s.cooked.size() - s.cooked_used < struct_bytes * 2u) {
 				return r; // sin pool/sitio para las dos estructuras del par
 			}
-			const eng::ChipView<eng::SpriteTag> even =
-				s.cooked.subview(s.cooked_used, struct_bytes);
-			const eng::ChipView<eng::SpriteTag> odd =
-				s.cooked.subview(s.cooked_used + struct_bytes, struct_bytes);
-			if (!eng::graphics::cook_attached_pair(
-				    a->desc.visual.pixels.subspan(word_off, src_words), h,
-				    eng::graphics::kSpriteOffPos, eng::graphics::kSpriteOffCtl, even,
-				    odd)) {
-				return r;
-			}
+			even = s.cooked.subview(s.cooked_used, struct_bytes);
+			odd = s.cooked.subview(s.cooked_used + struct_bytes, struct_bytes);
 			s.cooked_used += struct_bytes * 2u;
+		}
+		if (cook_needed && !eng::graphics::cook_attached_pair(
+				   source, h, eng::graphics::kSpriteOffPos,
+				   eng::graphics::kSpriteOffCtl, even, odd)) {
+			return r;
+		}
+		if (cache != nullptr) {
+			cache->even = even;
+			cache->odd = odd;
+			cache->source = source.data();
+			cache->height = h;
+			cache->valid = true;
+		}
 			// `SPRxPT` apunta a la DATA (tras la cabecera POS/CTL) y el canal termina en
 			// el par de ceros: misma vista que consume `SpriteManager::arm_object`.
 			const eng::usize data_bytes = static_cast<eng::usize>(h) * 4u + 4u;
@@ -447,6 +487,20 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		s.palette[j] = key;
 	}
 	r.bobs = emitted;
+	// Telemetría del reparto: una pasada sobre los placements ya publicados (máx. 8 canales).
+	eng::u8 reuse[eng::graphics::kSpriteChannels] {};
+	for (eng::u16 i = 0u; i < r.sprites; ++i) {
+		const eng::u8 c = s.placements[i].channel;
+		if (c >= eng::graphics::kSpriteChannels) {
+			continue;
+		}
+		r.channels = static_cast<eng::u8>(r.channels | static_cast<eng::u8>(1u << c));
+		const eng::u8 n = static_cast<eng::u8>(reuse[c] + 1u);
+		reuse[c] = n;
+		if (n > r.max_reuse) {
+			r.max_reuse = n;
+		}
+	}
 	r.ok = true;
 	return r;
 }

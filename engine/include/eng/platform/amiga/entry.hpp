@@ -89,9 +89,11 @@ private:
 } // namespace detail
 
 /// Marca el demo como **listo** (el runner lo lee y captura). Lo llama el demo cuando su
-/// puesta en escena está completa; el juego no ve `g_eng_run_status`.
-inline void mark_ready() {
-	::eng::debug::mark_ready(g_eng_run_status);
+/// puesta en escena está completa; el juego no ve `g_eng_run_status`. `detail` permite publicar
+/// un resumen compacto del estado útil para el test/diagnóstico (los contadores completos van
+/// por `DebugPeripheral`).
+inline void mark_ready(eng::u32 detail = 0u) {
+	::eng::debug::mark_ready(g_eng_run_status, detail);
 }
 
 /// Marca **fallo controlado** con una etapa tipada (el runner lo lee en el `detail`).

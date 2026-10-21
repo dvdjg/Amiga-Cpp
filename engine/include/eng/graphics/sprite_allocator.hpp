@@ -112,6 +112,12 @@ public:
 		}
 		u8 in_hardware = 0;
 		eng::util::BitSet<256> done {}; // un intent se asigna una sola vez (varias pasadas)
+		u8 rank_mask = 0u;
+		for (u8 i = 0u; i < count; ++i) {
+			const u8 rank = intents[i].assign_rank > kMaxAssignRank ? kMaxAssignRank
+											 : intents[i].assign_rank;
+			rank_mask = static_cast<u8>(rank_mask | static_cast<u8>(1u << rank));
+		}
 
 		// Ocupación exacta por línea (bit por línea visible) de cada canal.
 		u16 occ[kChannels][kOccupancyWords] {};
@@ -156,8 +162,14 @@ public:
 		};
 
 		// Pasadas por rango de asignación (mayor primero): fijos y grupos eligen canal
-		// antes que los libres. Dentro de cada pasada se conserva el orden por `top`.
+		// antes que los libres. Dentro de cada pasada se conserva el orden por `top`. Solo se
+		// recorren los rangos presentes: con una escena de rango 0, tres barridos vacíos sobre
+		// todos los intents no cambian el plan, pero sí cuestan CPU en cada frame de juego.
 		for (u8 pass = kMaxAssignRank;; --pass) {
+			if ((rank_mask & static_cast<u8>(1u << pass)) == 0u) {
+				if (pass == 0u) break;
+				continue;
+			}
 			for (u8 i = 0; i < count; ++i) {
 				if (done.test(i)) {
 					continue;

@@ -333,6 +333,44 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 	return emitted;
 }
 
+/// Orden estable por `top` con counting-sort cuando el compositor aporta scratch de 512 líneas.
+/// Devuelve `false` para el fallback de inserción si falta capacidad o una línea sale del rango PAL.
+inline bool stable_sort_sprite_intents_by_top(eng::Span<SpriteIntent> intents,
+					      eng::Span<eng::u16> intent_actor,
+					      eng::Span<SpriteIntent> sorted_intents,
+					      eng::Span<eng::u16> sorted_actor,
+					      eng::Span<eng::u16> y_offsets) {
+	constexpr eng::u16 kRasterLines = 512u; // PAL con bit de overflow vertical del Copper.
+	const eng::u16 count = static_cast<eng::u16>(intents.size());
+	if (intent_actor.size() < count || sorted_intents.size() < count ||
+	    sorted_actor.size() < count || y_offsets.size() < kRasterLines) {
+		return false;
+	}
+	for (eng::u16 i = 0u; i < count; ++i) {
+		if (intents[i].top >= kRasterLines) return false;
+	}
+	for (eng::u16 line = 0u; line < kRasterLines; ++line) y_offsets[line] = 0u;
+	for (eng::u16 i = 0u; i < count; ++i) ++y_offsets[intents[i].top];
+	eng::u16 offset = 0u;
+	for (eng::u16 line = 0u; line < kRasterLines; ++line) {
+		const eng::u16 on_line = y_offsets[line];
+		y_offsets[line] = offset;
+		offset = static_cast<eng::u16>(offset + on_line);
+	}
+	// Recorriendo la entrada en su orden original, los empates conservan superficie/z y
+	// las dos intenciones de un par attached permanecen contiguas en su misma línea.
+	for (eng::u16 i = 0u; i < count; ++i) {
+		const eng::u16 dst = y_offsets[intents[i].top]++;
+		sorted_intents[dst] = intents[i];
+		sorted_actor[dst] = intent_actor[i];
+	}
+	for (eng::u16 i = 0u; i < count; ++i) {
+		intents[i] = sorted_intents[i];
+		intent_actor[i] = sorted_actor[i];
+	}
+	return true;
+}
+
 /// Construye las `SpriteIntent` de los actores (en el orden dado) y las ordena por `top`,
 /// que es el contrato de `SpriteAllocator::assign`. Un actor normal produce una intención;
 /// un actor con **par *attached*** (contenido de 4 planos y 16 px, derivado por
@@ -343,13 +381,16 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 /// `intent_actor[i]` recibe el índice de slot del actor de `intents[i]`, para asociar
 /// después los `SpriteSlot` con su actor (todas las intenciones de un actor comparten
 /// índice). Devuelve cuántas escribió, o 0 si no caben en `capacity` (rechazo controlado).
-/// La ordenación es estable por `top`: el compositor publica una placement por intención y
-/// la emisión exige `vstart` no decreciente.
+/// La ordenación es estable por `top`; usa counting-sort con scratch cuando está disponible y
+/// mantiene insertion-sort como fallback.
 template <eng::u16 MaxActors>
 inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 				     eng::Span<const ActorId> order, const ActorEmitContext& ctx,
 				     eng::Span<SpriteIntent> intents,
-				     eng::Span<eng::u16> intent_actor) {
+				     eng::Span<eng::u16> intent_actor,
+				     eng::Span<SpriteIntent> sort_intents = {},
+				     eng::Span<eng::u16> sort_actor = {},
+				     eng::Span<eng::u16> y_offsets = {}) {
 	const eng::u16 count = static_cast<eng::u16>(order.size());
 	if (intents.empty() || intent_actor.empty() || order.size() > intents.size() ||
 	    order.size() > intent_actor.size()) {
@@ -424,19 +465,26 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 			++n;
 		}
 	}
-	// Orden por `top` (inserción, estable: los empates conservan el orden por
-	// superficie/`z` con el que llegaron).
-	for (eng::u16 i = 1; i < n; ++i) {
-		const SpriteIntent cur = intents[i];
-		const eng::u16 cur_actor = intent_actor[i];
-		eng::u16 j = i;
-		while (j > 0u && intents[j - 1u].top > cur.top) {
-			intents[j] = intents[j - 1u];
-			intent_actor[j] = intent_actor[j - 1u];
-			--j;
+	// El camino de SpriteScene aporta scratch fijo y usa counting-sort; callers pequeños o
+	// con líneas fuera de PAL mantienen el algoritmo general estable de inserción.
+	// Para listas cortas, el bucket PAL fijo cuesta más inicialización que los pocos shifts de
+	// inserción; reservarlo para el caso de carga grande conserva la ruta barata de actores típicos.
+	const bool counted = n > 64u && stable_sort_sprite_intents_by_top(
+				     intents.first(n), intent_actor.first(n), sort_intents, sort_actor,
+				     y_offsets);
+	if (!counted) {
+		for (eng::u16 i = 1; i < n; ++i) {
+			const SpriteIntent cur = intents[i];
+			const eng::u16 cur_actor = intent_actor[i];
+			eng::u16 j = i;
+			while (j > 0u && intents[j - 1u].top > cur.top) {
+				intents[j] = intents[j - 1u];
+				intent_actor[j] = intent_actor[j - 1u];
+				--j;
+			}
+			intents[j] = cur;
+			intent_actor[j] = cur_actor;
 		}
-		intents[j] = cur;
-		intent_actor[j] = cur_actor;
 	}
 	return n;
 }
