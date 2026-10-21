@@ -586,3 +586,18 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 **Correcciones y verificación geométrica (alcance probado):** el corte de una arista fija dependía del winding porque `cut_edge` recibe ambos sentidos entre caras vecinas; HOST-481 comprueba ahora la simetría con `Fixed<s16,0>`. El mismo test escala/traslada un pentágono por los cuatro bordes y compara un tetraedro parcialmente recortado con la referencia CPU por plano. HOST-481, L1-003, L1-005 y L1-005 `--edge-stress` pasan; la pose f0473 queda dentro de ±2 px frente a CPU. `verify-088-sequence.mjs` valida 32 muestras de cuatro bordes/esquinas, presencia de los tres colores y cero píxeles rojos/azules en HUD; en 8 frames consecutivos comprueba 7/7 cambios. Flicker-check da cero candidatos y Ollama no ve artefactos en el tramo consecutivo; una evaluación espaciada señaló una línea pequeña no reproducida en el diff por pares. La visión sigue siendo auxiliar frente al gate por píxel.
 
 **Plan:** continuar P5 de [`ROADMAP_3D_BLITTER.md`](ROADMAP_3D_BLITTER.md) con campañas A/B de una sola variable en las pasadas de `clip_face_to_rect`/relleno por plano, conservando la comparación CPU y los gates secuenciales. No declarar la demo verificada hasta lograr cadencia uniforme; si la CPU A500 no alcanza 50 fps, decidir y documentar una modalidad estable que cumpla el suelo de 25 fps para polígonos.
+
+## DT-045 - measure-fps deja de ver avanzar run-status con GDB adjunto en demos de copperlist estática - ABIERTA
+
+**Síntoma:** con la demo 224 (`sprite_reuse_carousel`, copperlist estática instalada por `takeover_copper` y parcheo de POS/CTL por frame), `tools/debug/measure-fps.mjs` mide 49,5–50,3 fps durante las primeras 4 sub-ventanas y después todas las ventanas dan 0 frames (`detail=0xff0528`, READY). La misma build, lanzada con `run-demo.sh --sequence-frames 12 --sequence-interval-ms 1500`, produce 12 frames distintos a lo largo de 18 s: la demo no está colgada.
+
+**Evidencia:**
+
+- `measure-fps` (A500_k224_planes3_release): `por ventana=49.5/49.9/50.3/49.6/11.5/0.0/0.0/0.0`.
+- `run-demo` + md5 de 12 frames: todos distintos (f98d9c…163c43).
+- `216_attached_actors/A500_debug` con el mismo arnés: 49,87 fps estable en las 8 ventanas (el harness funciona en general).
+- Se probó leer `$b7e928` por canal lateral (`mem`) en vez de GDB y se probó el fork del repo en vez del binario de la extensión: el parón persiste, así que no es (solo) la fuente de ciclos.
+
+**Hipótesis abierta:** interacción del stub GDB adjunto durante toda la medida con el camino de espera activa de VBlank o con la lista estática; 216 hace takeover con `DoubleBuffer` y reemite por frame.
+
+**Plan:** aislar con una sonda mínima (demo estática que solo mueva POS) midiendo con GDB adjunto; si se confirma, revisar el servicio de VBlank del stub/engine en ese modo y documentar la limitación de la herramienta. Mientras tanto, la evidencia de cadencia de la 224 se limita a las ventanas medidas y a la secuencia con `run-demo`.
