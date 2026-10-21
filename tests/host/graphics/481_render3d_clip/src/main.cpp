@@ -341,6 +341,79 @@ int main() {
 		}
 		check(ok && visible == 1u, "cubo q0: producto normal s32 mantiene frente z− y descarta z+");
 	}
+	// La sonda fija del demo 080 expone solo una pose a la vez; barre la tabla de fase para
+	// demostrar que las seis caras del winding llegan a verse y que el producto Fixed Q0 del
+	// target mantiene el mismo signo que el oráculo en orientaciones compuestas.
+	{
+		static constexpr s16 kCubeHalf = 28;
+		using RS = math::Fixed<s16, 12>;
+		static constexpr u8 kFace[6][4] = {
+			{0u, 3u, 2u, 1u}, {4u, 5u, 6u, 7u}, {1u, 2u, 6u, 5u},
+			{0u, 4u, 7u, 3u}, {0u, 1u, 5u, 4u}, {3u, 7u, 6u, 2u},
+		};
+		const math3d::Vec3t<MF> local[8] = {
+			math3d::vec3<MF>(-kCubeHalf, -kCubeHalf, -kCubeHalf),
+			math3d::vec3<MF>(kCubeHalf, -kCubeHalf, -kCubeHalf),
+			math3d::vec3<MF>(kCubeHalf, kCubeHalf, -kCubeHalf),
+			math3d::vec3<MF>(-kCubeHalf, kCubeHalf, -kCubeHalf),
+			math3d::vec3<MF>(-kCubeHalf, -kCubeHalf, kCubeHalf),
+			math3d::vec3<MF>(kCubeHalf, -kCubeHalf, kCubeHalf),
+			math3d::vec3<MF>(kCubeHalf, kCubeHalf, kCubeHalf),
+			math3d::vec3<MF>(-kCubeHalf, kCubeHalf, kCubeHalf),
+		};
+		const math3d::Vec3t<MF> origin = math3d::vec3<MF>(0, 0, 0);
+		bool ok = true;
+		u8 face_seen = 0u;
+		for (u16 phase = 0u; phase < retro::kAngleSteps; phase += 32u) {
+			math3d::Affine3<RS, MF> model = math3d::Affine3<RS, MF>::identity();
+			math3d::load_rotate(
+				model.m,
+				retro::turns(static_cast<u16>((phase * 2u) & 4095u)),
+				retro::turns(static_cast<u16>((phase * 3u) & 4095u)),
+				retro::turns(static_cast<u16>((phase * 5u) & 4095u)));
+			math3d::Vec3t<MF> world[8] {};
+			math3d::Vec3t<MF> cam[8] {};
+			math3d::mesh_transform(Span<const math3d::Vec3t<MF>>(local, 8u), model,
+					       Span<math3d::Vec3t<MF>>(world, 8u));
+			for (u8 v = 0u; v < 8u; ++v) {
+				world[v].v[2] = world[v].v[2] + CTF::from_int(480);
+			}
+			math3d::Affine3<RS, MF> view = math3d::Affine3<RS, MF>::identity();
+			math3d::mesh_transform(Span<const math3d::Vec3t<MF>>(world, 8u), view,
+					       Span<math3d::Vec3t<MF>>(cam, 8u));
+			u8 visible = 0u;
+			for (u8 f = 0u; f < 6u; ++f) {
+				const auto& a = cam[kFace[f][0]];
+				const auto& b = cam[kFace[f][1]];
+				const auto& c = cam[kFace[f][2]];
+				const s16 abx = static_cast<s16>(b.v[0].v - a.v[0].v);
+				const s16 aby = static_cast<s16>(b.v[1].v - a.v[1].v);
+				const s16 abz = static_cast<s16>(b.v[2].v - a.v[2].v);
+				const s16 acx = static_cast<s16>(c.v[0].v - a.v[0].v);
+				const s16 acy = static_cast<s16>(c.v[1].v - a.v[1].v);
+				const s16 acz = static_cast<s16>(c.v[2].v - a.v[2].v);
+				const s32 nx = math::mul_wide(aby, acz) - math::mul_wide(abz, acy);
+				const s32 ny = math::mul_wide(abz, acx) - math::mul_wide(abx, acz);
+				const s32 nz = math::mul_wide(abx, acy) - math::mul_wide(aby, acx);
+				const s32 facing = math::mul_wide(static_cast<s16>(nx),
+								  static_cast<s16>(-a.v[0].v)) +
+					   math::mul_wide(static_cast<s16>(ny),
+								  static_cast<s16>(-a.v[1].v)) +
+					   math::mul_wide(static_cast<s16>(nz),
+								  static_cast<s16>(-a.v[2].v));
+				const bool fast = facing > 0;
+				const bool oracle = math3d::face_signed_area(a, b, c, origin) > 0;
+				ok = ok && fast == oracle;
+				if (fast) {
+					face_seen = static_cast<u8>(face_seen | (1u << f));
+					++visible;
+				}
+			}
+			ok = ok && visible > 0u && visible <= 3u;
+		}
+		check(ok && face_seen == 0x3fu,
+		      "cubo: barrido Q0 de 128 fases expone las seis normales y coincide con el oracle");
+	}
 
 	// 5b) La capacidad declarada limita las escrituras incluso si el polígono cabe en
 	//     el scratch interno. Un octágono interior necesita 8 salidas; cap=6 debe fallar

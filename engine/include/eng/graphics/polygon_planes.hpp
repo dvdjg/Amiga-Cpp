@@ -204,7 +204,7 @@ namespace detail {
 /// pintar por el contorno (borde seguro de 1 px). El último píxel **incluido** sigue
 /// siendo `width-1` (el trazador lo dibuja en `width-2`, dentro del bitmap) y el borde
 /// inferior `height-1` (no escribe la fila `height`).
-template <class S = eng::s16>
+template <class S = eng::pix>
 [[nodiscard]] inline eng::u8 clip_face_to_rect(const S* xs, const S* ys, eng::u8 n, S min_x,
 					       S max_x, S min_y, S max_y, S* out_xs, S* out_ys) {
 	if (xs == nullptr || ys == nullptr || out_xs == nullptr || out_ys == nullptr || n < 3u) {

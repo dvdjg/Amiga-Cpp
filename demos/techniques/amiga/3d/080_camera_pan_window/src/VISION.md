@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-21T16:13:22.599Z
+- Fecha: 2026-10-21T19:02:10.116Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_086.png, frame_173.png, frame_259.png (4)
 - Secuencia: `out/run/080_camera_pan_window/A500_debug/sequence`
@@ -17,28 +17,19 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Imagen 1:**
 
-*   **Escena:** Vista frontal de un pasillo o corredor con paredes azules, techo verde y suelo marrón. La perspectiva es isométrica.
-*   **Objetos:** En el centro, dos estructuras simétricas. Cada una consiste en una columna vertical de píxeles (azul, amarillo, naranja) y un bloque de forma irregular (uno verde, otro amarillo) que parece estar en movimiento o girando.
-*   **Texto en la parte inferior:** Una barra negra con texto blanco que muestra información técnica:
-    *   `080 CAMERA PAN WINDOW`
-    *   `FULL 12.5 + FAKE 25`
-    *   `FRAME 08FUELLO FAZEFAKE 359`
-    *   `MODE YAW Y 02PP00FF149KK33`
-*   **Estado de los objetos:** Los bloques centrales están en una posición específica, con sus bordes limpios y sin artefactos visibles. El fondo inmediato alrededor de ellos es uniforme y no muestra restos de posiciones anteriores.
+*   **Contenido visual:** Una escena 3D de estilo pixel art con una perspectiva isométrica. El suelo es de color marrón claro. Las paredes laterales son de un azul oscuro. El techo es de un verde oscuro. En el centro de la escena hay varios objetos geométricos: dos columnas verticales (una amarilla, una naranja), un objeto cúbico amarillo a la izquierda, y un objeto más complejo (parecido a un cubo con una sección azul cian y una sección naranja) en el centro-derecha.
+*   **Texto en la parte inferior:** Una barra negra con texto blanco que muestra información de cámara: `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 576UELLO FAREFAKE 433`, `MODE YAW Y 08PP00FF103KK33`.
+*   **Estado de los objetos:** Todos los objetos están completamente visibles, con contornos limpios y sin artefactos visibles. No hay píxeles cortados ni restos de posiciones anteriores. El fondo inmediato alrededor de los objetos es uniforme y no muestra artefactos.
 
 **Imagen 2:**
 
-*   **Escena:** La cámara se ha movido hacia la derecha, mostrando ahora una vista lateral del pasillo. La perspectiva sigue siendo isométrica.
-*   **Objetos:** La estructura de la derecha está ahora más visible. El bloque amarillo y naranja se ha desplazado hacia la derecha y parece haber girado. Se ha añadido un nuevo bloque de color magenta en la parte superior derecha, que no estaba en la imagen anterior. La estructura de la izquierda está parcialmente fuera del encuadre.
-*   **Texto en la parte inferior:** El texto es idéntico en formato, pero los valores han cambiado:
-    *   `080 CAMERA PAN WINDOW`
-    *   `FULL 12.5 + FAKE 25`
-    *   `FRAME 3504FULL2800FAKE71515`
-    *   `MODE PANCY 425 P 03FF197KK33`
-*   **Estado de los objetos:** Los bordes de los objetos siguen siendo limpios. El fondo inmediato alrededor de los objetos es uniforme, y no hay artefactos visibles. El nuevo bloque magenta aparece con un contorno limpio, sin restos de su posición anterior.
+*   **Contenido visual:** La escena ha cambiado. El suelo es ahora de un verde oliva. Las paredes laterales son de un azul más claro. El techo es de un azul más oscuro. Los objetos geométricos están ahora en la parte superior de la imagen: una columna amarilla a la izquierda, una columna naranja a la derecha, y un objeto cúbico azul cian en el centro-derecha.
+*   **Texto en la parte inferior:** La barra negra con texto blanco muestra información de cámara diferente: `080 CAMERA PAN WINDOW`, `FULL 12.5 + FAKE 25`, `FRAME 1152 FULL 293 FAKE 2606`, `MODE PITCH Y 0 P 134FF15 K 3`.
+*   **Estado de los objetos:** Los objetos están completamente visibles, con contornos limpios. No hay artefactos visibles. El fondo inmediato alrededor de los objetos es uniforme y no muestra artefactos.
 
 **Cambios entre imágenes:**
 
-*   **Movimiento de la cámara:** La cámara se ha desplazado hacia la derecha (pan).
-*   **Posición de los objetos:** Los bloques centrales han cambiado de posición y orientación. Se ha añadido un nuevo bloque magenta.
-*   **Texto:** Los valores en el texto de la parte inferior han cambiado, reflejando el nuevo estado de la cámara y el frame.
+*   **Posición de los objetos:** Los objetos se han desplazado hacia arriba en la escena, y su disposición ha cambiado.
+*   **Color del suelo:** El suelo cambia de marrón claro a verde oliva.
+*   **Color de las paredes y techo:** Las paredes y el techo cambian de color.
+*   **Texto de la cámara:** El texto en la parte inferior cambia completamente, indicando un cambio en el modo de la cámara (de `YAW` a `PITCH`) y en los valores de frame y posición.

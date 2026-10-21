@@ -1,0 +1,8 @@
+{
+  "max_candidates": 14,
+  "max_blocks_low": 130,
+  "ignore_rois": [
+    { "x": 0, "y": 468, "w": 756, "h": 108 }
+  ],
+  "note": "Calibrado con secuencias por paso de 32 frames en yaw, pitch y Lissajous con cubos activos. El detector marca cambios legítimos de caras al rotar/entrar/salir del viewport como candidatos; los bloques inferiores pertenecen al HUD, excluido del frame-diff. Se observaron hasta 14 candidatos y 130 bloques bajos en Lissajous; revisión manual de los triples candidatos no encontró flicker, huecos ni restos. check-alternating-bands dio 0. Recalibrar tras cualquier cambio de render; este límite no sustituye la revisión de las regiones candidatas."
+}

@@ -123,6 +123,9 @@ constexpr s32 kLissajousPan = 180; // ±40° por eje para la fase combinada
 #ifndef K080_CUBE_PROBE
 #define K080_CUBE_PROBE 0
 #endif
+#ifndef K080_PANEL_CPU
+#define K080_PANEL_CPU 0
+#endif
 #ifndef K080_CUBE_START_PHASE
 #define K080_CUBE_START_PHASE 0
 #endif
@@ -132,6 +135,8 @@ static_assert(K080_CUBE_FREEZE == 0 || K080_CUBE_FREEZE == 1,
 	      "K080_CUBE_FREEZE congela las cajas para capturas A/B");
 static_assert(K080_CUBE_PROBE == 0 || K080_CUBE_PROBE == 1,
 	      "K080_CUBE_PROBE muestra una sola caja centrada para validar sus caras");
+static_assert(K080_PANEL_CPU == 0 || K080_PANEL_CPU == 1,
+	      "K080_PANEL_CPU selecciona el raster CPU de referencia para el A/B de coste");
 static_assert(K080_CUBE_START_PHASE < eng::retro::kAngleSteps,
 	      "K080_CUBE_START_PHASE es un índice de la tabla seno");
 constexpr u16 kLissajousPhaseStep = K080_LISSAJOUS_PHASE_STEP;
@@ -152,12 +157,12 @@ constexpr u16 kCubePhaseStep = 5u; // órbita común; spins individuales multipl
 
 enum class MotionMode : u8 { YawSweep, PitchSweep, Lissajous };
 
-// Paleta (4 planos, 16 colores). Sala: índices 1..3; paneles: 4, 8 y 12, elegidos
-// conservando sus colores de marcador. Las cajas escriben los cuatro planos y usan índices
-// distintos por cara (4..15), así sus colores no dependen del color de fondo.
+// Paleta (4 planos, 16 colores). Sala: índices 1..3; los paneles usan las combinaciones
+// superiores 4/8/12, con las cuatro entradas de cada grupo iguales para que no dependan del
+// fondo. Las cajas escriben los cuatro planos con seis índices distintos por cubo.
 constexpr eng::Palette32 kPalette {{
-	0x124, 0x986, 0x485, 0x269, 0xfd0, 0xfff, 0xf0f, 0x0f0,
-	0x0ff, 0x00f, 0xff0, 0x08f, 0xf80, 0x8f0, 0x0af, 0x80f,
+	0x124, 0x986, 0x485, 0x269, 0xfd0, 0xfd0, 0xfd0, 0xfd0,
+	0x0ff, 0x0ff, 0x0ff, 0x0ff, 0xf80, 0xf80, 0xf80, 0xf80,
 }};
 
 constexpr eng::debug::Version kVersion {1u, 0u};
@@ -174,6 +179,9 @@ enum : eng::u8 {
 	kProfHudLine2 = 7, ///< impresion de la linea 4 (OFF/FAC/VER/PAN)
 	kProfWait = 8,     ///< wait_blitter inicial del Full
 	kProfClip = 9,     ///< transform+proyeccion+recorte+submit de las caras
+	kProfOverlayClear = 13, ///< clear de planos 2-3 antes de dibujar paneles y cubos
+	kProfPanelDraw = 14,    ///< paneles: relleno Blitter o referencia CPU por índice RGB
+	kProfCubeDraw = 15,     ///< raster CPU de caras de cubo en painter order
 };
 
 // Patrón de relleno de la SALA: **mezcla de dos índices con damero a nivel de PÍXEL** (el
@@ -268,9 +276,33 @@ constexpr u8 kCubeFaceIndices[kCubeFaceCount][4] = {
 	{0u, 4u, 7u, 3u}, {0u, 1u, 5u, 4u}, {3u, 7u, 6u, 2u},
 };
 constexpr u8 kCubeFaceColors[kCubeCount][kCubeFaceCount] = {
-	{4u, 5u, 6u, 7u, 8u, 9u},       // caja A: seis índices RGB distintos
-	{10u, 11u, 12u, 13u, 14u, 15u}, // caja B: otros seis índices RGB distintos
+	{1u, 2u, 3u, 4u, 8u, 12u}, // caja A: seis índices RGB distintos
+	{3u, 2u, 1u, 12u, 8u, 4u}, // caja B: los mismos tonos, ordenados distinto
 };
+constexpr bool cube_face_rgb_is_unique() {
+	for (u8 cube = 0u; cube < kCubeCount; ++cube) {
+		for (u8 a = 0u; a < kCubeFaceCount; ++a) {
+			for (u8 b = static_cast<u8>(a + 1u); b < kCubeFaceCount; ++b) {
+				if (kPalette.color[kCubeFaceColors[cube][a]] ==
+				    kPalette.color[kCubeFaceColors[cube][b]]) {
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+constexpr bool panel_palette_groups_are_uniform() {
+	for (u8 base = 4u; base <= 12u; base = static_cast<u8>(base + 4u)) {
+		for (u8 shade = 1u; shade < 4u; ++shade) {
+			if (kPalette.color[base] != kPalette.color[base + shade]) return false;
+		}
+	}
+	return true;
+}
+static_assert(cube_face_rgb_is_unique(), "cada caja necesita seis tonos RGB diferentes");
+static_assert(panel_palette_groups_are_uniform(),
+	      "los overlays de panel conservan el mismo RGB sobre cualquier fondo");
 
 // El clipping y el clear cubren todo el framebuffer: los giros de ±60° llevan caras y
 // paneles fuera del viewport central y deben poder entrar por cualquiera de sus bordes.
@@ -485,7 +517,7 @@ struct PanWindowDemo {
 				return;
 			}
 		}
-		ENG_PROF_INIT(10u);
+		ENG_PROF_INIT(16u);
 		// Controlador de presentación (F2): política + pacing + publicación diferida; el
 		// camino asíncrono (cola IRQ) se aconseja solo con Fast RAM (`eng::hw`).
 		eng::hw::HwInfo hw {};
@@ -1219,21 +1251,23 @@ private:
 #endif
 	}
 
-	/// Los paneles escriben un índice completo: los colores de la paleta 4/8/12 quedan
-	/// estables aunque las entradas vecinas se usen para distinguir las caras de los cubos.
+	/// Los paneles usan los dos planos superiores; sus grupos de paleta uniformes conservan
+	/// los tonos 4/8/12 aunque debajo cambie el color de la sala.
 	void stage_panels(eng::amiga::AmigaBackend& backend) {
 		const eng::PlaneBytes buf = m_scene.buffer(m_draw_buf);
-		// Borra bits de overlay heredados por el buffer alterno; los dos planos base de sala
-		// quedan intactos y las cajas/paneles escribirán su índice completo a continuación.
-		const eng::PlaneBytes overlay =
-			buf.subspan(2u * kSceneBytes, 2u * kSceneBytes);
-		(void)backend.blitter_clear(overlay, 2u, kRowBytes, kSceneBytes, kFbW, kFbH,
-					    false);
 		const s16 wx0 = kPanelBoxX;
 		const u16 pw = kPanelBoxW;
 		const u16 ph = kPanelBoxH;
 		const s16 by0 = kPanelBoxY;
 #if defined(K080_SKIP_FILL)
+		// La sonda omite los paneles y el fill de sala: borra el overlay directamente para
+		// que el buffer alterno no conserve colores de cajas de la pasada anterior.
+		const eng::PlaneBytes overlay =
+			buf.subspan(2u * kSceneBytes, 2u * kSceneBytes);
+		ENG_PROF_BEGIN(kProfOverlayClear);
+		(void)backend.blitter_clear(overlay, 2u, kRowBytes, kSceneBytes, kFbW, kFbH,
+					    true);
+		ENG_PROF_END(kProfOverlayClear);
 		(void)backend;
 		(void)buf;
 #else
@@ -1241,11 +1275,9 @@ private:
 			wx0, by0, static_cast<s16>(wx0 + pw), static_cast<s16>(by0 + ph));
 		eng::retro::Vec2 in[kMaxVerts];
 		eng::retro::Vec2 tmp[kMaxVerts];
-		playfield::ContiguousPlayfield panel_pf {};
-		if (!panel_pf.bind_raw(buf.data(), static_cast<u32>(buf.size()), kFbW, kFbH,
-				       kPlanes, kSceneBytes)) {
-			return;
-		}
+#if !K080_PANEL_CPU
+		eng::graphics::PlaneFillBuilder<kFaceCount> fb {};
+#endif
 		for (u32 i = kRoomFaceCount; i < kFaceCount; ++i) {
 			u32 n = m_fn[i];
 			if (n < 3u) {
@@ -1266,10 +1298,40 @@ private:
 				m_bx[i][k] = static_cast<s16>(in[k].x().v - wx0);
 				m_by[i][k] = static_cast<s16>(in[k].y().v - by0);
 			}
-			(void)panel_pf.fill_polygon(
-				eng::Span<const s16>(m_bx[i], n), eng::Span<const s16>(m_by[i], n),
-				kFaces[i].color);
+#if !K080_PANEL_CPU
+			(void)fb.submit(m_bx[i], m_by[i], static_cast<u8>(n),
+					static_cast<u8>(kFaces[i].color >> 2u));
+#endif
 		}
+		ENG_PROF_BEGIN(kProfPanelDraw);
+#if K080_PANEL_CPU
+		// Referencia A/B: conserva la misma salida RGB escribiendo los cuatro planos por CPU.
+		const eng::PlaneBytes overlay =
+			buf.subspan(2u * kSceneBytes, 2u * kSceneBytes);
+		(void)backend.blitter_clear(overlay, 2u, kRowBytes, kSceneBytes, kFbW, kFbH,
+					    true);
+		playfield::ContiguousPlayfield panel_pf {};
+		if (!panel_pf.bind_raw(buf.data(), static_cast<u32>(buf.size()), kFbW, kFbH,
+				       kPlanes, kSceneBytes)) {
+			ENG_PROF_END(kProfPanelDraw);
+			return;
+		}
+		for (u32 i = kRoomFaceCount; i < kFaceCount; ++i) {
+			if (m_fn[i] >= 3u) {
+				(void)panel_pf.fill_polygon(
+					eng::Span<const s16>(m_bx[i], m_fn[i]),
+					eng::Span<const s16>(m_by[i], m_fn[i]), kFaces[i].color);
+			}
+		}
+#else
+		const u32 dest_off = 2u * kSceneBytes + static_cast<u32>(by0) * kRowBytes +
+				     static_cast<u32>(wx0 >> 3);
+		const eng::MaskBytes patterns[2] {};
+		(void)backend.fill_polygons_by_plane_patterns(
+			fb.faces().data(), fb.count(), buf.subspan(dest_off), kRowBytes, kSceneBytes, 2u,
+			pw, ph, eng::Span<const eng::MaskBytes>(patterns, 2u), 0u);
+#endif
+		ENG_PROF_END(kProfPanelDraw);
 #endif
 	}
 
@@ -1283,7 +1345,7 @@ private:
 				     kPlanes, kSceneBytes)) {
 			return;
 		}
-		ENG_PROF_BEGIN(kProfFill);
+		ENG_PROF_BEGIN(kProfCubeDraw);
 		for (u8 i = 0u; i < m_cube_face_count; ++i) {
 			const CubeScreenFace& face = m_cube_faces[i];
 			// `prepare_cube_faces` ya recortó a todo el FB; el hook base conserva hasta 16
@@ -1293,7 +1355,7 @@ private:
 				eng::Span<const s16>(face.y, face.count),
 				face.color);
 		}
-		ENG_PROF_END(kProfFill);
+		ENG_PROF_END(kProfCubeDraw);
 	}
 
 	/// Pasada completa de una vez (fase rapida / `K080_NO_SLICE`): clip, dos planos de sala,

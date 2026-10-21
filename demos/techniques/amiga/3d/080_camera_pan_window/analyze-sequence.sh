@@ -10,17 +10,15 @@
 #
 # Uso: demos/techniques/amiga/3d/080_camera_pan_window/analyze-sequence.sh [--warp]
 #
-# La captura por paso esta BLOQUEADA por DT-033 (`--sequence-step-frames` aborta con
-# «GDB socket is closed ... dropped after a timeout» en captureScreenshot). Mientras
-# tanto se captura por intervalo (frames de display reales, con el banding del Full
-# mid-render): la secuencia de contrato con frames nitidos queda pendiente.
+# La captura por paso conserva la telemetría del mismo frame que el PNG y permite verificar
+# directamente el contrato Full/Fake; el runner deja su estado temporal en `sequence/`.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 DEMO="demos/techniques/amiga/3d/080_camera_pan_window"
 
-RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-frames 16 --sequence-interval-ms 250)
+RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-step-frames 32)
 for a in "$@"; do
 	[ "$a" = "--warp" ] && RUN_ARGS+=("--warp")
 done

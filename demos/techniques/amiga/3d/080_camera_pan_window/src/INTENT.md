@@ -23,11 +23,11 @@ El **contrato de frames intermedios por paneo** de la técnica `docs/reference/a
 | Panel (x=-100) y (x=+60) | cian (rango 8-11) | columnas verticales |
 | Panel (x=-60) | amarillo (rango 4-7) | columna vertical |
 | **Panel (x=+100)** | **naranja único (rango 12-15)** | marcador de movimiento: color único que sigue el paneo |
-| Cubo A | seis caras, índices 4–9 | spin compuesto y órbita común; puede quedar delante del cubo B |
-| Cubo B | seis caras, índices 10–15 | spin distinto; alterna la oclusión al cruzar la órbita |
+| Cubo A | seis caras, índices 1, 2, 3, 4, 8 y 12 | spin compuesto y órbita común; puede quedar delante del cubo B |
+| Cubo B | los mismos seis tonos, en orden distinto | spin distinto; alterna la oclusión al cruzar la órbita |
 | HUD (franja inferior, 1 bpp) | blanco sobre negro | nombre+versión, FRAME/FULL/FAKE, modo de recorrido, yaw, pitch y K |
 
-Los paneles escriben índices completos 4, 8 y 12. Las caras de los cubos escriben índices completos 4–15, con RGB distinto por cara, para hacer visible cualquier error de winding o culling sin que el color de fondo altere la prueba.
+Los paneles usan las combinaciones de bits superiores 4/8/12; las cuatro entradas RGB de cada grupo son iguales para que su color permanezca sólido sobre cualquier superficie de la sala. Las cajas escriben los cuatro planos y usan seis índices RGB distintos por cubo, de modo que winding y culling quedan visibles sin que el fondo altere los tonos.
 
 ## Evolución temporal
 
@@ -38,7 +38,7 @@ Los paneles escriben índices completos 4, 8 y 12. Las caras de los cubos escrib
 ## Criterio de éxito
 
 1. Contrato de ventana: los Fakes de yaw/pitch puros equivalen a un desplazamiento de un eje; Lissajous se verifica con desplazamiento X/Y y búsqueda de costura (alcance en `VALIDATION.md`).
-2. Cadencia: objetivo de display ≥25 Hz y base (Full) ≥12,5 Hz. La base sigue bajo el objetivo (~8–9 Hz); el usuario acepta provisionalmente la medida actual y la optimización queda pausada. La demo no se declara cerrada por cadencia ni por ausencia de tearing.
-3. Sin flicker/tearing — sin veredicto por ahora: mientras el Full desborde el campo (DT-034, configurable en el rebanado de F2) puede verse una **banda horizontal rasgada** (parche de ventana aplicado a mitad de campo) o una **columna de contenido del frame anterior** en el borde de la ventana. Ambas son **defecto de presentación, no elementos de la escena**: el pase C debe marcarlas explícitamente; se cierran con la optimización/rebanado del Full, no con un parche de dibujo.
+2. Cadencia: objetivo de display ≥25 Hz y base (Full) ≥12,5 Hz. El perfil congelado del A/B de paneles queda en 4,21 campos por update, y el HUD reporta F≈10–13 campos por Full con K=3; la base sigue bajo el objetivo y la optimización queda abierta. La demo no se declara cerrada por cadencia.
+3. Estabilidad temporal: `check-alternating-bands.mjs` debe informar cero bandas alternas. El detector de flicker mantiene un baseline acotado para cambios esperados del HUD y de las caras al rotar/recortarse; el gate de tearing de scanout permanece pendiente porque la captura por frame no equivale a una observación por línea del haz.
 4. Ollama y la inspección directa deben mostrar las tres fases, el techo verde separado del fondo azul y los paneles entrando/saliendo del encuadre. La evaluación de visión es auxiliar: contrastar el movimiento con diff por frame y las trayectorias de yaw/pitch en el HUD.
 5. En la fase compuesta, las dos cajas giran con velocidades diferentes, mantienen caras exteriores y se ocluyen al coincidir en pantalla; el Fake desplaza el mismo contenido sin cambiar sus contornos.
