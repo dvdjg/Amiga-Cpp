@@ -9,9 +9,9 @@
 | Perfil | Build/run | fps / fieldsPerFrame | Ciclos/frame | Flicker | Placements | Canales | Reuso | Visión |
 |---|---|---:|---:|---|---:|---|---:|---|
 | A — 3 planos | OK (`A500_k224_planes3_release`) | **49,92 / 1,002** (build previo al ajuste X) | **142.102** | pendiente de gate | 40 | 0xff | 5 | canónica generada |
-| B — 4 planos | OK | pendiente (medida no fiable) | — | pendiente | 40 | 0xff | 5 | — |
+| B — 4 planos | OK + secuencia animada | SIN VERIFICAR (DT-045) | — | pendiente | 40 | 0xff | 5 | — |
 | C — 5 planos | OK (`A500_k224_planes5_release`) | **49,92 / 1,002** | **142.102** | pendiente de gate | 40 | 0xff | 5 | canónica generada |
-| D — 6 planos EHB | OK | pendiente (medida no fiable) | — | pendiente | 40 | 0xff | 5 | — |
+| D — 6 planos EHB | OK + secuencia animada | SIN VERIFICAR (DT-045) | — | pendiente | 40 | 0xff | 5 | EHB revisado a ojo: fondo y sprites correctos |
 
 `detail = 0xff0528`: 40 placements (`0x28`), máxima reutilización 5 (`0x05`) y máscara de canales `0xff`.
 
