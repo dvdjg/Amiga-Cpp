@@ -6,15 +6,15 @@ Test host de la regla que convierte el **coste medido de la pasada completa** (c
 
 1. **Sin medida**: `affordable_fakes` devuelve 0 (camino conservador: Full por tick).
 2. **Campos al techo**: `full_fields()` = `ceil(full/tick)` (medio campo -> 1; un ciclo por encima -> 2).
-3. **Regla y clamps**: `K = max(0, campos - 2)`; `F <= 2` -> 0 fakes; `F = 3` -> 1 fake (ciclo 4 campos = 12,5/25 Hz); `cap` recorta la racha; `cap = 0` fuerza Full por tick.
-4. **Media movil 1/4**: un pico aislado de Full no dispara la racha; una racha de Fulls caros converge arriba y vuelve a bajar cuando el Full se abarata.
-5. **Caso objetivo de la 080**: 3,125 campos -> techo 4 -> 2 fakes (cap 3); 2,97 campos -> techo 3 -> 1 fake.
+3. **Regla y clamps**: `K = max(0, campos - 2)`; `F <= 2` -> 0 fakes; `F = 3` -> 1 fake; `F = 4` -> 2; `F >= 5` -> 3 con el cap de la demo.
+4. **Máximo de las dos últimas muestras**: un Full caro cambia el pacing inmediatamente; un Full barato aislado no lo reduce y dos Fulls baratos consecutivos sí.
+5. **Techo conservador**: cualquier coste que supere un número entero de campos se asigna al siguiente campo (`3 campos + 1 ciclo` -> 4).
 
 ## Salida de referencia
 
 ```
 Pacing de render (render_pacing):
-OK: render pacing (campos, regla de fakes, cap y media movil)
+OK: render pacing (máximo del último par, techo de campos y cap 0..3)
 ```
 
 ## Ejecutar
