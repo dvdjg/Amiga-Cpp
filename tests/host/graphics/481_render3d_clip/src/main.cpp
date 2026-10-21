@@ -18,6 +18,8 @@
 #include <eng/graphics/polygon_planes.hpp>
 #include <eng/graphics/render3d.hpp>
 #include <eng/memory/mem_bank.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
+#include <eng/retro/fixed_trig.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -201,6 +203,143 @@ int main() {
 		check(clip_camera_polygon(outside, 3u, kCam, out, 16u) == 0u, "fuera: vacío");
 		check(clip_camera_polygon(behind, 0u, kCam, out, 16u) == 0u, "n=0: vacío");
 		check(clip_camera_polygon(behind, 3u, kCam, out, 4u) == 0u, "cap insuficiente: vacío");
+	}
+
+	// 5a) El fast path de proyección solo es válido cuando todos los vértices respetan near.
+	//     Reproduce la cara cercana de la sala a yaw moderado: z=32 y x=±160 dan vértices
+	//     por detrás de near tras rotar, aunque el ángulo esté dentro del antiguo límite yaw.
+	{
+		const math3d::Vec3t<MF> in_front[4] = {
+			math3d::vec3<MF>(-20, -20, 100), math3d::vec3<MF>(20, -20, 100),
+			math3d::vec3<MF>(20, 20, 64), math3d::vec3<MF>(-20, 20, 100)};
+		const math3d::Vec3t<MF> crosses_near[4] = {
+			math3d::vec3<MF>(-160, 96, -8), math3d::vec3<MF>(160, 96, 70),
+			math3d::vec3<MF>(160, 96, 70), math3d::vec3<MF>(-160, 96, -8)};
+		check(camera_vertices_at_or_beyond_near(kCamF, in_front, 4u),
+		      "fast path: vértices sobre/delante de near son proyectables");
+		check(!camera_vertices_at_or_beyond_near(kCamF, crosses_near, 4u),
+		      "yaw moderado: cara cercana que cruza near exige clip de cámara");
+		check(!camera_vertices_at_or_beyond_near(kCamF, crosses_near, 0u),
+		      "near: conjunto vacío no habilita proyección directa");
+	}
+
+	// 5aa) Regresión aislada de winding/culling para el mismo cubo usado por la demo 080.
+	//      Compara el producto s32 barato (válido en 68000) contra face_visible del engine en
+	//      yaw simétrico y giro compuesto: ambos deben seleccionar las mismas caras exteriores.
+	{
+		static constexpr s16 kCubeHalf = 28;
+		const math3d::Vec3t<CS> local[8] = {
+			math3d::vec3<CS>(-kCubeHalf, -kCubeHalf, -kCubeHalf),
+			math3d::vec3<CS>(kCubeHalf, -kCubeHalf, -kCubeHalf),
+			math3d::vec3<CS>(kCubeHalf, kCubeHalf, -kCubeHalf),
+			math3d::vec3<CS>(-kCubeHalf, kCubeHalf, -kCubeHalf),
+			math3d::vec3<CS>(-kCubeHalf, -kCubeHalf, kCubeHalf),
+			math3d::vec3<CS>(kCubeHalf, -kCubeHalf, kCubeHalf),
+			math3d::vec3<CS>(kCubeHalf, kCubeHalf, kCubeHalf),
+			math3d::vec3<CS>(-kCubeHalf, kCubeHalf, kCubeHalf),
+		};
+		static constexpr u8 kFace[6][4] = {
+			{0u, 3u, 2u, 1u}, {4u, 5u, 6u, 7u}, {1u, 2u, 6u, 5u},
+			{0u, 4u, 7u, 3u}, {0u, 1u, 5u, 4u}, {3u, 7u, 6u, 2u},
+		};
+		struct Pose { s16 yaw; s16 pitch; s16 roll; };
+		static constexpr Pose poses[4] = {{0, 0, 0}, {165, 0, 0}, {-165, 0, 0}, {91, -73, 37}};
+		const math3d::Vec3t<CS> origin = math3d::vec3<CS>(0, 0, 0);
+		bool ok = true;
+		for (const Pose& pose : poses) {
+			math3d::Affine3<CS> view = math3d::Affine3<CS>::identity();
+			const CS turns_to_radians = 6.28318530718f / 4096.0f;
+			const auto radians = [turns_to_radians](s16 turn) {
+				return static_cast<CS>(turn * turns_to_radians);
+			};
+			const CS ax = radians(pose.pitch), ay = radians(pose.yaw), az = radians(pose.roll);
+			const math3d::SinCos3<CS> sc {std::sin(ax), std::cos(ax), std::sin(ay),
+						       std::cos(ay), std::sin(az), std::cos(az)};
+			math3d::load_rotate(view.m, sc);
+			math3d::Vec3t<CS> world[8] {};
+			math3d::Vec3t<CS> cam[8] {};
+			for (u8 v = 0u; v < 8u; ++v) {
+				world[v] = local[v];
+				world[v].v[2] += 512.0f;
+			}
+			math3d::mesh_transform(Span<const math3d::Vec3t<CS>>(world, 8u), view,
+					       Span<math3d::Vec3t<CS>>(cam, 8u));
+			u8 fast_count = 0u;
+			u8 oracle_count = 0u;
+			for (u8 f = 0u; f < 6u; ++f) {
+				const auto& a = cam[kFace[f][0]];
+				const auto& b = cam[kFace[f][1]];
+				const auto& c = cam[kFace[f][2]];
+				const CS abx = b.v[0] - a.v[0], aby = b.v[1] - a.v[1], abz = b.v[2] - a.v[2];
+				const CS acx = c.v[0] - a.v[0], acy = c.v[1] - a.v[1], acz = c.v[2] - a.v[2];
+				const CS nx = aby * acz - abz * acy;
+				const CS ny = abz * acx - abx * acz;
+				const CS nz = abx * acy - aby * acx;
+				const CS facing = nx * -a.v[0] + ny * -a.v[1] + nz * -a.v[2];
+				const bool fast = facing > 0;
+				const bool oracle = math3d::face_signed_area(a, b, c, origin) > 0;
+				if (pose.yaw == 0 && pose.pitch == 0 && pose.roll == 0) {
+					if (f == 0u) ok = ok && fast;      // cara z− orientada a la cámara
+					if (f == 1u) ok = ok && !fast;     // cara z+ orientada hacia el fondo
+				}
+				if (fast != oracle) {
+					std::printf("[cube-normal] pose %d/%d/%d face %u fast=%d oracle=%d dot=%g\n",
+						    pose.yaw, pose.pitch, pose.roll, f, fast ? 1 : 0,
+						    oracle ? 1 : 0, static_cast<double>(facing));
+				}
+				ok = ok && fast == oracle;
+				fast_count = static_cast<u8>(fast_count + (fast ? 1u : 0u));
+				oracle_count = static_cast<u8>(oracle_count + (oracle ? 1u : 0u));
+			}
+			if (fast_count != oracle_count || fast_count > 3u || fast_count == 0u) {
+				std::printf("[cube-count] pose %d/%d/%d fast=%u oracle=%u\n", pose.yaw,
+					    pose.pitch, pose.roll, fast_count, oracle_count);
+			}
+			ok = ok && fast_count == oracle_count && fast_count <= 3u && fast_count != 0u;
+		}
+		check(ok, "cubo convexo: culling por normal s32 coincide con el oracle en yaw ± y giro compuesto");
+	}
+	// Camino entero usado por 080: valida literalmente el producto s16×s16→s32 del target,
+	// con la cara z− hacia la cámara y la opuesta z+ descartada.
+	{
+		static constexpr u8 kFace[6][4] = {
+			{0u, 3u, 2u, 1u}, {4u, 5u, 6u, 7u}, {1u, 2u, 6u, 5u},
+			{0u, 4u, 7u, 3u}, {0u, 1u, 5u, 4u}, {3u, 7u, 6u, 2u},
+		};
+		const math3d::Vec3t<MF> cube[8] = {
+			math3d::vec3<MF>(-28, -28, 484), math3d::vec3<MF>(28, -28, 484),
+			math3d::vec3<MF>(28, 28, 484), math3d::vec3<MF>(-28, 28, 484),
+			math3d::vec3<MF>(-28, -28, 540), math3d::vec3<MF>(28, -28, 540),
+			math3d::vec3<MF>(28, 28, 540), math3d::vec3<MF>(-28, 28, 540),
+		};
+		const math3d::Vec3t<MF> origin = math3d::vec3<MF>(0, 0, 0);
+		bool ok = true;
+		u8 visible = 0u;
+		for (u8 f = 0u; f < 6u; ++f) {
+			const auto& a = cube[kFace[f][0]];
+			const auto& b = cube[kFace[f][1]];
+			const auto& c = cube[kFace[f][2]];
+			const s16 abx = static_cast<s16>(b.v[0].v - a.v[0].v);
+			const s16 aby = static_cast<s16>(b.v[1].v - a.v[1].v);
+			const s16 abz = static_cast<s16>(b.v[2].v - a.v[2].v);
+			const s16 acx = static_cast<s16>(c.v[0].v - a.v[0].v);
+			const s16 acy = static_cast<s16>(c.v[1].v - a.v[1].v);
+			const s16 acz = static_cast<s16>(c.v[2].v - a.v[2].v);
+			const s32 nx = eng::math::mul_wide(aby, acz) - eng::math::mul_wide(abz, acy);
+			const s32 ny = eng::math::mul_wide(abz, acx) - eng::math::mul_wide(abx, acz);
+			const s32 nz = eng::math::mul_wide(abx, acy) - eng::math::mul_wide(aby, acx);
+			const s32 facing = eng::math::mul_wide(static_cast<s16>(nx),
+							       static_cast<s16>(-a.v[0].v)) +
+				   eng::math::mul_wide(static_cast<s16>(ny),
+							       static_cast<s16>(-a.v[1].v)) +
+				   eng::math::mul_wide(static_cast<s16>(nz),
+							       static_cast<s16>(-a.v[2].v));
+			const bool fast = facing > 0;
+			const bool oracle = math3d::face_signed_area(a, b, c, origin) > 0;
+			ok = ok && fast == oracle;
+			visible = static_cast<u8>(visible + (fast ? 1u : 0u));
+		}
+		check(ok && visible == 1u, "cubo q0: producto normal s32 mantiene frente z− y descarta z+");
 	}
 
 	// 5b) La capacidad declarada limita las escrituras incluso si el polígono cabe en

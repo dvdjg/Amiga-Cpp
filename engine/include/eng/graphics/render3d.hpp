@@ -202,7 +202,7 @@ template <class S, class W>
 /// polígono recortado no cabe. Las caras convexas de hasta 8 vértices caben en 16.
 template <class S>
 [[nodiscard]] inline u8 clip_camera_polygon(const CamVertex<S>* in, u8 n, const Camera3D<S>& cam,
-						    CamVertex<S>* out, u8 cap) noexcept {
+							    CamVertex<S>* out, u8 cap) noexcept {
 	if (in == nullptr || out == nullptr || n < 3u || cap < 3u) return 0u;
 	if (n > 16u) return 0u;
 	using detail3d::Plane;
@@ -289,7 +289,7 @@ template <class S>
 /// vértice por cara y las copias de los buffers de recorte.
 template <class S>
 [[nodiscard]] inline bool camera_contains_vertices(const Camera3D<S>& cam, const CamVertex<S>* verts,
-						   u32 n) noexcept {
+							   u32 n) noexcept {
 	if (verts == nullptr || n == 0u) return false;
 	const detail3d::CameraPlanes<S> cp = detail3d::camera_planes(cam);
 	for (u32 i = 0u; i < n; ++i) {
@@ -305,7 +305,7 @@ template <class S>
 /// Igual, para vértices de malla (`Vec3t<S>`, ya en espacio de cámara).
 template <class S>
 [[nodiscard]] inline bool camera_contains_vertices(const Camera3D<S>& cam,
-						   const math3d::Vec3t<S>* verts, u32 n) noexcept {
+							   const math3d::Vec3t<S>* verts, u32 n) noexcept {
 	if (verts == nullptr || n == 0u) return false;
 	const detail3d::CameraPlanes<S> cp = detail3d::camera_planes(cam);
 	for (u32 i = 0u; i < n; ++i) {
@@ -315,6 +315,20 @@ template <class S>
 			const auto zero = decltype(d) {};
 			if (!(d > zero)) return false;
 		}
+	}
+	return true;
+}
+
+/// `true` si todos los vértices están en o delante del plano near. Permite conservar la
+/// proyección directa seguida del clip 2D cuando solo pueden cruzarse los laterales; si un
+/// vértice cruza near, hay que recortar en cámara antes de dividir por z.
+template <class S>
+[[nodiscard]] inline bool camera_vertices_at_or_beyond_near(const Camera3D<S>& cam,
+								    const math3d::Vec3t<S>* verts,
+								    u32 n) noexcept {
+	if (verts == nullptr || n == 0u) return false;
+	for (u32 i = 0u; i < n; ++i) {
+		if (verts[i].v[2] < cam.near_z) return false;
 	}
 	return true;
 }
