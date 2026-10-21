@@ -1,4 +1,4 @@
-﻿// Demo - PORT DK con render de BG por X-limited (scroll HW por Copper) + sprites HW.
+// Demo - PORT DK con render de BG por X-limited (scroll HW por Copper) + sprites HW.
 //
 // Idea: el nametable NES se trata como la fuente de un mapa de tiles; los metatiles (16x16)
 // se hornean a un banco planar y el compositor X-limited del engine hace el scroll por
@@ -97,7 +97,7 @@ eng::u16 g_cells[kMtCols * kMtRows] {};
 
 // El row_fn generativo solo recibe (glyph, variant) = indice de metatile 0..63, asi que
 // horneamos una tabla descriptora por metatile: los 4 tiles NES (TL,TR,BL,BR) y su
-// subpaleta NES (0..3) â€” el nametable NES no sigue ningun patron TL/TL+1.
+// Subpaleta NES (0..3): el nametable NES no sigue ningún patrón TL/TL+1.
 // Tabla de metatiles UNICOS (sin tope de 64): cada uno guarda los 4 tiles NES (TL,TR,BL,BR)
 // reales del nametable (no vecinos forzados) y su subpaleta. El banco se construye en Chip
 // (prebuilt) dimensionado a `g_mt_count`, referenciado por el mapa.
@@ -337,7 +337,7 @@ struct DkXlGame {
 	eng::s32 cam_y = 0;
 	bool ready = false;
 	eng::u16 m_frames = 0u;
-	eng::u16 m_rebuilds = 0u; // nÂº de rebuilds del mapa (cambios de nametable)
+	eng::u16 m_rebuilds = 0u; // Número de rebuilds del mapa (cambios de nametable).
 	eng::u32 m_pal_hash = 0u; // hash de la paleta NES ($3F00-1F) para detectar cambios
 	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_audio_buf {}; // 3 formas de onda para Paula
 	eng::graphics::HwSpritePlacement m_placements[kMaxPlacements] {};

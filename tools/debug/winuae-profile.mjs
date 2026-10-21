@@ -6,7 +6,7 @@
 //
 // Uso:
 //   bash ./tools/run/run-demo.sh <demo> [--config <config>]
-//   node tools/debug/winuae-profile.mjs <demo> [CONFIG] [frames]
+//   node tools/debug/winuae-profile.mjs <demo> [CONFIG] [frames] [--settle-ms MS]
 import { WinUAEConnection } from '../../../mcp-winuae-emu/dist/winuae-connection.js';
 import { parseProfile } from '../../../mcp-winuae-emu/dist/profile-parse.js';
 import * as fs from 'fs';
@@ -18,14 +18,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
 const DEMO = process.argv[2];
 if (!DEMO) {
-  console.error('Uso: node tools/debug/winuae-profile.mjs <demo> [config] [frames]');
+  console.error('Uso: node tools/debug/winuae-profile.mjs <demo> [config] [frames] [--settle-ms MS]');
   process.exit(1);
 }
 const CONFIG_NAME = process.argv[3] || 'A500_debug';
 const FRAMES = Math.max(1, Math.min(100, parseInt(process.argv[4] || '10', 10)));
+const settleArg = process.argv.indexOf('--settle-ms');
+const SETTLE_MS = settleArg >= 0 ? Math.max(0, parseInt(process.argv[settleArg + 1] || '2500', 10)) : 2500;
 const GDB_PORT = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Se perfila el `runner.uae` de este build; usa `-f` para no reescribir
+// `WinUAE-DBG/bin/default.uae` ni tomar por accidente otra demo A500.
+// Un override explícito permite depurar la ruta extension-style si se necesita.
+if (process.env.WINUAE_USE_LEGACY_LAUNCH === undefined) {
+  process.env.WINUAE_USE_LEGACY_LAUNCH = '1';
+}
 const conn = new WinUAEConnection({
   winuaePath: (process.env.AMIGA_WINUAE_PATH ||
     'C:/Users/dvdjg/Documents/programa/AI/Amiga/WinUAE-DBG/bin').replace(/\\/g, '/'),
@@ -35,7 +43,10 @@ const conn = new WinUAEConnection({
 await conn.connect({ forceBreak: false, initializeStopped: true });
 const p = conn.getProtocol();
 await p.continue();
-await sleep(2500);
+if (SETTLE_MS > 0) {
+  console.log(`[wprof] settle ${SETTLE_MS} ms antes de muestrear`);
+  await sleep(SETTLE_MS);
+}
 
 // Construye la tabla de UNWIND que WinUAE necesita para MUESTREAR la CPU (sin ella el
 // binario del perfil sale con 0 muestras: solo ciclos/DMA/recursos). Portado de

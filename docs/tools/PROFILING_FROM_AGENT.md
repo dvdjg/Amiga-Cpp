@@ -21,7 +21,11 @@ La extensión `bartmanabyss.amiga-debug` perfila con **F5 → "Frame Profiler"**
 
 ```bash
 # 1) capturar (ciclos ocupada/libre, DMA por tipo y, si hay unwind, muestras de CPU)
-node tools/debug/winuae-profile.mjs <demo> [CONFIG] [frames]
+node tools/debug/winuae-profile.mjs <demo> [CONFIG] [frames] [--settle-ms MS]
+
+# DK gameplay A1200: esperar al final del título/transición antes de muestrear.
+WINUAE_GDB_PORT=2445 WINUAE_SIDE_CHANNEL_PORT=2446 \
+  node tools/debug/winuae-profile.mjs dk_port_xl A1200_release 10 --settle-ms 11000
 
 # 2) resolver las muestras a rutinas
 node tools/analyze/profile-samples.mjs out/tmp/wprof-<demo>-<CONFIG>.bin <demo> [CONFIG] [--top N] [--json]
@@ -31,6 +35,27 @@ node tools/debug/profile.mjs <demo> [CONFIG]
 ```
 
 Antes de capturar, matar instancias huérfanas de WinUAE (bloquean los puertos GDB 2345/2346) y asegurarse de que el binario y su `.map`/`.elf` existen en `out/demos/<demo>/<CONFIG>/`.
+`winuae-profile.mjs` espera 2,5 s por defecto; `--settle-ms` permite esperar fases tardías (p. ej. el
+comienzo de gameplay). Como perfila el `runner.uae` generado, fuerza el lanzamiento `-f` por defecto
+para no reescribir `WinUAE-DBG/bin/default.uae`; `WINUAE_USE_LEGACY_LAUNCH=0` es un override explícito.
+
+### FPS directo por canal lateral
+
+`tools/debug/measure-side-fps.mjs` muestrea `runstatus.frame` y, si existe en el `.map`,
+`g_eng_frame_telemetry.frame` por el mismo socket lateral. Usa timestamps monotónicos del host y
+cuenta la latencia de cada lectura, sin asumir que el intervalo nominal se cumple exactamente.
+Para medir gameplay sin capturas dentro de la ventana, conserva el listener y ejecútalo desde otra
+terminal:
+
+```bash
+WINUAE_GDB_PERSIST_LISTENER=1 ./tools/run/run-demo-a1200.sh dk_port_xl \
+  --config A1200_release --settle-ms 11000 --keep-running
+# En otra terminal, con el canal lateral todavía accesible:
+node tools/debug/measure-side-fps.mjs dk_port_xl A1200_release --samples 41 --interval-ms 250
+```
+
+La salida informa el FPS agregado y el rango/mediana de ventanas; al terminar, se cierra la instancia
+A1200 propia que quedó abierta con `--keep-running`.
 
 ## El HUD no puede contaminar la medida (regla de medición)
 

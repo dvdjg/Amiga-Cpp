@@ -70,6 +70,18 @@ Si una demo necesita un nivel de optimizacion distinto para su **TU** sin cambia
 
 > **Sin BOM**: guardar `build.args`/`run.args` **sin BOM UTF-8** (p. ej. con el editor del repo o `printf`, no `Set-Content -Encoding utf8` de PowerShell 5.1). Un BOM hacía que la **primera** clave se leyese como `\ufeffDEMO_FLAGS` y se ignorase **en silencio** (dos builds «distintos», mismo binario; detectado por hash idéntico). El parser tolera el BOM desde el fix de `build-demo.sh` (2026-10), pero la norma del repo es sin BOM.
 
+### Perfil nativo A1200/68020
+
+Para la demo DK, `tools/build/build-demo-a1200.sh` es el preset aislado A1200: fija `TARGET_MACHINE=A1200` (`-m68020 -DK_AGA=1`) y conserva `ENGINE_OPT=-O0` como perfil seguro, mientras `DEMO_OPT=-O1` viene de `demos/nes/dk_port_xl/build.args`. El cuelgue con engine `-O1` había sido reportado antes, pero las re-pruebas limpias actuales con GCC 15.1 llegan a READY; `-O2` sí se cuelga. El parámetro o condición que explique la diferencia histórica no está aislado. Evidencia y matriz de re-verificación: [`../reference/toolchain/m68k-gcc.md`](../reference/toolchain/m68k-gcc.md#5-arranque-a120068020-sensible-a-la-optimizacion-o2-falla-el-cuelgue-historico-de-o1-no-se-reproduce).
+
+```bash
+./tools/build/build-demo-a1200.sh demos/nes/dk_port_xl --release --clean
+./tools/run/run-demo-a1200.sh dk_port_xl --config A1200_release \
+  --settle-ms 11000 --sequence-frames 12 --sequence-interval-ms 500
+```
+
+El runner A1200 usa GDB/canal lateral **2445/2446**, un `runner.uae` propio y `RUN_DEMO_STRICT_READY=1`; no cambia el `default.uae` ni interfiere con la pareja A500 2345/2346. El modo estricto resuelve `g_eng_run_status` desde el hunk `.data` del HUNK_HEADER y no acepta coincidencias accidentales dentro de BSS. Para DK, el settle de 11 s deja que termine la transición del título antes de capturar gameplay; una espera más corta puede recoger un frame negro de transición. El test unitario del parser y del gate A500 se ejecuta con `npm run test:run-status-resolver`. El preset A500 y su optimización `-O1` siguen siendo los predeterminados.
+
 ## Compilar todas las demos (barrido)
 
 ```bash

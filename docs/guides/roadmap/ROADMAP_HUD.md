@@ -101,6 +101,6 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en
 ## Prioridad actual
 
 1. **Converger la entrada del HUD con el tramo de puntero de G9** (`capture → target → bubble`, `PointerCancel`, *hover* y `UiAction`), sin bloquearlo por el trabajo de edición de texto de la GUI; elimina el subconjunto paralelo de eventos que todavía describe H2.
-2. **Calibrar hit-test y arrastre reales en 303/304 o 002 de ADV** con `winuae_input_mouse` en modo `path`, capturando además selección/drop; una prueba en `002` ya confirmó que la trayectoria y el click llegan al HUD, pero el destino pedido MIRA se resolvió como CIERRA, así que la correspondencia de coordenadas sigue abierta.
+2. **Hacer reproducible la entrada real y calibrar hit-test/arrastre** en 303/304 o 002 de ADV con `winuae_input_mouse` en modo `path`: la observación histórica en `002` mostró CIERRA al pedir MIRA, pero la repetición instrumentada no movió el puntero ni registró botón/hover/selección. Confirmar primero los estados guest y después la correspondencia de coordenadas.
 3. **Cerrar de H4 solo las piezas que consume el compositor de ADV**: reserva de canales de sprite y emisión de cues/split Copper con su test HOST-471; medir después el doble buffer de banda por punteros si un consumidor lo necesita.
 4. **Cerrar H6** con el remapeo de paleta por skin y HOST-473; su valor es fijar el contrato de atlas/tema, pero no debe adelantarse a la captura de entrada ni al primer consumidor Stage Composer.

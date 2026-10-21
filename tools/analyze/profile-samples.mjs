@@ -110,7 +110,7 @@ function mapSections() {
     if (!m || !WANTED.has(m[1])) continue;
     const start = parseInt(m[2], 16), size = parseInt(m[3], 16);
     if (size === 0) continue;
-    out.push({ start, size, end: start + size });
+    out.push({ name: m[1], start, size, end: start + size });
   }
   return out;
 }
@@ -124,25 +124,49 @@ function mapSymbols() {
   return out;
 }
 function makeResolver(rtSections) {
-  const ms = mapSections();
-  const syms = mapSymbols();
-  // Simbolo con direccion de RUNTIME: linked -> rt usando el indice de seccion.
-  const rt = syms.map((s) => {
+	const ms = mapSections();
+	const syms = mapSymbols();
+	const textSection = ms.find((s) => s.name === '.text');
+	const textSymbols = textSection
+		? syms.filter((s) => s.addr >= textSection.start && s.addr < textSection.end)
+		: [];
+	// Simbolo con direccion de RUNTIME: linked -> rt usando el indice de seccion.
+	const rt = syms.map((s) => {
     for (let i = 0; i < ms.length && i < rtSections.length; ++i) {
       if (s.addr >= ms[i].start && s.addr < ms[i].end) {
         return { addr: rtSections[i] + (s.addr - ms[i].start), name: s.name };
       }
     }
     return null;
-  }).filter(Boolean).sort((a, b) => a.addr - b.addr);
-  return (pc) => {
-    let lo = 0, hi = rt.length - 1, best = null;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if (rt[mid].addr <= pc) { best = rt[mid]; lo = mid + 1; } else { hi = mid - 1; }
-    }
-    return best && pc - best.addr < 0x4000 ? best.name : `0x${pc.toString(16)}`;
-  };
+	}).filter(Boolean).sort((a, b) => a.addr - b.addr);
+	return (pc) => {
+		let lo = 0, hi = rt.length - 1, best = null;
+		while (lo <= hi) {
+			const mid = (lo + hi) >> 1;
+			if (rt[mid].addr <= pc) { best = rt[mid]; lo = mid + 1; } else { hi = mid - 1; }
+		}
+		if (best && pc - best.addr < 0x4000) return best.name;
+
+		// WinUAE-DBG's `profileArray` may store a PC relative to the loaded text base
+		// rather than an absolute runtime address. Relocate that offset to the link
+		// `.text` base (`-Ttext=0x400`) before falling back to a raw hex PC.
+		if (textSection) {
+			const linkedPc = pc + textSection.start;
+			if (linkedPc >= textSection.start && linkedPc < textSection.end) {
+				let linkedLo = 0, linkedHi = textSymbols.length - 1, linkedBest = null;
+				while (linkedLo <= linkedHi) {
+					const mid = (linkedLo + linkedHi) >> 1;
+					if (textSymbols[mid].addr <= linkedPc) {
+						linkedBest = textSymbols[mid]; linkedLo = mid + 1;
+					} else {
+						linkedHi = mid - 1;
+					}
+				}
+				if (linkedBest && linkedPc - linkedBest.addr < 0x4000) return linkedBest.name;
+			}
+		}
+		return `0x${pc.toString(16)}`;
+	};
 }
 
 // --- informe ---------------------------------------------------------------------------

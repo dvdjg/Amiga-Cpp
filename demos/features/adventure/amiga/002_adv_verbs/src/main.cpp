@@ -396,6 +396,17 @@ void pad_to(char* text, u8 len, u8 width) {
 	text[len] = '\0';
 }
 
+#if defined(MOUSE_PATH_PROBE)
+u8 append_hex3(char* dst, u8 len, u16 value) {
+	static constexpr char kHex[] = "0123456789ABCDEF";
+	dst[len++] = kHex[(value >> 8) & 0x0fu];
+	dst[len++] = kHex[(value >> 4) & 0x0fu];
+	dst[len++] = kHex[value & 0x0fu];
+	dst[len] = '\0';
+	return len;
+}
+#endif
+
 // --- Contenido de la sala (walkboxes y hotspots) ------------------------------------
 
 using WbS = eng::adv::Walkbox<s16>;
@@ -1419,10 +1430,22 @@ private:
 		// Replica en curso (tabla de textos del contenido).
 		char say_line[64] {};
 		u8 s = 0u;
+#if defined(MOUSE_PATH_PROBE)
+		// Diagnostic builds expose guest coordinates, button state, hover slot and selection in-frame.
+		s = str_cat(say_line, s, "P=");
+		s = append_hex3(say_line, s, static_cast<u16>(m_ptr_x));
+		s = str_cat(say_line, s, "/");
+		s = append_hex3(say_line, s, static_cast<u16>(m_ptr_y));
+		s = str_cat(say_line, s, m_prev_click ? " B1 H" : " B0 H");
+		s = append_hex3(say_line, s, m_hud_verb_hover);
+		s = str_cat(say_line, s, " V");
+		s = append_hex3(say_line, s, m_verb);
+#else
 		const eng::adv::SayQueue<4>::Line* cur = m_say.current();
 		if (cur != nullptr && cur->text_id < kTextCount && kTexts[cur->text_id] != nullptr) {
 			s = str_cat(say_line, s, kTexts[cur->text_id]);
 		}
+#endif
 		pad_to(say_line, s, kHudCols);
 		(void)m_say_diff.paint(hud, kTextX, 10, say_line, 1u);
 

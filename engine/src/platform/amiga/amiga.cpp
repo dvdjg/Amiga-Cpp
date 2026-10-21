@@ -653,13 +653,21 @@ void AmigaBackend::takeover_display(eng::ChipView<eng::CopperTag> copper_words) 
 	// puntero del Workbench (SPREN activo). Si solo instalamos nuestra
 	// copperlist por encima, el sistema sigue "vivo" debajo: handlers de
 	// VBL cada frame y un canal de sprite apuntando a datos stale que,
-	// cuando se apaga/recarga a media pantalla, deja una barra vertical
-	// de un color de paleta (AHRM cap. 4: sprite DMA apagado a mitad de
-	// listado -> ultima linea fetchada -> barra vertical). Por eso aqui
-	// congelamos TODO antes de arrancar nuestra lista. A partir de este
+	// si se apaga mientras la sprite está activa, conserva su última línea
+	// como barra vertical (AHRM cap. 4, p. 109; WinUAE-DBG custom.cpp:3150-3158
+	// y drawing.cpp:4364-4390). Por eso se espera primero al VBlank, se congela
+	// TODO en blanking y se arranca nuestra lista antes del siguiente display. A partir de este
 	// punto el engine NO usa servicios del SO: el bucle principal espera al
 	// VBlank por **senal Exec** (la IRQ la levanta; `Wait()` duerme la tarea
 	// hasta ella) y la depuracion usa el canal lateral 0xf0ff60.
+
+	// AHRM exige no apagar SPREN dentro de VSTART..VSTOP: Denise puede seguir
+	// mostrando el último par DATA/DATB como una barra. Esperar antes del CLEAR
+	// pone el cambio de propiedad fuera de toda banda activa.
+	while ((*vpos_long & 0x1ff00u) == (311u << 8)) {
+	}
+	while ((*vpos_long & 0x1ff00u) != (311u << 8)) {
+	}
 
 	// 1) Apagar interrupciones del sistema y limpiar peticiones.
 	custom_base[custom_intena_offset] = dma_clear_all;   // INTENA=0x7FFF
@@ -682,17 +690,9 @@ void AmigaBackend::takeover_display(eng::ChipView<eng::CopperTag> copper_words) 
 	// 4) Programar nuestra copperlist (puntero COP1LC como LONG).
 	*cop1lc = static_cast<eng::u32>(copper_words.address(0).value);
 
-	// 5) Esperar el arranque de VBlank (linea 311 -> 0) para que el Copper
-	//    arranque ALINEADO al frame y no a media pantalla. Misma espera
-	//    activa que wait_vblank() sobre VPOSR (sin interrupciones).
-	while ((*vpos_long & 0x1ff00u) == (311u << 8)) {
-	}
-	while ((*vpos_long & 0x1ff00u) != (311u << 8)) {
-	}
-
-	// 6) Arrancar master + copper y forzar el inicio de la lista ya (aun
-	//    linea 0-2). Los MOVEs de setup terminan mucho antes de DIWSTRT,
-	//    asi que el primer frame sale limpio.
+	// 5) Arrancar master + copper en el VBlank ya alcanzado y forzar el
+	//    inicio de la lista. Los MOVEs de setup terminan antes de DIWSTRT,
+	//    así que el primer frame sale limpio sin truncar una sprite activa.
 	custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_copper;
 	custom_base[custom_copjmp1_offset] = 0x7fff;         // COPJMP1
 

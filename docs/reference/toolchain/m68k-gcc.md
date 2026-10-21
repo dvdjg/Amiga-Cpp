@@ -154,6 +154,32 @@ sin que el build falle ni se vea una libcall en el asm.
 > referencia y (b) comprobar que el binario sigue en 68000 (`asm-audit`). El silencio de las libcalls
 > no es prueba de corrección.
 
+## 5. Arranque A1200/68020 sensible a la optimización: `-O2` falla; el cuelgue histórico de `-O1` no se reproduce
+
+**Observación histórica (GCC 15 m68k)**: se había reportado que `dk_port_xl` A1200/AGA (`-m68020 -DK_AGA=1`) con engine `-O1` se quedaba en `g_eng_run_status.state=1`, `frame=0`. La prueba original no conservó el comando completo ni un binario reproducible.
+
+**Matriz controlada actual (GCC 15.1.0, misma fuente, `DEMO_OPT=-O1`)**:
+
+| Engine | Perfil y flags adicionales | Resultado A1200/KS 3.1 |
+|---|---|---|
+| `-O0` | preset del wrapper; resto de flags comunes | `READY` (`state=3`), conocido como seguro |
+| `-O1` | release, sin `EXTRA_DEFINES` ni flags extra | `READY` (`state=3`), `.exe` 262.228 B |
+| `-O1` | debug (C y demo también `-O1`) | `READY` (`state=3`) |
+| `-O1` | release + `-fno-omit-frame-pointer` | `READY` (`state=3`) |
+| `-O2` | release, flags habituales, sin `EXTRA_DEFINES` | compila; se queda en `state=1`, `frame=0` |
+| `-O2` | además `-fno-omit-frame-pointer`, `-fno-tree-vectorize`, `-fno-inline` o `-fstrict-aliasing` | no llega a `READY` (`state=1` o `state=0`) |
+
+Las variantes con flag adicional usan un `-DK_CODEGEN_PROBE_*` **sin referencias en el código**, solo para aislar cada artefacto en su propio `CONFIG_ID`; el control `-O2` sin ese macro también falla. El `-O1` release limpio sin macros es la prueba más importante: sí alcanza `READY` en la fuente actual.
+
+El `build-demo.sh` común aporta `-fomit-frame-pointer`, `-fno-strict-aliasing`, excepciones/RTTI desactivadas y secciones por función/datos; añade `-m68020 -DK_AGA=1` al engine A1200. Los cambios probados en frame pointer, vectorización, inlining y aliasing **no** arreglaron `-O2`; `-fstrict-aliasing` se probó solo como diagnóstico y no es un candidato de preset para este engine. En cambio, `-O1` limpio funciona ahora tanto en release como en debug, así que el cuelgue histórico específico de `-O1` **no se reproduce** con esta matriz. No hay evidencia actual de que un flag adicional sea la causa de aquel episodio; la diferencia puede depender de una configuración/build anterior aún no identificada.
+
+**Política conservadora**: `tools/build/build-demo-a1200.sh` mantiene `ENGINE_OPT=-O0` por defecto hasta repetir y explicar la diferencia histórica. Se puede probar `ENGINE_OPT=-O1` explícitamente; no usar `-O2` para este engine A1200. El preset A500/68000 y su `-O1` no se modifican.
+
+**FPS (separar título de gameplay)**: la medida inicial A1200 de **52,0 fps** (5 × 500 ms, frame 189) capturó el título. Con gameplay ya estable, `measure-side-fps.mjs` tomó 41 muestras de canal lateral: `runstatus.frame` avanzó de 1340 a 1863 en 10.909 ms (**47,94 fps**, `state=3`), y el contador de updates coincidió. Las ventanas repetidas quedan entre 47,05 y 48,98 fps. El GDB telemetry había dado 52,7 al dividir por los 10 s nominales sin sumar la latencia de lectura; esa cifra no confirma 52 fps durante gameplay.
+- Una variante de sondeo `ENGINE_OPT=-O1` con un `K_CODEGEN_PROBE_*` no usado midió **48,52 fps** en gameplay (41 muestras laterales, `state=3`), frente a **47,94 fps** para O0 en ventanas comparables. La diferencia es pequeña y no justifica cambiar el preset mientras el fallo histórico de O1 siga sin reproducción determinista.
+
+**Re-verificación tras cambiar GCC, flags o el engine**: compilar y ejecutar A1200 con `ENGINE_OPT=-O0`, `-O1` limpio y `-O2` limpio, manteniendo `DEMO_OPT=-O1`; registrar comando/flags completos, número de build, estado de arranque y una ventana de frames. Para cerrar el informe histórico de `-O1`, hay que recuperar su combinación exacta de flags o minimizar un caso que vuelva a fallar.
+
 ## Referencias
 
 - `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (reglas de codegen y libcalls).
