@@ -41,7 +41,8 @@ A/B realizado (una variable):
 | 3 planos, rotación, Active | 20 s estables en las ejecuciones buenas |
 | 5 planos, sin GDB ni sesión MCP | también se congela (no es un halt del depurador) |
 | 5 planos, `Active` + takeover + `AddIntServer` | **49,87–49,92 fps / 1 campo**, 20 s estable |
-| 4 planos, `Active` + takeover + `AddIntServer` | parón tardío (~1150 frames), sin aislar |
+| 4 planos, `Active` + takeover + `AddIntServer`, **sin GDB** | **35 s estable**; servidor VERTB ≈1 llamada/frame (`adds=1`, `calls≈frames`) |
+| 4 planos, `Active` + takeover + `AddIntServer`, con `measure-fps`/GDB | parón tardío; perturbación del cliente de medida, no del engine |
 | 4 perfiles, `Polling` + takeover | **49,87–49,92 fps / 1 campo**, 20 s estable |
 | Auditoría de rangos en runtime | planos `0x15070..0x21870`, sprites `0x2394c..0x245f0`, copperlists `0x258a0..0x260a0`: **sin solapes** |
 

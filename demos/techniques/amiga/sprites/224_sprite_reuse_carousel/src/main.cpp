@@ -81,6 +81,10 @@ constexpr eng::u16 kAttachedKinds = 5u;
 #ifndef K224_ROTATE_ART
 #define K224_ROTATE_ART 1
 #endif
+/// A/B de diagnóstico: 0 = sondeo (modo de la demo), 1 = espera activa + AddIntServer.
+#ifndef K224_WAIT_ACTIVE
+#define K224_WAIT_ACTIVE 0
+#endif
 constexpr bool kRotateArt = (K224_ROTATE_ART != 0);
 constexpr eng::u8 kRotationListCount = (kProbe || !kRotateArt)
 	? 1u : static_cast<eng::u8>(kAttachedKinds);
@@ -583,5 +587,8 @@ int main() {
 	// El camino `Active`+`AddIntServer` funciona 20 s en 3/5 planos, pero en 4 planos sigue
 	// apareciendo un fallo tardío bajo el runner (ver DT-045). El sondeo por VPOSR no depende
 	// de esa cadena de IRQ y está verificado en los cuatro perfiles: modo de la demo.
-	return eng::amiga::run_demo(g_game, display, eng::amiga::VblankWait::Polling);
+	constexpr eng::amiga::VblankWait kWaitMode = (K224_WAIT_ACTIVE != 0)
+		? eng::amiga::VblankWait::Active
+		: eng::amiga::VblankWait::Polling;
+	return eng::amiga::run_demo(g_game, display, kWaitMode);
 }

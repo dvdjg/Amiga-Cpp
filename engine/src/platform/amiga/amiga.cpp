@@ -20,6 +20,15 @@
 // la abre en `takeover_system` y la cierra en `restore_system`). Enlace C, como espera el stub.
 struct GfxBase* GfxBase = nullptr;
 
+// Contadores de diagnóstico del camino IRQ (visibles en el `.map` y legibles por el
+// canal lateral sin GDB). Inicializados a un valor no nulo para que vivan en `.data` y el
+// mapa publique su dirección. Coste: un incremento por VBlank.
+extern "C" {
+[[gnu::used]] volatile eng::u32 g_irq_diag_vbl_calls = 0x1000u;
+[[gnu::used]] volatile eng::u32 g_irq_diag_vbl_adds = 0x2000u;
+[[gnu::used]] volatile eng::u32 g_irq_diag_seq_value = 0x3000u;
+}
+
 using namespace eng::amiga::detail;
 
 // Entradas de los servidores de exec (support/level3_irq.s). El stub garantiza el retorno
@@ -395,6 +404,7 @@ void sync_os_servers() {
 		init_server(g_exec_servers.vbl, g_vbl_server_name, eng_vbl_server_entry, 100);
 		AddIntServer(INTB_VERTB, &g_exec_servers.vbl);
 		g_exec_servers.vbl_added = true;
+		++g_irq_diag_vbl_adds;
 	} else if (g_vbl_task == nullptr && g_exec_servers.vbl_added) {
 		RemIntServer(INTB_VERTB, &g_exec_servers.vbl);
 		g_exec_servers.vbl_added = false;
@@ -436,11 +446,13 @@ void remove_os_servers() {
 // Exec ya ha confirmado (ack) el bit de INTREQ antes de recorrer la cadena; aquí no se
 // escribe INTREQ. Se conserva la señal de VBlank para el bucle de mensajes.
 extern "C" void eng_vbl_server_body() {
+	++g_irq_diag_vbl_calls;
 	const unsigned short vpos = static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8);
 	if (g_vbl_task != nullptr) {
 		g_vbl_task(g_vbl_task_user, vpos);
 	}
 	++g_vblank_seq;
+	g_irq_diag_seq_value = g_vblank_seq;
 	vblank_signal_raise();
 }
 
