@@ -31,6 +31,14 @@ El objetivo no es que la demo tenga el menor número de líneas posible, sino qu
 - El juego declara su display (`GameDisplay`), paleta, color, cámara y objetos; el engine decide composición, copper, DMA, planos y buffers.
 - Las pistas de presupuesto son abstractas («este efecto es caro, tolero bajar a 25 fps»), nunca registros ni ciclos.
 
+## 4.1 Mensajes y Blitter asíncrono (API preferido)
+
+La app debe poder escribir un juego **dirigido por mensajes** sin conocer `VERTB`, `INTENA`, el vector de nivel 3, `Forbid` ni el polling. El contrato mínimo:
+
+- **VBlank como mensaje:** `app.set_frame_sync(App::FrameSyncMode::Event)` (un `MsgType::VBlank` por frame en `app.port()`) o `Latch` + `app.take_frame_tick(tick)` (secuencia y `missed`, recomendado si el consumidor puede llegar tarde). El bucle consume el puerto (`try_get`/`WaitPort`) y actualiza el juego; no lee `VPOSR`.
+- **Blitter asíncrono:** `app.set_async_present(true)`, `screen.notify(ticket)` y `app.blitter_memcpy_async(...)`; los avisos llegan como `MsgType::IntentDone`/`BlitDone` con el ticket. La lógica encadena trabajo en `update` y no espera; el engine alimenta la cadena desde la IRQ de fin de blit.
+- **La fontanería es del engine:** bajo AmigaDOS registra `AddIntServer` (VERTB/BLIT) y deja que exec sea el dueño de la interrupción; el juego nunca escribe `INTENA`, no instala vectores y no usa `VblankWait::Polling` como mecanismo de juego (es un fallback de bootstrap). Si una demo necesita bajar a esos detalles, falta una abstracción en la fachada: se añade al engine, no se copia en la demo.
+
 ## 5. Reutilizar antes que repetir
 
 - Toda ayuda que aparezca en dos demos se sube al engine y se usa desde la fachada: `run_demo`, `debug::draw_hud`, `Playfield::draw_circle`, `Screen::text_words`, `Sprite`, `ScrollSpec`…

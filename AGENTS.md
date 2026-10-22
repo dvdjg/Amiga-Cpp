@@ -60,6 +60,8 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
   píxel a píxel**). Alternativa admitida: ventana de debug WinUAE con esos mismos datos.
   Referencia de implementación: demo 120 (`draw_hud`, HUD 1bpp); `eng::debug::VersionStrip`
   sigue siendo válido para franjas preexistentes multi-plano (065/066).
+- **Modelo de desarrollo preferido (2026-10):** la lógica de juegos/demos es **dirigida por mensajes**, no por polling. El VBlank se consume como mensaje por frame (`App::FrameSyncMode::Event` con `app.port()`, o `Latch` con `take_frame_tick()`), y el Blitter se usa de forma **asíncrona** (`set_async_present(true)`, jobs encadenados por la IRQ de fin de blit, avisos `MsgType::BlitDone`/`IntentDone` con ticket). El juego **no** sondea `VPOSR`, no escribe `INTENA` ni el vector de nivel 3: eso es fontanería del engine, que bajo AmigaDOS usa `AddIntServer` (exec sigue siendo el dueño de la interrupción). `VblankWait::Polling` es solo un fallback de validación/bare-metal, no el modelo de desarrollo.
+- **HUD de depuración recomendado:** el contador de frame y los FPS se muestran en el **overlay de depuración del host** (`app.debug().text`), que **WinUAE compone sobre el vídeo** en el lado host (no consume bitplanes ni DMA del Amiga), limpiando el overlay antes de cada actualización para que los dígitos no se superpongan; la franja inferior de bitplanes queda para nombre+versión. Es el HUD recomendado para todas las demos. La lectura del texto del HUD por el modelo de visión no se usa como medida de fps (alucina/degrada dígitos); la medida es `measure-fps`.
 
 ---
 

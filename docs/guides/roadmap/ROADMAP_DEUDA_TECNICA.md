@@ -611,3 +611,13 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 - Cinco listas preconstruidas (una por rotación) y swap de COP1LC únicamente: **5 ventanas limpias (~10 s)** y parón después.
 
 Conclusión parcial: el detonante está en la rotación periódica combinada con la sesión GDB adjunta, no en el parcheo POS/CTL. Siguiente sonda: listas preconstruidas **sin ningún swap** (rotación fija) para separar el swap de COP1LC de cualquier otra causa; después, medir con `run-demo` una secuencia larga para confirmar que el fallo solo ocurre con GDB adjunto. La demo 224 se queda con las cinco listas preconstruidas (mejor comportamiento medido) y su VALIDATION declara el alcance real.
+
+**Actualización (2026-10-22): mitigación por sondeo y camino `AddIntServer`:**
+
+- Se confirmó que la 212/DT-011 también aplica aquí: bajo el runner, `INTENAR` perdía VERTB (observado `0x2000`/`0x7001`) con `INTREQR=0x20` y `g_vblank_seq` atascado.
+- El bootstrap `run_demo` llama ahora a `takeover_system()` (`Forbid` + `LoadView(NULL)` + `OwnBlitter`) antes del display y garantiza `restore_system()`; se excluye `Signal` (Wait + Forbid puede bloquear la tarea).
+- Se migró el servicio de nivel 3 a `AddIntServer(INTB_VERTB/BLIT)` bajo AmigaDOS, con stubs ASM que retornan con Z activo; el vector crudo queda para bare-metal. Con `Active`, 3 y 5 planos miden 20 s estables (49,87/49,92 fps, 1 campo).
+- **Abierto:** la build de 4 planos con `Active` se para de forma variable (~740–1150 frames), con `INTENAR=0x77FF`, `INTREQR=0x20` pendiente y la CPU en el bucle de secuencia de `wait_vblank_run`; no se ha aislado si es la cadena de servidores (se probó prioridad 100 para el servidor VERTB y el parón persistió), una interacción del stub o el latch de lightpen de WinUAE (`GETVPOS()` puede devolver `vpos_lpen`, con la posición del cursor; se observó VPOS fijo en 5, 54 o 185). El MCP puede dejar una sesión GDB auto-adjunta (`gdbConnected=true`, `debuggerState=2`) que también detiene la CPU; hay que desconectarla antes de medir.
+- **Decisión:** la demo 224 usa `VblankWait::Polling` (`run_frames_polling`), que no depende de VERTB ni de la cadena de exec y mide **49,87–49,92 fps / 1,001–1,003 campos** en los cuatro perfiles durante 20 s. El camino `Active` + `AddIntServer` queda como mejora de engine **experimental** hasta cerrar el parón tardío de 4 planos. `measure-fps` lee el contador de ciclos por canal lateral, tiene `--require-stable` y diagnóstico `INTENA/INTREQ` en el parón.
+
+Referencias: `docs/debugging/investigaciones/consultas/consulta-224-intena-vertb-takeover-en.md` (triaje de Grok), `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`, `demos/techniques/amiga/sprites/224_sprite_reuse_carousel/VALIDATION.md`.

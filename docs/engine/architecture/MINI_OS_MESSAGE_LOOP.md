@@ -287,6 +287,8 @@ Además de emitir el mensaje, la IRQ actualiza el **snapshot de nivel** de entra
 un evento. Así conviven los dos modelos sin duplicar: mensajes para flancos, snapshot para
 nivel.
 
+**Mensaje por VBlank (contrato preferido para juegos y demos).** El motor del juego puede pedir explícitamente **un mensaje por VBlank** con `App::set_frame_sync(App::FrameSyncMode::Event)`: cada IRQ publica un `MsgType::VBlank` en `app.port()` y la lógica lo consume con `while (app.port().try_get(m))` o con `WaitPort`, sin sondear `VPOSR`. La cola FIFO tiene 16 entradas: si el consumidor puede quedarse atrás, usar `FrameSyncMode::Latch` y `take_frame_tick()` (secuencia + `missed`) en vez de acumular frames. El productor vive en el engine: bajo AmigaDOS se registra con `AddIntServer(INTB_VERTB, ...)` y **exec sigue siendo el dueño** del vector y de `INTENA`; el juego no los toca. En modo cooperativo (SO vivo) el bucle puede dormir en `WaitPort`/`Wait`; `Forbid()` y el takeover exclusivo se reservan para bare-metal, porque `Wait` con `Forbid` activo puede bloquear la tarea.
+
 ### 6.2 Teclado, ratón y joystick
 
 La fuente puede ser una **IRQ de CIA** (timer/flanco) o un **soft-int** lanzado tras el sondeo
