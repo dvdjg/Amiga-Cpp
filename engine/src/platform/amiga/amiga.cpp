@@ -437,8 +437,8 @@ void sync_os_servers() {
 	// INTENA) hay que devolver el enable que exec da por supuesto; lo mismo para BLIT.
 	// No se sustituye el vector: exec sigue siendo el dueño del despacho.
 	// Solo en exclusivo: el takeover limpió INTENA y hay que devolver el enable que exec da
-	// por supuesto. En cooperativo el SO es dueño de INTENA; escribirla desde aquí puede
-	// desarmar su despacho (el fallo de la cadena a los ~21 frames).
+	// por supuesto. En cooperativo el SO es dueño de INTENA; no se escribe aquí. Si falta
+	// algún bit, `wait_vblank_run` re-arma INTEN|VERTB con SETCLR antes de dormir.
 	if (!g_cooperative_servers) {
 		eng::u16 bits = 0x4000u; // INTEN
 		if (g_vbl_task != nullptr) bits |= 0x0020u;
