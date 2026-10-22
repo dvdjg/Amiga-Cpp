@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // Mide fps y ciclos por frame en tiempo EMULADO con el contador de ciclos del periférico
 // de depuración 0xB7E928 (cpucycleunit=256 según WinUAE), independiente del ancho de banda host.
-// Los primeros 10 s de WinUAE se omiten antes de empezar la ventana cronometrada.
+// La ventana de medida empieza cuando el run-status confirma READY; el tiempo de arranque
+// variable (assets/init) no se mezcla con el rendimiento del bucle de frames.
 //
 // Uso:
 //   node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME] [--json] [--duration-ms N]
+//        [--require-stable]   (sale con código 3 si la cadencia no es estable o cuantiza)
 //
 // --json imprime, como última línea, un objeto JSON con el resultado (demo, config,
 // fecha, commit, fps emulado/host, ciclos/frame y detail) para consumo por tooling
@@ -186,6 +188,9 @@ const conn = new WinUAEConnection(CONFIG);
 await conn.connect({ forceBreak: false, initializeStopped: true });
 const p = conn.getProtocol();
 await p.continue();
+// El Shell del runner tarda en cargar `a.exe` después del continue; esperar a que existan sus
+// secciones runtime para resolver el símbolo no forma parte de la ventana medida. READY se
+// espera explícitamente más abajo, así que esta espera solo separa carga de medición.
 await sleep(10000);
 
 const st = await sideChannelCommand('state', SIDE_PORT, 5000);
@@ -198,15 +203,22 @@ if (!magicAddr) {
   process.exit(1);
 }
 const state = async () => {
-  // **Ciclos por GDB (`$b7e928`) con reintentos**: es la fuente en unidades de `CPU_HZ`
-  // (el `cycles` del `state` del canal lateral NO lo está: da ~14x y no sirve para fps).
-  // El read se atasca de forma intermitente (DT-025); tras varios intentos se aborta con
-  // mensaje claro en vez de tumbar la medida con una excepción.
+  // Contador de ciclos del periférico de depuración ($B7E928, unidades de `CPU_HZ`) leído
+  // por el **canal lateral**. Un `readMemory` GDB puede detener/reanudar el CPU y perturbar
+  // el latido VERTB: la build de 4 planos de la 224 se congelaba solo bajo la medida por GDB
+  // y corría estable sin cliente GDB. El canal lateral es no intrusivo; se mantienen los
+  // reintentos por si la sesión queda atascada (DT-025).
   let cycles = null;
   let lastErr = null;
   for (let attempt = 1; attempt <= 5 && cycles === null; ++attempt) {
     try {
-      cycles = (await p.readMemory(0xb7e928, 4)).readUInt32BE(0);
+      const r = await sideChannelCommand('mem b7e928 4', SIDE_PORT, 3000);
+      const hex = r?.reply?.data;
+      if (typeof hex === 'string' && hex.length === 8) {
+        cycles = parseInt(hex, 16) >>> 0;
+      } else {
+        throw new Error('respuesta sin datos');
+      }
     } catch (err) {
       lastErr = err;
       await sleep(500);
@@ -215,14 +227,43 @@ const state = async () => {
   if (cycles === null) {
     throw new Error(
       `no se pudo leer el contador de ciclos en $b7e928 tras 5 intentos (${lastErr?.message ?? 'desconocido'}); ` +
-        'el canal GDB puede estar atascado (DT-025): reintenta la medida o reinicia la instancia.',
+        'el canal lateral puede estar atascado (DT-025): reintenta la medida o reinicia la instancia.',
     );
   }
   const r = await sideChannelCommand('runstatus 0x' + magicAddr.toString(16), SIDE_PORT, 3000);
-  return { cycles, frame: r.reply.frame, detail: r.reply.detail };
+  return { cycles, frame: r.reply.frame, detail: r.reply.detail, runState: r.reply.state };
 };
 
-await state();
+// No medir la inicialización: en escenas cargadas puede durar más de 10 s. Esperar el estado
+// READY explícito evita contar ventanas sin juego (o declarar un frame rate ficticio por el
+// arranque). El polling solo lee el estado lateral; no detiene el 68000 ni solicita capturas.
+const RUN_STATE_READY = 3;
+const RUN_STATE_FAILED = 4;
+const readyDeadline = Date.now() + 60000;
+let readyStatus = null;
+while (Date.now() < readyDeadline) {
+  try {
+    const r = await sideChannelCommand('runstatus 0x' + magicAddr.toString(16), SIDE_PORT, 3000);
+    readyStatus = r.reply;
+  } catch {
+    readyStatus = null;
+  }
+  if (readyStatus?.state === RUN_STATE_READY) break;
+  if (readyStatus?.state === RUN_STATE_FAILED) {
+    console.error('[fps] la demo terminó en FAILED antes de READY (detail=0x' +
+      (readyStatus.detail >>> 0).toString(16) + ')');
+    await conn.disconnect(true);
+    process.exit(2);
+  }
+  await sleep(250);
+}
+if (readyStatus?.state !== RUN_STATE_READY) {
+  console.error('[fps] timeout esperando READY (60 s; detail=0x' +
+    ((readyStatus?.detail ?? 0) >>> 0).toString(16) + ')');
+  await conn.disconnect(true);
+  process.exit(2);
+}
+console.log(`[fps] READY en frame=${readyStatus.frame}; comienza la ventana de medida`);
 // **Muestreo por sub-ventanas**: una media única engaña cuando el frame está en el borde
 // del campo (una demo que alterna frames de 1 y 2 campos da ~33 fps de media, pero ni va a
 // 50 ni a 25: cada ventana oscila). Se toman N sub-ventanas, se calcula el fps de cada una
@@ -255,6 +296,26 @@ if (samples.every((s) => s.frames <= 0)) {
   console.error('[fps] ninguna sub-ventana avanzó frames (run-status sin actualizar en 0x' +
     magicAddr.toString(16) + ', detail=0x' + (samples[samples.length - 1].detail >>> 0).toString(16) +
     '): reintento en 3 s…');
+  // Diagnóstico del latido: distingue "la OS retiró VERTB" (DT-011/212) de "VERTB pendiente
+  // pero la CPU no la atiende" (depurador detenido / VPOSR latcheado por el lightpen).
+  try {
+    const irq = await sideChannelCommand('mem dff01c 4', SIDE_PORT, 3000);
+    const hex = irq?.reply?.data;
+    if (typeof hex === 'string' && hex.length === 8) {
+      const intena = parseInt(hex.slice(0, 4), 16);
+      const intreq = parseInt(hex.slice(4, 8), 16);
+      const vblOn = (intena & 0x0020) !== 0;
+      const vblPending = (intreq & 0x0020) !== 0;
+      console.error(`[fps] diagnóstico IRQ: INTENAR=0x${intena.toString(16).padStart(4, '0')} INTREQR=0x${intreq.toString(16).padStart(4, '0')} (VERTB ${vblOn ? 'habilitada' : 'deshabilitada'}, ${vblPending ? 'pendiente' : 'sin petición'})`);
+      if (vblPending && !vblOn) {
+        console.error('[fps] la OS/exec ha retirado VERTB de INTENA (familia 212/DT-011): usa takeover + AddIntServer o VblankWait::Polling.');
+      } else if (vblPending && vblOn) {
+        console.error('[fps] VERTB pendiente con enable: la CPU no atiende el nivel 3 (depurador detenido o VPOSR latcheado; ver DT-045). Desconecta sesiones MCP/GDB ajenas.');
+      }
+    }
+  } catch {
+    // diagnóstico best-effort
+  }
   await sleep(3000);
   const retry = await state();
   if (retry.frame - prev.frame <= 0) {
@@ -331,6 +392,13 @@ if (JSON_OUT) {
     samples: samples.map((s) => ({ frames: s.frames, fps: Number(s.fps.toFixed(2)) })),
   };
   console.log(JSON.stringify(result));
+}
+
+if (ARGV.includes('--require-stable') && (!stable || quantizedFields > 1)) {
+  console.error('[fps] --require-stable: la medida no cumple (stable=' + stable +
+    ', cuantizacion=' + (quantizedFields || '?') + ' campos/frame).');
+  await conn.disconnect(true);
+  process.exit(3);
 }
 
 await conn.disconnect(true);
