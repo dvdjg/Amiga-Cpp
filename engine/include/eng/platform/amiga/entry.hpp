@@ -34,6 +34,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/memory/arena.hpp> // `MemoryConfig` para el overload con presupuesto explícito
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/vblank_mode.hpp>
 
 extern "C" {
 extern volatile ::eng::debug::RunStatus g_eng_run_status;
@@ -116,6 +117,7 @@ enum class VblankWait : eng::u8 {
 	Signal = 0u, ///< duerme en `Wait()` (por defecto; no usar bajo SO vivo sin takeover)
 	Active,      ///< espera activa (`set_vblank_sleep(false)`)
 	Polling,     ///< bucle por sondeo (`run_polling`), sin depender de la IRQ de VBlank
+	Messages,    ///< cooperativo: display del SO, `AddIntServer` y `Wait` (sin tocar Copper)
 };
 
 namespace detail {
@@ -137,7 +139,9 @@ int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryC
 	// siempre (parón determinista); la espera activa (latido por IRQ + sondeo de VPOS)
 	// evita el camino de `Wait()`; el sondeo no depende de la IRQ en absoluto. Se
 	// configura ANTES de `start` para que el bucle nazca en el modo.
-	backend.set_vblank_sleep(wait == VblankWait::Signal);
+	const bool cooperative = (wait == VblankWait::Messages);
+	eng::amiga::set_vblank_cooperative(cooperative);
+	backend.set_vblank_sleep(wait == VblankWait::Signal || cooperative);
 	const bool memory_ok = memory.valid() ? backend.configure_memory(*memory)
 					      : backend.configure_game_memory();
 	if (!memory_ok) {
@@ -151,7 +155,10 @@ int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryC
 	// para que el display del SO deje de tocar la copperlist y los bits de interrupción. Se
 	// excluye `Signal`: `Wait()` con `Forbid()` activo puede bloquear la tarea para siempre;
 	// las demos con `Signal` deben migrar a `Active`/`Polling` antes de recibir el takeover.
-	const bool system_takeover = (wait != VblankWait::Signal);
+	// **Exclusive** (`Active`/`Polling`): display propio + `Forbid` + AddIntServer; sin `Wait`.
+	// **Cooperative** (`Messages`): display del SO, `AddIntServer`, `Wait`/`WaitPort`; **no** se
+	// toca Copper/DMACON ni se hace takeover (KS 1.3 no permite ambas cosas a la vez).
+	const bool system_takeover = (wait == VblankWait::Active || wait == VblankWait::Polling);
 	if (system_takeover && !backend.takeover_system()) {
 		::eng::debug::mark_failed(g_eng_run_status, ::eng::debug::BootFail::Display);
 		return 0;

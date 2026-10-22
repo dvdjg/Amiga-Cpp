@@ -1,4 +1,5 @@
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/vblank_mode.hpp>
 
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
@@ -87,6 +88,11 @@ struct SystemTakeoverState {
 	eng::u16 old_adkcon = 0u;
 };
 SystemTakeoverState g_sys {};
+
+/// Modo cooperativo: el SO conserva el display y el autovector de nivel 3; el engine solo
+/// encadena sus servidores con `AddIntServer` y duerme en `Wait()`. No se escribe `INTENA`
+/// (exec ya la mantiene) ni se hace takeover. Ver `vblank_mode.hpp`.
+bool g_cooperative_servers = false;
 
 /// Servidores de exec y sus nodos (estáticos: `AddIntServer` conserva el puntero).
 /// Bajo AmigaDOS el SO es dueño del autovector de nivel 3 y de `INTENA`; los handlers se
@@ -297,8 +303,16 @@ void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	// apagar VERTB (ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`).
 	// Con espera activa el bucle esta despierto y la re-arma aqui; con `Wait()` bloqueante
 	// cubre tambien el hueco entre esperas.
-	if (g_vbl_task != nullptr && (custom_base[custom_intena_offset] & 0x0020u) == 0u) {
-		level3_sync();
+	if (g_vbl_task != nullptr && (custom_base[custom_intenar_offset] & 0x0020u) == 0u) {
+		if (g_cooperative_servers) {
+			// El SO apaga VERTB cuando su pantalla/ventana queda estática (familia 212). En
+			// cooperativo no se toca el resto de INTENA: solo se **setea** VERTB (SETCLR=1)
+			// para que la cadena de exec vuelva a despachar nuestro servidor; el vector y el
+			// display siguen siendo del SO.
+			custom_base[custom_intena_offset] = 0x8020u; // SETCLR | VERTB
+		} else {
+			level3_sync();
+		}
 	}
 	// **Espera bloqueada por señal** (modelo de mensajes): con el servicio de VBlank
 	// instalado, la IRQ levanta una señal Exec y esta tarea **duerme en `Wait()`** en vez de
@@ -388,7 +402,7 @@ namespace {
 /// `AddIntServer`/`RemIntServer` dejan que exec sea el dueño del vector de nivel 3 y de
 /// `INTENA`; no se escribe el vector ni `INTENA` a mano (familia 212/DT-011).
 void sync_os_servers() {
-	if (!g_sys.active) {
+	if (!g_sys.active && !g_cooperative_servers) {
 		return;
 	}
 	// Si una build anterior instaló el vector crudo, devolverlo antes de ceder el control.
@@ -421,11 +435,16 @@ void sync_os_servers() {
 	// VERTB ya existe (graphics.library), así que tras `takeover_display` (que limpia
 	// INTENA) hay que devolver el enable que exec da por supuesto; lo mismo para BLIT.
 	// No se sustituye el vector: exec sigue siendo el dueño del despacho.
-	eng::u16 bits = 0x4000u; // INTEN
-	if (g_vbl_task != nullptr) bits |= 0x0020u;
-	if (g_blit_task != nullptr) bits |= 0x0040u;
-	if (bits != 0x4000u) {
-		custom_base[custom_intena_offset] = static_cast<unsigned short>(0x8000u | bits);
+	// Solo en exclusivo: el takeover limpió INTENA y hay que devolver el enable que exec da
+	// por supuesto. En cooperativo el SO es dueño de INTENA; escribirla desde aquí puede
+	// desarmar su despacho (el fallo de la cadena a los ~21 frames).
+	if (!g_cooperative_servers) {
+		eng::u16 bits = 0x4000u; // INTEN
+		if (g_vbl_task != nullptr) bits |= 0x0020u;
+		if (g_blit_task != nullptr) bits |= 0x0040u;
+		if (bits != 0x4000u) {
+			custom_base[custom_intena_offset] = static_cast<unsigned short>(0x8000u | bits);
+		}
 	}
 }
 
@@ -467,7 +486,7 @@ extern "C" void eng_blit_server_body() {
 // cadena de servidores de exec; en bare-metal mantiene el vector crudo y `INTENA`.
 // Solo toca INTEN/VERTB/BLIT; no desarma otros bits de INTENA (p. ej. el audio del mixer).
 void level3_sync() {
-	if (g_sys.active) {
+	if (g_sys.active || g_cooperative_servers) {
 		sync_os_servers();
 		return;
 	}
@@ -889,7 +908,15 @@ bool AmigaBackend::runs_under_os() const {
 }
 
 bool AmigaBackend::vblank_wait_unsafe() const {
-	return m_vblank_sleep && !g_sys.active && runs_under_os();
+	return m_vblank_sleep && !g_sys.active && !g_cooperative_servers && runs_under_os();
+}
+
+void set_vblank_cooperative(bool on) noexcept {
+	g_cooperative_servers = on;
+}
+
+bool vblank_cooperative() noexcept {
+	return g_cooperative_servers;
 }
 
 bool AmigaBackend::takeover_system() {
