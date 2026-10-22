@@ -6,6 +6,8 @@
 #include <eng/os/message_pump.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/vblank_mode.hpp>
+#include <eng/platform/amiga/vblank_mode.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -149,7 +151,6 @@ struct DemoApp {
 	}
 
 	void on_render(auto& backend) {
-		eng::os::Msg vb {};
 		auto& d = backend.debug();
 		d.clear();
 		d.filled_rect(40, 40, 720, 520, 0x00082030);
@@ -157,7 +158,11 @@ struct DemoApp {
 		d.text(64, 60, "AMG demo 212 - mini-OS message loop", 0x00ffffff);
 		d.text(64, 88, "VBlank + input por mensajes (sin sondear hardware)", 0x0000ff80);
 
-		char line[64];
+		// 128, no 64: con todos los contadores la linea no cabe en 64 y el desbordamiento
+		// de pila corrompia el bucle cooperativo (VBlank) tras el primer frame. El HUD es
+		// la unica escritura de pila del render; `append` no acota, asi que el buffer debe
+		// cubrir el peor caso.
+		char line[128];
 		char* p = line;
 		p = append(p, "frames: ");
 		p = append_u32(p, frames);
@@ -179,8 +184,6 @@ struct DemoApp {
 		d.text(64, 118, line, 0x00ffff00);
 		d.text(64, 148, "mueve la caja con el joystick (puerto 2) o el raton (puerto 1)", 0x00aaaaaa);
 		d.text(64, 176, "bg = slices de idle de la tarea de fondo (M10; solo sin mensajes)", 0x0000ff80);
-
-		// La caja.
 		d.filled_rect(box_x, box_y, static_cast<eng::s16>(box_x + 20), static_cast<eng::s16>(box_y + 20),
 			      0x00ff8000);
 		eng::debug::probe_when_ready(g_eng_run_status, frames);
