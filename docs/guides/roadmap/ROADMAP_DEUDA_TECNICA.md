@@ -601,3 +601,13 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 **Hipótesis abierta:** interacción del stub GDB adjunto durante toda la medida con el camino de espera activa de VBlank o con la lista estática; 216 hace takeover con `DoubleBuffer` y reemite por frame.
 
 **Plan:** aislar con una sonda mínima (demo estática que solo mueva POS) midiendo con GDB adjunto; si se confirma, revisar el servicio de VBlank del stub/engine en ese modo y documentar la limitación de la herramienta. Mientras tanto, la evidencia de cadencia de la 224 se limita a las ventanas medidas y a la secuencia con `run-demo`.
+
+**Ampliación (sonda mínima, misma sesión):**
+
+- Sonda de 1 canal/1 banda/1 par POS-CTL por frame (`-DK224_PROBE=1`): **8/8 ventanas a 49,92 fps** con GDB adjunto. El parcheo de POS/CTL en sí no congela.
+- Demo completa sin rotación (`-DK224_NO_ROTATE=1`): **8/8 ventanas a 49,92 fps**.
+- Parcheo de PT sobre la lista activa al rotar: parón a los ~2,5 s.
+- Reconstruir la lista inactiva y publicar por COP1LC: parón a los ~2,5 s.
+- Cinco listas preconstruidas (una por rotación) y swap de COP1LC únicamente: **5 ventanas limpias (~10 s)** y parón después.
+
+Conclusión parcial: el detonante está en la rotación periódica combinada con la sesión GDB adjunta, no en el parcheo POS/CTL. Siguiente sonda: listas preconstruidas **sin ningún swap** (rotación fija) para separar el swap de COP1LC de cualquier otra causa; después, medir con `run-demo` una secuencia larga para confirmar que el fallo solo ocurre con GDB adjunto. La demo 224 se queda con las cinco listas preconstruidas (mejor comportamiento medido) y su VALIDATION declara el alcance real.

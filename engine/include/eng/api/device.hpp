@@ -202,6 +202,21 @@ public:
 		}
 	}
 
+	/// Publica una copperlist estática ya construida (swap de `COP1LC`). El Copper recarga el
+	/// puntero al inicio del siguiente VBlank, así que llamarlo durante el frame no parte la
+	/// lista en curso. Es el camino de los drivers que cambian de estructura sin reemitir cada frame.
+	template <class B = Backend>
+	bool commit_copper(eng::ChipView<eng::CopperTag> list) {
+		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.install_copper_list(v); }) {
+			if (list.empty()) return false;
+			m_backend.install_copper_list(list);
+			return true;
+		} else {
+			(void)list;
+			return false;
+		}
+	}
+
 	/// Instala una copperlist de doble buffer propia (una vez, en `init`). Se usa cuando un
 	/// driver del juego recompone directamente un programa ordenado en cada frame y no necesita
 	/// el arbitraje de intenciones de `copper::Plan`.

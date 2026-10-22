@@ -33,12 +33,27 @@ namespace graphics = eng::graphics;
 #ifndef K224_PLANES
 #define K224_PLANES 3
 #endif
+/// **Modo sonda (DT-045)**: `-DK224_PROBE=1` reduce la demo a un canal, una banda y una
+/// única escritura de POS/CTL por frame, con la misma copperlist estática. Sirve para
+/// aislar si el parón de `measure-fps` con GDB adjunto depende de la carga de la escena.
+#ifndef K224_PROBE
+#define K224_PROBE 0
+#endif
+constexpr bool kProbe = (K224_PROBE != 0);
+/// **A/B de DT-045**: `-DK224_NO_ROTATE=1` desactiva la rotación de arte (parcheo de PT)
+/// manteniendo las 5 bandas y los 40 placements, para aislar el factor que congela la medida.
+#ifndef K224_NO_ROTATE
+#define K224_NO_ROTATE 0
+#endif
+constexpr bool kRotateEnabled = (K224_NO_ROTATE == 0);
 
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
 constexpr eng::u16 kBytesPerRow = kWidth / 8u;
 constexpr eng::u8 kPlanes = static_cast<eng::u8>(K224_PLANES);
 constexpr eng::u16 kArmLine = 32u;
+/// Banda de la sonda de DT-045 (un solo canal, sin multiplexado).
+constexpr eng::u16 kProbeLine = 100u;
 
 /// Cinco bandas raster con 44 líneas de paso; el sprite oscila 0..27 px dentro de su banda.
 constexpr eng::u16 kBandCount = 5u;
@@ -124,18 +139,30 @@ struct ReuseCarouselDemo {
 		auto& memory = app.device().memory_manager();
 		m_free_sheet = memory.chip().template reserve<eng::SpriteTag>(kFreeSheetBytes, 16u);
 		m_cooked = memory.chip().template reserve<eng::SpriteTag>(kCookedBytes, 16u);
-		m_list = memory.chip().template reserve<eng::CopperTag>(2048u, 16u);
-		if (!m_free_sheet.valid() || !m_cooked.valid() || !m_list.valid()) {
+		bool lists_ok = true;
+		for (eng::u8 i = 0u; i < kAttachedKinds; ++i) {
+			m_lists[i] = memory.chip().template reserve<eng::CopperTag>(2048u, 16u);
+			lists_ok = lists_ok && m_lists[i].valid();
+		}
+		if (!m_free_sheet.valid() || !m_cooked.valid() || !lists_ok) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
+		if constexpr (kProbe) {
+			init_probe(app, memory);
 			return;
 		}
 		build_free_sheet();
 		build_attached_pool();
 		build_background(app);
-		if (!build_copper_list(app)) {
-			eng::amiga::mark_failed(eng::debug::BootFail::Game);
-			return;
+		for (eng::u8 r = 0u; r < kAttachedKinds; ++r) {
+			if (!build_list(app, m_lists[r], r)) {
+				eng::amiga::mark_failed(eng::debug::BootFail::Game);
+				return;
+			}
 		}
+		app.device().takeover_copper(m_lists[0].mem_view());
+		m_active = 0u;
 		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
 		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("placements"));
 		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("channels"));
@@ -147,18 +174,25 @@ struct ReuseCarouselDemo {
 
 	/// Avanza fases y parchea POS/CTL de los 40 placements; PT solo cuando rota el arte.
 	void update(auto& app) {
+		if constexpr (kProbe) {
+			probe_update(app);
+			return;
+		}
 		const eng::u16 f = static_cast<eng::u16>(app.frame());
 		for (eng::u8 lane = 0u; lane < kLaneCount; ++lane) {
 			m_x_phase[lane] = static_cast<eng::u8>(m_x_phase[lane] + kLaneFreeSpeed[lane]);
 			m_y_phase[lane] = static_cast<eng::u8>(m_y_phase[lane] + 1u + (lane & 1u));
 		}
 		ENG_PROF_BEGIN(0u);
-		const bool rotate = (f != 0u) && ((f % kRotateFrames) == 0u);
+		const bool rotate = kRotateEnabled && (f != 0u) && ((f % kRotateFrames) == 0u);
 		if (rotate) {
 			m_rotation = static_cast<eng::u8>((m_rotation + 1u) % kAttachedKinds);
-			patch_pointers();
+			// Las cinco rotaciones están preconstruidas: rotar es solo swap de COP1LC.
+			if (app.device().commit_copper(m_lists[m_rotation].mem_view())) {
+				m_active = m_rotation;
+			}
 		}
-		eng::Span<eng::u16> words = m_list.view.as_words().raw();
+		eng::Span<eng::u16> words = m_lists[m_active].view.as_words().raw();
 		eng::u16 patched = 0u;
 		for (eng::u8 band = 0u; band < kBandCount; ++band) {
 			for (eng::u8 lane = 0u; lane < kLaneCount; ++lane) {
@@ -210,6 +244,93 @@ struct ReuseCarouselDemo {
 	void render(auto&) {}
 
 private:
+	/// Sonda mínima de DT-045: un sprite, una banda, solo POS/CTL por frame.
+	void init_probe(auto& app, auto& memory) {
+		m_probe = memory.chip().template reserve<eng::SpriteTag>(
+			static_cast<eng::u32>(kFreeDmaWords) * 2u, 16u);
+		if (!m_probe.valid()) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
+		// Rombo 16x16 de 2 planos (3 colores) con terminador, suficiente para la sonda.
+		eng::u16* const w = m_probe.view.as_words().data();
+		for (eng::u16 y = 0u; y < kSpriteH; ++y) {
+			eng::u16 dat = 0u;
+			eng::u16 datb = 0u;
+			for (eng::u16 x = 0u; x < 16u; ++x) {
+				const eng::s16 dx = static_cast<eng::s16>(x) - 7;
+				const eng::s16 dy = static_cast<eng::s16>(y) - 7;
+				const eng::s16 ax = static_cast<eng::s16>(dx < 0 ? -dx : dx);
+				const eng::s16 ay = static_cast<eng::s16>(dy < 0 ? -dy : dy);
+				if (static_cast<eng::s16>(ax + ay) > 7) continue;
+				const eng::u8 color = static_cast<eng::u8>(1u + ((x + y) % 3u));
+				const eng::u16 bit = static_cast<eng::u16>(0x8000u >> x);
+				if ((color & 1u) != 0u) dat = static_cast<eng::u16>(dat | bit);
+				if ((color & 2u) != 0u) datb = static_cast<eng::u16>(datb | bit);
+			}
+			w[y * 2u] = dat;
+			w[y * 2u + 1u] = datb;
+		}
+		w[kFreeDmaWords - 2u] = 0u;
+		w[kFreeDmaWords - 1u] = 0u;
+		build_background(app);
+		copper::SchedulerT<false> sched {m_lists[0]};
+		auto& scene = app.device().scene();
+		sched.emit_planes_display(0x2c81u, 0x2cc1u, 0x0038u, 0x00d0u, kBytesPerRow,
+			graphics::composition::bplcon0_for(
+				kPlanes == 6u ? graphics::composition::SceneMode::Ehb
+					      : graphics::composition::SceneMode::Standard,
+				kPlanes),
+			kPlanes, scene.chip_planes(), scene.plane_bytes());
+		sched.move(copper::Register::DMACON,
+			   static_cast<eng::u16>(copper::DmaSetClear | copper::DmaMaster |
+						 copper::DmaCopper | copper::DmaBitplane |
+						 copper::DmaSprite));
+		sched.emit_palette(kPalette.color);
+		sched.wait_line(kProbeLine);
+		constexpr eng::u8 kProbeChannel = 4u;
+		m_probe_pos = sched.move_at(copper::sprite_pos_register(kProbeChannel), 0u);
+		m_probe_ctl = sched.move_at(copper::sprite_ctl_register(kProbeChannel), 0u);
+		const auto addr = m_probe.mem_view().address(0);
+		(void)sched.move_at(copper::sprite_pointer_high_register(kProbeChannel),
+				    static_cast<eng::u16>(addr.value >> 16));
+		(void)sched.move_at(copper::sprite_pointer_low_register(kProbeChannel),
+				    static_cast<eng::u16>(addr.value & 0xffffu));
+		sched.wait_line(0xf8u);
+		sched.end();
+		if (!sched.ok()) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
+		app.device().takeover_copper(m_lists[0].mem_view());
+		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
+		eng::debug::DebugPeripheral::counter_name(4u, reinterpret_cast<eng::u32>("patched"));
+		ENG_PROF_INIT(3u);
+		m_fps.reset(app.frame(), eng::debug::prof_clock());
+	}
+
+	/// Un único par POS/CTL por frame, con barrido de X por todo el ancho.
+	void probe_update(auto& app) {
+		m_x_phase[0] = static_cast<eng::u8>(m_x_phase[0] + 3u);
+		const eng::u16 t = tri8(m_x_phase[0]);
+		const eng::u16 x = static_cast<eng::u16>(16u + (t << 1u) + (t >> 2u));
+		const eng::graphics::SpritePosCtl e = graphics::encode_sprite_pos_ctl(
+			static_cast<eng::u16>(eng::graphics::kSpriteScreenXOrigin + x),
+			kProbeLine + 4u, kSpriteH, false);
+		eng::Span<eng::u16> words = m_lists[0].view.as_words().raw();
+		copper::patch_data(words, m_probe_pos, e.pos);
+		copper::patch_data(words, m_probe_ctl, e.ctl);
+		eng::debug::DebugPeripheral::counter_value(4u, 2u);
+		eng::u32 fps10 = 0u;
+		if (m_fps.update(app.frame(), eng::debug::prof_clock(), fps10)) {
+			eng::debug::DebugPeripheral::counter_value(0u, fps10);
+		}
+		if (!m_ready) {
+			m_ready = true;
+			eng::amiga::mark_ready(1u | (1u << 8u) | (static_cast<eng::u32>(1u << 4u) << 16u));
+		}
+	}
+
 	/// Hoja Chip para los 20 sprites libres, cada uno con su terminador 0,0.
 	void build_free_sheet() {
 		eng::u16* const words = m_free_sheet.view.as_words().data();
@@ -263,9 +384,12 @@ private:
 		}
 	}
 
-	/// Construye la lista completa (display, paleta, DMACON y 5 bandas × 8 canales).
-	bool build_copper_list(auto& app) {
-		copper::SchedulerT<false> sched {m_list};
+	/// Construye la lista completa (display, paleta, DMACON y 5 bandas × 8 canales) con los
+	/// punteros PT del arte `rotation` ya cocidos: la lista es autocontenida y no se parchea PT
+	/// sobre la que el Copper está ejecutando (eso corrompía el walk del DMA, DT-045).
+	bool build_list(auto& app, eng::Block<eng::CopperTag, eng::MemoryKind::Chip>& block,
+			eng::u8 rotation) {
+		copper::SchedulerT<false> sched {block};
 		auto& scene = app.device().scene();
 		sched.emit_planes_display(0x2c81u, 0x2cc1u, 0x0038u, 0x00d0u, kBytesPerRow,
 			graphics::composition::bplcon0_for(
@@ -283,25 +407,25 @@ private:
 			for (eng::u8 ch = 0u; ch < kChannels; ++ch) {
 				m_pos[band][ch] = sched.move_at(copper::sprite_pos_register(ch), 0u);
 				m_ctl[band][ch] = sched.move_at(copper::sprite_ctl_register(ch), 0u);
-				m_pth[band][ch] = sched.move_at(copper::sprite_pointer_high_register(ch), 0u);
-				m_ptl[band][ch] = sched.move_at(copper::sprite_pointer_low_register(ch), 0u);
+				const auto addr = data_address<eng::Address<eng::MemoryKind::Chip>>(
+					band, ch, rotation);
+				(void)sched.move_at(copper::sprite_pointer_high_register(ch),
+						    static_cast<eng::u16>(addr.value >> 16));
+				(void)sched.move_at(copper::sprite_pointer_low_register(ch),
+						    static_cast<eng::u16>(addr.value & 0xffffu));
 			}
 		}
 		sched.wait_line(0xf8u);
 		sched.end();
-		if (!sched.ok()) return false;
-		patch_pointers();
-		app.device().takeover_copper(m_list.mem_view());
-		m_took_over = true;
-		return m_took_over;
+		return sched.ok();
 	}
 
 	/// Dirección de DATA de un placement: par attached (par/impar) o sprite libre del sheet.
 	template <class Addr>
-	Addr data_address(eng::u8 band, eng::u8 ch) const {
+	Addr data_address(eng::u8 band, eng::u8 ch, eng::u8 rotation) const {
 		if (ch < 4u) {
 			const eng::u8 lane = static_cast<eng::u8>(ch >> 1u);
-			const eng::u8 kind = static_cast<eng::u8>((band + m_rotation + lane * 2u) % kAttachedKinds);
+			const eng::u8 kind = static_cast<eng::u8>((band + rotation + lane * 2u) % kAttachedKinds);
 			constexpr eng::usize kStructBytes =
 				static_cast<eng::usize>(graphics::attached_pair_structure_words(kSpriteH)) * 2u;
 			const eng::u8* base = reinterpret_cast<const eng::u8*>(
@@ -311,24 +435,10 @@ private:
 						  (ch & 1u) * kStructBytes + 4u);
 		}
 		const eng::u8 lane = static_cast<eng::u8>(ch - 4u);
-		const eng::u8 art = static_cast<eng::u8>(lane * 5u + (band + m_rotation + lane) % 5u);
+		const eng::u8 art = static_cast<eng::u8>(lane * 5u + (band + rotation + lane) % 5u);
 		const eng::u8* base = reinterpret_cast<const eng::u8*>(
 			m_free_sheet.mem_view().address(0).cptr());
 		return Addr::from_storage(base + static_cast<eng::u32>(art) * kFreeDmaWords * 2u);
-	}
-
-	/// Parchea los 40 pares PT (80 words) al rotar el arte: una vez por segundo.
-	void patch_pointers() {
-		eng::Span<eng::u16> words = m_list.view.as_words().raw();
-		for (eng::u8 band = 0u; band < kBandCount; ++band) {
-			for (eng::u8 ch = 0u; ch < kChannels; ++ch) {
-				const auto addr = data_address<eng::Address<eng::MemoryKind::Chip>>(band, ch);
-				copper::patch_data(words, m_pth[band][ch],
-						   static_cast<eng::u16>(addr.value >> 16));
-				copper::patch_data(words, m_ptl[band][ch],
-						   static_cast<eng::u16>(addr.value & 0xffffu));
-			}
-		}
 	}
 
 	/// Fondo indexado en bandas + HUD de una línea (pintado una vez, sin coste por frame).
@@ -351,14 +461,17 @@ private:
 
 	eng::Block<eng::SpriteTag, eng::MemoryKind::Chip> m_free_sheet {};
 	eng::Block<eng::SpriteTag, eng::MemoryKind::Chip> m_cooked {};
-	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_list {};
+	eng::Block<eng::SpriteTag, eng::MemoryKind::Chip> m_probe {};
+	copper::MoveSlot m_probe_pos {};
+	copper::MoveSlot m_probe_ctl {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_lists[kAttachedKinds] {};
 	copper::MoveSlot m_pos[kBandCount][kChannels] {};
 	copper::MoveSlot m_ctl[kBandCount][kChannels] {};
-	copper::MoveSlot m_pth[kBandCount][kChannels] {};
-	copper::MoveSlot m_ptl[kBandCount][kChannels] {};
+
 	eng::u8 m_x_phase[kLaneCount] {0u, 37u, 79u, 121u, 163u, 205u};
 	eng::u8 m_y_phase[kLaneCount] {0u, 29u, 61u, 97u, 139u, 181u};
 	eng::u8 m_rotation = 0u;
+	eng::u8 m_active = 0u;
 	bool m_took_over = false;
 	bool m_ready = false;
 	eng::debug::HudFpsWindow m_fps {};
