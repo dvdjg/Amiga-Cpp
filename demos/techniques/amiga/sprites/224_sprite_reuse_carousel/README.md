@@ -7,7 +7,7 @@ Sonda de estrés S1.1 para [stress-sprites-bobs-roadmap.md](../../../../../docs/
 Recomponer y reemitir la copperlist cada frame con decenas de actores cuesta cientos de miles de ciclos (medido con `SpriteScene`: ~670k para 30 actores). Un juego real deja la **estructura en Chip** y parchea solo las palabras de dato. Aquí:
 
 - La lista se construye **una vez** en `init`: display, paleta, `DMACON` con `SPREN`, y por cada banda un `WAIT` + `POS/CTL/PTH/PTL` de los ocho canales.
-- Por frame se parchean **160 words** (POS/CTL de 40 placements) desde `update`, justo después del VBlank, antes de que el haz alcance la primera banda.
+- Por frame se parchean **160 words** (POS/CTL de 40 placements) desde `render`, justo después del VBlank y antes de que el haz alcance la primera banda.
 - Las cinco rotaciones de arte se **preconstruyen en init** (una copperlist por rotacion, con sus PT ya cocidos): rotar es solo un swap de COP1LC, sin tocar la lista en curso. El par *attached* se cocina una vez por contenido.
 - El DMA de sprites ejecuta el resto: CPU casi libre.
 
@@ -16,11 +16,11 @@ La demo usa `app.device()` para instalar su lista estática (`takeover_copper(Ch
 ## Perfiles de planos
 
 | Perfil | Planos | Fondo | Estado |
-|---|---:|---|---|
-| A | 3 | COLOR00..07 | medido |
-| B | 4 | COLOR00..15 | pendiente de re-medida |
-| C | 5 | COLOR00..15 | medido |
-| D | 6 (EHB) | COLOR00..15 | pendiente de re-medida |
+|---|---|---:|---|---|
+| A | 3 | COLOR00..07 | verificado (20 s, 49,87 fps) |
+| B | 4 | COLOR00..15 | verificado (20 s, 49,92 fps) |
+| C | 5 | COLOR00..15 | verificado (20 s, 49,92 fps) |
+| D | 6 (EHB) | COLOR00..15 | verificado (20 s, 49,87 fps) |
 
 Selección con `EXTRA_DEFINES` (mecanismo admitido por `build-demo.sh`):
 
@@ -38,4 +38,4 @@ Se reutilizan `copper::Scheduler`/`MoveSlot`/`patch_data`, `encode_sprite_pos_ct
 
 ## Estado
 
-**Parcialmente verificada.** 49,92 fps / 1,002 campos / 142.102 ciclos por frame en A y C (build previo al ajuste de rango X, mismo camino de emisión). Tras el ajuste de X a todo el ancho, la animación se comprobó por secuencia, pero la re-medida de fps quedó bloqueada por el arnés en esta sesión (ver `VALIDATION.md`). B y D quedan SIN VERIFICAR.
+**Verificada en A (3 planos), B (4), C (5) y D (6 EHB)**: 49,87–49,92 fps, 1 campo/frame, 20 s estables; secuencias revisadas y visión canónica en A. La demo sondea `VPOSR` (`VblankWait::Polling`) en vez de depender del latido de VERTB: bajo el runner AmigaDOS sigue vivo y reescribe `INTENA` (familia 212/DT-011). El contador de frames y los FPS se muestran en el overlay de depuración del host; la franja inferior reserva nombre y versión. Detalle y evidencia en `VALIDATION.md`.

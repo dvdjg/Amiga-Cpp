@@ -14,7 +14,8 @@
 // de 3 colores + transparencia (canales 4..7). Cada placement tiene su propia X animada.
 
 #include <eng/api/api.hpp>
-#include <eng/debug/hud.hpp>
+#include <eng/core/util/static_string.hpp>
+#include <eng/core/util/text.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
@@ -40,35 +41,58 @@ namespace graphics = eng::graphics;
 #define K224_PROBE 0
 #endif
 constexpr bool kProbe = (K224_PROBE != 0);
-/// **A/B de DT-045**: `-DK224_NO_ROTATE=1` desactiva la rotación de arte (parcheo de PT)
-/// manteniendo las 5 bandas y los 40 placements, para aislar el factor que congela la medida.
-#ifndef K224_NO_ROTATE
-#define K224_NO_ROTATE 0
-#endif
-constexpr bool kRotateEnabled = (K224_NO_ROTATE == 0);
-
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
 constexpr eng::u16 kBytesPerRow = kWidth / 8u;
 constexpr eng::u8 kPlanes = static_cast<eng::u8>(K224_PLANES);
-constexpr eng::u16 kArmLine = 32u;
 /// Banda de la sonda de DT-045 (un solo canal, sin multiplexado).
 constexpr eng::u16 kProbeLine = 100u;
 
-/// Cinco bandas raster con 44 líneas de paso; el sprite oscila 0..27 px dentro de su banda.
-constexpr eng::u16 kBandCount = 5u;
-constexpr eng::u16 kBandLine[kBandCount] {56u, 100u, 144u, 188u, 232u};
-/// Oscilación máxima: el sprite empieza en `banda+4` y `VSTOP` no puede alcanzar el `WAIT`
-/// de la banda siguiente (paso 44, alto 16): 44 − 4 − 16 − 1 = 23 líneas.
-constexpr eng::u16 kBandOsc = 23u;
+/// Cinco bandas raster repartidas por casi toda la ventana PAL; todas las WAIT quedan bajo VPOS=255.
+#ifndef K224_BAND_COUNT
+#define K224_BAND_COUNT 5u
+#endif
+constexpr eng::u16 kBandCapacity = 5u;
+/// Conteo configurable solo para aislar multiplexado vertical (prueba mínima: `-DK224_BAND_COUNT=1`).
+constexpr eng::u16 kBandCount = static_cast<eng::u16>(K224_BAND_COUNT);
+static_assert(kBandCount > 0u && kBandCount <= kBandCapacity);
+#ifndef K224_BAND_STEP
+#define K224_BAND_STEP 52u
+#endif
+constexpr eng::u16 kBandStep = static_cast<eng::u16>(K224_BAND_STEP);
+constexpr eng::u16 kBandLine[kBandCapacity] {
+	32u,
+	static_cast<eng::u16>(32u + kBandStep),
+	static_cast<eng::u16>(32u + kBandStep * 2u),
+	static_cast<eng::u16>(32u + kBandStep * 3u),
+	static_cast<eng::u16>(32u + kBandStep * 4u),
+};
+/// El Copper arma los ocho canales 12 líneas antes del primer VSTART de cada banda.
+constexpr eng::u16 kArmLeadLines = 12u;
+/// `tri8(...) >> 3` produce 0..15 líneas; el límite se conserva junto al contrato de Y.
+constexpr eng::u16 kBandOsc = 15u;
 constexpr eng::u16 kLaneCount = 6u;      ///< 2 lanes attached (pares) + 4 lanes libres
 constexpr eng::u16 kChannels = 8u;
 constexpr eng::u16 kPlacements = kBandCount * kChannels;
 constexpr eng::u16 kReusePerChannel = kBandCount;
-constexpr eng::u16 kRotateFrames = 50u; ///< 1 s a 50 Hz: el canal cambia de objeto
 constexpr eng::u16 kSpriteH = 16u;
 constexpr eng::u16 kAttachedKinds = 5u;
+/// Las cinco listas llevan los PT del arte cocidos; se cambia de carrusel solo una vez/s.
+#ifndef K224_ROTATE_ART
+#define K224_ROTATE_ART 1
+#endif
+constexpr bool kRotateArt = (K224_ROTATE_ART != 0);
+constexpr eng::u8 kRotationListCount = (kProbe || !kRotateArt)
+	? 1u : static_cast<eng::u8>(kAttachedKinds);
+constexpr eng::u8 kRotationPeriodFrames = 50u;
+/// Texto del overlay de depuración del host, separado de los bitplanes del efecto.
+constexpr eng::s16 kHudDebugX = 4;
+constexpr eng::s16 kHudDebugY = 4;
+constexpr eng::u32 kHudDebugRgb = 0xffffffu;
+/// X de la etiqueta estática de versión en la franja inferior del playfield.
+constexpr eng::s32 kHudVersionX = 64;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
+
 constexpr eng::u16 kFreeArtCount = 20u; ///< 4 lanes libres × 5 bandas
 constexpr eng::u16 kFreeDmaWords = kSpriteH * 2u + 2u;
 constexpr eng::u32 kFreeSheetBytes =
@@ -140,9 +164,9 @@ struct ReuseCarouselDemo {
 		m_free_sheet = memory.chip().template reserve<eng::SpriteTag>(kFreeSheetBytes, 16u);
 		m_cooked = memory.chip().template reserve<eng::SpriteTag>(kCookedBytes, 16u);
 		bool lists_ok = true;
-		for (eng::u8 i = 0u; i < kAttachedKinds; ++i) {
-			m_lists[i] = memory.chip().template reserve<eng::CopperTag>(2048u, 16u);
-			lists_ok = lists_ok && m_lists[i].valid();
+		for (eng::u8 rotation = 0u; rotation < kRotationListCount; ++rotation) {
+			m_lists[rotation] = memory.chip().template reserve<eng::CopperTag>(2048u, 16u);
+			lists_ok = lists_ok && m_lists[rotation].valid();
 		}
 		if (!m_free_sheet.valid() || !m_cooked.valid() || !lists_ok) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
@@ -155,44 +179,73 @@ struct ReuseCarouselDemo {
 		build_free_sheet();
 		build_attached_pool();
 		build_background(app);
-		for (eng::u8 r = 0u; r < kAttachedKinds; ++r) {
-			if (!build_list(app, m_lists[r], r)) {
+		for (eng::u8 rotation = 0u; rotation < kRotationListCount; ++rotation) {
+			if (!build_list(app, m_lists[rotation], rotation)) {
 				eng::amiga::mark_failed(eng::debug::BootFail::Game);
 				return;
 			}
 		}
 		app.device().takeover_copper(m_lists[0].mem_view());
-		m_active = 0u;
 		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
 		eng::debug::DebugPeripheral::counter_name(1u, reinterpret_cast<eng::u32>("placements"));
 		eng::debug::DebugPeripheral::counter_name(2u, reinterpret_cast<eng::u32>("channels"));
 		eng::debug::DebugPeripheral::counter_name(3u, reinterpret_cast<eng::u32>("reuse"));
 		eng::debug::DebugPeripheral::counter_name(4u, reinterpret_cast<eng::u32>("patched"));
-		ENG_PROF_INIT(3u);
-		m_fps.reset(app.frame(), eng::debug::prof_clock());
+		eng::debug::DebugPeripheral::counter_name(7u, reinterpret_cast<eng::u32>("frame"));
+		ENG_PROF_INIT(2u);
+		m_fps_frame_ref = app.frame();
+		m_fps_cycle_ref = eng::debug::prof_clock();
+		m_rotation = 0u;
+		m_rotation_frames = 0u;
 	}
 
-	/// Avanza fases y parchea POS/CTL de los 40 placements; PT solo cuando rota el arte.
+	/// Avanza las fases lógicas; la lista de Copper se parchea después de la espera VBlank en render.
 	void update(auto& app) {
 		if constexpr (kProbe) {
-			probe_update(app);
+			m_x_phase[0] = static_cast<eng::u8>(m_x_phase[0] + 3u);
 			return;
 		}
-		const eng::u16 f = static_cast<eng::u16>(app.frame());
 		for (eng::u8 lane = 0u; lane < kLaneCount; ++lane) {
 			m_x_phase[lane] = static_cast<eng::u8>(m_x_phase[lane] + kLaneFreeSpeed[lane]);
 			m_y_phase[lane] = static_cast<eng::u8>(m_y_phase[lane] + 1u + (lane & 1u));
 		}
+		(void)app;
+	}
+
+	/// Parchea POS/CTL en la lista activa y publica el arte siguiente en el punto seguro del frame.
+	void render(auto& app) {
+		if constexpr (kProbe) {
+			probe_render(app);
+			ENG_PROF_BEGIN(1u);
+			update_hud(app);
+			ENG_PROF_END(1u);
+			ENG_PROF_FRAME();
+			return;
+		}
 		ENG_PROF_BEGIN(0u);
-		const bool rotate = kRotateEnabled && (f != 0u) && ((f % kRotateFrames) == 0u);
-		if (rotate) {
-			m_rotation = static_cast<eng::u8>((m_rotation + 1u) % kAttachedKinds);
-			// Las cinco rotaciones están preconstruidas: rotar es solo swap de COP1LC.
-			if (app.device().commit_copper(m_lists[m_rotation].mem_view())) {
-				m_active = m_rotation;
+		if constexpr (kRotateArt) {
+			++m_rotation_frames;
+			if (m_rotation_frames >= kRotationPeriodFrames) {
+				m_rotation_frames = 0u;
+				eng::u8 next_rotation = static_cast<eng::u8>(m_rotation + 1u);
+				if (next_rotation >= kRotationListCount) next_rotation = 0u;
+				// `wait_vblank_run` despierta en VPOS=311, una línea antes del wrap: publicar
+				// aquí deja margen de sobra para que el latch de COP1LC del wrap vea la lista
+				// nueva. Publicar tras el parcheo (como antes) caía ya en VPOS 0-2, la ventana
+				// de carrera del chipset (`WinUAE-DBG/custom.cpp:2921-2942`;
+				// `docs/reference/emulators/winuae/copper.md` §3; `DISPLAY_COMPOSITION.md` §6.12).
+				// La lista nueva queda inactiva hasta el wrap, así que parchearla después es seguro.
+				if (!app.device().commit_copper(m_lists[next_rotation].mem_view())) {
+					eng::amiga::mark_failed(eng::debug::BootFail::Game);
+					return;
+				}
+				m_rotation = next_rotation;
 			}
 		}
-		eng::Span<eng::u16> words = m_lists[m_active].view.as_words().raw();
+		// El Copper se detiene en el primer WAIT (raster 20) mientras la CPU parchea la lista.
+		// Los POS/CTL deben quedar escritos antes del fetch de sprite de cada línea
+		// (AHRM cap. 4, «Displaying Sprites»; WinUAE `custom.cpp:10088-10121`).
+		eng::Span<eng::u16> words = m_lists[m_rotation].view.as_words().raw();
 		eng::u16 patched = 0u;
 		for (eng::u8 band = 0u; band < kBandCount; ++band) {
 			for (eng::u8 lane = 0u; lane < kLaneCount; ++lane) {
@@ -229,19 +282,17 @@ struct ReuseCarouselDemo {
 		}
 		ENG_PROF_END(0u);
 		eng::debug::DebugPeripheral::counter_value(4u, patched);
-		eng::u32 fps10 = 0u;
-		if (m_fps.update(app.frame(), eng::debug::prof_clock(), fps10)) {
-			eng::debug::DebugPeripheral::counter_value(0u, fps10);
-		}
+		ENG_PROF_BEGIN(1u);
+		update_hud(app);
+		ENG_PROF_END(1u);
 		eng::debug::DebugPeripheral::counter_value(1u, kPlacements);
 		eng::debug::DebugPeripheral::counter_value(2u, 0xffu);
 		eng::debug::DebugPeripheral::counter_value(3u, kReusePerChannel);
 		const eng::u32 detail = static_cast<eng::u32>(kPlacements) |
 			(static_cast<eng::u32>(kReusePerChannel) << 8u) | (0xffu << 16u);
 		if (!m_ready) { m_ready = true; eng::amiga::mark_ready(detail); }
+		ENG_PROF_FRAME();
 	}
-
-	void render(auto&) {}
 
 private:
 	/// Sonda mínima de DT-045: un sprite, una banda, solo POS/CTL por frame.
@@ -305,13 +356,14 @@ private:
 		app.device().takeover_copper(m_lists[0].mem_view());
 		eng::debug::DebugPeripheral::counter_name(0u, reinterpret_cast<eng::u32>("fps10"));
 		eng::debug::DebugPeripheral::counter_name(4u, reinterpret_cast<eng::u32>("patched"));
-		ENG_PROF_INIT(3u);
-		m_fps.reset(app.frame(), eng::debug::prof_clock());
+		eng::debug::DebugPeripheral::counter_name(7u, reinterpret_cast<eng::u32>("frame"));
+		ENG_PROF_INIT(2u);
+		m_fps_frame_ref = app.frame();
+		m_fps_cycle_ref = eng::debug::prof_clock();
 	}
 
 	/// Un único par POS/CTL por frame, con barrido de X por todo el ancho.
-	void probe_update(auto& app) {
-		m_x_phase[0] = static_cast<eng::u8>(m_x_phase[0] + 3u);
+	void probe_render(auto& app) {
 		const eng::u16 t = tri8(m_x_phase[0]);
 		const eng::u16 x = static_cast<eng::u16>(16u + (t << 1u) + (t >> 2u));
 		const eng::graphics::SpritePosCtl e = graphics::encode_sprite_pos_ctl(
@@ -321,14 +373,38 @@ private:
 		copper::patch_data(words, m_probe_pos, e.pos);
 		copper::patch_data(words, m_probe_ctl, e.ctl);
 		eng::debug::DebugPeripheral::counter_value(4u, 2u);
-		eng::u32 fps10 = 0u;
-		if (m_fps.update(app.frame(), eng::debug::prof_clock(), fps10)) {
-			eng::debug::DebugPeripheral::counter_value(0u, fps10);
-		}
 		if (!m_ready) {
 			m_ready = true;
 			eng::amiga::mark_ready(1u | (1u << 8u) | (static_cast<eng::u32>(1u << 4u) << 16u));
 		}
+	}
+
+	/// Calcula FPS sobre una ventana de al menos un segundo del reloj PAL; `frames × 10` da un
+	/// decimal. Se evita la división 32-bit que bloqueaba al cerrar la primera ventana de FPS.
+	void update_hud(auto& app) {
+		const eng::u32 now_cycles = eng::debug::prof_clock();
+		if (now_cycles - m_fps_cycle_ref < eng::debug::prof_clock_hz) return;
+		eng::u32 frames = app.frame() - m_fps_frame_ref;
+		if (frames > 50u) frames = 50u; // limita al máximo nominal PAL.
+		m_fps10 = frames * 10u;
+		m_fps_frame_ref = app.frame();
+		m_fps_cycle_ref = now_cycles;
+		eng::debug::DebugPeripheral::counter_value(0u, m_fps10);
+		eng::debug::DebugPeripheral::counter_value(7u, app.frame());
+		m_hud_line.clear();
+		(void)m_hud_line.append('F');
+		(void)eng::util::to_chars_u32(m_hud_line, app.frame());
+		(void)m_hud_line.append(' ');
+		(void)eng::util::to_chars_scaled(m_hud_line, m_fps10, 1u);
+		(void)m_hud_line.append('F');
+		(void)m_hud_line.append('P');
+		(void)m_hud_line.append('S');
+		// El overlay del host compone sin borrar: `barto_buf_text` pinta solo los bits de
+		// glifo encendidos y conserva los anteriores (`WinUAE-DBG/debug.cpp:1796-1823`).
+		// Sin limpiar, cada segundo se superponen los dígitos viejos y el HUD degenera en
+		// ruido; `clear` vacía el búfer del overlay (no toca los bitplanes) y deja el texto limpio.
+		app.debug().clear();
+		app.debug().text(kHudDebugX, kHudDebugY, m_hud_line.c_str(), kHudDebugRgb);
 	}
 
 	/// Hoja Chip para los 20 sprites libres, cada uno con su terminador 0,0.
@@ -403,7 +479,10 @@ private:
 						 copper::DmaSprite));
 		sched.emit_palette(kPalette.color);
 		for (eng::u8 band = 0u; band < kBandCount; ++band) {
-			sched.wait_line(kBandLine[band]);
+			// Dar margen de Copper antes de VSTART: el fetch de sprites se cierra al llegar
+			// al de bitplanes (`WinUAE-DBG/custom.cpp:10111-10120`) y 6 planos roban la mitad
+			// de slots que tendría la CPU/Copper (`AHRM 3.ª:5767-5769`).
+			sched.wait_line_safe(static_cast<eng::u16>(kBandLine[band] - kArmLeadLines));
 			for (eng::u8 ch = 0u; ch < kChannels; ++ch) {
 				m_pos[band][ch] = sched.move_at(copper::sprite_pos_register(ch), 0u);
 				m_ctl[band][ch] = sched.move_at(copper::sprite_ctl_register(ch), 0u);
@@ -441,7 +520,7 @@ private:
 		return Addr::from_storage(base + static_cast<eng::u32>(art) * kFreeDmaWords * 2u);
 	}
 
-	/// Fondo indexado en bandas + HUD de una línea (pintado una vez, sin coste por frame).
+	/// Fondo indexado en bandas + nombre/versión estáticos; el contador/FPS se parchea en render.
 	/// Usa solo COLOR00..07/15 para no pisar los registros de color de los sprites
 	/// (COLOR16..31) cuando el playfield tiene 5 o 6 planos.
 	void build_background(auto& app) {
@@ -455,7 +534,12 @@ private:
 							    32u, 16u}, color);
 			}
 		}
-		(void)eng::debug::draw_hud(screen, "224 SPRITE REUSE", kVersion, 0u, 1u);
+		const eng::s32 hud_y = screen.bounds().bottom() - 7;
+		char version[24] {};
+		(void)eng::debug::version_label(kVersion, version,
+						static_cast<eng::u8>(sizeof(version)));
+		(void)screen.text_words(0, hud_y, "224 SPR", 1u);
+		(void)screen.text_words(kHudVersionX, hud_y, version, 1u);
 		app.present();
 	}
 
@@ -464,17 +548,25 @@ private:
 	eng::Block<eng::SpriteTag, eng::MemoryKind::Chip> m_probe {};
 	copper::MoveSlot m_probe_pos {};
 	copper::MoveSlot m_probe_ctl {};
-	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_lists[kAttachedKinds] {};
+	/// Listas autocontenidas con PTs de cada variante; todas comparten los mismos offsets POS/CTL.
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_lists[kRotationListCount] {};
 	copper::MoveSlot m_pos[kBandCount][kChannels] {};
 	copper::MoveSlot m_ctl[kBandCount][kChannels] {};
 
 	eng::u8 m_x_phase[kLaneCount] {0u, 37u, 79u, 121u, 163u, 205u};
 	eng::u8 m_y_phase[kLaneCount] {0u, 29u, 61u, 97u, 139u, 181u};
+	/// Índice de la copperlist cuyo arte está publicado; rango [0, kRotationListCount).
 	eng::u8 m_rotation = 0u;
-	eng::u8 m_active = 0u;
-	bool m_took_over = false;
+	/// Frames renderizados con la variante actual; rota cada `kRotationPeriodFrames`.
+	eng::u8 m_rotation_frames = 0u;
+	/// Referencias al último cierre de la ventana de FPS (frame renderizado y ciclo del reloj PAL).
+	eng::u32 m_fps_frame_ref = 0u;
+	eng::u32 m_fps_cycle_ref = 0u;
+	/// Última estimación de FPS ×10, compartida con el overlay y la telemetría.
+	eng::u32 m_fps10 = 0u;
+	/// Buffer fijo del texto dinámico `F<frame> <fps>FPS` (hasta 19 caracteres).
+	eng::util::StaticString<20u> m_hud_line {};
 	bool m_ready = false;
-	eng::debug::HudFpsWindow m_fps {};
 };
 
 ReuseCarouselDemo g_game {};
@@ -488,5 +580,8 @@ int main() {
 	display.color_depth = kPlanes;
 	display.buffers = 1u;
 	display.palette = kPalette;
-	return eng::amiga::run_demo(g_game, display, eng::amiga::VblankWait::Active);
+	// El camino `Active`+`AddIntServer` funciona 20 s en 3/5 planos, pero en 4 planos sigue
+	// apareciendo un fallo tardío bajo el runner (ver DT-045). El sondeo por VPOSR no depende
+	// de esa cadena de IRQ y está verificado en los cuatro perfiles: modo de la demo.
+	return eng::amiga::run_demo(g_game, display, eng::amiga::VblankWait::Polling);
 }

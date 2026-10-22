@@ -2,7 +2,7 @@
 
 ## Qué hace
 
-La demo mantiene una copperlist estática con cinco bandas raster. En cada banda se arman los ocho canales Sprite HW: los canales 0/1 y 2/3 sirven dos pares *attached* (7 colores opacos más transparencia) y los canales 4–7 sirven cuatro sprites libres (3 colores más transparencia). Cada canal aparece una vez por banda, de modo que se reutiliza cinco veces por frame y muestra un objeto distinto en cada banda. Por frame la CPU solo parchea `SPRxPOS`/`SPRxCTL` de los 40 placements; una vez por segundo rota el arte y parchea los punteros `SPRxPT`. El resto lo ejecuta el DMA de sprites.
+La demo mantiene cinco copperlists preconstruidas con cinco bandas raster cada una. En cada banda se arman los ocho canales Sprite HW: los canales 0/1 y 2/3 sirven dos pares *attached* (7 colores opacos más transparencia) y los canales 4–7 sirven cuatro sprites libres (3 colores más transparencia). Cada canal aparece una vez por banda, de modo que se reutiliza cinco veces por frame y muestra un objeto distinto en cada banda. Por frame la CPU solo parchea `SPRxPOS`/`SPRxCTL` de los 40 placements; una vez por segundo publica otra copperlist con `COP1LC` (swap de la lista ya precocinada) y parchea después la nueva, que aún está inactiva. El resto lo ejecuta el DMA de sprites.
 
 ## Qué pretende demostrar
 
@@ -14,11 +14,11 @@ Que el hardware del A500 puede mover y reutilizar los ocho canales con transpare
 - Dos lanes *attached* (canales 0/1 y 2/3): gemas multicolor con cinco siluetas (rombo, disco, flecha, cruz, escudo).
 - Cuatro lanes libres (canales 4–7): formas de tres colores con cuatro siluetas distintas.
 - La identidad visual se basa en color y forma, porque la paleta de sprites es compartida. El arte rota por las bandas una vez por segundo.
-- Franja inferior con nombre, versión y contador de frames en un único bitplane. La telemetría de fps, placements, canales, reusos y words parcheadas va por el periférico de depuración.
+- Franja inferior con nombre y versión en los bitplanes. El contador de frames y los FPS se dibujan en el overlay de depuración del host (`F<frame> <fps>FPS`, limpiando el overlay antes de cada actualización); la telemetría completa de placements, canales, reusos y words parcheadas va por el periférico de depuración.
 
 ## Evolución temporal
 
-Cada lane avanza su fase X con velocidad propia y su fase Y con un desfase por banda; el triángulo de 8 bits se convierte en X de 16 a 301 px y en una oscilación vertical de 0 a 23 líneas dentro de la banda. La separación entre bandas (44 líneas) y el alto del sprite (16) garantizan que `VSTOP` no alcanza el `WAIT` siguiente. Cada 50 frames (1 s a 50 Hz) el arte de cada canal avanza una banda: el canal cambia de objeto y el carrusel se cierra visualmente. Los puntos clave de captura son el arranque, un cruce de lanes, el instante de rotación y los extremos de la oscilación.
+Cada lane avanza su fase X con velocidad propia y su fase Y con un desfase por banda; el triángulo de 8 bits se convierte en X de 16 a 301 px y en una oscilación vertical de 0 a 15 líneas dentro de la banda. La separación entre bandas (52 líneas) y el alto del sprite (16) garantizan que `VSTOP` no alcanza el `WAIT` siguiente. Cada 50 frames (1 s a 50 Hz) el carrusel publica la siguiente copperlist: el arte de cada canal avanza una banda y el carrusel se cierra visualmente. Los puntos clave de captura son el arranque, un cruce de lanes, el instante de rotación y los extremos de la oscilación. La sincronización es por sondeo de `VPOSR` (`VblankWait::Polling`), porque bajo el runner AmigaDOS sigue vivo y reescribe `INTENA` (familia 212/DT-011).
 
 ## Criterio visual de éxito
 

@@ -2,44 +2,69 @@
 
 ## Estado
 
-**Parcialmente verificada.** A y C medidas a 49,92 fps con el camino de emisión estático; tras ampliar la X a todo el ancho, el arnés de `measure-fps` dejó de observar avance de `run-status` en esta sesión, así que la re-medida queda pendiente. B y D SIN VERIFICAR.
+**Verificada en los cuatro perfiles (A 3 planos, B 4, C 5, D 6 EHB)**: render, movimiento continuo, 20 s de ejecución estable y ~50 fps; secuencia revisada en A/B/C/D y visión canónica en A. Queda pendiente el gate formal de flicker. La demo se sincroniza con `VblankWait::Polling` (sondeo de VPOSR) porque bajo el runner AmigaDOS sigue vivo y reescribe `INTENA` (familia 212/DT-011); ver «Cambio de sincronización». El bootstrap del engine ahora ejecuta el takeover de sistema (`Forbid` + `LoadView(NULL)` + `OwnBlitter`) antes del display y garantiza `restore_system()` al salir.
 
 ## Matriz de ejecución
 
-| Perfil | Build/run | fps / fieldsPerFrame | Ciclos/frame | Flicker | Placements | Canales | Reuso | Visión |
-|---|---|---:|---:|---|---:|---|---:|---|
-| A — 3 planos | OK (`A500_k224_planes3_release`) | **49,92 / 1,002** (build previo al ajuste X) | **142.102** | pendiente de gate | 40 | 0xff | 5 | canónica generada |
-| B — 4 planos | OK + secuencia animada | SIN VERIFICAR (DT-045) | — | pendiente | 40 | 0xff | 5 | — |
-| C — 5 planos | OK (`A500_k224_planes5_release`) | **49,92 / 1,002** | **142.102** | pendiente de gate | 40 | 0xff | 5 | canónica generada |
-| D — 6 planos EHB | OK + secuencia animada | SIN VERIFICAR (DT-045) | — | pendiente | 40 | 0xff | 5 | EHB revisado a ojo: fondo y sprites correctos |
+| Perfil | Build/run | fps / fieldsPerFrame | Ciclos/frame | Frames | Flicker | Placements | Canales | Reuso | Visión |
+|---|---|---:|---:|---:|---|---:|---|---:|---|
+| A — 3 planos | OK (`A500_release`) | **49,87 / 1,00259** | **142.243** | 1009 (20,25 s) | pendiente de gate | 40 | 0xff | 5 | canónica OK |
+| B — 4 planos | OK (`A500_k224_planes4_release`) | **49,92 / 1,00159** | **142.102** | 1014 (20,35 s) | pendiente de gate | 40 | 0xff | 5 | secuencia revisada |
+| C — 5 planos | OK (`A500_k224_planes5_release`) | **49,92 / 1,00159** | **142.102** | 1010 (20,26 s) | pendiente de gate | 40 | 0xff | 5 | secuencia revisada |
+| D — 6 planos EHB | OK (`A500_k224_planes6_release`) | **49,87 / 1,00259** | **142.243** | 1011 (20,31 s) | pendiente de gate | 40 | 0xff | 5 | EHB, secuencia revisada |
 
-`detail = 0xff0528`: 40 placements (`0x28`), máxima reutilización 5 (`0x05`) y máscara de canales `0xff`.
+`detail = 0xff0528`: 40 placements (`0x28`), máxima reutilización 5 (`0x05`) y máscara de canales `0xff`. Ambas medidas son `stable: true`, `quantizedFields: 1`, con ventanas entre 49,52 y 50,32 fps.
 
 ## Medidas
 
-- `tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes3_release --json` → 49,92 fps emulados / 49,88 host, 142.102 ciclos/frame, 1,00159 campos/frame, 1011 frames, `stable: true`.
-- Idéntico resultado en `A500_k224_planes5_release` (49,92 fps, 142.102 ciclos): el camino estático no escala con los planos porque no reemite la lista.
-- Telemetría publicada por la demo: `placements=40`, `channels=0xff`, `reuse=5`, `patched=160` words por frame (más 80 words de PT una vez por segundo).
-- `HOST-391` ampliado: una escena de 8 canales × 5 franjas compone 40 placements y devuelve `channels == 0xff` y `max_reuse == 5`, que es la misma telemetría que valida la batería.
+- `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_release --json --duration-ms 20000` → 49,87 fps emulados / 49,83 host, 142.243 ciclos/frame, 1,00259 campos/frame, 1009 frames, `detail=0xff0528`, `stable: true`.
+- `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes4_release --json --duration-ms 20000` → 49,92 fps emulados / 49,84 host, 142.102 ciclos/frame, 1,00159 campos/frame, 1014 frames, `detail=0xff0528`, `stable: true`.
+- `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes5_release --json --duration-ms 20000` → 49,92 fps emulados / 49,86 host, 142.102 ciclos/frame, 1,00159 campos/frame, 1010 frames, `detail=0xff0528`, `stable: true`.
+- `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes6_release --json --duration-ms 20000` → 49,87 fps emulados / 49,79 host, 142.243 ciclos/frame, 1,00259 campos/frame, 1011 frames, `detail=0xff0528`, `stable: true`.
+- Secuencias: A 155, 212, 268, 325, 382, 439, 497, 554 (final 590); B 156, 214, 272, 329 (final 366); C 152, 209, 267, 324, 382, 440, 497, 553 (final 590); D 153, 211, 267, 327, 385, 443 (final 480). `frame-diff` con 16.864–20.239 píxeles cambiados por par (D: 18.394–19.431) y contornos limpios. `temporal-detect` marca candidatos asociados al movimiento de los sprites (72 en A, 43 en D); el gate formal de flicker sigue pendiente.
+- Telemetría de la demo: `placements=40`, `channels=0xff`, `reuse=5`, `patched=160` words por frame.
 
-## Hallazgos de API (evidencia)
+## Cambio de sincronización (212/DT-011)
 
-1. **Recomposición por frame**: `SpriteScene::emit` con 30 actores attached/libres midió ~670k ciclos/frame (≈5,0 campos) y ~580k de ellos dentro de la composición. El camino estático parcheado baja a 142.102 ciclos (1 campo) con más objetos visibles. La fachada necesita un camino incremental/estable; hoy no lo expone.
-2. **Admisión vs capacidad por línea**: `RepresentationBudget::sprite_channels` se consume al dar de alta cada actor, pero la multiplexación vertical decide después. Una escena con más actores que canales debe dimensionar la admisión al número de actores o degrada antes de tiempo. Documentado en `SPRITE_MATERIALIZATION_CONTRACT.md` §4.
-3. **Telemetría ausente**: no había forma de verificar "8 canales, 5 reusos" sin inspeccionar el reparto. Añadidos `channels` y `max_reuse` a `SpriteComposeResult` y cubiertos por HOST-391.
-4. **Optimizaciones aplicadas**: máscara de rangos en `SpriteAllocator` (evita tres barridos vacíos por frame), counting-sort estable por línea con scratch del llamador, y caché de cocinado de pares *attached* por actor (reusa DATA mientras no cambie la fuente/altura).
+Con `VblankWait::Active`, la build de 5 planos con rotación se congelaba de forma determinista en el frame 198-200 (unos 4 s). Evidencia del parón: el frame de run-status dejaba de avanzar; `INTENAR` quedaba en `0x2000`/`0x7001` con el bit VERTB (`0x20`) **a 0**; `INTREQR=0x20` (VERTB pendiente); `g_vblank_seq` atascado en ~199-201; `g_vbl_task` no nulo; la CPU quedaba en el bucle de VPOSR de `wait_vblank_run`, con el DMA/Copper en estado válido. Bajo el runner, AmigaDOS sigue vivo y reescribe `INTENA`; el rearme del engine no recupera el latido. La demo usa ahora `run_frames_polling`, que sincroniza por VPOSR y no depende de esa IRQ: las dos builds miden 20 s estables.
+
+El bootstrap del engine ejecuta `takeover_system()` (`Forbid` + `LoadView(NULL)` + `OwnBlitter`, guardando DMACON/INTENA/ADKCON) **antes** de `set_display`, y `restore_system()` en un `scope_guard` al salir. Se aplica a `Active`/`Polling`; se excluye `Signal` porque `Wait()` con `Forbid` activo puede bloquear la tarea. Bajo AmigaDOS el servicio de nivel 3 usa ahora `AddIntServer(INTB_VERTB/BLIT)` (stubs ASM con Z activo), no el vector crudo: con `Active`, 3 y 5 planos miden 20 s estables (49,87/49,92 fps). La build de **4 planos** con `Active` sigue teniendo un parón tardío (~1150 frames) sin aislar, así que la demo usa `Polling`, que no depende de esa cadena y está verificada en los cuatro perfiles.
+
+A/B realizado (una variable):
+
+| Prueba | Resultado |
+|---|---|
+| 5 planos, rotación desactivada (1 lista) | estable 20 s, 49,97 fps |
+| 5 planos, 5 listas, commit de COP1LC cada 50 frames | se congela en 198-200 |
+| 5 planos, commit a la **misma** dirección | se congela en 198-200 (el contenido de la lista no importa) |
+| 5 planos, commit al inicio del render (VPOS=311, margen antes del wrap) | sigue congelándose con Active (no es la carrera del wrap) |
+| 3 planos, rotación, Active | 20 s estables en las ejecuciones buenas |
+| 5 planos, sin GDB ni sesión MCP | también se congela (no es un halt del depurador) |
+| 5 planos, `Active` + takeover + `AddIntServer` | **49,87–49,92 fps / 1 campo**, 20 s estable |
+| 4 planos, `Active` + takeover + `AddIntServer` | parón tardío (~1150 frames), sin aislar |
+| 4 perfiles, `Polling` + takeover | **49,87–49,92 fps / 1 campo**, 20 s estable |
+| Auditoría de rangos en runtime | planos `0x15070..0x21870`, sprites `0x2394c..0x245f0`, copperlists `0x258a0..0x260a0`: **sin solapes** |
+
+El commit de COP1LC se publica al **inicio** de `render` (VPOS=311, una línea de margen) y se parchea después la lista siguiente, ya inactiva; así se evita la ventana del wrap (`WinUAE-DBG/custom.cpp:2921-2942`, `copper.md` §3). No fue la causa del bloqueo, pero es el orden correcto.
+
+La hipótesis de que el engine pisaba memoria quedó **refutada** por la auditoría de rangos. `takeover_system()`/`restore_system()` existen en el engine, pero `run_demo` no los llama; solo las demos 066 y 119 lo hacen. La consulta externa abierta sobre la secuencia canónica de takeover en KS 1.3 está en `docs/debugging/investigaciones/consultas/consulta-224-intena-vertb-takeover-en.md`.
+
+## HUD
+
+- La franja inferior (bitplanes) muestra nombre y versión: `224 SPR` + `version_label`.
+- El contador de frames y los FPS se dibujan en el **overlay de depuración del host** (`app.debug().text`), en la esquina superior izquierda: `F<frame> <fps>FPS` (p. ej. `F349 50.0FPS`). El overlay de WinUAE es aditivo (`debug.cpp:1796-1823`), así que se limpia con `app.debug().clear()` antes de cada actualización para que los dígitos no se superpongan.
+- Contadores del periférico: `fps10` (slot 0) y `frame` (slot 7); la ventana de FPS se cierra con el reloj PAL y usa `frames * 10` (sin división 32-bit).
+- Verificado en captura: `out/tmp/224_hud_overlay.png` y la secuencia de `A500_release`.
 
 ## Visión
 
-`src/VISION.md` (prompt canónico, 5 frames de `A500_k224_planes3_release`). Respuesta: fondo de rejilla azul/verde estable, sprites geométricos multicolor repartidos, contornos limpios, sin halos, sin restos del objeto anterior y sin rectángulo opaco tapando el fondo. El modelo describe apariciones/desapariciones entre frames, coherentes con la rotación de arte cada segundo.
+`src/VISION.md` (prompt canónico, 2 frames de la secuencia actual). Respuesta limpia sobre contenido: fondo de cuadrícula azul/verde estable; sprites geométricos multicolor repartidos; contornos limpios, sin halos, sin píxeles cortados, sin restos de la posición anterior y sin rectángulos opacos tapando el fondo; leyó `F349 50.0FPS` y `224 SPR v1.0.5986` en la captura. El modelo afirmó que no había movimiento (falso negativo: trató las dos imágenes como una); el **frame-diff** y la secuencia lo refutan: frames de run-status 152→553 y 16.864–20.239 píxeles cambiados por par. Prevalece la medida objetiva (`DEMO_VISUAL_DEBUG.md` §6.4).
 
-## Artefacto del arnés (DT-045)
-
-Con la build actual, `measure-fps` da **49,5–50,3 fps en las cuatro primeras sub-ventanas** y después todas las ventanas leen 0 frames (`detail=0xff0528`, READY). La misma build medida con `run-demo.sh --sequence-frames 12 --sequence-interval-ms 1500` produce **12 frames distintos a lo largo de 18 s**, así que la demo sigue animando: el parón es de la herramienta con la sesión GDB adjunta, no de la demo. `216_attached_actors` mide estable con el mismo arnés, lo que descarta un fallo general del harness. Registrado como DT-045.
+Nota: la lectura del texto del HUD por el modelo de visión no se usa como medida numérica (alucina/degrada los dígitos); la evidencia de fps es `measure-fps`. Con 8 imágenes el modelo degeneró en un bucle de texto; se reinició la instancia (`ollama stop`) y se repitió con 2 frames, que dio la respuesta limpia registrada.
 
 ## Sin verificar
 
-- Re-medida de fps del build actual (X a todo el ancho) y de los perfiles B y D.
-- Gate de flicker (`temporal-detect` + `flicker-check`) sobre la secuencia actual.
-- Contraste dirigido C contra `INTENT.md` (presencia por banda y por lane) en las cuatro profundidades.
-- Estabilidad del swap de COP1LC bajo carga sostenida (>10 s) y con las cuatro profundidades (DT-045).
+- Gate formal de flicker (`flicker-check` + baseline) sobre la secuencia actual; `temporal-detect` no sustituye el gate y sus candidatos coinciden con el movimiento de los sprites.
+- Contraste dirigido C contra `INTENT.md` por banda y lane en las cuatro profundidades.
+- Uso total de CPU: el sondeo de VPOSR es una espera activa; no se ha medido la ocupación de CPU (solo el coste del frame).
+- Secuencia de salida al SO (`restore_system`) en una demo que termine.
