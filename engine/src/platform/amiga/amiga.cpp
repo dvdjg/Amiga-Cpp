@@ -303,13 +303,12 @@ void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	// apagar VERTB (ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`).
 	// Con espera activa el bucle esta despierto y la re-arma aqui; con `Wait()` bloqueante
 	// cubre tambien el hueco entre esperas.
-	if (g_vbl_task != nullptr && (custom_base[custom_intenar_offset] & 0x0020u) == 0u) {
+	if (g_vbl_task != nullptr && (custom_base[custom_intenar_offset] & 0x4020u) != 0x4020u) {
 		if (g_cooperative_servers) {
-			// El SO apaga VERTB cuando su pantalla/ventana queda estática (familia 212). En
-			// cooperativo no se toca el resto de INTENA: solo se **setea** VERTB (SETCLR=1)
-			// para que la cadena de exec vuelva a despachar nuestro servidor; el vector y el
-			// display siguen siendo del SO.
-			custom_base[custom_intena_offset] = 0x8020u; // SETCLR | VERTB
+			// El SO puede apagar VERTB o el master INTEN cuando su pantalla queda estática
+			// (familia 212). En cooperativo solo se **setean** esos dos bits (SETCLR=1), sin
+			// tocar el resto de INTENA ni el vector: el display sigue siendo del SO.
+			custom_base[custom_intena_offset] = 0xc020u; // SETCLR | INTEN | VERTB
 		} else {
 			level3_sync();
 		}
@@ -411,11 +410,12 @@ void sync_os_servers() {
 		g_level3_installed = false;
 	}
 	if (g_vbl_task != nullptr && !g_exec_servers.vbl_added) {
-		// Prioridad alta dentro de la cadena VERTB: nuestro servidor debe ejecutarse antes
-		// que el de graphics/Intuition. Los servidores VERTB retornan con Z activo, pero si
-		// otro servidor de la cadena lo incumple, los siguientes no se ejecutan; adelantarnos
-		// mantiene el latido del juego aunque el SO tenga su propio servidor de display.
-		init_server(g_exec_servers.vbl, g_vbl_server_name, eng_vbl_server_entry, 100);
+		// En **exclusivo** vamos antes que graphics (prioridad alta) porque el display es
+		// nuestro. En **cooperativo** usamos prioridad baja (-60, como el ejemplo del RKM):
+		// el servidor de graphics/Intuition va delante y conserva su View/Copper; nosotros
+		// solo contamos el frame. En ambos casos el stub ASM deja A0=$DFF000 al retornar.
+		const eng::s8 vbl_pri = 100;
+		init_server(g_exec_servers.vbl, g_vbl_server_name, eng_vbl_server_entry, vbl_pri);
 		AddIntServer(INTB_VERTB, &g_exec_servers.vbl);
 		g_exec_servers.vbl_added = true;
 		++g_irq_diag_vbl_adds;
@@ -424,7 +424,8 @@ void sync_os_servers() {
 		g_exec_servers.vbl_added = false;
 	}
 	if (g_blit_task != nullptr && !g_exec_servers.blit_added) {
-		init_server(g_exec_servers.blit, g_blit_server_name, eng_blit_server_entry, 100);
+		const eng::s8 blit_pri = 100;
+		init_server(g_exec_servers.blit, g_blit_server_name, eng_blit_server_entry, blit_pri);
 		AddIntServer(INTB_BLIT, &g_exec_servers.blit);
 		g_exec_servers.blit_added = true;
 	} else if (g_blit_task == nullptr && g_exec_servers.blit_added) {
