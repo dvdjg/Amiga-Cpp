@@ -32,3 +32,15 @@ Queremos (1) un bucle de juego **dirigido por mensajes**: el engine registra un 
 - Escritura manual de INTENA: probado no escribirla, escribirla tras AddIntServer y limpiarla en el takeover; todo falla.
 - Que falte una señal de Wait: el contador de llamadas del servidor se para en 21; el servidor ya no se invoca.
 - El camino exclusivo con Forbid + AddIntServer + Active funciona (35 s, 50 fps, sin GDB).
+
+## Anexo (2026-10-22): el cooperativo limpio sin Copper también se para tras un VBlank
+
+Tras la respuesta de los dos modos, probamos el camino cooperativo realmente limpio en una app **CLI/overlay** (demo 212): **sin** `LoadView`, **sin** `OwnBlitter`, **sin** escribir Copper/DMACON, sin takeover de display y sin teclado/CD32 (solo sondeo de joystick en el latido). La app solo llama a `AddIntServer(INTB_VERTB)`, el engine levanta una señal Exec en el servidor y la tarea principal duerme en `Wait()`. **No** llega al frame 60; el run-status se queda en frame 0 con `detail=0x10010000` (pack de diagnóstico: palabra baja de `g_irq_diag_vbl_calls` = 0x1001, es decir **una** llamada al servidor, frame = 0). El primer frame se entrega y el servidor no vuelve a llamarse. Es un fallo distinto del de 21 frames: aquí no hay takeover de Copper en absoluto.
+
+El engine no escribe `INTENA` para instalar el servidor; solo **setea** VERTB (`INTENA = SETCLR|VERTB`) si `INTENAR` la muestra apagada antes de esperar. La app corre desde la CLI de AmigaDOS con solo el overlay de depuración del host; no abre ninguna pantalla/ventana de Intuition.
+
+Preguntas nuevas para este caso limpio:
+
+1. En un proceso **CLI** de KS 1.3 (sin pantalla/ventana de Intuition abierta por la app), ¿VERTB está normalmente habilitada y graphics/Intuition la mantienen? Si `AddIntServer` no es el primer servidor, no habilita la interrupción; ¿la contabilidad de `INTENA`/`Wait`/`Switch` de exec apaga VERTB tras el primer frame porque la pantalla del SO está estática? ¿Cómo mantiene VERTB un proceso CLI que duerme en `Wait()` sin tomar el display?
+2. ¿Hace falta abrir una pantalla/ventana mínima de Intuition (o llamar a `WaitTOF`) para que graphics/Intuition mantenga vivo el servidor/interrupción de VBlank? ¿Es ese el patrón cooperativo canónico, o un CLI + overlay del host + `Wait()` es imposible?
+3. Si `AddIntServer` no basta en este entorno, ¿la alternativa soportada es `SetIntVector`/`Disable`+`Enable` o instalar el servidor de VBlank antes que graphics? ¿Cuál es la app mínima soportada que recibe una señal de VBlank con el SO/display vivo?

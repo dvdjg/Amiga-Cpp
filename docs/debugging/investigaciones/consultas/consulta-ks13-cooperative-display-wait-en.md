@@ -34,3 +34,15 @@ We want (1) a **message-driven** game loop: the engine registers a VBlank server
 - Writing INTENA manually: we tried not writing it, writing it after AddIntServer, and clearing it in the takeover; all fail.
 - A single missing `Wait` signal: the server call counter stops at 21, so the server itself is no longer invoked.
 - The exclusive path with `Forbid` + AddIntServer + Active works (35 s, 50 fps, no GDB).
+
+## Addendum (2026-10-22): clean cooperative without Copper still stops after one VBlank
+
+After the two-mode answer, we tested the truly clean cooperative path on a **CLI/overlay** app (demo 212): **no** `LoadView`, **no** `OwnBlitter`, **no** Copper/DMACON writes, no display takeover, no keyboard/CD32 (only a joystick poll in the heartbeat). The app only calls `AddIntServer(INTB_VERTB)`, the engine raises an Exec signal in the server, and the main task sleeps in `Wait()`. It does **not** reach frame 60; the run-status stays at frame 0 with `detail=0x10010000` (diagnostic pack: `g_irq_diag_vbl_calls` low word = 0x1001, i.e. **one** server call, frame = 0). The first frame is delivered, then the server is never called again. This is a different failure from the 21-frame one: there is no Copper takeover at all.
+
+The engine does not write `INTENA` to install the server; it only **sets** VERTB (`INTENA = SETCLR|VERTB`) if `INTENAR` shows it off before a wait. The app runs from the AmigaDOS CLI with only the host debug overlay; there is no Intuition screen/window opened by the app.
+
+New questions for this clean case:
+
+1. In a KS 1.3 **CLI** process (no Intuition screen/window opened by the app), is VERTB normally enabled/kept enabled by graphics/Intuition? If `AddIntServer` is not the first server, it does not enable the interrupt; does exec's saved `INTENA`/`Wait`/`Switch` bookkeeping turn VERTB off after the first frame because the OS screen is static? How can a CLI process keep VERTB enabled while sleeping in `Wait()` without taking the display?
+2. Does the app need to open a minimal Intuition screen/window (or call `WaitTOF`) so graphics/Intuition keeps the VBlank server/interrupt alive? Is that the canonical cooperative pattern, or is a CLI + host overlay + `Wait()` impossible?
+3. If `AddIntServer` is not enough in this environment, is `SetIntVector`/`Disable`+`Enable` or an Exec VBlank server installed before graphics the supported alternative? What is the minimal supported app that gets a VBlank signal while the OS/display stays alive?
