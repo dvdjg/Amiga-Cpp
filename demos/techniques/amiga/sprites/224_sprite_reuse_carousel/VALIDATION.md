@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Verificada en los cuatro perfiles (A 3 planos, B 4, C 5, D 6 EHB)**: render, movimiento continuo, 20 s de ejecución estable y ~50 fps; secuencia revisada en A/B/C/D y visión canónica en A. El gate formal de flicker está OK en el perfil canónico A; B/C/D no se midieron. La demo se sincroniza con `VblankWait::Polling` (sondeo de VPOSR) porque bajo el runner AmigaDOS sigue vivo y reescribe `INTENA` (familia 212/DT-011); ver «Cambio de sincronización». El bootstrap del engine ahora ejecuta el takeover de sistema (`Forbid` + `LoadView(NULL)` + `OwnBlitter`) antes del display y garantiza `restore_system()` al salir.
+**Verificada en los cuatro perfiles (A 3 planos, B 4, C 5, D 6 EHB)**: render, movimiento continuo, 20 s de ejecución estable y ~50 fps; secuencia revisada en A/B/C/D y visión canónica en A. El gate formal de flicker está OK en el perfil canónico A; B/C/D no se midieron. La demo usa `VblankWait::Polling` porque es el modo verificado en los cuatro perfiles: el camino `Active`+`AddIntServer` no está cerrado (3 planos 20 s; 4 planos 35 s sin GDB; 5 planos con rotación se congela ~198-200) y `measure-fps`/GDB lo perturba. No se atribuye el parón al SO: el takeover hace `Forbid` y el fallo de la 212/DT-011 era el desbordamiento del HUD, no la IRQ; ver «Cambio de sincronización». El bootstrap del engine ahora ejecuta el takeover de sistema (`Forbid` + `LoadView(NULL)` + `OwnBlitter`) antes del display y garantiza `restore_system()` al salir.
 
 ## Matriz de ejecución
 
@@ -27,9 +27,9 @@
 
 ## Cambio de sincronización (212/DT-011)
 
-Con `VblankWait::Active`, la build de 5 planos con rotación se congelaba de forma determinista en el frame 198-200 (unos 4 s). Evidencia del parón: el frame de run-status dejaba de avanzar; `INTENAR` quedaba en `0x2000`/`0x7001` con el bit VERTB (`0x20`) **a 0**; `INTREQR=0x20` (VERTB pendiente); `g_vblank_seq` atascado en ~199-201; `g_vbl_task` no nulo; la CPU quedaba en el bucle de VPOSR de `wait_vblank_run`, con el DMA/Copper en estado válido. Bajo el runner, AmigaDOS sigue vivo y reescribe `INTENA`; el rearme del engine no recupera el latido. La demo usa ahora `run_frames_polling`, que sincroniza por VPOSR y no depende de esa IRQ: las dos builds miden 20 s estables.
+Con `VblankWait::Active`, la build de 5 planos con rotación se congelaba de forma determinista en el frame 198-200 (unos 4 s). Evidencia del parón: el frame de run-status dejaba de avanzar; `INTENAR` quedaba en `0x2000`/`0x7001` con el bit VERTB (`0x20`) **a 0**; `INTREQR=0x20` (VERTB pendiente); `g_vblank_seq` atascado en ~199-201; `g_vbl_task` no nulo; la CPU quedaba en el bucle de VPOSR de `wait_vblank_run`, con el DMA/Copper en estado válido. La atribución de ese `INTENA` al SO es una hipótesis antigua no confirmada: el takeover hace `Forbid` (los cambios de tarea no reescriben INTENA) y la familia 212/DT-011 se resolvió como un desbordamiento del HUD de la 212, no como una pérdida de la IRQ. El parón del 224 sigue sin aislar. La demo usa `run_demo(..., VblankWait::Polling)`, que sincroniza por VPOSR y no depende de esa cadena: los cuatro perfiles miden 20 s estables.
 
-El bootstrap del engine ejecuta `takeover_system()` (`Forbid` + `LoadView(NULL)` + `OwnBlitter`, guardando DMACON/INTENA/ADKCON) **antes** de `set_display`, y `restore_system()` en un `scope_guard` al salir. Se aplica a `Active`/`Polling`; se excluye `Signal` porque `Wait()` con `Forbid` activo puede bloquear la tarea. Bajo AmigaDOS el servicio de nivel 3 usa ahora `AddIntServer(INTB_VERTB/BLIT)` (stubs ASM con Z activo), no el vector crudo: con `Active`, 3 y 5 planos miden 20 s estables (49,87/49,92 fps). La build de **4 planos** con `Active` sigue teniendo un parón tardío (~1150 frames) sin aislar, así que la demo usa `Polling`, que no depende de esa cadena y está verificada en los cuatro perfiles.
+El bootstrap del engine ejecuta `takeover_system()` (`Forbid` + `LoadView(NULL)` + `OwnBlitter`, guardando DMACON/INTENA/ADKCON) **antes** de `set_display`, y `restore_system()` en un `scope_guard` al salir. Se aplica a `Active`/`Polling`; se excluye `Signal` porque `Wait()` con `Forbid` activo puede bloquear la tarea. Bajo AmigaDOS el servicio de nivel 3 usa ahora `AddIntServer(INTB_VERTB/BLIT)` (stubs ASM con Z activo), no el vector crudo: con `Active`, 3 planos miden 20 s; 4 planos 35 s sin GDB (con GDB/measure se para); 5 planos con rotación se congelan ~198-200. La demo usa `Polling`, que no depende de esa cadena y está verificada en los cuatro perfiles.
 
 A/B realizado (una variable):
 
@@ -40,16 +40,16 @@ A/B realizado (una variable):
 | 5 planos, commit a la **misma** dirección | se congela en 198-200 (el contenido de la lista no importa) |
 | 5 planos, commit al inicio del render (VPOS=311, margen antes del wrap) | sigue congelándose con Active (no es la carrera del wrap) |
 | 3 planos, rotación, Active | 20 s estables en las ejecuciones buenas |
-| 5 planos, sin GDB ni sesión MCP | también se congela (no es un halt del depurador) |
-| 5 planos, `Active` + takeover + `AddIntServer` | **49,87–49,92 fps / 1 campo**, 20 s estable |
+| 5 planos con rotación, sin GDB ni sesión MCP | se congela en 198-200 (no es un halt del depurador) |
+| 3 planos, `Active` + takeover + `AddIntServer` | **20 s estable** (49,8–49,9 fps / 1 campo) |
 | 4 planos, `Active` + takeover + `AddIntServer`, **sin GDB** | **35 s estable**; servidor VERTB ≈1 llamada/frame (`adds=1`, `calls≈frames`) |
 | 4 planos, `Active` + takeover + `AddIntServer`, con `measure-fps`/GDB | parón tardío; perturbación del cliente de medida, no del engine |
-| 4 perfiles, `Polling` + takeover | **49,87–49,92 fps / 1 campo**, 20 s estable |
+| 4 perfiles, `Polling` + takeover | **49,95–49,97 fps / 1 campo**, 20 s estable |
 | Auditoría de rangos en runtime | planos `0x15070..0x21870`, sprites `0x2394c..0x245f0`, copperlists `0x258a0..0x260a0`: **sin solapes** |
 
 El commit de COP1LC se publica al **inicio** de `render` (VPOS=311, una línea de margen) y se parchea después la lista siguiente, ya inactiva; así se evita la ventana del wrap (`WinUAE-DBG/custom.cpp:2921-2942`, `copper.md` §3). No fue la causa del bloqueo, pero es el orden correcto.
 
-La hipótesis de que el engine pisaba memoria quedó **refutada** por la auditoría de rangos. `takeover_system()`/`restore_system()` existen en el engine, pero `run_demo` no los llama; solo las demos 066 y 119 lo hacen. La consulta externa abierta sobre la secuencia canónica de takeover en KS 1.3 está en `docs/debugging/investigaciones/consultas/consulta-224-intena-vertb-takeover-en.md`.
+La hipótesis de que el engine pisaba memoria quedó **refutada** por la auditoría de rangos. `run_demo` sí llama a `takeover_system()`/`restore_system()` en `Active`/`Polling`; el takeover forma parte del bootstrap. La consulta externa abierta sobre la secuencia canónica de takeover en KS 1.3 está en `docs/debugging/investigaciones/consultas/consulta-224-intena-vertb-takeover-en.md`.
 
 ## HUD
 

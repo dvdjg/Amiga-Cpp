@@ -46,6 +46,16 @@ struct Decimal {
 	return Decimal {value, min_digits};
 }
 
+/// Manipulador de un entero **ya escalado** por 10^digits: `scaled(5960, 2)` → `59.60`.
+struct Scaled {
+	u32 value = 0u;
+	u8 digits = 0u;
+};
+
+[[nodiscard]] constexpr Scaled scaled(u32 value, u8 digits = 0u) noexcept {
+	return Scaled {value, digits};
+}
+
 /// Manipulador de un escalar fraccionario (`Fixed`, …) con `digits` decimales.
 template <class S>
 struct FixedValue {
@@ -124,6 +134,13 @@ public:
 			}
 		}
 		add(digits.view());
+		return *this;
+	}
+
+	TextLine& operator<<(Scaled value) noexcept {
+		if (!m_truncated && !to_chars_scaled(m_text, value.value, value.digits)) {
+			m_truncated = true;
+		}
 		return *this;
 	}
 

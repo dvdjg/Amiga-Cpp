@@ -14,8 +14,7 @@
 // de 3 colores + transparencia (canales 4..7). Cada placement tiene su propia X animada.
 
 #include <eng/api/api.hpp>
-#include <eng/core/util/static_string.hpp>
-#include <eng/core/util/text.hpp>
+#include <eng/core/util/text_line.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
@@ -396,13 +395,7 @@ private:
 		eng::debug::DebugPeripheral::counter_value(0u, m_fps10);
 		eng::debug::DebugPeripheral::counter_value(7u, app.frame());
 		m_hud_line.clear();
-		(void)m_hud_line.append('F');
-		(void)eng::util::to_chars_u32(m_hud_line, app.frame());
-		(void)m_hud_line.append(' ');
-		(void)eng::util::to_chars_scaled(m_hud_line, m_fps10, 1u);
-		(void)m_hud_line.append('F');
-		(void)m_hud_line.append('P');
-		(void)m_hud_line.append('S');
+		m_hud_line << 'F' << app.frame() << ' ' << eng::util::scaled(m_fps10, 1u) << "FPS";
 		// El overlay del host compone sin borrar: `barto_buf_text` pinta solo los bits de
 		// glifo encendidos y conserva los anteriores (`WinUAE-DBG/debug.cpp:1796-1823`).
 		// Sin limpiar, cada segundo se superponen los dígitos viejos y el HUD degenera en
@@ -568,8 +561,8 @@ private:
 	eng::u32 m_fps_cycle_ref = 0u;
 	/// Última estimación de FPS ×10, compartida con el overlay y la telemetría.
 	eng::u32 m_fps10 = 0u;
-	/// Buffer fijo del texto dinámico `F<frame> <fps>FPS` (hasta 19 caracteres).
-	eng::util::StaticString<20u> m_hud_line {};
+	/// Builder del texto dinámico `F<frame> <fps>FPS` (capacidad 24, truncado seguro).
+	eng::util::TextLine<24u> m_hud_line {};
 	bool m_ready = false;
 };
 
@@ -584,9 +577,10 @@ int main() {
 	display.color_depth = kPlanes;
 	display.buffers = 1u;
 	display.palette = kPalette;
-	// El camino `Active`+`AddIntServer` funciona 20 s en 3/5 planos, pero en 4 planos sigue
-	// apareciendo un fallo tardío bajo el runner (ver DT-045). El sondeo por VPOSR no depende
-	// de esa cadena de IRQ y está verificado en los cuatro perfiles: modo de la demo.
+	// El camino `Active`+`AddIntServer` no está cerrado: 3 planos 20 s; 4 planos 35 s sin GDB
+	// (con GDB se para); 5 planos con rotación se congela ~198-200. La causa no está aislada;
+	// no se atribuye al SO (el takeover hace Forbid; la 212/DT-011 era el HUD). El sondeo por
+	// VPOSR no depende de esa cadena y está verificado en los cuatro perfiles: modo de la demo.
 	constexpr eng::amiga::VblankWait kWaitMode = (K224_WAIT_ACTIVE != 0)
 		? eng::amiga::VblankWait::Active
 		: eng::amiga::VblankWait::Polling;

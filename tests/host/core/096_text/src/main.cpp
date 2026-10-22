@@ -109,8 +109,9 @@ int main() {
 		check(small.view() == eu::StringView("abc"), "TextLine conserva lo que cabe");
 
 		eu::TextLine<48> controls;
-		controls << "S " << eu::dec(7u, 3u) << " V " << eu::fixed(Q12(6144), 2u);
-		check(controls.view() == eu::StringView("S 007 V 1.50"), "TextLine dec/fixed");
+		controls << "S " << eu::dec(7u, 3u) << " V " << eu::fixed(Q12(6144), 2u)
+			 << " P " << eu::scaled(5960u, 2u);
+		check(controls.view() == eu::StringView("S 007 V 1.50 P 59.60"), "TextLine dec/fixed/scaled");
 	}
 
 	// --- to_chars_hex --------------------------------------------------------
