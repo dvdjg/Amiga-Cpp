@@ -2,9 +2,12 @@
 
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
+#include <inline/exec.h>
 #include <proto/graphics.h>
 #include <graphics/gfxbase.h>
 #include <exec/memory.h>
+#include <exec/interrupts.h>
+#include <hardware/intbits.h>
 #include <dos/dosextens.h> // struct Process (pr_CLI): deteccion de "bajo SO vivo" (212)
 #include <eng/debug/prof.hpp>
 #include <eng/debug/peripheral.hpp>
@@ -18,6 +21,11 @@
 struct GfxBase* GfxBase = nullptr;
 
 using namespace eng::amiga::detail;
+
+// Entradas de los servidores de exec (support/level3_irq.s). El stub garantiza el retorno
+// con Z activo, que es obligatorio para VERTB y evita que el lenguaje de alto nivel lo pierda.
+extern "C" void eng_vbl_server_entry();
+extern "C" void eng_blit_server_entry();
 
 // Definiciones fuera de linea del bloque de perfilado (declarado en `eng/debug/prof.hpp`):
 // asi el `.map` publica una direccion final que `tools/debug/profile.mjs` puede resolver.
@@ -55,6 +63,43 @@ eng::MemoryKind mem_kind_of(const void* p, bool asked_chip, bool asked_fast) {
 	case eng::hw::MemRegionKind::Slow: return eng::MemoryKind::Slow;
 	default: return eng::MemoryKind::Any;
 	}
+}
+
+/// Estado de la toma de control del sistema (ver `takeover_system`).
+/// Vive aquí, antes de los servicios de IRQ, para que `level3_sync` sepa si el SO sigue
+/// siendo el dueño del vector y de `INTENA` y haya que usar `AddIntServer` en vez del vector
+/// crudo (familia 212/DT-011).
+struct SystemTakeoverState {
+	bool active = false;
+	bool forbidden = false;
+	struct View* old_view = nullptr;
+	eng::u16 old_intena = 0u;
+	eng::u16 old_dmacon = 0u;
+	eng::u16 old_adkcon = 0u;
+};
+SystemTakeoverState g_sys {};
+
+/// Servidores de exec y sus nodos (estáticos: `AddIntServer` conserva el puntero).
+/// Bajo AmigaDOS el SO es dueño del autovector de nivel 3 y de `INTENA`; los handlers se
+/// encadenan con `AddIntServer` y reciben `A1=is_Data` (aquí no se usa: el contexto vive en
+/// `g_vbl_task`/`g_blit_task`). Ver Autodocs de `AddIntServer`.
+struct ExecIrqServers {
+	struct Interrupt vbl {};
+	struct Interrupt blit {};
+	bool vbl_added = false;
+	bool blit_added = false;
+};
+ExecIrqServers g_exec_servers {};
+char g_vbl_server_name[] = "eng vblank";
+char g_blit_server_name[] = "eng blit";
+
+/// Inicializa un nodo de servidor con prioridad dentro de su cadena.
+void init_server(struct Interrupt& node, char* name, void (*code)(), eng::s8 pri) {
+	node.is_Node.ln_Type = NT_INTERRUPT;
+	node.is_Node.ln_Pri = pri;
+	node.is_Node.ln_Name = name;
+	node.is_Data = nullptr;
+	node.is_Code = code;
 }
 } // namespace
 
@@ -255,6 +300,17 @@ void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 		debug_stop_idle();
 		return;
 	}
+	// Camino **AmigaDOS con servidor de exec**: el latido de la IRQ es la referencia de campo;
+	// no se sondea VPOSR. Además de ser el modelo correcto (exec es dueño del vector/INTENA),
+	// evita que un `VPOSR` latcheado por el lightpen de WinUAE deje el bucle esperando una
+	// línea que nunca verá. `g_vblank_seq` lo incrementa el servidor tras invocar la tarea.
+	if (thunk == nullptr && g_sys.active && g_vbl_task != nullptr) {
+		const unsigned long start = g_vblank_seq;
+		while (g_vblank_seq == start) {
+		}
+		debug_stop_idle();
+		return;
+	}
 	// Una sola lectura de VPOSR por iteracion: la condicion y el `vpos` que recibe
 	// la tarea comparten el mismo valor (no anade accesos al bus en el bucle caliente).
 	u32 vposr = *vpos_long;
@@ -318,9 +374,91 @@ extern "C" void level3_dispatch() {
 	}
 }
 
-// Instala/restaura el handler unico segun los servicios activos. Solo toca INTEN/VERTB/
-// BLIT; no desarma otros bits de INTENA (p. ej. el audio del mixer).
+namespace {
+/// Sincroniza los servidores de exec con los servicios activos. Camino **AmigaDOS**:
+/// `AddIntServer`/`RemIntServer` dejan que exec sea el dueño del vector de nivel 3 y de
+/// `INTENA`; no se escribe el vector ni `INTENA` a mano (familia 212/DT-011).
+void sync_os_servers() {
+	if (!g_sys.active) {
+		return;
+	}
+	// Si una build anterior instaló el vector crudo, devolverlo antes de ceder el control.
+	if (g_level3_installed) {
+		*reinterpret_cast<volatile eng::u32*>(0x6cu) = g_level3_old_vector;
+		g_level3_installed = false;
+	}
+	if (g_vbl_task != nullptr && !g_exec_servers.vbl_added) {
+		// Prioridad alta dentro de la cadena VERTB: nuestro servidor debe ejecutarse antes
+		// que el de graphics/Intuition. Los servidores VERTB retornan con Z activo, pero si
+		// otro servidor de la cadena lo incumple, los siguientes no se ejecutan; adelantarnos
+		// mantiene el latido del juego aunque el SO tenga su propio servidor de display.
+		init_server(g_exec_servers.vbl, g_vbl_server_name, eng_vbl_server_entry, 100);
+		AddIntServer(INTB_VERTB, &g_exec_servers.vbl);
+		g_exec_servers.vbl_added = true;
+	} else if (g_vbl_task == nullptr && g_exec_servers.vbl_added) {
+		RemIntServer(INTB_VERTB, &g_exec_servers.vbl);
+		g_exec_servers.vbl_added = false;
+	}
+	if (g_blit_task != nullptr && !g_exec_servers.blit_added) {
+		init_server(g_exec_servers.blit, g_blit_server_name, eng_blit_server_entry, 100);
+		AddIntServer(INTB_BLIT, &g_exec_servers.blit);
+		g_exec_servers.blit_added = true;
+	} else if (g_blit_task == nullptr && g_exec_servers.blit_added) {
+		RemIntServer(INTB_BLIT, &g_exec_servers.blit);
+		g_exec_servers.blit_added = false;
+	}
+	// `AddIntServer` solo habilita la cadena si es el **primer** servidor. La cadena de
+	// VERTB ya existe (graphics.library), así que tras `takeover_display` (que limpia
+	// INTENA) hay que devolver el enable que exec da por supuesto; lo mismo para BLIT.
+	// No se sustituye el vector: exec sigue siendo el dueño del despacho.
+	eng::u16 bits = 0x4000u; // INTEN
+	if (g_vbl_task != nullptr) bits |= 0x0020u;
+	if (g_blit_task != nullptr) bits |= 0x0040u;
+	if (bits != 0x4000u) {
+		custom_base[custom_intena_offset] = static_cast<unsigned short>(0x8000u | bits);
+	}
+}
+
+/// Retira los servidores de exec antes de devolver el control al SO.
+void remove_os_servers() {
+	if (g_exec_servers.vbl_added) {
+		RemIntServer(INTB_VERTB, &g_exec_servers.vbl);
+		g_exec_servers.vbl_added = false;
+	}
+	if (g_exec_servers.blit_added) {
+		RemIntServer(INTB_BLIT, &g_exec_servers.blit);
+		g_exec_servers.blit_added = false;
+	}
+}
+} // namespace
+
+// Cuerpos de los servidores (llamados desde el stub ASM con Z garantizado al retornar).
+// Exec ya ha confirmado (ack) el bit de INTREQ antes de recorrer la cadena; aquí no se
+// escribe INTREQ. Se conserva la señal de VBlank para el bucle de mensajes.
+extern "C" void eng_vbl_server_body() {
+	const unsigned short vpos = static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8);
+	if (g_vbl_task != nullptr) {
+		g_vbl_task(g_vbl_task_user, vpos);
+	}
+	++g_vblank_seq;
+	vblank_signal_raise();
+}
+
+extern "C" void eng_blit_server_body() {
+	const unsigned short vpos = static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8);
+	if (g_blit_task != nullptr) {
+		g_blit_task(g_blit_task_user, vpos);
+	}
+}
+
+// Instala/restaura el handler unico segun los servicios activos. Bajo AmigaDOS usa la
+// cadena de servidores de exec; en bare-metal mantiene el vector crudo y `INTENA`.
+// Solo toca INTEN/VERTB/BLIT; no desarma otros bits de INTENA (p. ej. el audio del mixer).
 void level3_sync() {
+	if (g_sys.active) {
+		sync_os_servers();
+		return;
+	}
 	const bool need = (g_vbl_task != nullptr) || (g_blit_task != nullptr);
 	if (need && !g_level3_installed) {
 		volatile eng::u32* const vector3 = reinterpret_cast<volatile eng::u32*>(0x6cu);
@@ -731,18 +869,6 @@ void AmigaBackend::stop_display() {
 // INTENA/DMACON/ADKCON → apagar todo → (el llamador instala su copper con takeover_display).
 // Salida: apagar todo → restaurar vector nivel 3 → copper del SO (copinit) → restaurar
 // registros → DisownBlitter/LoadView(antiguo)/2×WaitTOF → Permit.
-namespace {
-struct SystemTakeoverState {
-	bool active = false;
-	bool forbidden = false;
-	struct View* old_view = nullptr;
-	eng::u16 old_intena = 0u;
-	eng::u16 old_dmacon = 0u;
-	eng::u16 old_adkcon = 0u;
-};
-SystemTakeoverState g_sys {};
-} // namespace
-
 bool AmigaBackend::runs_under_os() const {
 	// Un proceso AmigaDOS (lanzado por el Shell/runner) tiene `pr_CLI` no nulo; una tarea
 	// pura no. Es la senal de "SO vivo" que hace letal la espera por `Wait()` (familia 212).
@@ -795,7 +921,9 @@ void AmigaBackend::restore_system() {
 	custom_base[custom_intena_offset] = dma_clear_all;
 	custom_base[custom_intreq_offset] = dma_clear_all;
 	custom_base[custom_adkcon_offset] = dma_clear_all;
-	// 2) Restaurar el vector de nivel 3 si lo sustituimos y desactivar servicios.
+	// 2) Retirar los servidores de exec (camino AmigaDOS) y restaurar el vector crudo si
+	//    lo habíamos sustituido (bare-metal).
+	remove_os_servers();
 	if (g_level3_installed) {
 		*reinterpret_cast<volatile eng::u32*>(0x6cu) = g_level3_old_vector;
 		g_level3_installed = false;

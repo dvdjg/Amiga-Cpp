@@ -30,6 +30,7 @@
 /// Es Amiga-específico (instancia `eng::amiga::AmigaBackend`); otro backend tendría su `entry`.
 
 #include <eng/api/game.hpp>
+#include <eng/core/util/scope_guard.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/memory/arena.hpp> // `MemoryConfig` para el overload con presupuesto explícito
 #include <eng/platform/amiga/backend.hpp>
@@ -143,6 +144,21 @@ int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryC
 		::eng::debug::mark_failed(g_eng_run_status, ::eng::debug::BootFail::Memory);
 		return 0;
 	}
+	// **Toma de control del sistema** (procedimiento canónico, ver
+	// `docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md`): bajo el runner el
+	// proceso corre en un AmigaDOS vivo y `graphics.library`/exec reescriben `INTENA` y apagan
+	// VERTB (familia 212/DT-011). `Forbid()` + `LoadView(NULL)` + `OwnBlitter()` son necesarios
+	// para que el display del SO deje de tocar la copperlist y los bits de interrupción. Se
+	// excluye `Signal`: `Wait()` con `Forbid()` activo puede bloquear la tarea para siempre;
+	// las demos con `Signal` deben migrar a `Active`/`Polling` antes de recibir el takeover.
+	const bool system_takeover = (wait != VblankWait::Signal);
+	if (system_takeover && !backend.takeover_system()) {
+		::eng::debug::mark_failed(g_eng_run_status, ::eng::debug::BootFail::Display);
+		return 0;
+	}
+	[[maybe_unused]] auto system_restore = eng::util::make_scope_guard([&] {
+		if (system_takeover) backend.restore_system();
+	});
 	DemoHost<Demo> host {demo};
 	::eng::App app {backend, host, backend.memory_manager()};
 	if (!app.set_display(display) || !app.start()) {
