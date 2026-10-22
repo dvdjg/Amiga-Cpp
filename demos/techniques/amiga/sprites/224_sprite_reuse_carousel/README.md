@@ -17,10 +17,10 @@ La demo usa `app.device()` para instalar su lista estática (`takeover_copper(Ch
 
 | Perfil | Planos | Fondo | Estado |
 |---|---|---:|---|---|
-| A | 3 | COLOR00..07 | verificado (20 s, 49,87 fps) |
-| B | 4 | COLOR00..15 | verificado (20 s, 49,92 fps) |
-| C | 5 | COLOR00..15 | verificado (20 s, 49,92 fps) |
-| D | 6 (EHB) | COLOR00..15 | verificado (20 s, 49,87 fps) |
+| A | 3 | COLOR00..07 | verificado (20 s, 49,95 fps; flicker OK) |
+| B | 4 | COLOR00..15 | verificado (20 s, 49,97 fps) |
+| C | 5 | COLOR00..15 | verificado (20 s, 49,95 fps) |
+| D | 6 (EHB) | COLOR00..15 | verificado (20 s, 49,96 fps) |
 
 Selección con `EXTRA_DEFINES` (mecanismo admitido por `build-demo.sh`):
 
@@ -38,4 +38,4 @@ Se reutilizan `copper::Scheduler`/`MoveSlot`/`patch_data`, `encode_sprite_pos_ct
 
 ## Estado
 
-**Verificada en A (3 planos), B (4), C (5) y D (6 EHB)**: 49,87–49,92 fps, 1 campo/frame, 20 s estables; secuencias revisadas y visión canónica en A. La demo sondea `VPOSR` (`VblankWait::Polling`) en vez de depender del latido de VERTB: bajo el runner AmigaDOS sigue vivo y reescribe `INTENA` (familia 212/DT-011). El contador de frames y los FPS se muestran en el overlay de depuración del host; la franja inferior reserva nombre y versión. Detalle y evidencia en `VALIDATION.md`.
+**Verificada en A (3 planos), B (4), C (5) y D (6 EHB)**: 49,95–49,97 fps, 1 campo/frame, 20 s estables; secuencias revisadas y visión canónica en A; flicker formal OK en A. La demo sondea `VPOSR` (`VblankWait::Polling`) en vez de depender del latido de VERTB: bajo el runner AmigaDOS sigue vivo y reescribe `INTENA` (familia 212/DT-011). El contador de frames y los FPS se muestran en el overlay de depuración del host; la franja inferior reserva nombre y versión. Detalle y evidencia en `VALIDATION.md`.

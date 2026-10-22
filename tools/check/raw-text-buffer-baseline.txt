@@ -1,3 +1,1 @@
-demos/techniques/amiga/audio/277_codec_equiv/src/main.cpp
-demos/techniques/amiga/audio/279_codec_bench/src/main.cpp
-demos/techniques/amiga/effects/121_proc_corner_layers/src/main.cpp
+

@@ -16,6 +16,9 @@ Primera demo del mini-SO: el juego **no sondea hardware**. El tick del mini-SO (
 ```bash
 bash ./tools/build/build-demo.sh demos/techniques/amiga/os/212_message_loop --debug --clean
 bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --wait-ms 8000
+# entrada real + secuencia: joystick 2 (port 1) y rawkey fiable 140 -> 0x3d
+bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --wait-ms 1000 \
+  --joy 1:right,1:fire --key-events 140 --sequence-frames 5 --sequence-interval-ms 600
 # con pad CD32 en el puerto 2 (pendiente de resolver en WinUAE) + boton rojo:
 bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --cd32 --joy 1:fire
 ```
@@ -26,7 +29,7 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --cd32 -
 frames: 57   msgs: 30   joy: 0   keys: 0   bg: 29   t: 29   pad: 0   last: 0x0000
 ```
 
-`msgs` sube con cada mensaje; los productores de entrada solo emiten al **cambiar**, pero el **timer de periodo 2** entrega `t` periódicamente (`t: 29`), lo que verifica ese caso. `bg` avanza en los frames sin mensajes (una lectura del run-status pasó de `0x21200002` a `0x2120001F`).
+`msgs` sube con cada mensaje; los productores de entrada solo emiten al **cambiar**, pero el **timer de periodo 2** entrega `t` periódicamente (`t: 29`), lo que verifica ese caso. `bg` avanza en los frames sin mensajes (una lectura del run-status pasó de `0x21200002` a `0x2120001F`). La secuencia con `--joy 1:right,1:fire --key-events 140` confirma `keys: 2` y `last: 0x003d` (rawkey del evento 140) y el desplazamiento de la caja; el `joy` del HUD vuelve a 0 al soltar el joystick, que es el estado instantáneo esperado.
 
 ## Bucle cooperativo y HUD
 

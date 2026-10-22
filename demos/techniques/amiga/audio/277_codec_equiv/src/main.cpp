@@ -25,8 +25,7 @@
 //   bash tools/run/run-demo.sh demos/techniques/amiga/audio/277_codec_equiv --warp
 
 #include <eng/api/api.hpp>
-#include <eng/core/util/static_string.hpp>
-#include <eng/core/util/text.hpp>
+#include <eng/core/util/text_line.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <eng/audio/aplib.hpp>
@@ -245,21 +244,9 @@ struct CodecEquiv {
 		debug.rect(40, 40, 600, 150, 0x00ffffff);
 		debug.text(56, 60, "codec asm equiv (0 = identico)", 0x00ffffff);
 
-		eng::util::StaticString<16> s;
-		(void)eng::util::to_chars_u32(s, m_detail);
-		char line[32];
-		line[0] = '\0';
-		const char* p = "detail: ";
-		char* d = line;
-		while (*p != '\0') {
-			*d++ = *p++;
-		}
-		const char* v = s.c_str();
-		while (*v != '\0') {
-			*d++ = *v++;
-		}
-		*d = '\0';
-		debug.text(56, 96, line, m_detail == 0u ? 0x0080ff80 : 0x00ff6060);
+		eng::util::TextLine<64> line;
+		line << "detail: " << m_detail;
+		debug.text(56, 96, line.c_str(), m_detail == 0u ? 0x0080ff80 : 0x00ff6060);
 		eng::debug::probe_when_ready(g_eng_run_status, 0u);
 	}
 

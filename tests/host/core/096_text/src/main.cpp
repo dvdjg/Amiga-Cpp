@@ -107,6 +107,10 @@ int main() {
 		small << "abc" << 'd' << 'e';
 		check(small.truncated(), "TextLine trunca");
 		check(small.view() == eu::StringView("abc"), "TextLine conserva lo que cabe");
+
+		eu::TextLine<48> controls;
+		controls << "S " << eu::dec(7u, 3u) << " V " << eu::fixed(Q12(6144), 2u);
+		check(controls.view() == eu::StringView("S 007 V 1.50"), "TextLine dec/fixed");
 	}
 
 	// --- to_chars_hex --------------------------------------------------------

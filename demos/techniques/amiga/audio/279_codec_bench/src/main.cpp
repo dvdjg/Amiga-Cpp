@@ -19,8 +19,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/core/util/intmath.hpp>
-#include <eng/core/util/static_string.hpp>
-#include <eng/core/util/text.hpp>
+#include <eng/core/util/text_line.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <eng/audio/asm_codec.hpp>
@@ -146,27 +145,9 @@ struct CodecBench {
 		d.text(36, 36, "codec bench (muestras/s; asm vs cpp)", 0x00ffffff);
 		auto line = [&](eng::s16 y, const char* label, eng::u32 asmr, eng::u32 cppr,
 				eng::u32 col) {
-			char buf[56];
-			char* p = buf;
-			while (*label != '\0') {
-				*p++ = *label++;
-			}
-			eng::util::StaticString<16> a;
-			eng::util::StaticString<16> c;
-			(void)eng::util::to_chars_u32(a, asmr);
-			(void)eng::util::to_chars_u32(c, cppr);
-			*p++ = ' ';
-			for (const char* v = a.c_str(); *v != '\0';) {
-				*p++ = *v++;
-			}
-			*p++ = ' ';
-			*p++ = '/';
-			*p++ = ' ';
-			for (const char* v = c.c_str(); *v != '\0';) {
-				*p++ = *v++;
-			}
-			*p = '\0';
-			d.text(36, y, buf, col);
+			eng::util::TextLine<64> line;
+			line << label << ' ' << asmr << " / " << cppr;
+			d.text(36, y, line.c_str(), col);
 		};
 		line(66, "fib  asm/cpp:", m_fib_asm, m_fib_cpp, 0x00ffff00);
 		line(96, "ima  asm/cpp:", m_ima_asm, m_ima_cpp, 0x00ffc040);

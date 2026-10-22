@@ -4,13 +4,15 @@
 /// `eng::util::TextLine<N>`: **builder de texto** de capacidad fija con `operator<<`.
 ///
 /// Es la fachada de composición de HUD/diagnóstico: el llamador encadena texto, enteros
-/// y `hex(v, dígitos)`; por dentro usa `StaticString`/`to_chars`/`to_chars_hex`, sin heap,
+/// y `hex(v, dígitos)`/`dec(v, ancho)`/`fixed(valor, decimales)`; por dentro usa
+/// `StaticString`/`to_chars`/`to_chars_hex`, sin heap,
 /// sin iostream y sin excepciones. Si una escritura no cabe, `truncated()` queda a `true`
 /// y las siguientes no tocan memoria (el texto se trunca, nunca desborda).
 ///
 /// ```cpp
 /// eng::util::TextLine<96> line;
 /// line << "frames: " << frame << "  last: 0x" << eng::util::hex(last, 4u);
+/// line << "  fps: " << eng::util::fixed(fps, 2u) << "  n: " << eng::util::dec(n, 3u);
 /// overlay.text(x, y, line.c_str(), rgb);
 /// ```
 ///
@@ -32,6 +34,29 @@ struct Hex {
 
 [[nodiscard]] constexpr Hex hex(u32 value, u8 digits = 1u) noexcept {
 	return Hex {value, digits};
+}
+
+/// Manipulador decimal con **ancho mínimo** (relleno de ceros): `dec(7, 3)` → `007`.
+struct Decimal {
+	u32 value = 0u;
+	u8 min_digits = 1u;
+};
+
+[[nodiscard]] constexpr Decimal dec(u32 value, u8 min_digits = 1u) noexcept {
+	return Decimal {value, min_digits};
+}
+
+/// Manipulador de un escalar fraccionario (`Fixed`, …) con `digits` decimales.
+template <class S>
+struct FixedValue {
+	S value {};
+	u8 digits = 0u;
+};
+
+template <class S>
+	requires decimal_scalar<S>
+[[nodiscard]] constexpr FixedValue<S> fixed(S value, u8 digits) noexcept {
+	return FixedValue<S> {value, digits};
 }
 
 template <usize N>
@@ -78,6 +103,34 @@ public:
 
 	TextLine& operator<<(Hex value) noexcept {
 		if (!m_truncated && !to_chars_hex(m_text, value.value, value.digits)) {
+			m_truncated = true;
+		}
+		return *this;
+	}
+
+	TextLine& operator<<(Decimal value) noexcept {
+		if (m_truncated) {
+			return *this;
+		}
+		StaticString<11> digits;
+		if (!to_chars(digits, value.value)) {
+			m_truncated = true;
+			return *this;
+		}
+		for (u8 i = digits.size(); i < value.min_digits; ++i) {
+			if (!m_text.append('0')) {
+				m_truncated = true;
+				return *this;
+			}
+		}
+		add(digits.view());
+		return *this;
+	}
+
+	template <class S>
+		requires decimal_scalar<S>
+	TextLine& operator<<(FixedValue<S> value) noexcept {
+		if (!m_truncated && !to_chars(m_text, value.value, value.digits)) {
 			m_truncated = true;
 		}
 		return *this;

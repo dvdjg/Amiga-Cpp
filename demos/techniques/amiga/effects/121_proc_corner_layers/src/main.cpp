@@ -31,6 +31,7 @@
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/121_proc_corner_layers --warp
 #include <eng/api/api.hpp>
 #include <eng/core/math/minifloat.hpp>
+#include <eng/core/util/text_line.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/field/actor_target.hpp>
@@ -448,19 +449,6 @@ constexpr eng::debug::Version kVersion {1u, 0u};
 eng::u16 g_hud_palette[2] {0x000u, 0xFFFu};
 eng::u16 g_world_palette[32] {};
 
-/// Número decimal a cadena (telemetría del HUD).
-void u16_to_str(u16 v, char* out) {
-	char tmp[6] {};
-	u8 i = 0u;
-	do {
-		tmp[i++] = char('0' + (v % 10u));
-		v = u16(v / 10u);
-	} while (v != 0u && i < 5u);
-	u8 n = 0u;
-	while (i > 0u) out[n++] = tmp[--i];
-	out[n] = '\0';
-}
-
 struct ProcStructuresDemo {
 	playfield::XlimitedScene<kScrollConsts> scene {};
 	playfield::XlimitedSceneConfig scene_cfg {};
@@ -494,7 +482,7 @@ struct ProcStructuresDemo {
 	u16 m_restore_x = kActorMinX; // ventana alineada del actor del frame anterior
 	s16 m_dir = 1;
 	u32 m_frames = 0u;
-	char m_frame_text[12] = "F 0";
+	eng::util::TextLine<16> m_frame_text;
 	bool m_hud_dirty = true;
 	bool m_hud_cleared = false;
 	bool m_ready = false;
@@ -502,6 +490,7 @@ struct ProcStructuresDemo {
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		m_frame_text << 'F' << ' ' << 0u;
 		// Chip: anillo del corkscrew + banco + copper + HUD + scratch del actor.
 		if (!backend.configure_memory({200u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012101u);
@@ -1112,13 +1101,8 @@ struct ProcStructuresDemo {
 		++m_frames;
 #if !defined(K121_SKIP_HUD)
 		if ((m_frames & 63u) == 0u) {
-			char num[8];
-			u16_to_str(u16(m_frames & 0xFFFFu), num);
-			u8 n = 0u;
-			m_frame_text[n++] = 'F';
-			m_frame_text[n++] = ' ';
-			for (u8 i = 0u; num[i] != '\0' && n < 11u; ++i) m_frame_text[n++] = num[i];
-			m_frame_text[n] = '\0';
+			m_frame_text.clear();
+			m_frame_text << 'F' << ' ' << u16(m_frames & 0xFFFFu);
 			m_hud_dirty = true;
 		}
 #endif
@@ -1232,15 +1216,6 @@ private:
 				// con `--read-debugperiph console`): el valor de la banda y lecturas
 				// vecinas distinguen corrimiento (±16/±32 px) de corrupcion de memoria.
 				{
-					char line[56];
-					u8 n = 0u;
-					const char* const hexd = "0123456789ABCDEF";
-					const auto put = [&](const char* tag, u8 v) {
-						while (*tag != '\0') line[n++] = *tag++;
-						line[n++] = hexd[(v >> 4u) & 0xFu];
-						line[n++] = hexd[v & 0xFu];
-						line[n++] = ' ';
-					};
 					// Píxel equivalente leído de la banda en Chip (mismo layout que el
 					// restore): si coincide con `got`, la banda es la fuente del valor.
 					u8 band_px = 0u;
@@ -1249,15 +1224,15 @@ private:
 									 6u * kLaneWordCells + 8u];
 						if ((w & 0x0040u) != 0u) band_px = u8(band_px | u8(1u << p));
 					}
-					put("s1 got", got);
-					put("exp", exp);
-					put("bnd", band_px);
-					put("xm32", read_field_pixel(u16(137u - 32u), u16(kActorY + 6u)));
-					put("xm16", read_field_pixel(u16(137u - 16u), u16(kActorY + 6u)));
-					put("xp16", read_field_pixel(u16(137u + 16u), u16(kActorY + 6u)));
-					put("xp32", read_field_pixel(u16(137u + 32u), u16(kActorY + 6u)));
-					line[n] = '\0';
-					eng::debug::DebugPeripheral::console_line(line);
+					eng::util::TextLine<96> line;
+					line << "s1 got" << eng::util::hex(got, 2u) << ' '
+					     << "exp" << eng::util::hex(exp, 2u) << ' '
+					     << "bnd" << eng::util::hex(band_px, 2u) << ' '
+					     << "xm32" << eng::util::hex(read_field_pixel(u16(137u - 32u), u16(kActorY + 6u)), 2u) << ' '
+					     << "xm16" << eng::util::hex(read_field_pixel(u16(137u - 16u), u16(kActorY + 6u)), 2u) << ' '
+					     << "xp16" << eng::util::hex(read_field_pixel(u16(137u + 16u), u16(kActorY + 6u)), 2u) << ' '
+					     << "xp32" << eng::util::hex(read_field_pixel(u16(137u + 32u), u16(kActorY + 6u)), 2u);
+					eng::debug::DebugPeripheral::console_line(line.c_str());
 				}
 				bad = 0x00012108u | (u32(got) << 16u) | (u32(exp) << 24u); // 0x12108 | got | exp
 		}
@@ -1478,24 +1453,14 @@ private:
 		}
 		char label[24];
 		const u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
-		char line1[48] = "PROC STRUCTURES ";
-		u8 n = 16u;
-		for (u8 i = 0u; i < vlen && n + 1u < sizeof(line1); ++i) line1[n++] = label[i];
-		const char* sep = "  ";
-		for (const char* c = sep; *c != '\0' && n + 1u < sizeof(line1); ++c) line1[n++] = *c;
-		for (const char* c = m_frame_text; *c != '\0' && n + 1u < sizeof(line1); ++c) {
-			line1[n++] = *c;
-		}
-		line1[n] = '\0';
-		(void)hud.draw_text_words(16, 4, line1, 1u);
+		eng::util::TextLine<64> line1;
+		line1 << "PROC STRUCTURES " << eng::util::StringView(label, vlen)
+		      << "  " << m_frame_text.view();
+		(void)hud.draw_text_words(16, 4, line1.c_str(), 1u);
 
-		char line2[48] = "X-LIMITED 20x13  PIECES ";
-		u8 m = 25u;
-		char num[8];
-		u16_to_str(kBaked.count, num);
-		for (const char* c = num; *c != '\0' && m + 1u < sizeof(line2); ++c) line2[m++] = *c;
-		line2[m] = '\0';
-		(void)hud.draw_text_words(16, 20, line2, 1u);
+		eng::util::TextLine<64> line2;
+		line2 << "X-LIMITED 20x13  PIECES " << kBaked.count;
+		(void)hud.draw_text_words(16, 20, line2.c_str(), 1u);
 	}
 };
 
