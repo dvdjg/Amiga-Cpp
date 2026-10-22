@@ -8,7 +8,7 @@ Recomponer y reemitir la copperlist cada frame con decenas de actores cuesta cie
 
 - La lista se construye **una vez** en `init`: display, paleta, `DMACON` con `SPREN`, y por cada banda un `WAIT` + `POS/CTL/PTH/PTL` de los ocho canales.
 - Por frame se parchean **160 words** (POS/CTL de 40 placements) desde `update`, justo después del VBlank, antes de que el haz alcance la primera banda.
-- El arte rota una vez por segundo: solo entonces se parchean los 40 pares PT (80 words). El par *attached* se cocina una vez por contenido.
+- Las cinco rotaciones de arte se **preconstruyen en init** (una copperlist por rotacion, con sus PT ya cocidos): rotar es solo un swap de COP1LC, sin tocar la lista en curso. El par *attached* se cocina una vez por contenido.
 - El DMA de sprites ejecuta el resto: CPU casi libre.
 
 La demo usa `app.device()` para instalar su lista estática (`takeover_copper(ChipView)`) porque la fachada `SpriteScene` todavía no expone un camino incremental equivalente; el contrato y el hueco están documentados en [SPRITE_MATERIALIZATION_CONTRACT.md](../../../../../docs/engine/architecture/SPRITE_MATERIALIZATION_CONTRACT.md).

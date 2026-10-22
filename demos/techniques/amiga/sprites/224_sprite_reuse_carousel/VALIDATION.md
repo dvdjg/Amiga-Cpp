@@ -42,4 +42,4 @@ Con la build actual, `measure-fps` da **49,5–50,3 fps en las cuatro primeras s
 - Re-medida de fps del build actual (X a todo el ancho) y de los perfiles B y D.
 - Gate de flicker (`temporal-detect` + `flicker-check`) sobre la secuencia actual.
 - Contraste dirigido C contra `INTENT.md` (presencia por banda y por lane) en las cuatro profundidades.
-- Comportamiento de la rotación de PT bajo carga sostenida (>10 s) y con las cuatro profundidades.
+- Estabilidad del swap de COP1LC bajo carga sostenida (>10 s) y con las cuatro profundidades (DT-045).
