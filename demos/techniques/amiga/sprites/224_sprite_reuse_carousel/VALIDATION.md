@@ -8,10 +8,10 @@
 
 | Perfil | Build/run | fps / fieldsPerFrame | Ciclos/frame | Frames | Flicker | Placements | Canales | Reuso | Visión |
 |---|---|---:|---:|---:|---|---:|---|---:|---|
-| A — 3 planos | OK (`A500_release`) | **49,87 / 1,00259** | **142.243** | 1009 (20,25 s) | pendiente de gate | 40 | 0xff | 5 | canónica OK |
-| B — 4 planos | OK (`A500_k224_planes4_release`) | **49,92 / 1,00159** | **142.102** | 1014 (20,35 s) | pendiente de gate | 40 | 0xff | 5 | secuencia revisada |
-| C — 5 planos | OK (`A500_k224_planes5_release`) | **49,92 / 1,00159** | **142.102** | 1010 (20,26 s) | pendiente de gate | 40 | 0xff | 5 | secuencia revisada |
-| D — 6 planos EHB | OK (`A500_k224_planes6_release`) | **49,87 / 1,00259** | **142.243** | 1011 (20,31 s) | pendiente de gate | 40 | 0xff | 5 | EHB, secuencia revisada |
+| A — 3 planos | OK (`A500_release`) | **49,87 / 1,00259** | **142.243** | 1009 (20,25 s) | **OK** (regresión) | 40 | 0xff | 5 | canónica OK |
+| B — 4 planos | OK (`A500_k224_planes4_release`) | **49,92 / 1,00159** | **142.102** | 1014 (20,35 s) | no medido por perfil | 40 | 0xff | 5 | secuencia revisada |
+| C — 5 planos | OK (`A500_k224_planes5_release`) | **49,92 / 1,00159** | **142.102** | 1010 (20,26 s) | no medido por perfil | 40 | 0xff | 5 | secuencia revisada |
+| D — 6 planos EHB | OK (`A500_k224_planes6_release`) | **49,87 / 1,00259** | **142.243** | 1011 (20,31 s) | no medido por perfil | 40 | 0xff | 5 | EHB, secuencia revisada |
 
 `detail = 0xff0528`: 40 placements (`0x28`), máxima reutilización 5 (`0x05`) y máscara de canales `0xff`. Ambas medidas son `stable: true`, `quantizedFields: 1`, con ventanas entre 49,52 y 50,32 fps.
 
@@ -23,6 +23,7 @@
 - `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes6_release --json --duration-ms 20000` → 49,87 fps emulados / 49,79 host, 142.243 ciclos/frame, 1,00259 campos/frame, 1011 frames, `detail=0xff0528`, `stable: true`.
 - Secuencias: A 155, 212, 268, 325, 382, 439, 497, 554 (final 590); B 156, 214, 272, 329 (final 366); C 152, 209, 267, 324, 382, 440, 497, 553 (final 590); D 153, 211, 267, 327, 385, 443 (final 480). `frame-diff` con 16.864–20.239 píxeles cambiados por par (D: 18.394–19.431) y contornos limpios. `temporal-detect` marca candidatos asociados al movimiento de los sprites (72 en A, 43 en D); el gate formal de flicker sigue pendiente.
 - Telemetría de la demo: `placements=40`, `channels=0xff`, `reuse=5`, `patched=160` words por frame.
+- Flicker (canónico `A500_debug`): `tools/test-regression.sh --flicker --require-flicker-ok --demo ...` → informe `out/regression/20261022-213313/regression-report.md`, columna **Flicker = ok** y `Regression OK` (0 candidatos). El aviso `white=0 < 10` es del overlay genérico de análisis, que no aplica a esta demo (su HUD es overlay del host, no bitplanes); la columna `Analyze` del informe es `ok`.
 
 ## Cambio de sincronización (212/DT-011)
 
@@ -65,7 +66,7 @@ Nota: la lectura del texto del HUD por el modelo de visión no se usa como medid
 
 ## Sin verificar
 
-- Gate formal de flicker (`flicker-check` + baseline) sobre la secuencia actual; `temporal-detect` no sustituye el gate y sus candidatos coinciden con el movimiento de los sprites.
+- Flicker por perfil B (4), C (5) y D (6 EHB): el gate formal se ejecutó en el perfil canónico A (3 planos). `temporal-detect` no sustituye el gate y sus candidatos coinciden con el movimiento de los sprites.
 - Contraste dirigido C contra `INTENT.md` por banda y lane en las cuatro profundidades.
 - Uso total de CPU: el sondeo de VPOSR es una espera activa; no se ha medido la ocupación de CPU (solo el coste del frame).
 - Secuencia de salida al SO (`restore_system`) en una demo que termine.
