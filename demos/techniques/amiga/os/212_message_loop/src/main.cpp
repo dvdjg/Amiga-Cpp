@@ -3,6 +3,8 @@
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/212_message_loop --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --keep-running
 
 #include <eng/api/api.hpp>
+#include <eng/core/util/static_string.hpp>
+#include <eng/core/util/text.hpp>
 #include <eng/os/message_pump.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -158,30 +160,27 @@ struct DemoApp {
 		d.text(64, 60, "AMG demo 212 - mini-OS message loop", 0x00ffffff);
 		d.text(64, 88, "VBlank + input por mensajes (sin sondear hardware)", 0x0000ff80);
 
-		// 128, no 64: con todos los contadores la linea no cabe en 64 y el desbordamiento
-		// de pila corrompia el bucle cooperativo (VBlank) tras el primer frame. El HUD es
-		// la unica escritura de pila del render; `append` no acota, asi que el buffer debe
-		// cubrir el peor caso.
-		char line[128];
-		char* p = line;
-		p = append(p, "frames: ");
-		p = append_u32(p, frames);
-		p = append(p, "   msgs: ");
-		p = append_u32(p, msgs);
-		p = append(p, "   joy: ");
-		p = append_u32(p, joy_dirs);
-		p = append(p, "   keys: ");
-		p = append_u32(p, keys);
-		p = append(p, "   bg: ");
-		p = append_u32(p, bg_work);
-		p = append(p, "   t: ");
-		p = append_u32(p, timers);
-		p = append(p, "   pad: ");
-		p = append_u32(p, pad_mask);
-		p = append(p, "   last: 0x");
-		p = append_hex(p, key_last);
-		*p = '\0';
-		d.text(64, 118, line, 0x00ffff00);
+		// `StaticString` + `to_chars`: la capacidad es parte del tipo, no hay puntero y
+		// una escritura que no cabe no toca memoria (trunca). El `char line[64]` crudo
+		// desbordaba la pila y corrompia el bucle cooperativo.
+		eng::util::StaticString<160> line;
+		(void)line.append("frames: ");
+		(void)eng::util::to_chars(line, frames);
+		(void)line.append("   msgs: ");
+		(void)eng::util::to_chars(line, msgs);
+		(void)line.append("   joy: ");
+		(void)eng::util::to_chars(line, joy_dirs);
+		(void)line.append("   keys: ");
+		(void)eng::util::to_chars(line, keys);
+		(void)line.append("   bg: ");
+		(void)eng::util::to_chars(line, bg_work);
+		(void)line.append("   t: ");
+		(void)eng::util::to_chars(line, timers);
+		(void)line.append("   pad: ");
+		(void)eng::util::to_chars(line, pad_mask);
+		(void)line.append("   last: 0x");
+		(void)eng::util::to_chars_hex(line, static_cast<eng::u32>(key_last), 4u);
+		d.text(64, 118, line.c_str(), 0x00ffff00);
 		d.text(64, 148, "mueve la caja con el joystick (puerto 2) o el raton (puerto 1)", 0x00aaaaaa);
 		d.text(64, 176, "bg = slices de idle de la tarea de fondo (M10; solo sin mensajes)", 0x0000ff80);
 		d.filled_rect(box_x, box_y, static_cast<eng::s16>(box_x + 20), static_cast<eng::s16>(box_y + 20),
@@ -189,26 +188,6 @@ struct DemoApp {
 		eng::debug::probe_when_ready(g_eng_run_status, frames);
 	}
 
-private:
-	static char* append(char* p, const char* s) {
-		while (*s != '\0') { *p++ = *s++; }
-		return p;
-	}
-	static char* append_u32(char* p, eng::u32 v) {
-		char tmp[10];
-		eng::u8 n = 0;
-		do { tmp[n++] = static_cast<char>('0' + (v % 10u)); v /= 10u; } while (v != 0u && n < 10u);
-		while (n > 0u) { *p++ = tmp[--n]; }
-		return p;
-	}
-	/// Añade `v` en hex de 4 dígitos (p. ej. el último rawkey).
-	static char* append_hex(char* p, eng::u16 v) {
-		constexpr char kHex[] = "0123456789abcdef";
-		for (eng::s8 shift = 12; shift >= 0; shift = static_cast<eng::s8>(shift - 4)) {
-			*p++ = kHex[(v >> shift) & 0x0fu];
-		}
-		return p;
-	}
 };
 
 } // namespace

@@ -232,6 +232,13 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   con bitácora de descubrimientos en su §8 y sonda reproducible en
   `docs/guides/optimization/_probe_gpp68000.cpp`).
 
+## Texto formateado (HUD/diagnóstico)
+
+- El texto dinámico se construye con `eng::util::StaticString<N>` y `to_chars`/`to_chars_scaled`/`to_chars_hex` (o `eng::debug::TelemetryLine`/`draw_hud`); **nunca** con `char buf[N]` + `char* p` + un `append` local. La capacidad es parte del tipo y cubre el peor caso; las escrituras no tocan memoria si no caben (el texto se trunca) y no hay punteros de escritura.
+- No dupliques conversiones (`append_u32`, `append_hex`, `digits[]`): viven en `eng/core/util/text.hpp` y se prueban en HOST-096. Si falta una conversión, se añade allí, no en la demo.
+- El HUD del host (`app.debug().text`) y la franja (`draw_hud`) usan esta API; una línea de HUD no puede desbordar la pila ni depender de un `append` sin límite.
+- **Gate:** `tools/check/raw-text-buffer.mjs` (baseline histórico decreciente) prohíbe nuevas parejas `char buf[N]` + `char* = buf` en demos/juegos. El baseline solo puede encoger.
+
 ## Reglas obligatorias de diseño
 
 Estas reglas hay que preservarlas en todo el código. `AGENTS.md` las enruta aquí.

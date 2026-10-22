@@ -26,12 +26,12 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --cd32 -
 frames: 57   msgs: 30   joy: 0   keys: 0   bg: 29   t: 29   pad: 0   last: 0x0000
 ```
 
-`msgs` sube con cada mensaje; los productores de entrada solo emiten al **cambiar**, pero el **timer de periodo 2** entrega `t` periódicamente (`t: 25`), lo que verifica ese caso. `bg` avanza en los frames sin mensajes (una lectura del run-status pasó de `0x21200002` a `0x2120001F`).
+`msgs` sube con cada mensaje; los productores de entrada solo emiten al **cambiar**, pero el **timer de periodo 2** entrega `t` periódicamente (`t: 29`), lo que verifica ese caso. `bg` avanza en los frames sin mensajes (una lectura del run-status pasó de `0x21200002` a `0x2120001F`).
 
 ## Bucle cooperativo y HUD
 
 `eng::amiga::set_vblank_cooperative(true)` activa el camino `AddIntServer(INTB_VERTB)` + señal + `Wait()` sin `Forbid`, sin `LoadView`/`OwnBlitter` y sin sustituir el vector de nivel 3. `os::init` engancha `eng::os::tick` al latido del `Engine`, así que el tick de entrada/timers/cola corre en la IRQ de VBlank; `update`/`render` siguen en el bucle principal. El display y el Copper son del SO.
 
-El HUD usa `char line[128]`: con **64** la línea de contadores (`frames`, `msgs`, `joy`, `keys`, `bg`, `t`, `pad`, `last`) no cabía y `append` desbordaba la pila; el modo polling lo toleraba, pero el bucle cooperativo se paraba tras el primer frame. No reducir el buffer sin acotar `append`. El fallo y las sondas que lo aislaron están en `docs/debugging/investigaciones/consultas/consulta-ks13-cooperative-display-wait-en.md`.
+El HUD se compone con `eng::util::StaticString<160>` y `to_chars`/`to_chars_hex` (sin `char[]` ni puntero). El antiguo `char line[64]` con `append` manual no cubría la línea de contadores y desbordaba la pila; el polling lo toleraba, pero el bucle cooperativo se paraba tras el primer frame. Ahora la capacidad es parte del tipo y una escritura que no cabe trunca sin tocar memoria. El fallo y las sondas que lo aislaron están en `docs/debugging/investigaciones/consultas/consulta-ks13-cooperative-display-wait-en.md`.
 
 Diseño: `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` (+ `MINI_OS_INPUT.md`, `MINI_OS_TASKS.md`). Tests: HOST-219/220/236/237/252/253/307/308.

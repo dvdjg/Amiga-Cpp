@@ -95,6 +95,22 @@ int main() {
 		check(!eu::to_chars_u32(small, 12345u), "to_chars rechaza si no cabe");
 	}
 
+	// --- to_chars_hex --------------------------------------------------------
+	{
+		eu::StaticString<16> s;
+		check(eu::to_chars_hex(s, 0u) && s.view() == eu::StringView("0"), "hex 0");
+		s.clear();
+		check(eu::to_chars_hex(s, 0x1234u) && s.view() == eu::StringView("1234"), "hex 1234");
+		s.clear();
+		check(eu::to_chars_hex(s, 0xabu, 4u) && s.view() == eu::StringView("00ab"),
+		      "hex relleno 4");
+		s.clear();
+		check(eu::to_chars_hex(s, 0xffffffffu) && s.view() == eu::StringView("ffffffff"),
+		      "hex max");
+		eu::StaticString<3> small; // capacidad 2
+		check(!eu::to_chars_hex(small, 0x1234u), "hex rechaza si no cabe");
+	}
+
 	// --- to_chars/to_chars_scaled genéricos ----------------------------------
 	{
 		eu::StaticString<16> s;

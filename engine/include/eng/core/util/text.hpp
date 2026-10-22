@@ -269,6 +269,34 @@ constexpr bool to_chars_u32(StaticString<N>& out, u32 value) noexcept {
 	return to_chars_scaled(out, value, 0u);
 }
 
+/// Escribe `value` en hexadecimal (minúsculas), con `min_digits` de relleno a la izquierda.
+/// Junta los dígitos en `StaticString` locales (8 dígitos + terminador) para no usar un
+/// buffer crudo ni un puntero; `false` sin escribir a medias si no cabe en `out`. El ancho
+/// 4 es el de los contadores/HUD de 16 bits (`last: 0x00ff`).
+template <usize N>
+constexpr bool to_chars_hex(StaticString<N>& out, u32 value, u8 min_digits = 1u) noexcept {
+	constexpr char kHex[] = "0123456789abcdef";
+	StaticString<9> digits;
+	do {
+		if (!digits.append(kHex[value & 0x0fu])) {
+			return false;
+		}
+		value >>= 4u;
+	} while (value != 0u);
+	while (digits.size() < min_digits) {
+		if (!digits.append('0')) {
+			return false;
+		}
+	}
+	StaticString<9> hex;
+	for (usize i = digits.size(); i > 0u; --i) {
+		if (!hex.append(digits[i - 1u])) {
+			return false;
+		}
+	}
+	return out.append(hex.view());
+}
+
 /// Escribe `value` con signo en decimal (núcleo de 32 bits; equivale a `to_chars`).
 template <usize N>
 constexpr bool to_chars_s32(StaticString<N>& out, s32 value) noexcept {

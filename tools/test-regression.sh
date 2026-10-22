@@ -86,6 +86,7 @@ PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
 TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
 ENCODING_CHECK="$ROOT/tools/check/encoding.mjs"
 LINKS_CHECK="$ROOT/tools/check/links.mjs"
+RAW_TEXT_CHECK="$ROOT/tools/check/raw-text-buffer.mjs"
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 REPORT_DIR="$ROOT/out/regression/$TIMESTAMP"
@@ -156,6 +157,19 @@ if [ -f "$LINKS_CHECK" ]; then
 		fi
 	else
 		echo "node no disponible; se omite links." >&2
+	fi
+fi
+
+# --- Texto de HUD: sin `char buf[N]` + `char* p = buf` (CODING_STYLE §Texto formateado) ---
+if [ -f "$RAW_TEXT_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== raw-text-buffer =="
+		if ! node "$RAW_TEXT_CHECK"; then
+			echo "raw-text-buffer fallo: texto crudo con puntero; usa StaticString + to_chars." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite raw-text-buffer." >&2
 	fi
 fi
 

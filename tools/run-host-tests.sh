@@ -315,6 +315,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Texto de HUD: sin `char buf[N]` + `char* p = buf` (CODING_STYLE §Texto formateado).
+	RAW_TEXT_BUFFER="$ROOT/tools/check/raw-text-buffer.mjs"
+	if [ -f "$RAW_TEXT_BUFFER" ] && command -v node >/dev/null 2>&1; then
+		echo "== raw-text-buffer =="
+		if ! node "$RAW_TEXT_BUFFER"; then
+			echo "raw-text-buffer fallo: texto crudo con puntero; usa StaticString + to_chars." >&2
+			exit 1
+		fi
+	fi
 	# Estructura tematica del engine (eng/ y core/ por tema; familias de backend).
 	ENGINE_TREE="$ROOT/tools/check/engine-tree.mjs"
 	if [ -f "$ENGINE_TREE" ] && command -v node >/dev/null 2>&1; then

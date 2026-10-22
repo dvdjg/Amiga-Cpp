@@ -21,6 +21,8 @@
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/static_string.hpp>
+#include <eng/core/util/text.hpp>
 #include <eng/debug/version.hpp>
 
 namespace eng::debug {
@@ -36,41 +38,20 @@ namespace eng::debug {
 template <class ScreenT>
 bool draw_hud(ScreenT& screen, const char* name, const Version& version, u32 frame,
 	      u8 color = 1u) {
-	char line[64] {};
-	u8 n = 0u;
-	for (const char* p = name; p != nullptr && *p != '\0' && n + 1u < sizeof(line); ++p) {
-		line[n++] = *p;
-	}
-	if (n != 0u && n + 1u < sizeof(line)) {
-		line[n++] = ' ';
+	eng::util::StaticString<64> line;
+	if (name != nullptr && *name != '\0') {
+		(void)line.append(eng::util::StringView(name));
+		(void)line.append(' ');
 	}
 	char label[24] {};
 	const u8 vlen = version_label(version, label, sizeof(label));
-	for (u8 i = 0u; i < vlen && n + 1u < sizeof(line); ++i) {
-		line[n++] = label[i];
-	}
-	if (n + 1u < sizeof(line)) {
-		line[n++] = ' ';
-	}
-	if (n + 1u < sizeof(line)) {
-		line[n++] = 'F';
-	}
-	if (n + 1u < sizeof(line)) {
-		line[n++] = ' ';
-	}
-	char digits[12] {};
-	u8 d = 0u;
-	u32 v = frame;
-	do {
-		digits[d++] = static_cast<char>('0' + (v % 10u));
-		v /= 10u;
-	} while (v != 0u && d < sizeof(digits));
-	while (d > 0u && n + 1u < sizeof(line)) {
-		line[n++] = digits[--d];
-	}
-	line[n] = '\0';
+	(void)line.append(eng::util::StringView(label, vlen));
+	(void)line.append(' ');
+	(void)line.append('F');
+	(void)line.append(' ');
+	(void)eng::util::to_chars(line, frame);
 	const eng::Box b = screen.bounds();
-	return screen.text_words(0, static_cast<s16>(b.bottom() - 7), line, color);
+	return screen.text_words(0, static_cast<s16>(b.bottom() - 7), line.c_str(), color);
 }
 
 } // namespace eng::debug

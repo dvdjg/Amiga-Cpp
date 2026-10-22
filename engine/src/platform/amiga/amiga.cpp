@@ -299,19 +299,12 @@ void AmigaBackend::release_memory() {
 
 void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	debug_start_idle();
-	// **Re-arme del latido**: el SO (proceso AmigaDOS vivo) puede reescribir INTENA y
-	// apagar VERTB (ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`).
-	// Con espera activa el bucle esta despierto y la re-arma aqui; con `Wait()` bloqueante
-	// cubre tambien el hueco entre esperas.
-	if (g_vbl_task != nullptr && (custom_base[custom_intenar_offset] & 0x4020u) != 0x4020u) {
-		if (g_cooperative_servers) {
-			// El SO puede apagar VERTB o el master INTEN cuando su pantalla queda estática
-			// (familia 212). En cooperativo solo se **setean** esos dos bits (SETCLR=1), sin
-			// tocar el resto de INTENA ni el vector: el display sigue siendo del SO.
-			custom_base[custom_intena_offset] = 0xc020u; // SETCLR | INTEN | VERTB
-		} else {
-			level3_sync();
-		}
+	// **Re-arme del latido solo en exclusivo**: tras `takeover_display` el engine limpió
+	// INTENA y debe devolver el enable; en cooperativo INTENA es del SO y no se escribe.
+	// (El fallo de la 212 era local: desbordamiento del HUD, no la cadena de VBlank.)
+	if (g_vbl_task != nullptr && !g_cooperative_servers &&
+	    (custom_base[custom_intenar_offset] & 0x4020u) != 0x4020u) {
+		level3_sync();
 	}
 	// **Espera bloqueada por señal** (modelo de mensajes): con el servicio de VBlank
 	// instalado, la IRQ levanta una señal Exec y esta tarea **duerme en `Wait()`** en vez de
