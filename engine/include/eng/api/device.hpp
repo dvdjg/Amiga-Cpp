@@ -203,8 +203,10 @@ public:
 	}
 
 	/// Publica una copperlist estática ya construida (swap de `COP1LC`). El Copper recarga el
-	/// puntero al inicio del siguiente VBlank, así que llamarlo durante el frame no parte la
-	/// lista en curso. Es el camino de los drivers que cambian de estructura sin reemitir cada frame.
+	/// puntero al wrap vertical, así que el llamador puede terminar la lista inactiva y publicarla
+	/// sin modificar words que el DMA podría estar leyendo (`WinUAE-DBG/custom.cpp:2921-2942,
+	/// `11237-11245`; AHRM 3.ª cap. 2, `COP1LC`/`COPJMP1`). Es el camino de los drivers que
+	/// cambian de estructura sin reemitirla cada frame.
 	template <class B = Backend>
 	bool commit_copper(eng::ChipView<eng::CopperTag> list) {
 		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.install_copper_list(v); }) {

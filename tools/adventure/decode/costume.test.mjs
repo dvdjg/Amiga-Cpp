@@ -59,3 +59,27 @@ test('costume: stream truncado lanza (no cuelga)', () => {
 	base.writeUInt16LE(4, 2);
 	assert.throws(() => decodeCel(base, 0), /truncado/);
 });
+
+test('costume OLD256: resuelve códigos del animCmds y excluye comandos especiales 0x79+', () => {
+	const base = makeCostumeBase();
+	base[160] = 0x79;
+	base.writeUInt16LE(180, 58);
+	base.writeUInt16LE(0x8000, 180);
+	base[182] = 0;
+	base[183] = 0;
+	const costume = parseCostume(base.subarray(6), { useAnimationCommands: true });
+	assert.equal(costume.cels.length, 0);
+});
+
+test('costume OLD256: el código animado apunta al índice de cel correspondiente', () => {
+	const base = makeCostumeBase();
+	base[160] = 0;
+	base.writeUInt16LE(180, 58);
+	base.writeUInt16LE(0x8000, 180);
+	base[182] = 0;
+	base[183] = 0;
+	const costume = parseCostume(base.subarray(6), { useAnimationCommands: true });
+	assert.equal(costume.cels.length, 1);
+	assert.equal(costume.cels[0].frameCode, 0);
+	assert.deepEqual([...costume.cels[0].pix], [5, 7, 5, 7]);
+});

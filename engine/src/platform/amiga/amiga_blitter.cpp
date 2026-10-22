@@ -1109,6 +1109,27 @@ bool AmigaBackend::fill_polygons_by_plane_spans(const graphics::PlanePolygon* fa
 	return true;
 }
 
+bool AmigaBackend::blitter_apply_pattern(eng::PlaneBytes plane, u16 row_bytes, u16 width,
+					 u16 height, eng::MaskBytes pattern, u8 pattern_period) {
+	if (plane.data() == nullptr || pattern.data() == nullptr || row_bytes == 0u ||
+	    width < 16u || height == 0u) {
+		return false;
+	}
+	const u32 need = pattern_period != 0u ? static_cast<u32>(row_bytes) * pattern_period
+					      : static_cast<u32>(row_bytes) * height;
+	if (pattern.size() < need) {
+		return false;
+	}
+	if (pattern_period != 0u) {
+		blit_apply_pattern_phased(plane.data(), pattern.data(), row_bytes,
+					  static_cast<u16>(width / 16u), height, pattern_period);
+	} else {
+		blit_apply_pattern(plane.data(), pattern.data(), row_bytes,
+				   static_cast<u16>(width / 16u), height);
+	}
+	return true;
+}
+
 bool AmigaBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 				      eng::u8* d_base) {
 	// Variante autónoma: begin + prepare/draw + wait final.

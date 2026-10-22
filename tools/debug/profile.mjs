@@ -175,6 +175,57 @@ if (addr === null) {
   process.exit(1);
 }
 
+// El bloque `g_eng_prof` se inicializa antes de `mark_ready`; no muestrear ese trabajo de
+// arranque como si fuera coste de un frame. Resolver y esperar el `RunStatus::Ready` explícito,
+// igual que measure-fps, antes de tomar las dos muestras del perfil.
+const runStatusLinked = findMapSymbol('g_eng_run_status');
+async function resolveRunStatusAddr() {
+  if (runStatusLinked === null) return null;
+  const ms = mapSections();
+  for (let attempt = 0; attempt < 45; ++attempt) {
+    const st2 = await sideChannelCommand('state', SIDE_PORT, 5000).catch(() => null);
+    const rs = st2?.reply?.sections;
+    if (Array.isArray(rs) && rs.length > 0) {
+      const linkedSection = ms.find((s) => runStatusLinked >= s.start && runStatusLinked < s.end);
+      const offset = linkedSection ? runStatusLinked - linkedSection.start : runStatusLinked - 0x400;
+      const candidates = [];
+      for (const sec of rs) candidates.push(parseInt(sec, 16) + offset);
+      for (const sec of rs) candidates.push(parseInt(sec, 16));
+      for (const candidate of new Set(candidates)) {
+        if (!candidate) continue;
+        try {
+          const r = await sideChannelCommand(`runstatus 0x${candidate.toString(16)}`, SIDE_PORT, 2000);
+          const v = r.reply;
+          if (v?.magic === '0x454e4752' && v.version === 1) return { address: candidate, value: v };
+        } catch { /* la siguiente base puede corresponder a la sección correcta */ }
+      }
+    }
+    await sleep(250);
+  }
+  return null;
+}
+const runStatus = await resolveRunStatusAddr();
+if (!runStatus) {
+  console.error('[prof] no se pudo resolver g_eng_run_status para esperar READY');
+  await conn.disconnect(true);
+  process.exit(1);
+}
+const readyDeadline = Date.now() + 60000;
+let ready = runStatus.value;
+while (ready.state !== 3 && ready.state !== 0xffff && Date.now() < readyDeadline) {
+  await sleep(250);
+  try {
+    const r = await sideChannelCommand(`runstatus 0x${runStatus.address.toString(16)}`, SIDE_PORT, 3000);
+    ready = r.reply;
+  } catch { /* el polling se reintenta mientras el SO termina init */ }
+}
+if (ready.state !== 3) {
+  console.error(`[prof] la demo no llegó a READY (state=${ready.state}, detail=0x${(ready.detail >>> 0).toString(16)})`);
+  await conn.disconnect(true);
+  process.exit(2);
+}
+console.log(`[prof] READY en frame=${ready.frame}; comienza la ventana de perfil`);
+
 // magic(4)+sections(1)+pad(3)+frames(4) + cycles[16] + calls[16] + min[16] + max[16]
 const BLOCK = 12 + 16 * 4 * 4;
 async function sample() {

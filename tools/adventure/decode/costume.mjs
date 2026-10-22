@@ -61,7 +61,10 @@ export function decodeCel(payload, celOff) {
 		let len = src[i++];
 		const color = len >> 4;
 		len &= 0x0f;
-		if (!len) len = src[i++];
+		if (!len) {
+			if (i >= src.length) throw new Error('RLE de cel truncado en longitud extendida');
+			len = src[i++];
+		}
 		// Copia del bucle de `ByleRLEDecode_Mode0` (base-costume-optimised.cpp:270): un run se
 		// parte en tantos tramos como columnas cruce; `height` cuenta **píxeles** de la columna.
 		while (len > 0) {
@@ -88,14 +91,16 @@ export function decodeCel(payload, celOff) {
  * cels por limb. `loadCostume` opera sobre el **tag**: `base = tag + 2`, y el tag está 8 bytes
  * antes del payload (resource.cpp:757 carga desde el tag), de modo que `base = payload - 6`
  * (se reconstruye rellenando 6 bytes; `base[0..5]` no se usan). */
-export function parseCostume(payload) {
+export function parseCostume(payload, opts = {}) {
 	const base = Buffer.concat([Buffer.alloc(6), payload]);
+	const numAnim = base[6];
 	const format = base[7] & 0x7f;
 	const mirror = (base[7] & 0x80) !== 0;
 	if (format !== 0x58 && format !== 0x59) throw new Error(`formato de costume no soportado 0x${format.toString(16)}`);
 	const numColors = format === 0x59 ? 32 : 16;
 	const palette = [...base.subarray(8, 8 + numColors)];
 	const animCmds = base.readUInt16LE(8 + numColors);
+	const dataTable = 8 + numColors + 34;
 	const frameOffs = [];
 	const dataOffs = [];
 	for (let l = 0; l < 16; l++) {
@@ -103,20 +108,49 @@ export function parseCostume(payload) {
 		dataOffs.push(base.readUInt16LE(8 + numColors + 34 + l * 2));
 	}
 	const bounds = [...frameOffs, ...dataOffs, animCmds].filter((o) => o > 2).sort((a, b) => a - b);
+	const frameCodesByLimb = Array.from({ length: 16 }, () => new Set());
+	if (opts.useAnimationCommands) {
+		const animEnd = frameOffs.filter((o) => o > animCmds).sort((a, b) => a - b)[0] ?? base.length;
+		for (let anim = 0; anim <= numAnim; anim++) {
+			const tableEntry = dataTable + anim * 2;
+			if (tableEntry + 2 > base.length) break;
+			const dataOff = base.readUInt16LE(tableEntry);
+			if (!dataOff || dataOff + 2 > base.length) continue;
+			let mask = base.readUInt16LE(dataOff);
+			let cursor = dataOff + 2;
+			for (let limb = 0; limb < 16 && mask !== 0; limb++, mask = (mask << 1) & 0xffff) {
+				if ((mask & 0x8000) === 0) continue;
+				if (cursor >= base.length) break;
+				const first = base[cursor++];
+				if (first === 0xff) continue; // limb explícitamente vacío
+				if (cursor >= base.length) break;
+				const last = first + (base[cursor++] & 0x7f);
+				for (let command = first; command <= last && animCmds + command < animEnd; command++) {
+					const code = base[animCmds + command] & 0x7f;
+					// 0x79/0x7A controlan detener/reanudar el limb; no son cels (costume.cpp:773-783).
+					if (code < 0x79) frameCodesByLimb[limb].add(code);
+				}
+			}
+		}
+	}
 	const limbs = [];
 	const cels = [];
 	let skippedCels = 0;
 	for (let limb = 0; limb < 16; limb++) {
 		const o = frameOffs[limb];
-		if (o <= 2) continue; // limb sin frames
-		// La tabla de frames de un limb termina donde empieza el siguiente bloque físico
-		// (tablas de frames, datos de animación o animCmds). Sin bloque posterior no hay
-		// tabla: los offsets repetidos/colgantes del final del fichero no son frames.
-		const next = bounds.find((b) => b > o);
-		if (next === undefined) continue;
+		if (o <= 2 || o + 2 > base.length) continue; // limb sin frames o tabla fuera del payload
 		const frames = [];
-		for (let f = 0; f < Math.floor((next - o) / 2); f++) {
-			const celOff = base.readUInt16LE(o + f * 2);
+		const candidates = opts.useAnimationCommands
+			? [...frameCodesByLimb[limb]].sort((a, b) => a - b).map((code, slot) => ({ code, slot }))
+			: (() => {
+				const next = bounds.find((b) => b > o);
+				if (next === undefined) return [];
+				return Array.from({ length: Math.floor((next - o) / 2) }, (_, frame) => ({ code: frame, slot: frame }));
+			})();
+		for (const { code, slot } of candidates) {
+			const tableEntry = o + code * 2;
+			if (tableEntry + 2 > base.length) continue;
+			const celOff = base.readUInt16LE(tableEntry);
 			if (!celOff) continue; // frame vacío (entrada 0 de la tabla)
 			if (celOff + 12 > base.length) continue;
 			const w = base.readUInt16LE(celOff);
@@ -125,16 +159,16 @@ export function parseCostume(payload) {
 			try {
 				cel = decodeCel(base, celOff);
 			} catch {
-				// Entrada no decodificable (frames no referenciados por las animaciones pueden
-				// apuntar a datos compartidos): se omite y se contabiliza, no tumba el costume.
+				// Una entrada que no contiene un cel RLE no tumba el costume completo.
 				skippedCels++;
 				continue;
 			}
 			cel.limb = limb;
-			cel.frame = f;
+			cel.frame = slot;
+			cel.frameCode = code;
 			cel.celOff = celOff;
 			cels.push(cel);
-			frames.push(f);
+			frames.push(slot);
 		}
 		if (frames.length) limbs.push({ limb, frames: frames.length });
 	}
@@ -144,7 +178,7 @@ export function parseCostume(payload) {
 // --- render y CLI ------------------------------------------------------------------------
 
 /** Dibuja los cels en una rejilla (filas = limbs, columnas = frames) sobre índice 0. */
-function renderSheet(costume) {
+export function renderSheet(costume) {
 	const cellW = Math.max(...costume.cels.map((c) => c.w)) + 2;
 	const cellH = Math.max(...costume.cels.map((c) => c.h)) + 2;
 	const rows = costume.limbs.length;

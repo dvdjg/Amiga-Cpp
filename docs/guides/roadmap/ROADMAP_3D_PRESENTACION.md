@@ -71,6 +71,8 @@ Con la ruta `fill_polygons_by_plane` (contorno XOR + area fill) el destino debe 
 - Ámbito `demos/techniques/amiga/3d` (077/078/079/084 en uso; consultar `node tools/check/next-number.mjs demos/techniques/amiga/3d`): candidatas `080_camera_pan_window` (F1), `081_horizon_dpf` (F4), `082_superhot_room` (F5).
 - Tests host del mapeo de ventana y de la tabla (k, S) del horizonte: reservar IDs en [`TAXONOMY.md`](../../testing/TAXONOMY.md) al crearlos.
 
+- `090_polyhedra_orbit` (técnica): silueta XOR + un fill por plano acotado por sólido y damero 2×2 en el plano de entramado; **15,3–16,2 fps** (3 campos), abierta por cadencia. El A/B de 2 colores sin damero se queda en 16,3 fps: el techo son los ~80 blits de línea y el transform del 68000, no la variedad de color. Medidas y deuda en `demos/techniques/amiga/3d/090_polyhedra_orbit/VALIDATION.md`.
+
 ## Referencias
 
 - Técnicas: [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md), [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md), [`copper-road-rasters.md`](../../reference/amiga/techniques/copper-road-rasters.md), [`blitter-line-subpixel-fill.md`](../../reference/amiga/techniques/blitter-line-subpixel-fill.md).

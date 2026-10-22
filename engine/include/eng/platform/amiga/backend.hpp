@@ -545,6 +545,16 @@ public:
 					     u16 clear_x0 = 0u, u16 clear_y0 = 0u,
 					     u16 clear_x1 = 0xffffu, u16 clear_y1 = 0xffffu);
 
+	/// **Aplica un patrón 1-bit a un plano ya relleno** (`D = A & B`, `B = D`) sobre
+	/// `[0, width) × [0, height)`: deja el contenido del plano donde el patrón tiene 1 y
+	/// lo borra donde tiene 0. Es el paso que convierte un relleno sólido en damero /
+	/// punteado / líneas, reutilizable sobre cualquier plano (p. ej. el contorno + area
+	/// fill XOR de `retro::flat_shade_xor`). `pattern` es Chip, `row_bytes × period`
+	/// (patrón de filas uniformes, `pattern_period > 0`) o `row_bytes × height`
+	/// (`pattern_period == 0`). Asíncrono: el llamador sincroniza con `wait_blitter()`.
+	bool blitter_apply_pattern(eng::PlaneBytes plane, u16 row_bytes, u16 width, u16 height,
+				   eng::MaskBytes pattern, u8 pattern_period);
+
 	/// Igual que ill_polygons_by_plane, pero limpia por plano SOLO el rectangulo
 	/// [x0..x1]×[y0..y1] (union del bbox anterior y el actual): el barrido a pantalla
 	/// completa cuesta ~9k ciclos/plano y el objeto suele moverse poco. El rectangulo debe

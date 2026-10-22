@@ -90,11 +90,26 @@ struct OutlineEdge {
 /// contorno (todas las cruces están dentro), así que el fill DMA cae de todo el bitmap a
 /// la caja del objeto. Con `nullptr` barre los planos completos (comportamiento histórico).
 /// La paridad del relleno es idéntica dentro de la caja (fuera no había cruces).
+///
+/// `line_d_base` (opcional): palabra Chip de descarte para el primer píxel de cada línea
+/// (el trazador en modo línea escribe el primer píxel por D). Con `nullptr` se usa la base
+/// del bitmap: el píxel cae en la fila 0 y se ve como un punto suelto si esa fila está en
+/// pantalla. Un puntero fijo y fuera de la zona visible lo absorbe sin alterar la paridad
+/// (mismo truco que `m_line_trash` del backend).
+///
+/// `per_plane_fill` (solo con `bbox`): en vez de un fill multi-plano contiguo (que recorre
+/// las `plane_count` imágenes completas y solo recorta filas), lanza **un fill por plano
+/// recortado a la caja en ancho y alto**. Es la variante barata cuando el objeto ocupa una
+/// fracción pequeña del bitmap (p. ej. 320×208): el trabajo cae de
+/// `filas_totales × ancho_completo` a `plane_count × filas_caja × palabras_caja`. Los blits
+/// por plano se serializan; por eso el llamador debe usar esta vía solo si el recorte
+/// compensa (objetos pequeños), no para barridos de pantalla completa.
 template <class Backend>
 inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u16 row_bytes,
 			       eng::u32 plane_bytes, eng::u8 plane_count, eng::u16 width,
 			       eng::u16 height, eng::Span<const OutlineEdge> edges,
-			       bool area_fill_wait = true, const eng::s16* bbox = nullptr) {
+			       bool area_fill_wait = true, const eng::s16* bbox = nullptr,
+			       bool per_plane_fill = false, eng::u8* line_d_base = nullptr) {
 	eng::u8* base = planes.data();
 	// `BLTDPT` NO se hoista al preludio (el modo línea lo muta durante el blit; el
 	// primer píxel de cada línea debe reescribirse al punto inofensivo — ver
@@ -114,7 +129,8 @@ inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u1
 		for (eng::u8 p = 0u; p < plane_count; ++p) {
 			if ((e.color & (1u << p)) != 0u) {
 				backend.blitter_line_draw(
-					line, base + static_cast<eng::u32>(p) * plane_bytes, base);
+					line, base + static_cast<eng::u32>(p) * plane_bytes,
+					line_d_base != nullptr ? line_d_base : base);
 				++lines;
 			}
 		}
@@ -131,6 +147,35 @@ inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u1
 	// margen de 2 px) y una fila sin cruces reescribe D con su propio valor, así que
 	// omitirlas deja la paridad y los píxeles intactos. Sustituye al intento de 4 jobs
 	// por plano, medido peor (se serializaban dentro del update).
+	if (per_plane_fill) {
+		// Recorte también en ANCHO, plano a plano: cada fill toca solo las palabras de
+		// la caja. El fill multi-plano contiguo no puede recortar ancho (la paridad
+		// necesita la fila completa), así que paga `ancho_total × filas_totales`.
+		eng::s16 x0 = bbox[0] - 2;
+		eng::s16 y0 = bbox[2] - 2;
+		eng::s16 x1 = bbox[1] + 2;
+		eng::s16 y1 = bbox[3] + 2;
+		if (x0 < 0) x0 = 0;
+		if (y0 < 0) y0 = 0;
+		if (x1 > static_cast<eng::s16>(width - 1u)) x1 = static_cast<eng::s16>(width - 1u);
+		if (y1 > static_cast<eng::s16>(height - 1u)) y1 = static_cast<eng::s16>(height - 1u);
+		if (x1 >= x0 && y1 >= y0) {
+			const eng::u16 wx0 = static_cast<eng::u16>(x0) & 0xfff0u;
+			const eng::u16 wx1 = static_cast<eng::u16>(x1) | 0x000fu;
+			const eng::u16 words =
+				static_cast<eng::u16>((static_cast<eng::u16>(wx1 - wx0) + 16u) >> 4);
+			const eng::u16 rows = static_cast<eng::u16>(y1 - y0 + 1);
+			eng::u8* base = planes.data();
+			for (eng::u8 p = 0u; p < plane_count; ++p) {
+				const eng::PlaneBytes plane {
+					base + static_cast<eng::u32>(p) * plane_bytes, plane_bytes};
+				backend.blitter_area_fill_rect(plane, row_bytes, wx0, y0, words, rows,
+							       area_fill_wait &&
+								       p + 1u == plane_count);
+			}
+		}
+		return lines;
+	}
 	backend.blitter_area_fill(planes, plane_count, row_bytes, plane_bytes, width, height,
 				  area_fill_wait, bbox);
 	return lines;
