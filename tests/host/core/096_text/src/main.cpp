@@ -11,6 +11,7 @@
 
 #include <eng/core/math/fixed.hpp>
 #include <eng/core/util/text.hpp>
+#include <eng/core/util/text_line.hpp>
 
 namespace eu = eng::util;
 using Q12 = eng::math::Fixed<eng::s16, 12>;
@@ -93,6 +94,19 @@ int main() {
 
 		eu::StaticString<3> small; // capacidad 2
 		check(!eu::to_chars_u32(small, 12345u), "to_chars rechaza si no cabe");
+	}
+
+	// --- TextLine (operator<<) ----------------------------------------------
+	{
+		eu::TextLine<32> line;
+		line << "F " << 123u << " 0x" << eu::hex(0xabu, 3u);
+		check(line.view() == eu::StringView("F 123 0x0ab"), "TextLine cadena");
+		check(!line.truncated(), "TextLine sin truncar");
+
+		eu::TextLine<4> small; // capacidad 3
+		small << "abc" << 'd' << 'e';
+		check(small.truncated(), "TextLine trunca");
+		check(small.view() == eu::StringView("abc"), "TextLine conserva lo que cabe");
 	}
 
 	// --- to_chars_hex --------------------------------------------------------

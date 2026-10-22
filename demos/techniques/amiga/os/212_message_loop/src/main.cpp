@@ -3,8 +3,7 @@
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/212_message_loop --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --keep-running
 
 #include <eng/api/api.hpp>
-#include <eng/core/util/static_string.hpp>
-#include <eng/core/util/text.hpp>
+#include <eng/core/util/text_line.hpp>
 #include <eng/os/message_pump.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -160,26 +159,13 @@ struct DemoApp {
 		d.text(64, 60, "AMG demo 212 - mini-OS message loop", 0x00ffffff);
 		d.text(64, 88, "VBlank + input por mensajes (sin sondear hardware)", 0x0000ff80);
 
-		// `StaticString` + `to_chars`: la capacidad es parte del tipo, no hay puntero y
-		// una escritura que no cabe no toca memoria (trunca). El `char line[64]` crudo
-		// desbordaba la pila y corrompia el bucle cooperativo.
-		eng::util::StaticString<160> line;
-		(void)line.append("frames: ");
-		(void)eng::util::to_chars(line, frames);
-		(void)line.append("   msgs: ");
-		(void)eng::util::to_chars(line, msgs);
-		(void)line.append("   joy: ");
-		(void)eng::util::to_chars(line, joy_dirs);
-		(void)line.append("   keys: ");
-		(void)eng::util::to_chars(line, keys);
-		(void)line.append("   bg: ");
-		(void)eng::util::to_chars(line, bg_work);
-		(void)line.append("   t: ");
-		(void)eng::util::to_chars(line, timers);
-		(void)line.append("   pad: ");
-		(void)eng::util::to_chars(line, pad_mask);
-		(void)line.append("   last: 0x");
-		(void)eng::util::to_chars_hex(line, static_cast<eng::u32>(key_last), 4u);
+		// `TextLine`: capacidad en el tipo, `operator<<` de dominio y truncado seguro.
+		// El antiguo `char line[64]` con `append` crudo desbordaba la pila y corrompia
+		// el bucle cooperativo.
+		eng::util::TextLine<160> line;
+		line << "frames: " << frames << "   msgs: " << msgs << "   joy: " << joy_dirs
+		     << "   keys: " << keys << "   bg: " << bg_work << "   t: " << timers
+		     << "   pad: " << pad_mask << "   last: 0x" << eng::util::hex(key_last, 4u);
 		d.text(64, 118, line.c_str(), 0x00ffff00);
 		d.text(64, 148, "mueve la caja con el joystick (puerto 2) o el raton (puerto 1)", 0x00aaaaaa);
 		d.text(64, 176, "bg = slices de idle de la tarea de fondo (M10; solo sin mensajes)", 0x0000ff80);

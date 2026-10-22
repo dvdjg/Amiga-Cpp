@@ -21,8 +21,7 @@
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/types.hpp>
-#include <eng/core/util/static_string.hpp>
-#include <eng/core/util/text.hpp>
+#include <eng/core/util/text_line.hpp>
 #include <eng/debug/version.hpp>
 
 namespace eng::debug {
@@ -38,18 +37,13 @@ namespace eng::debug {
 template <class ScreenT>
 bool draw_hud(ScreenT& screen, const char* name, const Version& version, u32 frame,
 	      u8 color = 1u) {
-	eng::util::StaticString<64> line;
+	eng::util::TextLine<64> line;
 	if (name != nullptr && *name != '\0') {
-		(void)line.append(eng::util::StringView(name));
-		(void)line.append(' ');
+		line << name << ' ';
 	}
 	char label[24] {};
 	const u8 vlen = version_label(version, label, sizeof(label));
-	(void)line.append(eng::util::StringView(label, vlen));
-	(void)line.append(' ');
-	(void)line.append('F');
-	(void)line.append(' ');
-	(void)eng::util::to_chars(line, frame);
+	line << eng::util::StringView(label, vlen) << " F " << frame;
 	const eng::Box b = screen.bounds();
 	return screen.text_words(0, static_cast<s16>(b.bottom() - 7), line.c_str(), color);
 }

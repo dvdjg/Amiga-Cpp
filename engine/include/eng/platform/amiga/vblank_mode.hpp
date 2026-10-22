@@ -11,7 +11,7 @@ namespace eng::amiga {
 ///
 /// La demo 212 (CLI, display del SO, HUD del host) corre en este modo y recibe VBlank, input
 /// y timers en la IRQ. El fallo anterior de "una llamada" era local de la 212 (el HUD crudo
-/// desbordaba la pila; ahora usa `StaticString`/`to_chars`), no de la cadena de exec; detalle
+/// desbordaba la pila; ahora usa `TextLine`/`operator<<`), no de la cadena de exec; detalle
 /// en `docs/debugging/investigaciones/consultas/consulta-ks13-cooperative-display-wait-en.md`.
 ///
 /// Con `on=false` el backend vuelve al camino exclusivo/bare-metal. Debe fijarse **antes**
