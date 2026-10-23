@@ -9,7 +9,7 @@
 /// deliberadamente gruesa (un canal por actor, sin attached/tiras/grupos/scanline/Copper/Blitter
 /// y sin gap vertical) y puede sobrevender. La fachada nueva `SpriteDirector` +
 /// `SpriteLoadReport` usa el `SpriteAllocator` real; `RepresentationAllocator` se conserva
-/// solo para los caminos históricos y estimaciones rápidas, y se retirará cuando no queden usos.
+/// solo para los caminos hist?ricos y estimaciones r?pidas. Plan de retirada (opci?n A, 2026-10): no se borra hasta que 053/062/dk_port usen SpriteDirector; entonces se archiva la demo 054 y se reescribe o retira HOST-028.
 ///
 /// Lógica pura y determinista (host-testable). Ver
 /// `docs/engine/architecture/SCENE_AND_RESOURCES.md` §2.
