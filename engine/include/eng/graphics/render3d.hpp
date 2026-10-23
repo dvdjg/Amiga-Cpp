@@ -88,6 +88,9 @@ struct Plane {
 	S c {};
 	S d {};
 
+	/// Distancia firmada al plano (producto interno sin normalizar).
+	/// \param v vértice de cámara.
+	/// \return valor proporcional a la distancia; positivo = delante del plano.
 	[[nodiscard]] constexpr auto dist(const CamVertex<S>& v) const {
 		// `d` se suma directamente: `inner(d, one) == d` en la escala cruda del escalar
 		// (para `Fixed` es `(d.v * one.v) >> E == d.v`; para `float`, `d * 1`), asi que
@@ -116,6 +119,9 @@ struct CameraPlanes {
 	Plane<S> planes[5] {};
 };
 
+/// Construye los cinco planos del frustum a partir de la cámara.
+/// \param cam cámara con focal y semianchos.
+/// \return near + cuatro planos laterales en el orden del clip/test.
 template <class S>
 [[nodiscard]] constexpr CameraPlanes<S> camera_planes(const Camera3D<S>& cam) {
 	const S zero = eng::math::scalar_traits<S>::zero();

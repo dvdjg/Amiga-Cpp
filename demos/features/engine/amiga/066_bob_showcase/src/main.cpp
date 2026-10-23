@@ -78,6 +78,7 @@ constexpr eng::u16 kBplcon0 = eng::graphics::composition::bplcon0_for(
 static_assert(eng::setup::check_bplcon0(kBplcon0, kPlanes).ok(),
 	      "BPLCON0 incoherente con los planos de la demo");
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
+constexpr eng::debug::Version kVersion {1u, 0u};
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 constexpr eng::u16 kDisplayTop = 0x2cu;
 // Sprites: franja inferior (VSTART 210-244). El armado va tras las bandas y ANTES del
@@ -208,13 +209,6 @@ struct BobShowcaseDemo {
 			}
 		}
 		build_background_art();
-		// Franja de versión BARATA (`VersionStrip`): fondo + nombre + versión se dibujan UNA
-		// vez; por frame solo queda el `tick` del fps (≤1 actualización/segundo, solo los
-		// dígitos que cambian). Sustituye al `draw_version_strip` que repintaba todo.
-		m_strip.init({m_bitplane_block.view.as_words().data(),
-			      static_cast<eng::u16>(kBytesPerRow / 2u),
-			      static_cast<eng::u32>(kPlaneBytes / 2u), 240u, 16u, 4u, 4u},
-			     "066 BOB SHOWCASE", {1u, 0u});
 		build_sprite_art();
 		// Emite la lista **en ambos bloques** del doble buffer (a partir de aquí solo se
 		// parchea el armado de sprites por frame). El chequeo de WAITs mira el activo.
@@ -276,7 +270,9 @@ struct BobShowcaseDemo {
 			m_frame_plan.ok() ? m_frame_plan.blit_job_count() : 0x6610u;
 		m_update_kcycles = (eng::debug::DebugPeripheral::cycle_counter() - t0) / 1000u;
 		// Fps estimados en la franja: ≤1 vez por segundo (y solo dígitos cambiados).
-		m_strip.tick(f, eng::debug::DebugPeripheral::cycle_counter());
+		// HUD de depuración del host: nombre + número + versión + frame + fps.
+		m_host_hud.draw(backend.debug(), "066 BOB SHOWCASE", kVersion, f,
+				eng::debug::DebugPeripheral::cycle_counter());
 		// **Parcheo del armado** (no re-emisión): solo cambian POS/CTL de los 4 canales; el
 		// resto de la lista es estático. El bloque inactivo (la lista del frame anterior) se
 		// parchea y pasa a activo con `flip` + `install` (swap de COP1LC, sin COPJMP1).
@@ -1042,7 +1038,7 @@ private:
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::BobTarget m_target {};
 	eng::copper::DoubleBuffer m_copper {};
-	eng::debug::VersionStrip m_strip {}; ///< franja: estática + fps ≤1/s (tick por frame)
+	eng::debug::HostHud m_host_hud {}; ///< franja: estática + fps ≤1/s (tick por frame)
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::BobTag> m_bob_block {};
 	eng::Block<eng::BobTag> m_save_block {};

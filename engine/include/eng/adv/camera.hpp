@@ -122,9 +122,17 @@ struct Camera {
 	}
 
 private:
+	/// Recorta un eje al intervalo cerrado `[lo,hi]` sin ramas de división.
+	/// \param x valor a recortar.
+	/// \param lo límite inferior.
+	/// \param hi límite superior.
+	/// \return `x` acotado.
 	[[nodiscard]] static constexpr S clamp_axis(S x, S lo, S hi) noexcept {
 		return x < lo ? lo : (x > hi ? hi : x);
 	}
+	/// Recorta un punto de mundo a los límites de la cámara (si los hay).
+	/// \param p punto a recortar.
+	/// \return punto dentro de world_min..world_max, o p si no hay límites.
 	[[nodiscard]] constexpr eng::math::Vec<2, S> clamp_to(eng::math::Vec<2, S> p) const noexcept {
 		if (!has_bounds) return p;
 		return eng::math::Vec<2, S> {{clamp_axis(p.v[0], world_min.v[0], world_max.v[0]),

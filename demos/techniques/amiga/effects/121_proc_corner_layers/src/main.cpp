@@ -486,6 +486,7 @@ struct ProcStructuresDemo {
 	bool m_hud_dirty = true;
 	bool m_hud_cleared = false;
 	bool m_ready = false;
+	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
 	u8 m_body_faults = 0u; // fallos consecutivos de la guarda de render
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
@@ -1099,6 +1100,8 @@ struct ProcStructuresDemo {
 		// Telemetría: posición y sentido del actor.
 		g_eng_run_status.detail = u32(m_actor_x) | (u32(u16(m_dir)) << 16u);
 		++m_frames;
+		m_host_hud.draw(backend.debug(), "121 PROC CORNER LAYERS", kVersion, m_frames,
+				eng::debug::prof_clock());
 #if !defined(K121_SKIP_HUD)
 		if ((m_frames & 63u) == 0u) {
 			m_frame_text.clear();

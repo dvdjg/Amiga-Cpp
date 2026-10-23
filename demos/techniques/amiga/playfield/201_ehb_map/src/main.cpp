@@ -156,6 +156,7 @@ constexpr eng::u8  kPlanes = 6;                   // EHB
 constexpr eng::u32 kMapW = 40;                    // tiles (mapa 40x40)
 constexpr eng::u32 kMapH = 40;
 constexpr eng::u32 kTileCount = 1149;             // tiles reales del tilebank
+constexpr eng::debug::Version kVersion {1u, 0u};
 constexpr eng::u32 kSegFrames = K_SEG_FRAMES;     // ~3 s a 50 fps
 
 // Límites de scroll del motor (campo main = viewport - hud); coinciden con los
@@ -509,6 +510,7 @@ struct DemoGame {
 	TourDriver driver {};
 	eng::u32 frameOfDay = 0;
 	bool ready = false;
+	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
 	bool hudDirty = true;   // redibujar el HUD (inicio + cada segmento)
 	// Estado del auto-verificador de framebuffer (diagnóstico).
 	bool fbChecked = false;
@@ -818,6 +820,8 @@ struct DemoGame {
 		// Acumula en el segmento en curso para reportar el pico en el HUD.
 		driver.note_telemetry(tel.blit_jobs, tel.blit_words, tel.copper_words);
 		++frameOfDay;
+		m_host_hud.draw(backend.debug(), "201 EHB MAP", kVersion, frameOfDay,
+				eng::debug::prof_clock());
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {

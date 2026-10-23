@@ -36,6 +36,8 @@ El fondo usa solo COLOR00..07/15 para no pisar `COLOR16..31`, que pertenecen a l
 
 Se reutilizan `copper::Scheduler`/`MoveSlot`/`patch_data`, `encode_sprite_pos_ctl`, `cook_attached_pair`, `attached_pair_structure_words`, `kSpriteScreenXOrigin`, `kSpriteOffPos/Ctl` y el bootstrap `run_demo`. El planner de actores (`SpriteScene` + `SpriteAllocator`) se midió primero y su coste por frame motivó el camino estático; su telemetría de canales/reusos se añadió en esta pasada (HOST-391) para que la batería pueda verificar el reparto sin tocar hardware.
 
+La emisión de sprites HW se contrastó con `sprite_chain.hpp`/`arm_dma_chain`, `SpriteManager` (armado/rearme), `SpriteAllocator` (reparto/gap) y `actor_to_sprite_intent` (proyección de actor); la lista estática es una optimización local sobre ese contrato, no un camino paralelo.
+
 ## Estado
 
 **Verificada en A (3 planos), B (4), C (5) y D (6 EHB)**: 49,95–49,97 fps, 1 campo/frame, 20 s estables; secuencias revisadas y visión canónica en A; flicker formal OK en A. La demo usa `VblankWait::Active` (IRQ de VBlank + espera a VPOS 311) por defecto: está validado en **3/4/5/6 planos** con rotación. El parón ~198-200 era el commit de COP1LC en la ventana 0-2 (el `Active` despertaba en VPOS 0; `wait_vblank_run` ahora espera VPOS 311) y no la IRQ/SO. `K224_WAIT_ACTIVE=0` deja el fallback de sondeo `Polling`. El contador de frames y los FPS se muestran en el overlay de depuración del host; la franja inferior reserva nombre y versión. Detalle y evidencia en `VALIDATION.md`.

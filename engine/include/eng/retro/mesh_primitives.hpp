@@ -74,6 +74,7 @@ struct MeshData {
 		return true;
 	}
 
+	/// Vista de solo lectura de la malla construida (vértices, índices, caras).
 	[[nodiscard]] constexpr eng::math3d::PolyMeshViewT<S> view() const {
 		return eng::math3d::PolyMeshViewT<S> {
 			eng::Span<const eng::math3d::Vec3t<S>>(verts, nv),
@@ -633,6 +634,7 @@ template <class Mesh, class S = typename Mesh::scalar>
 			}
 		}
 	};
+	/// Añade un anillo corrigiendo el winding antes de insertarlo.
 	const auto add_ring = [&](u16* ids, u16 n, const P3i* vv) -> bool {
 		fix_winding(ids, n, vv);
 		return m.add_face(ids, n);

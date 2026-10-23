@@ -109,13 +109,9 @@ struct DemoGame {
 		debug.text(76, 342, "Slow cap:", 0x00ffffff);
 		debug.text(196, 342, slow_cap.text, 0x0000ff80);
 
-		// HUD de la franja inferior (norma del repo): nombre + versión + frames, 1 vez/segundo.
-		const eng::u32 tick = app.frame() / 50u;
-		if (tick != m_hud_tick) {
-			m_hud_tick = tick;
-			auto s = app.screen();
-			(void)eng::debug::draw_hud(s, "CHIP/SLOW", kVersion, app.frame(), 1u);
-		}
+		// HUD de depuración del host: nombre + número + versión + frame + fps.
+		m_host_hud.draw(app.debug(), "010 CHIP/SLOW", kVersion, app.frame(),
+				eng::debug::prof_clock(), nullptr, false);
 		app.present();
 		if (m_memory_ok && !m_ready) {
 			m_ready = true;
@@ -130,7 +126,7 @@ struct DemoGame {
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_expected_fail {};
 	bool m_memory_ok = false;
 	bool m_ready = false;
-	eng::u32 m_hud_tick = ~0u;
+	eng::debug::HostHud m_host_hud {}; ///< HUD del host (no pisa la telemetría de memoria)
 };
 
 } // namespace

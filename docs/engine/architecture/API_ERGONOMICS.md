@@ -49,6 +49,7 @@ La app debe poder escribir un juego **dirigido por mensajes** sin conocer `VERTB
 
 - El `RunStatus`, el `detail`, el frame counter, el `probe` del runner y el HUD por defecto no son API de juego.
 - El juego solo expresa **lógica**; si necesita instrumentación propia, usa las utilidades del engine (`draw_hud`, telemetría) y no símbolos de plataforma.
+- **HUD de depuración obligatorio:** toda demo/juego muestra en el **overlay de depuración del host** (`app.debug().text`, limpiado antes de escribir) **nombre + número de demo/juego + versión + contador de frames + fps**. Es la vía preferida; `draw_hud`/`VersionStrip` en el viewport son refuerzo opcional, no sustituto. La medida real de fps sigue siendo `measure-fps` (el HUD puede servir de lectura visual, no de oráculo).
 
 ## 7. Checklist al diseñar API nueva
 

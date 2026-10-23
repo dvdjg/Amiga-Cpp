@@ -51,17 +51,8 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
   `fichero:línea`** en el comentario del código y en el commit. Un hallazgo de hardware **sin
   `file:line` está incompleto**. Índice «síntoma → fichero» y fichas en
   [`docs/reference/emulators/winuae/`](docs/reference/emulators/winuae/README.md); detalle en §1.12.
-- **Toda demo se versiona y lo muestra en pantalla** (norma desde 2026-10): versión
-  `major.minor.build` (`eng/debug/version.hpp`; el build lo inyecta `build-demo.sh` con contador
-  persistente `out/.build-number`). Cada demo **reserva la franja inferior** para mostrar
-  **nombre + versión + información de depuración** (contador de frames, fps…). El HUD de
-  depuración debe ser **lo más sencillo posible**: **un único bitplane** y texto impreso **por
-  palabras** (`Surface::draw_text_words`, dos glifos de Font8 por palabra de 16 px; **nunca
-  píxel a píxel**). Alternativa admitida: ventana de debug WinUAE con esos mismos datos.
-  Referencia de implementación: demo 120 (`draw_hud`, HUD 1bpp); `eng::debug::VersionStrip`
-  sigue siendo válido para franjas preexistentes multi-plano (065/066).
+- **Toda demo se versiona y muestra su identidad en el HUD de depuración del host** (norma desde 2026-10): versión `major.minor.build` (`eng/debug/version.hpp`; el build lo inyecta `build-demo.sh` con contador persistente `out/.build-number`). **Obligatorio en todas las demos y juegos**: el **overlay de depuración del host** (`app.debug().text`) muestra **nombre + número de demo/juego + versión + contador de frames + fps**. El overlay lo compone WinUAE en el lado host (no consume bitplanes ni DMA del Amiga); se limpia antes de escribir para que los dígitos no se superpongan. La franja inferior de bitplanes/`VersionStrip` puede seguir existiendo como refuerzo visual, pero **no es la vía principal** del HUD. La lectura del HUD por el modelo de visión no se usa como medida de fps (alucina/degrada dígitos); la medida real es `measure-fps`.
 - **Modelo de desarrollo preferido (2026-10):** la lógica de juegos/demos es **dirigida por mensajes**, no por polling. El VBlank se consume como mensaje por frame (`App::FrameSyncMode::Event` con `app.port()`, o `Latch` con `take_frame_tick()`), y el Blitter se usa de forma **asíncrona** (`set_async_present(true)`, jobs encadenados por la IRQ de fin de blit, avisos `MsgType::BlitDone`/`IntentDone` con ticket). El juego **no** sondea `VPOSR`, no escribe `INTENA` ni el vector de nivel 3: eso es fontanería del engine, que bajo AmigaDOS usa `AddIntServer` (exec sigue siendo el dueño de la interrupción). `VblankWait::Polling` es solo un fallback de validación/bare-metal, no el modelo de desarrollo.
-- **HUD de depuración recomendado:** el contador de frame y los FPS se muestran en el **overlay de depuración del host** (`app.debug().text`), que **WinUAE compone sobre el vídeo** en el lado host (no consume bitplanes ni DMA del Amiga), limpiando el overlay antes de cada actualización para que los dígitos no se superpongan; la franja inferior de bitplanes queda para nombre+versión. Es el HUD recomendado para todas las demos. La lectura del texto del HUD por el modelo de visión no se usa como medida de fps (alucina/degrada dígitos); la medida es `measure-fps`.
 - **Texto de HUD/diagnóstico:** se compone con `eng::util::TextLine<N>` + `operator<<` y los manipuladores `hex`/`dec`/`fixed` (por dentro `StaticString`/`to_chars`); prohibido `char buf[N]` + `char* p` + `append` local o cadenas de `(void)append(...)` (un desbordamiento de pila puede parar el bucle de VBlank). Gate: `tools/check/raw-text-buffer.mjs`; regla completa en `CODING_STYLE.md` §Texto formateado.
 
 ---
@@ -80,6 +71,10 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
 - Añadir diagramas ASCII para ilustrar conceptos (capas, flujos, geometrías de buffers, zonas del Copper, etc.) cuando aclaren el texto.
 - **Escribir para un lector sin conocimiento histórico.** Los documentos de referencia describen el estado/objetivo **vigente**, no su evolución: no usar «antes/ahora/desaparece/hoy/ya no», no narrar el proceso ni las alternativas descartadas. Las notas de transición, decisiones descartadas, estado de fases y bitácoras van a `docs/debugging/` o `docs/guides/roadmap/`, nunca al documento de referencia.
 - **Los comentarios del código sí recogen hallazgos, rarezas y restricciones**, pero para **justificar y blindar** ese código, no como bitácora. Su función es que una refactorización futura no rompa un comportamiento descubierto: explican **por qué** el mecanismo es así, **qué fallo evita** o **qué invariante respeta** (p. ej. un registro que hay que escribir en cierto orden, un `volatile` obligado porque una ISR comparte el estado, un bit que el emulador trata distinto que la doc). Por eso **no** narran el proceso (sin «antes/ahora», sin cronología) y **no duplican** la investigación: **citan la fuente** (doc canónico de `docs/`, o `fichero:línea` del emulador) y, si hay investigación abierta, el doc de `docs/debugging/`. Los intentos, descartes y dudas van a `docs/debugging/`, no al código.
+
+- **Contratos de cabecera (obligatorio, todo el engine):** cada `template` documenta **uno a uno** sus parámetros de plantilla (qué controlan, rango/`static_assert`, default y efecto en huella/comportamiento); cada función/método documenta **todos** sus parámetros (unidades, rango, ownership/lifetime, in/out), retorno, pre/postcondiciones, efectos laterales y modo de rechazo; cada miembro/campo documenta qué guarda, unidades y capacidad. Un nombre genérico («capacidades», «opciones») no sustituye la lista. Se aplica retroactivamente a cualquier cabecera que se toque. Regla detallada: `docs/engine/architecture/CODING_STYLE.md` §Documentación de código.
+
+- **La documentación de un tipo no repite reglas transversales** (sin punteros crudos, sin heap/STL, sin excepciones, sin backend): eso es estilo global y vive en `CODING_STYLE.md`/este documento. La doc de la clase describe su contrato específico (unidades, rangos, lifetime, coste, pre/post, fallos) y solo menciona una restricción global si cambia **cómo se usa** ese tipo (p. ej. memoria Chip, buffer que debe sobrevivir).
 
 ### 1.3 Política de documentación y referencias
 
@@ -363,7 +358,7 @@ Antes de dar un turno por cerrado, repasar en orden; cada punto enlaza su regla 
 1. **Evidencia y alcance** (§1.5): lo afirmado no excede lo probado; lo no cubierto queda **«SIN VERIFICAR»**, no «correcto».
 2. **Visión Ollama** (§0 y `DEMO_VISUAL_DEBUG.md` §6.4): si hay demo/efecto/imagen, mirar la salida real con el modelo de visión — para animación, **secuencia**, no una captura suelta.
 3. **Presupuesto y estabilidad** (§3): fps, cadencia sin tirones y flicker medidos; `VALIDATION.md` de la demo actualizado si cambió el render o el coste.
-4. **Versión en pantalla** (§0): la demo muestra nombre + versión + información de depuración (o la ventana de debug de WinUAE).
+4. **HUD de depuración del host** (§0): la demo muestra en `app.debug().text` nombre + número + versión + contador de frames + fps; el viewport/`VersionStrip` no sustituye esa obligación.
 5. **Docs en regla**: hallazgos indexados en su README de carpeta y en `DOC-MAP` §3; `node tools/check/doc-index.mjs`, `links.mjs`, `encoding.mjs` y `entrypoints.mjs` en verde (§1.3, §1.4).
 6. **Errores del engine ajenos al hilo**: registrados donde toca (`docs/debugging/`, `ROADMAP_DEUDA_TECNICA.md` o `DOC-MAP`), aunque no se hayan arreglado (§1.3).
 7. **«Próximos pasos recomendados»** (§1.6): 3–5, concretos, ordenados por prioridad.

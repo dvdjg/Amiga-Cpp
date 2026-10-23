@@ -54,13 +54,9 @@ struct TypedMemoryDemo {
 		d.text(16, 88, m_sim.kind == eng::MemoryKind::Fast ? "Sim buffer: Fast"
 								      : "Sim buffer: Slow",
 		       0x0000ffff);
-		// HUD de depuración: nombre + versión + frames, por palabras, una vez por segundo.
-		const eng::u32 tick = app.frame() / 50u;
-		if (tick != m_hud_tick) {
-			m_hud_tick = tick;
-			auto screen = app.screen();
-			(void)eng::debug::draw_hud(screen, "TYPED MEM", kVersion, app.frame(), 1u);
-		}
+		// HUD de depuración del host: nombre + número + versión + frame + fps.
+		m_host_hud.draw(app.debug(), "011 TYPED MEMORY", kVersion, app.frame(),
+				eng::debug::prof_clock(), nullptr, false);
 		app.present();
 		if (m_ok && !m_ready) {
 			m_ready = true;
@@ -73,7 +69,7 @@ struct TypedMemoryDemo {
 	bool m_ok = false;
 	bool m_has_fast = false;
 	bool m_ready = false;
-	eng::u32 m_hud_tick = ~0u; ///< fuerza el primer HUD en el frame inicial
+	eng::debug::HostHud m_host_hud {}; ///< HUD del host (no pisa el diagnóstico de memoria)
 };
 
 } // namespace

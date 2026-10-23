@@ -168,6 +168,8 @@ public:
 
 private:
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
+	/// Resuelve movimiento de puntero sobre el HUD (hit-test + captura).
+	/// \param model HUD consultado; \param policy política de captura; \param ev evento.
 	[[nodiscard]] Result on_move(const Hud<R, W, S, D, H>& model, const Policy& policy,
 				     const eng::ui::UiEvent& ev) const noexcept {
 		const HudHit h = hud_hit_test(model, ev.x, ev.y);
@@ -180,6 +182,8 @@ private:
 	}
 
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
+	/// Resuelve botón abajo: registra el objetivo pulsado y consume si hay hit.
+	/// \param model HUD; \param policy captura; \param ev evento.
 	[[nodiscard]] Result on_down(const Hud<R, W, S, D, H>& model, const Policy& policy,
 				     const eng::ui::UiEvent& ev) noexcept {
 		const HudHit h = hud_hit_test(model, ev.x, ev.y);
@@ -201,6 +205,8 @@ private:
 	}
 
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
+	/// Resuelve botón arriba: detecta click si el objetivo coincide con el down.
+	/// \param model HUD; \param policy captura; \param ev evento.
 	[[nodiscard]] Result on_up(Hud<R, W, S, D, H>& model, const Policy& policy,
 				   const eng::ui::UiEvent& ev) noexcept {
 		Result out {};
@@ -226,6 +232,8 @@ private:
 		return out;
 	}
 
+	/// Cancela una pulsación pendiente y consume si el panel capturaba.
+	/// \param policy política de captura.
 	[[nodiscard]] Result on_pointer_cancel(const Policy& policy) noexcept {
 		Result out {};
 		out.consumed = m_pressed || policy.capture_input;
@@ -234,6 +242,8 @@ private:
 	}
 
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
+	/// Resuelve botones/direcciones de joystick sobre el foco de la rejilla.
+	/// \param model HUD; \param ev evento con joy_buttons.
 	[[nodiscard]] Result on_joy(Hud<R, W, S, D, H>& model, const eng::ui::UiEvent& ev) noexcept {
 		Result out {};
 		const eng::u16 b = ev.joy_buttons;
@@ -263,6 +273,8 @@ private:
 	}
 
 	template <eng::u16 R, eng::u16 W, eng::u16 S, eng::u16 D, eng::u16 H>
+	/// Resuelve acciones de UI (mover foco, aceptar, cancelar).
+	/// \param model HUD; \param policy captura; \param ev evento con action.
 	[[nodiscard]] Result on_action(Hud<R, W, S, D, H>& model, const Policy& policy,
 				       const eng::ui::UiEvent& ev) noexcept {
 		using eng::ui::UiAction;
@@ -299,6 +311,7 @@ private:
 		return out;
 	}
 
+	/// Limpia el estado de pulsación pendiente (down sin up).
 	void clear_press() noexcept {
 		m_pressed = false;
 		m_press_id = 0u;

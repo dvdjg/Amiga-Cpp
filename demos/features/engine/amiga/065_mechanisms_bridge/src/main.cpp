@@ -64,6 +64,7 @@ constexpr eng::u16 kBytesPerRow = 40;
 constexpr eng::u8  kPlanes = 4;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
+constexpr eng::debug::Version kVersion {1u, 0u};
 
 // Puente: 12 eslabones de x=40 a x=260, reposo en y=150.
 constexpr eng::u8  kLinks = 12u;
@@ -236,12 +237,6 @@ struct MechanismsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006503u);
 			return;
 		}
-		// Franja de versión BARATA (`VersionStrip`): fondo + nombre + versión UNA vez; por
-		// frame solo el `tick` del fps (≤1 actualización/segundo, solo dígitos cambiados).
-		m_strip.init({m_bitplane_block.view.as_words().data(),
-			      static_cast<eng::u16>(kBytesPerRow / 2u),
-			      static_cast<eng::u32>(kPlaneBytes / 2u), 240u, 16u, 4u, 4u},
-			     "065 MECHANISMS BRIDGE", {1u, 0u});
 		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00006500u);
 	}
@@ -380,7 +375,9 @@ struct MechanismsDemo {
 		g_eng_run_status.detail = m_frame_plan.ok() ? m_frame_plan.blit_job_count() : 0x6510u;
 		m_update_kcycles = (eng::debug::DebugPeripheral::cycle_counter() - t0) / 1000u;
 		// Fps estimados en la franja: ≤1 vez por segundo (y solo dígitos cambiados).
-		m_strip.tick(frame, eng::debug::DebugPeripheral::cycle_counter());
+		// HUD de depuración del host: nombre + número + versión + frame + fps.
+		m_host_hud.draw(backend.debug(), "065 MECHANISMS BRIDGE", kVersion, frame,
+				eng::debug::DebugPeripheral::cycle_counter());
 		{
 			auto& tel = g_eng_frame_telemetry;
 			tel.frame = frame;
@@ -657,7 +654,7 @@ private:
 
 	bool m_copper_ok = false;
 	eng::ChipView<eng::CopperTag> m_copper_view {};
-	eng::debug::VersionStrip m_strip {}; ///< franja: estática + fps ≤1/s (tick por frame)
+	eng::debug::HostHud m_host_hud {}; ///< franja: estática + fps ≤1/s (tick por frame)
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::BobTarget m_target {};
 	eng::graphics::Bob m_plank {};

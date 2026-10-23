@@ -143,6 +143,7 @@ struct ScrollWorldDemo {
 	u32 m_frames = 0u;
 	char m_frame_text[12] = "F 0";
 	bool m_ready = false;
+	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
 	bool m_hud_dirty = true;
 	bool m_hud_cleared = false; // el lienzo del HUD se limpia una vez (ver `draw_hud`)
 
@@ -253,6 +254,8 @@ struct ScrollWorldDemo {
 			}
 		}
 		++m_frames;
+		m_host_hud.draw(backend.debug(), "120 PROC WORLD SCROLL", kVersion, m_frames,
+				eng::debug::prof_clock());
 #if !defined(K120_SKIP_HUD)
 		if ((m_frames & 63u) == 0u) {
 			// Contador del HUD ~1 vez/segundo; el redibujado completo es ~100 escrituras

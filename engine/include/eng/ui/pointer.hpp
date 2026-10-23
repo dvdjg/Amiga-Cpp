@@ -115,6 +115,7 @@ struct Pointer {
 	[[nodiscard]] bool valid() const noexcept { return cursor.valid(); }
 
 private:
+	/// Recorta la posición del puntero a [0,max_x] x [0,max_y].
 	void clamp() noexcept {
 		if (x < 0) {
 			x = 0;

@@ -161,8 +161,8 @@ struct CoreSelfcheckDemo {
 		s.text(100, 88, ok_fail(g_check.sort_ok), g_check.sort_ok ? kTextYellow : kTextFail);
 		s.text(16, 120, g_check.ok() ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED",
 		       g_check.ok() ? kTextYellow : kTextFail);
-		s.text(16, 240, "optica: eng::core ports", 20u);
-		(void)eng::debug::draw_hud(s, "CORE 060", kVersion, app.frame(), kTextWhite);
+		m_host_hud.draw(app.debug(), "060 CORE SELFCHECK", kVersion, app.frame(),
+				eng::debug::prof_clock());
 
 		if (!g_check.ok()) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
@@ -173,7 +173,12 @@ struct CoreSelfcheckDemo {
 
 	// Pantalla estática: no hay trabajo por frame (el HUD se rotula en init).
 	void update(auto&) {}
-	void render(auto&) {}
+	void render(auto& app) {
+		m_host_hud.draw(app.debug(), "060 CORE SELFCHECK", kVersion, app.frame(),
+				eng::debug::prof_clock());
+	}
+
+	eng::debug::HostHud m_host_hud {};
 };
 
 } // namespace

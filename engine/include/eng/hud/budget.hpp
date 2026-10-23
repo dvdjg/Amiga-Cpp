@@ -126,9 +126,15 @@ struct HudStats {
 		}
 	}
 
+	/// Acceso mutable a la telemetría de una región (índice fuera de rango cae a 0).
+	/// \param index índice de región del modelo (0..kHudStatsMaxRegions-1).
+	/// \return referencia a la telemetría de esa región.
 	[[nodiscard]] constexpr HudRegionStats& region(eng::u8 index) noexcept {
 		return regions[index < kHudStatsMaxRegions ? index : 0u];
 	}
+	/// Versión const de region(index).
+	/// \param index índice de región.
+	/// \return telemetría de la región (o la 0 si el índice no cabe).
 	[[nodiscard]] constexpr const HudRegionStats& region(eng::u8 index) const noexcept {
 		return regions[index < kHudStatsMaxRegions ? index : 0u];
 	}

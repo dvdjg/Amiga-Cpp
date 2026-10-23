@@ -65,14 +65,9 @@ struct CirclesDemo {
 			(void)screen.circle(kCenterX, kCenterY, m_radius, kInk);
 			m_radius += kRadiusStep;
 		}
-		// HUD de depuración en una línea: nombre + versión + contador de frames, por palabras.
-		// Se reescribe ~1 vez/segundo (no cada frame): el contador se ve avanzar y el coste
-		// del formateo decimal queda fuera del bucle normal (norma de HUD barato del repo).
-		const eng::u32 tick = app.frame() / 50u;
-		if (tick != m_hud_tick) {
-			m_hud_tick = tick;
-			(void)eng::debug::draw_hud(screen, "CIRCLES", kVersion, app.frame(), kInk);
-		}
+		// HUD de depuración del host: nombre + número + versión + frame + fps.
+		m_host_hud.draw(app.debug(), "122 CIRCLES", kVersion, app.frame(),
+				eng::debug::prof_clock());
 		app.present();
 		if (m_radius > kMaxRadius && !m_ready) {
 			m_ready = true;
@@ -82,7 +77,7 @@ struct CirclesDemo {
 
 private:
 	eng::s16 m_radius = kFirstRadius;
-	eng::u32 m_hud_tick = 0xffffffffu; ///< sentinela: fuerza el primer pintado del HUD
+	eng::debug::HostHud m_host_hud {}; ///< nombre+versión+frame+fps en el overlay del host
 	bool m_ready = false;
 };
 

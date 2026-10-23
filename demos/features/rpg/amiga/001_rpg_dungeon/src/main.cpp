@@ -854,6 +854,7 @@ struct RpgGame {
 	/// El HUD se **compone** solo cuando el juego levanta `m_hud_dirty` (mutaciones de
 	/// inventario/hechos y tramos de hambre/contador); la publicacion por Blitter es por
 	/// frame y gratis. Bandera de un byte: coste cero entre cambios.
+	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
 	bool m_hud_dirty = true;
 
 	/// Tramo de hambre mostrado (1/16 del valor) y tramo del contador, para marcar el HUD
@@ -948,6 +949,8 @@ struct RpgGame {
 		(void)s;
 #endif
 		g_eng_run_status.detail = 0x2200u;
+		m_host_hud.draw(app.debug(), "001 RPG DUNGEON", kVersion, app.frame(),
+				eng::debug::prof_clock());
 		app.present();
 		g_eng_run_status.detail = 0x3100u;
 		advance_actors();

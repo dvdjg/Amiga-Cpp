@@ -346,6 +346,8 @@ public:
 	}
 
 private:
+	/// ¿El punto (px,py) está en la dirección (dx,dy) desde (cx,cy)?
+	/// \param cx,cy centro; \param px,py punto; \param dx,dy dirección (-1/0/1).
 	[[nodiscard]] static bool in_direction(eng::s16 cx, eng::s16 cy, eng::s16 px, eng::s16 py,
 					       eng::s8 dx, eng::s8 dy) noexcept {
 		const eng::s32 ax = static_cast<eng::s32>(px) - cx;
@@ -357,6 +359,8 @@ private:
 		return true;
 	}
 
+	/// Distancia al cuadrado entre dos puntos (sin raíz, para comparar).
+	/// \param cx,cy centro; \param px,py punto.
 	[[nodiscard]] static eng::s32 distance(eng::s16 cx, eng::s16 cy, eng::s16 px,
 					       eng::s16 py) noexcept {
 		const eng::s32 ax = static_cast<eng::s32>(px) - cx;
@@ -365,6 +369,8 @@ private:
 	}
 
 	template <HitGridLike G>
+	/// Celda de la rejilla más cercana a un punto.
+	/// \param g rejilla; \param cx,cy punto en pantalla.
 	[[nodiscard]] static eng::u16 nearest_cell(const G& g, eng::s16 cx, eng::s16 cy) noexcept {
 		const eng::s16 rx = static_cast<eng::s16>(cx - g.area.x);
 		const eng::s16 ry = static_cast<eng::s16>(cy - g.area.y);
@@ -376,12 +382,16 @@ private:
 	}
 
 	template <HitGridLike G>
+	/// Centro X de una celda de la rejilla.
+	/// \param g rejilla; \param slot índice de celda.
 	[[nodiscard]] static eng::s16 cell_center_x(const G& g, eng::u16 slot) noexcept {
 		const eng::u16 col = static_cast<eng::u16>(slot % g.cols);
 		return static_cast<eng::s16>(g.area.x + col * g.pitch_x + g.pitch_x / 2);
 	}
 
 	template <HitGridLike G>
+	/// Centro Y de una celda de la rejilla.
+	/// \param g rejilla; \param slot índice de celda.
 	[[nodiscard]] static eng::s16 cell_center_y(const G& g, eng::u16 slot) noexcept {
 		const eng::u16 row = static_cast<eng::u16>(slot / g.cols);
 		return static_cast<eng::s16>(g.area.y + row * g.pitch_y + g.pitch_y / 2);

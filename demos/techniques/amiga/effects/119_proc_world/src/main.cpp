@@ -124,6 +124,7 @@ struct ProcWorldDemo {
 	char m_frames[7] = "000000";
 	u32 m_load_cycles = 0u;
 	bool m_init_ok = false;
+	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
 
 	/// Deja fuera de `main` los objetos grandes: el atlas y el mundo viven en rodata
 	/// (`kWorldAtlas`/`kWorld`), así que la demo en sí es pequeña.
@@ -175,7 +176,7 @@ struct ProcWorldDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x00000119u);
 	}
 
-	void update(eng::amiga::AmigaBackend&, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// El mundo se montó y publicó en `init`; por frame solo late la telemetría:
 		// contador de frames por **parcheo planar** (8×6 px de bitplanes, sin C2P).
 		if (!m_init_ok) {
@@ -199,6 +200,8 @@ struct ProcWorldDemo {
 		}
 		m_fb.patch_text(u16(kFrameDigitsX + 8u * first_changed), kVersionStripY,
 				m_frames + first_changed, kStripFg, kStripBg);
+		m_host_hud.draw(backend.debug(), "119 PROC WORLD", kVersion,
+				context.frame.frame_index, eng::debug::prof_clock());
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
