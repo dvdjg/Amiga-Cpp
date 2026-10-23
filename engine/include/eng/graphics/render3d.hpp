@@ -584,6 +584,8 @@ template <class S>
 /// \param xs,ys scratch de al menos 2 `s16` (se reutiliza el de 16).
 /// \param plan `FramePlan` opcional para que un `BlitterRaster` encole líneas en
 ///        vez de rasterizarlas por CPU; vacío = ruta CPU (`Surface::draw_line`).
+/// \param op operación de rasterizado (`Copy` por defecto; `Xor` usa la racha EOR
+///        del Blitter, útil para alambre).
 /// \return número de aristas dibujadas.
 /// \pre La malla y los buffers no son nulos; `edge_cap > 0`.
 template <class S, class Model>
@@ -591,7 +593,8 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 		       const Camera3D<S>& cam, playfield::Surface& target, u8 color,
 		       math3d::Vec3t<S>* world, WireEdge* edges, u16 edge_cap,
 		       CamVertex<S>* cam_scratch, s16* xs, s16* ys,
-		       eng::Ref<graphics::FramePlan> plan = {}) noexcept {
+		       eng::Ref<graphics::FramePlan> plan = {},
+		       playfield::RasterOp op = playfield::RasterOp::Copy) noexcept {
 	const u32 nv = mesh.vertex_count();
 	const u32 nf = mesh.face_count();
 	if (world == nullptr || edges == nullptr || cam_scratch == nullptr || xs == nullptr ||
