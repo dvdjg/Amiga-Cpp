@@ -20,10 +20,8 @@
 #include <eng/api/display.hpp>
 #include <eng/api/effects.hpp>
 #include <eng/api/framebuffer.hpp>
-#include <eng/api/objects.hpp>
 #include <eng/api/scene.hpp>
 #include <eng/api/screen.hpp>
-#include <eng/api/sprites.hpp>
 #include <eng/core/util/sequence.hpp>
 #include <eng/scene/entity_pool.hpp>
 #include <eng/scene/formation.hpp>

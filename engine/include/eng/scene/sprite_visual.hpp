@@ -29,6 +29,7 @@
 #include <eng/core/util/pool.hpp>
 #include <eng/graphics/animation.hpp>
 #include <eng/graphics/composite_visual.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite_limits.hpp>
 #include <eng/graphics/sprite.hpp>
@@ -408,6 +409,8 @@ struct SpriteHint {
 /// Es un presupuesto de **planificación** (no un límite de hardware): 60k palabras deja
 /// margen para Copper/CPU en un A500 con playfield activo; medir y ajustar al juego.
 inline constexpr eng::u16 kSpriteBlitWordsDefault = 60000u;
+/// Valor u16 que representa «sin tope adicional» en un presupuesto derivado.
+inline constexpr eng::u16 kSpriteBlitWordsNoLimit = 0xffffu;
 /// Número de intenciones de Copper que reserva copper::Plan por frame.
 inline constexpr eng::u16 kSpriteCopperIntentsDefault = 320u;
 /// Eventos de paleta por frame (dos juegos de 16 registros: sprites + playfield).
@@ -423,6 +426,19 @@ struct SpriteBudget {
 	eng::u16 gap_violations = 0u; ///< violaciones toleradas (0 = cualquiera falla).
 	eng::u16 band_overlaps = 0u; ///< solapes tolerados (0 = cualquiera falla).
 	eng::u16 blit_words = kSpriteBlitWordsDefault; ///< palabras de Blitter del frame.
+
+	/// Deriva el tope de Blitter de los límites de un FramePlan (misma fuente que
+	/// el plan de blits) en vez de duplicar un número. max_words se satura a u16.
+	/// \param limits límites configurados en el FramePlan.
+	/// \return presupuesto con canales/scanline por defecto y blit_words derivado.
+	[[nodiscard]] static constexpr SpriteBudget from_blit_limits(
+		const eng::graphics::BlitBudgetLimits& limits) noexcept {
+		SpriteBudget b {};
+		b.blit_words = limits.max_words > kSpriteBlitWordsNoLimit
+				       ? kSpriteBlitWordsNoLimit
+				       : static_cast<eng::u16>(limits.max_words);
+		return b;
+	}
 };
 
 /// Avisos del reporte; máscara de bits para acumularlos en `SpriteLoadReport::warnings`.

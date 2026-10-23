@@ -23,6 +23,7 @@
 // del segundo anillo, paleta B (magenta) — ambos arrays indexados por registro.
 
 #include <eng/api/api.hpp>
+#include <eng/api/sprites.hpp> // API directa legacy (migrar a SpriteDirector)
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
 

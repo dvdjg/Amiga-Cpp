@@ -315,6 +315,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Agregados de API: sin inicializadores posicionales con literales (presupuestos/planes).
+	API_LITERALS="$ROOT/tools/check/api-positional-literals.mjs"
+	if [ -f "$API_LITERALS" ] && command -v node >/dev/null 2>&1; then
+		echo "== api-positional-literals =="
+		if ! node "$API_LITERALS"; then
+			echo "api-positional-literals fallo: usa designated initializers o una factoria con nombre." >&2
+			exit 1
+		fi
+	fi
 	# Escrituras crudas por view.data() en demos/juegos: fronteras declaradas + baseline decreciente.
 	DEMO_RAW_WRITES="$ROOT/tools/check/demo-raw-writes.mjs"
 	if [ -f "$DEMO_RAW_WRITES" ] && command -v node >/dev/null 2>&1; then

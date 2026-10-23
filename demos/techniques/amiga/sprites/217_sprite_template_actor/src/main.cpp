@@ -28,6 +28,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
+#include <eng/api/sprites.hpp> // API directa legacy (migrar a SpriteDirector)
 #include <eng/debug/hud.hpp>        // HudFpsWindow (fps10)
 #include <eng/debug/peripheral.hpp> // contadores (telemetria de memoria)
 #include <eng/debug/prof.hpp>       // prof_clock
@@ -59,6 +60,7 @@ namespace {
 namespace scene = eng::scene;
 
 // Display 320x256, 4 planos.
+constexpr eng::u16 kBobBudgetWords = 4096u; // 8 KiB de BOB en este demo
 constexpr eng::u16 kBytesPerRow = 40;
 constexpr eng::u8  kPlanes = 4;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
@@ -211,7 +213,11 @@ private:
 	/// El juego describe UN actor con la plantilla; el engine decide cómo materializarlo.
 	bool add_actor() {
 		m_scene.clear();
-		m_scene.set_budget({8u, 4096u, 0u});
+		m_scene.set_budget(eng::scene::RepresentationBudget{
+			.sprite_channels = eng::graphics::kSpriteChannels,
+			.bob_budget_words = kBobBudgetWords,
+			.layer_slots = 0u,
+		});
 		scene::ActorDesc d {};
 		// Contenido para el fallback a BOB (la primera franja como sprite normal).
 		d.visual.pixels = m_sprite_block.view.as_words().as_const().subspan(0u, kSegWords).raw();
@@ -245,11 +251,11 @@ private:
 		ctx.display_top = 0x2cu;
 
 		m_frame_plan.clear();
-		const scene::SpriteComposeResult res = m_scene.emit(m_frame_plan, ctx);
-		m_sprites_in_hw = static_cast<eng::u8>(res.sprites);
+		const scene::SpriteLoadReport res = m_scene.emit(m_frame_plan, ctx);
+		m_sprites_in_hw = static_cast<eng::u8>(res.hw);
 		m_bob_count = static_cast<eng::u8>(res.degraded);
 		// Canal del primer placement (el fijo debe conservar su preferido): telemetría.
-		m_chan0 = res.sprites > 0u ? m_scene.placements()[0].channel : 0xffu;
+		m_chan0 = res.hw > 0u ? m_scene.placements()[0].channel : 0xffu;
 		return res.ok;
 	}
 

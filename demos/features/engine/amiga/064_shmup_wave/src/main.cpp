@@ -26,6 +26,7 @@
 // gradiente de esa línea.
 
 #include <eng/api/api.hpp>
+#include <eng/api/sprites.hpp> // API directa legacy (migrar a SpriteDirector)
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/bobs.hpp> // `scene::clear_box`
 

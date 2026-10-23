@@ -281,6 +281,10 @@ void test_run() {
 	check(sched.words_used() != 0u, "present emite copperlist");
 
 	// Reporte estático (mismo contrato) y presupuesto que falla.
+	constexpr eng::graphics::BlitBudgetLimits blit_limits {.max_words = 123u};
+	constexpr eng::scene::SpriteBudget derived = eng::scene::SpriteBudget::from_blit_limits(blit_limits);
+	static_assert(derived.blit_words == 123u);
+
 	constexpr eng::scene::SpriteBudget too_few {.channels = 1u, .scanline = 1u};
 	constexpr auto bad = eng::scene::evaluate_static(
 		eng::Span<const SpriteStaticDesc> {kStatic, 3u}, too_few);

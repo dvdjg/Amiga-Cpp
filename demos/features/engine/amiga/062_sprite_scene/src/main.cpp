@@ -12,10 +12,10 @@
 //
 // ```cpp
 // eng::SpriteScene<9> sprites;
-// sprites.set_budget({8u, 4096u, 0u});       // 8 canales HW, 4k palabras de BOB, 0 capas
+// sprites.set_budget(RepresentationBudget) esta deprecado: usa SpriteDirector/SpriteBudget.
 // sprites.add(d);                            // d = ActorDesc (visual + posicion + prioridad)
 // auto r = sprites.emit(plan, ctx);          // compone; los BOB van al plan
-// m_manager.apply(sprites.placements(), r.sprites);  // HW sprites a los registros (copper)
+// m_manager.apply(sprites.placements(), r.hw);  // HW sprites a los registros (copper)
 // ```
 //
 // Qué muestra: 9 actores de 16×16 en fila (y=100). Los 8 primeros caben en los canales 0..7 (parejas
@@ -28,6 +28,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
+#include <eng/api/sprites.hpp> // API directa legacy (migrar a SpriteDirector)
 #include <eng/core/math/sinetable.hpp> // lissajous de los actores (regla 25)
 #include <eng/debug/hud.hpp>           // HudFpsWindow (fps10)
 #include <eng/debug/peripheral.hpp>    // contadores (telemetria de memoria)
@@ -63,6 +64,7 @@ constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
 // 9 actores de 16x16 en fila dentro de la ventana (x = 144, 176, ..., 400); solo 8 caben.
+constexpr eng::u16 kBobBudgetWords = 4096u; // 8 KiB de BOB en este demo
 constexpr eng::u8  kActors = 9;
 constexpr eng::u8  kSpriteHeight = 16;
 constexpr eng::u16 kWordsPerLine = 2;   // DAT + DATB
@@ -278,7 +280,11 @@ private:
 	/// representación. Aquí todos son candidatos a sprite (16x16).
 	bool add_actors(eng::WordView<eng::SpriteTag> sprite_data) {
 		m_scene.clear();
-		m_scene.set_budget({8u, 4096u, 0u}); // 8 canales HW, 4k palabras de BOB, 0 capas
+		m_scene.set_budget(eng::scene::RepresentationBudget{
+			.sprite_channels = eng::graphics::kSpriteChannels,
+			.bob_budget_words = kBobBudgetWords,
+			.layer_slots = 0u,
+		}); // 8 canales HW, 4k palabras de BOB, 0 capas
 		for (eng::u8 i = 0; i < kActors; ++i) {
 			scene::ActorDesc d {};
 			d.visual.pixels = sprite_data.subspan(
@@ -313,8 +319,8 @@ private:
 		ctx.display_top = 0x2cu;
 
 		m_frame_plan.clear();
-		const scene::SpriteComposeResult res = m_scene.emit(m_frame_plan, ctx);
-		m_sprites_in_hw = static_cast<eng::u8>(res.sprites);
+		const scene::SpriteLoadReport res = m_scene.emit(m_frame_plan, ctx);
+		m_sprites_in_hw = static_cast<eng::u8>(res.hw);
 		m_bob_count = static_cast<eng::u8>(res.degraded);
 		const eng::u8 applied = m_sprites.apply(m_scene.placements().data(), m_sprites_in_hw);
 		return applied == m_sprites_in_hw;

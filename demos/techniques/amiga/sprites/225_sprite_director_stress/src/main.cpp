@@ -81,7 +81,7 @@ struct DirectorStressDemo {
 			m_bitplane_block.mem_view_chip(), kBytesPerRow, 256u, kPlanes,
 			eng::graphics::BobLayout::Planar);
 		m_dir.set_cooked_pool(m_cooked_block.mem_view_chip());
-		m_dir.set_budget(scene::SpriteBudget {});
+		m_dir.set_budget(scene::SpriteBudget::from_blit_limits(m_frame_plan.blit_budget_limits()));
 		m_ctx.targets = eng::Span<const eng::graphics::BobTarget> {&m_target, 1u};
 		m_ctx.display_top = eng::copper::kPalVisibleFirstLine;
 		if (!build_entities() || !build_frame(backend)) {

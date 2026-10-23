@@ -12,7 +12,7 @@
 ///
 /// **Modo avanzado.** La fachada por intención con `VisualId`/`CompositeId`, presupuesto real y
 /// `SpriteLoadReport` es `eng::scene::SpriteDirector` (`scene/sprite_director.hpp`, incluida en
-/// `eng/api/api.hpp`). `SpriteScene` sigue siendo la implementación directa de actores, pero
+/// `eng/api/api.hpp`; `SpriteScene` ya no se exporta desde esa fachada). `SpriteScene` sigue siendo la implementación directa de actores, pero
 /// **no es la vía nueva**: se conserva como modo avanzado para migrar código existente y se
 /// retirará de la fachada pública cuando las demos hayan pasado a `SpriteDirector`.
 ///
