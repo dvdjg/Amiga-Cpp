@@ -399,7 +399,7 @@ public:
 private:
 	using ModelTransform = eng::math::Affine<3, eng::real, eng::coord>;
 
-	/// Implementación común de ender_wire: mesh_at resuelve el handle y se
+	/// Implementación común de `render_wire`: `mesh_at` resuelve el handle y se
 	/// reutiliza el scratch de la escena por nodo (sin orden de painter: el alambre
 	/// no tapa).
 	/// \tparam MeshAt callable `eng::Ref<const Mesh>(ModelHandle)`.

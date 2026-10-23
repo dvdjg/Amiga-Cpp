@@ -124,6 +124,9 @@ struct Scene3dDemo {
 		m_fill.backend = &backend;
 		m_fill.mask = m_mask.view;
 		m_canvas.set_polygon_fill_sink(m_fill.sink());
+		// El alambre encola líneas por Blitter en el `FramePlan` (la ruta CPU de
+		// `draw_line` cuesta ~1500 ciclos/píxel y no cabe en el presupuesto).
+		m_canvas.set_rasterizer(&eng::playfield::kBlitterRaster);
 
 		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kHeight);
 		draw_band();
