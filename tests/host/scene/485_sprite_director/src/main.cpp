@@ -288,11 +288,43 @@ void test_run() {
 	check(dir.count() == 6u, "conteo tras remove");
 }
 
+void test_band_and_deadline_contracts() {
+	eng::u16 pal[2] {0x0f00u, 0x00f0u};
+	eng::scene::BandPalette bands[2] {};
+	for (eng::scene::BandPalette& b : bands) {
+		b.height = 16u;
+		b.sprites = eng::PaletteWords {pal, 2u};
+	}
+	bands[0].top = 100;
+	bands[1].top = 108;
+	eng::graphics::SpritePaletteEvent out[4] {};
+	const auto overlap = eng::scene::emit_band_palettes(
+		eng::Span<const eng::scene::BandPalette> {bands, 2u}, {},
+		eng::Span<eng::graphics::SpritePaletteEvent> {out, 4u}, 0u, 256u);
+	check(overlap.overlaps == 1u && !overlap.ok, "banda solapada se reporta");
+
+	eng::scene::BandPalette oor {};
+	oor.top = 250;
+	oor.height = 20u;
+	oor.sprites = eng::PaletteWords {pal, 2u};
+	const auto out_of_range = eng::scene::emit_band_palettes(
+		eng::Span<const eng::scene::BandPalette> {&oor, 1u}, {},
+		eng::Span<eng::graphics::SpritePaletteEvent> {out, 4u}, 0u, 256u);
+	check(out_of_range.out_of_range == 1u && !out_of_range.ok, "banda fuera de rango se reporta");
+
+	const eng::scene::BlitDeadline deadline {100u, 120u, 32u};
+	check(eng::scene::blit_deadline_ok(deadline, 32u), "deadline: tope exacto");
+	check(!eng::scene::blit_deadline_ok(deadline, 33u), "deadline: palabras de mas");
+	check(!eng::scene::blit_deadline_ok(eng::scene::BlitDeadline {120u, 100u, 32u}, 1u),
+	      "deadline: ventana invertida");
+}
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-485 sprite_director ==\n");
 	test_run();
+	test_band_and_deadline_contracts();
 	if (g_fail == 0) {
 		std::printf("OK: SpriteDirector, reporte, banda y preflight estatico validados.\n");
 		return 0;
