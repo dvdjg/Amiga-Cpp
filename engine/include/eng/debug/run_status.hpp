@@ -70,6 +70,22 @@ inline void mark_failed(volatile RunStatus& status, u32 detail) {
 	status.detail = detail;
 }
 
+/// Versión tipada: acepta un `enum class Fail : u32` local con nombres de etapa.
+///
+/// El `detail` sigue siendo un escalar para el runner, pero la **llamada** no lleva
+/// un hexadecimal opaco. Ejemplo:
+///
+///   enum class Fail : u32 { Memory = 0x00020101u, Scene = 0x00020102u };
+///   mark_failed(g_eng_run_status, Fail::Scene);
+///
+/// El valor de cada enumerador se documenta junto al enum (qué etapa y demo lo emite).
+/// \tparam E tipo `enum class` con los códigos de fallo (normalmente `: eng::u32`).
+template <class E>
+	requires(__is_enum(E))
+inline void mark_failed(volatile RunStatus& status, E code) {
+	mark_failed(status, static_cast<u32>(code));
+}
+
 /// **Etapa de arranque que falla**, para el `detail` del runner sin números mágicos.
 /// Los valores son estables y los reporta el bootstrap (`run_demo`); un juego con causas
 /// propias puede usar el `mark_failed(u32)` de abajo con una constante con nombre.

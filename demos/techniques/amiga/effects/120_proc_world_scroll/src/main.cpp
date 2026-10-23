@@ -13,8 +13,9 @@
 //     en el banco interleaved X-Limited al arrancar (5 planos estándar, sin EHB).
 //   - **Scroll**: `XlimitedScene` con `ScrollConsts` (divisores en compilación, sin
 //     `__udivsi3` en el camino caliente) y conductor de presupuesto de Blitter.
-//   - **HUD**: franja inferior de 48 px (4 planos, paleta propia) con nombre + versión
-//     (norma del repo) y telemetría viva (frames).
+//   - **HUD**: el overlay de depuración del host (`HostHud`) muestra nombre + número +
+//     versión + frame + fps. La franja inferior de 48 px se conserva para mantener la
+//     geometría del corkscrew, pero ya no contiene texto de depuración.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/120_proc_world_scroll --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/120_proc_world_scroll --warp
@@ -25,7 +26,6 @@
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/field/xlimited_scene.hpp>
-#include <eng/graphics/font8.hpp>
 #include <eng/graphics/proc/atlas.hpp>
 #include <eng/graphics/proc/terrain_biome.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -114,24 +114,24 @@ constexpr playfield::ScrollConsts kScrollConsts {
 /// Formato de la demo (major.minor; el build lo inyecta como -DENG_BUILD_NUMBER).
 constexpr eng::debug::Version kVersion {1u, 0u};
 
-// Paleta del HUD (UN plano = 2 colores): fondo negro, texto blanco. El HUD de
-// depuración debe ser lo más sencillo posible: 1 bitplane y texto impreso por palabras.
-eng::u16 g_hud_palette[2] { 0x000u, 0xFFFu };
+/// Códigos de fallo de la demo 120 (byte alto = demo, bajo = etapa).
+enum class Fail : eng::u32 {
+	Memory = 0x00012001u,       ///< `configure_memory`
+	SceneBegin = 0x00012002u,   ///< `scene.begin`
+	Fill = 0x00012003u,         ///< `scene.fill`
+	ComposeInit = 0x00012004u,  ///< `scene.compose` inicial
+	Blitter = 0x00012010u,      ///< `execute_frame_plan`
+	ComposeFrame = 0x00012011u, ///< `scene.compose` por frame
+};
+
+/// `detail` de `mark_ready`: identifica la demo 120 en el canal lateral.
+constexpr eng::u32 kReadyDetail = 0x00000120u;
+
+// Paleta de la franja reservada (sin texto): fondo negro. La franja mantiene la
+// geometría del corkscrew; el HUD real vive en el overlay del host.
+eng::u16 g_hud_palette[2] { 0x000u, 0x000u };
 // Paleta del CAMPO (32 colores del atlas; se rellena en `init` desde el constexpr).
 eng::u16 g_world_palette[32] {};
-
-/// Número decimal a cadena (para la telemetría del HUD).
-void u16_str(u16 v, char* out) {
-	char tmp[6] {};
-	u8 i = 0u;
-	do {
-		tmp[i++] = char('0' + (v % 10u));
-		v = u16(v / 10u);
-	} while (v != 0u && i < 5u);
-	u8 n = 0u;
-	while (i > 0u) out[n++] = tmp[--i];
-	out[n] = '\0';
-}
 
 // -----------------------------------------------------------------------------
 // Juego
@@ -141,27 +141,21 @@ struct ScrollWorldDemo {
 	playfield::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	u32 m_frames = 0u;
-	char m_frame_text[12] = "F 0";
 	bool m_ready = false;
 	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
-	bool m_hud_dirty = true;
-	bool m_hud_cleared = false; // el lienzo del HUD se limpia una vez (ver `draw_hud`)
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		// Chip: anillo (208+32 filas × 5 planos) + banco de bloques (~16 KB) + copper.
 		if (!backend.configure_memory({200u * 1024u, 16u * 1024u, 8u * 1024u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012001u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
 			return;
 		}
 
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
 		scene_cfg.hud.height = kHudH;
-		// HUD de depuración **lo más sencillo posible**: UN bitplane con paleta propia de
-		// 2 colores (la zona de overlay conmuta BPLCON0/BPLxPT + COLOR00/01 vía
-		// `ModeSwitchZone`) y el texto se imprime por **palabras de 16 px** con
-		// `Surface::draw_text_words` (dos glifos por palabra; nunca píxel a píxel).
+		// La franja se reserva para conservar la geometría del corkscrew; no pinta texto.
 		scene_cfg.hud.planes = 1u;
 		scene_cfg.hud.palette = g_hud_palette;
 		scene_cfg.tile_width = kTile;
@@ -190,21 +184,20 @@ struct ScrollWorldDemo {
 		scene_cfg.palette = g_world_palette;
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012002u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::SceneBegin);
 			return;
 		}
 		if (!scene.fill(backend, plan)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012003u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Fill);
 			return;
 		}
 		if (!scene.compose()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012004u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeInit);
 			return;
 		}
 		scene.takeover(backend);
-		draw_hud();
 		m_ready = true;
-		eng::debug::mark_ready(g_eng_run_status, 0x00000120u);
+		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -236,7 +229,7 @@ struct ScrollWorldDemo {
 			scene.update(plan, 1, 0, context.frame.frame_index);
 			if (!backend.execute_frame_plan(plan)) {
 				m_ready = false;
-				eng::debug::mark_failed(g_eng_run_status, 0x00012010u);
+				eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 				return;
 			}
 		}
@@ -249,27 +242,13 @@ struct ScrollWorldDemo {
 		) {
 			if (!scene.compose()) {
 				m_ready = false;
-				eng::debug::mark_failed(g_eng_run_status, 0x00012011u);
+				eng::debug::mark_failed(g_eng_run_status, Fail::ComposeFrame);
 				return;
 			}
 		}
 		++m_frames;
 		m_host_hud.draw(backend.debug(), "120 PROC WORLD SCROLL", kVersion, m_frames,
 				eng::debug::prof_clock());
-#if !defined(K120_SKIP_HUD)
-		if ((m_frames & 63u) == 0u) {
-			// Contador del HUD ~1 vez/segundo; el redibujado completo es ~100 escrituras
-			// de palabra (se imprime por palabras, ver `draw_hud`), coste despreciable.
-			char num[8];
-			u16_str(u16(m_frames & 0xFFFFu), num);
-			u8 n = 0u;
-			m_frame_text[n++] = 'F';
-			m_frame_text[n++] = ' ';
-			for (u8 i = 0u; num[i] != '\0' && n < 11u; ++i) m_frame_text[n++] = num[i];
-			m_frame_text[n] = '\0';
-			m_hud_dirty = true;
-		}
-#endif
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -279,12 +258,6 @@ struct ScrollWorldDemo {
 #else
 			const u8 ab = 0u;
 #endif
-#if !defined(K120_SKIP_HUD)
-			if (m_hud_dirty) {
-				draw_hud();
-				m_hud_dirty = false;
-			}
-#endif
 			if ((ab & 4u) == 0u) {
 				scene.install(backend);
 			}
@@ -293,37 +266,6 @@ struct ScrollWorldDemo {
 	}
 
 private:
-	/// Pinta la franja HUD (1 bitplane): nombre + versión (norma del repo) + contador de
-	/// frames. El lienzo NO nace limpio (memoria Chip): se borra entero UNA vez, en el
-	/// primer pintado. El texto se imprime con `Surface::draw_text_words` (genérico en
-	/// planos/color; aquí 1 plano y tinta 1), que compone **dos glifos por palabra de
-	/// 16 px** y escribe palabras consecutivas del plano (ocho escrituras por par de
-	/// glifos, patrón + fondo de golpe): el redibujado completo de la línea son ~100
-	/// escrituras de palabra, sin bucle por píxel ni por bit.
-	///
-	/// La celda inicial (x=16, múltiplo de 16 para la alineación a palabra) queda tras la
-	/// guarda de fetch del corkscrew, que no se ve (como en la 201).
-	void draw_hud() {
-		constexpr eng::s32 kHudTextX = 16;
-		auto hud = scene.hud_surface();
-		if (!m_hud_cleared) {
-			hud.fill_rect(0, 0, 512, kHudH, 0u);
-			m_hud_cleared = true;
-		}
-		char label[24];
-		const u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
-		char line1[40] = "PROC WORLD SCROLL ";
-		u8 n = 18u;
-		for (u8 i = 0u; i < vlen && n + 1u < sizeof(line1); ++i) line1[n++] = label[i];
-		line1[n] = '\0';
-		// La ventana útil del lienzo del HUD en esta geometría muestra una sola línea de
-		// 8 px: nombre + versión (norma del repo) + contador de frames.
-		const char* sep = "  ";
-		for (const char* c = sep; *c != '\0' && n + 1u < sizeof(line1); ++c) line1[n++] = *c;
-		for (const char* c = m_frame_text; *c != '\0' && n + 1u < sizeof(line1); ++c) line1[n++] = *c;
-		line1[n] = '\0';
-		(void)hud.draw_text_words(kHudTextX, 1, line1, 1u);
-	}
 };
 
 static_assert(eng::DisplayDriver<playfield::XlimitedScene<kScrollConsts>, eng::amiga::AmigaBackend>);

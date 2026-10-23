@@ -13,11 +13,7 @@ límite de 16 px; el resto de la pantalla no se toca.
   **5 planos estándar** (sin EHB). El builder indexado es genérico en planos.
 - **Scroll**: `XlimitedScene` + `ScrollConsts` (divisores en compilación; sin `__udivsi3`
   en el camino caliente), `TileLayerMap` toroidal en X, cámara 1 px/frame.
-- **HUD**: franja de 48 px **de UN bitplane** (paleta propia de 2 colores; la zona de
-  overlay conmuta BPLCON0/BPLxPT + COLOR00/01) con `PROC WORLD SCROLL v1.0.<build>` +
-  contador de frames (norma del repo). El texto se imprime con `Surface::draw_text_words`:
-  **dos glifos por palabra de 16 px**, ocho escrituras de palabra por par (glifos + fondo de
-  golpe), nunca píxel a píxel — el HUD de depuración debe ser lo más sencillo posible.
+- **HUD**: overlay de depuración del host (`HostHud`) con nombre + número + versión + frame + fps. La franja inferior de 48 px se conserva (1 bitplane, negro) para mantener la geometría del corkscrew; ya no contiene texto de depuración.
 
 ## Comandos
 

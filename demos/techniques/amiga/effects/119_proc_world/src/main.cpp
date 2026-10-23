@@ -26,8 +26,8 @@
 //     toda ella evaluable en compilación (`constexpr`) y en runtime (misma fuente);
 //   - el flujo «metaprogramación C++23»: cero coste de generación en el 68000 y assets
 //     deterministas byte a byte (`HOST-443`/`HOST-445` anclan el mismo resultado);
-//   - la franja inferior de 16 px con nombre + versión + ciclos de carga + contador de
-//     frames vivo por parcheo planar.
+//   - el HUD de depuración del host (`HostHud`): nombre + número + versión + frame + fps,
+//     con la carga y el número de piezas como línea de telemetría.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/119_proc_world --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/119_proc_world --warp
@@ -35,9 +35,10 @@
 // (El build tarda ~1 min de más: el compilador evalúa la generación completa.)
 #include <eng/api/api.hpp>
 #include <eng/core/math/minifloat.hpp>
+#include <eng/core/util/text_line.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
-#include <eng/graphics/font8.hpp>
 #include <eng/graphics/proc/bitmap_buffer.hpp>
 #include <eng/graphics/proc/terrain_biome.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -69,8 +70,9 @@ namespace proc = eng::gfx::proc;
 namespace terr = eng::gfx::proc::terrain;
 
 // Geometría: pantalla 320×256; mundo 20×14 tiles de 16 px = 320×224 (más celdas = más
-// variedad y transiciones); debajo, la banda de los 32 colores (16 px) y la franja de
-// versión (16 px, norma del repo).
+// variedad y transiciones); debajo, la banda de los 32 colores (16 px) y una franja negra
+// de 16 px que mantiene el viewport histórico. El HUD de depuración vive en el overlay
+// del host (`HostHud`), no en los bitplanes.
 constexpr u16 kScreenW = 320u;
 constexpr u16 kScreenH = 256u;
 constexpr u16 kWorldTile = 16u;
@@ -78,13 +80,6 @@ constexpr u16 kMapW = 20u;
 constexpr u16 kMapH = 14u;
 constexpr u16 kPaletteBandY = kMapH * kWorldTile;        // 224
 constexpr u16 kVersionStripY = u16(kPaletteBandY + 16u); // 240
-
-// Contador de frames de la franja: prefijo «F » + 6 dígitos parcheados por planos.
-constexpr u16 kFrameLabelX = 224u;
-constexpr u16 kFrameDigitsX = u16(kFrameLabelX + 8u);
-// Colores de la franja (31 = nieve/luz de la familia «frío»; 0 = transparente/negro).
-constexpr u8 kStripFg = 31u;
-constexpr u8 kStripBg = 0u;
 
 // Semillas del host (mismo mundo que los dumps de evidencia: `HOST-445`/`v4`).
 constexpr u32 kAtlasSeed = 0x7E5A1u;
@@ -115,13 +110,21 @@ struct WorldData {
 inline constexpr WorldData kWorld = make_world();
 
 /// Formato de la demo (major.minor; el `build` lo inyecta el toolchain como
-/// `-DENG_BUILD_NUMBER` y la franja lo muestra: `v<major>.<minor>.<build>`).
+/// `-DENG_BUILD_NUMBER` y el HUD del host lo muestra: `v<major>.<minor>.<build>`).
 constexpr eng::debug::Version kVersion {1u, 0u};
+
+/// Códigos de fallo de la demo 119 (byte alto = demo, bajo = etapa).
+enum class Fail : eng::u32 {
+	Memory = 0x00011901u,        ///< `configure_memory`
+	WorldInvariant = 0x00011902u,///< conectividad del mundo generado
+	Framebuffer = 0x00011903u,   ///< `IndexedDisplay::init`
+};
+
+/// `detail` de `mark_ready`: identifica la demo 119 en el canal lateral.
+constexpr eng::u32 kReadyDetail = 0x00000119u;
 
 struct ProcWorldDemo {
 	eng::IndexedDisplay<5u, 1u> m_fb {}; // 5 planos (paleta de 32 colores), buffer único
-	// Contador de frames mostrado en la franja (dígitos ASCII, incremento decimal).
-	char m_frames[7] = "000000";
 	u32 m_load_cycles = 0u;
 	bool m_init_ok = false;
 	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
@@ -145,7 +148,7 @@ struct ProcWorldDemo {
 		// Chip: planos (40 KB) + chunky (80 KB) + copper (16 KB) + margen; el set vive en
 		// BSS del ejecutable (no Chip).
 		if (!backend.configure_memory({256u * 1024u, 8u * 1024u, 4u * 1024u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00011901u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
 			return;
 		}
 		const u32 t0 = eng::debug::DebugPeripheral::cycle_counter();
@@ -153,7 +156,7 @@ struct ProcWorldDemo {
 		// 1) El mundo ya está generado EN COMPILACIÓN (`kWorld`); en carga solo se
 		//    verifica el contrato sobre los datos incrustados (~cientos de comparaciones).
 		if (!terr::biome_world_connected(kWorld.layout, kWorld.set)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00011902u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::WorldInvariant);
 			return;
 		}
 		stage_mark(1u, eng::debug::DebugPeripheral::cycle_counter() - t0);
@@ -162,46 +165,30 @@ struct ProcWorldDemo {
 		eng::Palette32 pal {};
 		for (u16 i = 0; i < 32u; ++i) pal.color[i] = kWorldAtlas.palette.color[i];
 		if (!m_fb.init(backend, kScreenW, kScreenH, pal.words(), 32u)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00011903u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Framebuffer);
 			return;
 		}
 		compose_world();
 		stage_mark(2u, eng::debug::DebugPeripheral::cycle_counter() - t0);
 
 		m_load_cycles = eng::debug::DebugPeripheral::cycle_counter() - t0;
-		draw_info_strip();
 		m_fb.present(); // C2P + publicación: una sola vez (contenido ya generado)
 		stage_mark(3u, eng::debug::DebugPeripheral::cycle_counter() - m_load_cycles - t0);
 		m_init_ok = true;
-		eng::debug::mark_ready(g_eng_run_status, 0x00000119u);
+		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		// El mundo se montó y publicó en `init`; por frame solo late la telemetría:
-		// contador de frames por **parcheo planar** (8×6 px de bitplanes, sin C2P).
+		// El mundo se montó y publicó en `init`; por frame solo se actualiza el HUD del
+		// host (nombre/versión/frame/fps) con la telemetría de carga y piezas.
 		if (!m_init_ok) {
 			return;
 		}
-		// Incremento decimal de 6 dígitos sin división (disciplina 68000: sin `/` por frame).
-		// Se recuerda el dígito más a la izquierda que cambió: parchear solo desde ahí
-		// (lo normal es 1 celda por frame; el acarreo es raro) mantiene el coste mínimo.
-		u8 first_changed = 5u;
-		for (u8 i = 5u;; --i) {
-			if (m_frames[i] != '9') {
-				++m_frames[i];
-				first_changed = i; // el más a la izquierda de esta pasada
-				break;
-			}
-			m_frames[i] = '0';
-			first_changed = i;
-			if (i == 0u) {
-				break; // desbordamiento de 999999: se queda a cero
-			}
-		}
-		m_fb.patch_text(u16(kFrameDigitsX + 8u * first_changed), kVersionStripY,
-				m_frames + first_changed, kStripFg, kStripBg);
+		eng::util::TextLine<64> stats;
+		stats << "LOAD " << u16((m_load_cycles + 500u) / 1000u) << "KC  PIECES "
+		      << world_set().count;
 		m_host_hud.draw(backend.debug(), "119 PROC WORLD", kVersion,
-				context.frame.frame_index, eng::debug::prof_clock());
+				context.frame.frame_index, eng::debug::prof_clock(), stats.c_str());
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
@@ -241,63 +228,6 @@ private:
 			u8* dst = px.data() + y * kScreenW;
 			for (u16 x = 0; x < kScreenW; ++x) dst[x] = 0u;
 		}
-	}
-
-	/// Dibuja texto 8×8 en el framebuffer chunky (bit `k` de `Font8::row` = columna `k`).
-	/// \param x,y esquina superior izquierda. \param text texto ASCII acabado en NUL.
-	/// \param fg índice del color del texto. \param bg índice del fondo.
-	void draw_text(u16 x, u16 y, const char* text, u8 fg, u8 bg) {
-		eng::Span<u8> px = m_fb.framebuffer();
-		for (const char* c = text; *c != '\0'; ++c) {
-			for (u8 row = 0; row < 8u; ++row) {
-				const u8 bits = eng::Font8::row(
-					static_cast<eng::u16>(static_cast<unsigned char>(*c)), row);
-				u8* dst = px.data() + (y + row) * kScreenW + x;
-				for (u8 k = 0; k < 8u; ++k) {
-					dst[k] = ((bits >> k) & 1u) != 0u ? fg : bg;
-				}
-			}
-			x = u16(x + 8u);
-		}
-	}
-
-	/// Franja inferior (16 px): nombre + versión, coste de carga (ciclos) y nº de piezas;
-	/// el contador de frames (a la derecha de la versión) se refresca por parcheo planar
-	/// en `update`; los fps se leen en la ventana de depuración de WinUAE / telemetría.
-	void draw_info_strip() {
-		char label[24];
-		const u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
-		char line1[40] = "PROC WORLD ";
-		u8 n = 11u;
-		for (u8 i = 0u; i < vlen && n + 1u < sizeof(line1); ++i) line1[n++] = label[i];
-		line1[n] = '\0';
-		draw_text(8u, u16(kVersionStripY + 0u), line1, kStripFg, kStripBg);
-		// Contador de frames: «F » + los dígitos (se parchean por planos en cada update).
-		draw_text(kFrameLabelX, u16(kVersionStripY + 0u), "F", kStripFg, kStripBg);
-		draw_text(kFrameDigitsX, u16(kVersionStripY + 0u), m_frames, kStripFg, kStripBg);
-
-		char line2[40] = "LOAD ";
-		n = 5u;
-		u32 kc = (m_load_cycles + 500u) / 1000u;
-		char digits[10];
-		u8 d = 0u;
-		do {
-			digits[d++] = char('0' + (kc % 10u));
-			kc /= 10u;
-		} while (kc != 0u && d < 10u);
-		while (d > 0u && n + 1u < sizeof(line2)) line2[n++] = digits[--d];
-		const char* tail = "KC  PIECES ";
-		for (const char* c = tail; *c != '\0' && n + 1u < sizeof(line2); ++c) line2[n++] = *c;
-		char num[8];
-		u8 nd = 0u;
-		u16 count = world_set().count;
-		do {
-			num[nd++] = char('0' + (count % 10u));
-			count = u16(count / 10u);
-		} while (count != 0u && nd < 8u);
-		while (nd > 0u && n + 1u < sizeof(line2)) line2[n++] = num[--nd];
-		line2[n] = '\0';
-		draw_text(8u, u16(kVersionStripY + 8u), line2, kStripFg, kStripBg);
 	}
 };
 

@@ -47,7 +47,7 @@ dependen de hardware y no necesitan WinUAE.
 | `board` | 20 | [board/README.md](board/README.md) |
 | `cards` | 12 | [cards/README.md](cards/README.md) |
 | `core` | 83 | [core/README.md](core/README.md) |
-| `debug` | 3 | [debug/README.md](debug/README.md) |
+| `debug` | 4 | [debug/README.md](debug/README.md) |
 | `field` | 35 | [field/README.md](field/README.md) |
 | `graphics` | 77 | [graphics/README.md](graphics/README.md) |
 | `os` | 25 | [os/README.md](os/README.md) |
@@ -59,4 +59,4 @@ dependen de hardware y no necesitan WinUAE.
 | `sim` | 34 | [sim/README.md](sim/README.md) |
 | `ui` | 30 | [ui/README.md](ui/README.md) |
 
-Total: 453 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).
+Total: 454 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).

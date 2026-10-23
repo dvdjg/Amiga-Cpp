@@ -95,6 +95,7 @@ struct SpriteComposeScratch {
 /// emiten para todos los actores (son contenido anclado a su Y); las que dependan de un
 /// canal de sprite concreto (rearmes) deben declararse solo en actores que vayan a
 /// materializarse como sprite. Devuelve el resumen; `ok == false` marca rechazo.
+/// \tparam MaxActors capacidad máxima de actores
 template <eng::u16 MaxActors>
 inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors>& store,
 					   const ActorEmitContext& ctx, eng::u16 display_top,
@@ -360,17 +361,19 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 					eng::graphics::attached_pair_structure_words(h)) * 2u;
 			const eng::Span<const eng::u16> source =
 				a->desc.visual.pixels.subspan(word_off, src_words);
-			AttachedCookedCache* cache = s.cooked_pairs.size() > slot
-							? &s.cooked_pairs[slot]
-							: nullptr;
+			const eng::usize cache_slot =
+				s.cooked_pairs.size() > slot ? slot : s.cooked_pairs.size();
+			const bool has_cache = cache_slot < s.cooked_pairs.size();
 			eng::ChipView<eng::SpriteTag> even {};
 			eng::ChipView<eng::SpriteTag> odd {};
 			bool cook_needed = true;
-			if (cache != nullptr && cache->valid && cache->even.size() >= struct_bytes &&
-			    cache->odd.size() >= struct_bytes) {
-				even = cache->even.subview(0u, struct_bytes);
-				odd = cache->odd.subview(0u, struct_bytes);
-				cook_needed = cache->source != source.data() || cache->height != h;
+			if (has_cache && s.cooked_pairs[cache_slot].valid &&
+			    s.cooked_pairs[cache_slot].even.size() >= struct_bytes &&
+			    s.cooked_pairs[cache_slot].odd.size() >= struct_bytes) {
+				even = s.cooked_pairs[cache_slot].even.subview(0u, struct_bytes);
+				odd = s.cooked_pairs[cache_slot].odd.subview(0u, struct_bytes);
+				cook_needed = s.cooked_pairs[cache_slot].source != source.data() ||
+					      s.cooked_pairs[cache_slot].height != h;
 			}
 		if (even.empty() || odd.empty()) {
 			if (s.cooked.empty() || s.cooked_used > s.cooked.size() ||
@@ -386,12 +389,13 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 				   eng::graphics::kSpriteOffCtl, even, odd)) {
 			return r;
 		}
-		if (cache != nullptr) {
-			cache->even = even;
-			cache->odd = odd;
-			cache->source = source.data();
-			cache->height = h;
-			cache->valid = true;
+		if (has_cache) {
+			AttachedCookedCache& cache = s.cooked_pairs[cache_slot];
+			cache.even = even;
+			cache.odd = odd;
+			cache.source = source.data();
+			cache.height = h;
+			cache.valid = true;
 		}
 			// `SPRxPT` apunta a la DATA (tras la cabecera POS/CTL) y el canal termina en
 			// el par de ceros: misma vista que consume `SpriteManager::arm_object`.

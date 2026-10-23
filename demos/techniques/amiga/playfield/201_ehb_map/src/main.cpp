@@ -7,6 +7,7 @@
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
 #include <eng/core/math/sinetable.hpp>
+#include <eng/core/util/text_line.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -86,9 +87,10 @@ namespace playfield = eng::playfield;
 //   RAM  : un solo bitmap interleaved de display + el banco incbinado ALIADO
 //          (sin la 2ª copia interleaved) + un lienzo HUD fino -> total < 512 KB.
 //   CPU  : la demo solo decide quién/dónde mover la cámara y programa registros;
-//          los blits (1..n por frame) y la copperlist son cortos. La franja HUD
-//          muestra EN VIVO blit_jobs / blit_words / copper_words / fps por
-//          segmento, y el harness verifica 50 fps y el presupuesto por el canal
+//          los blits (1..n por frame) y la copperlist son cortos. El HUD de
+//          depuración vive en el overlay del host (`HostHud`): nombre + número +
+//          versión + frame + fps, con blit_jobs / blit_words / copper_words como
+//          telemetría; el harness verifica 50 fps y el presupuesto por el canal
 //          lateral (g_eng_frame_telemetry).
 //
 // -----------------------------------------------------------------------------
@@ -104,7 +106,8 @@ namespace playfield = eng::playfield;
 //                     con hud=48 queda main=208 (holgado). No reducir mucho el
 //                     hud con este viewport: un HUD fino (p. ej. 16) baja main a
 //                     240 y el corkscrew solapa la banda de staging con la franja.
-//   K_HUD_HEIGHT (48)  franja inferior con la telemetría en vivo (texto pequeño 1x).
+//   K_HUD_HEIGHT (48)  franja inferior reservada para conservar la geometría del
+//                     corkscrew; sin texto de depuración (el HUD es del host).
 //   K_SEG_FRAMES (150) frames de cada sesión Lissajous aleatoria (~3 s a 50 fps)
 // -----------------------------------------------------------------------------
 
@@ -158,6 +161,21 @@ constexpr eng::u32 kMapH = 40;
 constexpr eng::u32 kTileCount = 1149;             // tiles reales del tilebank
 constexpr eng::debug::Version kVersion {1u, 0u};
 constexpr eng::u32 kSegFrames = K_SEG_FRAMES;     // ~3 s a 50 fps
+
+/// Códigos de fallo de la demo 201: el byte alto identifica la demo y el bajo la etapa.
+/// Se pasan a `mark_failed` como enum (sin hexadecimales sueltos en la llamada).
+enum class Fail : eng::u32 {
+	Memory = 0x00020101u,       ///< `configure_memory`
+	SceneBegin = 0x00020102u,   ///< `scene.begin`
+	Fill = 0x00020103u,         ///< `scene.fill`
+	ComposeInit = 0x00020104u,  ///< `scene.compose` inicial
+	PreScroll = 0x00020105u,    ///< `scene.pre_scroll`
+	ComposeFrame = 0x00020110u, ///< `scene.compose` por frame
+	Blitter = 0x00020117u,      ///< `execute_frame_plan`
+};
+
+/// `detail` de `mark_ready` y base del diagnóstico del framebuffer de la demo 201.
+constexpr eng::u32 kReadyDetail = 0x00020100u;
 
 // Límites de scroll del motor (campo main = viewport - hud); coinciden con los
 // que el `TourDriver` usa para parar cada fase (ver `DemoGame::init`).
@@ -410,97 +428,6 @@ private:
 };
 
 // -----------------------------------------------------------------------------
-// Mini-fuente 5x7 (A-Z + 0-9) para el HUD, almacenada como 7 bytes/glifo con el
-// bit 4 (0x10) como columna más a la izquierda. Se pinta con `set_pixel` sobre
-// el lienzo HUD (CPU). Como esto compite con el DMA de bitplanes durante el
-// frame visible, SOLO se redibujan al cambiar de segmento (~cada 3 s).
-// -----------------------------------------------------------------------------
-constexpr eng::u8 kFont[][7] {
-	// A..Z
-	{0x0e,0x11,0x11,0x1f,0x11,0x11,0x11}, // A
-	{0x1e,0x11,0x11,0x1e,0x11,0x11,0x1e}, // B
-	{0x0e,0x11,0x10,0x10,0x10,0x11,0x0e}, // C
-	{0x1e,0x11,0x11,0x11,0x11,0x11,0x1e}, // D
-	{0x1f,0x10,0x10,0x1e,0x10,0x10,0x1f}, // E
-	{0x1f,0x10,0x10,0x1e,0x10,0x10,0x10}, // F
-	{0x0e,0x11,0x10,0x17,0x11,0x11,0x0f}, // G
-	{0x11,0x11,0x11,0x1f,0x11,0x11,0x11}, // H
-	{0x0e,0x04,0x04,0x04,0x04,0x04,0x0e}, // I
-	{0x07,0x02,0x02,0x02,0x02,0x12,0x0c}, // J
-	{0x11,0x12,0x14,0x18,0x14,0x12,0x11}, // K
-	{0x10,0x10,0x10,0x10,0x10,0x10,0x1f}, // L
-	{0x11,0x1b,0x15,0x15,0x11,0x11,0x11}, // M
-	{0x11,0x19,0x15,0x13,0x11,0x11,0x11}, // N
-	{0x0e,0x11,0x11,0x11,0x11,0x11,0x0e}, // O
-	{0x1e,0x11,0x11,0x1e,0x10,0x10,0x10}, // P
-	{0x0e,0x11,0x11,0x11,0x15,0x12,0x0d}, // Q
-	{0x1e,0x11,0x11,0x1e,0x14,0x12,0x11}, // R
-	{0x0f,0x10,0x10,0x0e,0x01,0x01,0x1e}, // S
-	{0x1f,0x04,0x04,0x04,0x04,0x04,0x04}, // T
-	{0x11,0x11,0x11,0x11,0x11,0x11,0x0e}, // U
-	{0x11,0x11,0x11,0x11,0x11,0x0a,0x04}, // V
-	{0x11,0x11,0x11,0x15,0x15,0x1b,0x11}, // W
-	{0x11,0x0a,0x04,0x04,0x04,0x0a,0x11}, // X
-	{0x11,0x0a,0x04,0x04,0x04,0x04,0x04}, // Y
-	{0x1f,0x01,0x02,0x04,0x08,0x10,0x1f}, // Z
-	// 0..9
-	{0x0e,0x11,0x13,0x15,0x19,0x11,0x0e}, // 0
-	{0x04,0x0c,0x04,0x04,0x04,0x04,0x0e}, // 1
-	{0x0e,0x11,0x01,0x02,0x04,0x08,0x1f}, // 2
-	{0x1e,0x01,0x01,0x0e,0x01,0x01,0x1e}, // 3
-	{0x02,0x06,0x0a,0x12,0x1f,0x02,0x02}, // 4
-	{0x1f,0x10,0x10,0x1e,0x01,0x01,0x1e}, // 5
-	{0x0e,0x10,0x10,0x1e,0x11,0x11,0x0e}, // 6
-	{0x1f,0x01,0x02,0x04,0x08,0x08,0x08}, // 7
-	{0x0e,0x11,0x11,0x0e,0x11,0x11,0x0e}, // 8
-	{0x0e,0x11,0x11,0x0f,0x01,0x01,0x0e}, // 9
-};
-
-/// Índice de glifo para un carácter (A..Z, 0..9); -1 si no se soporta.
-constexpr eng::s8 font_index(char ch) {
-	if (ch >= 'A' && ch <= 'Z') return static_cast<eng::s8>(ch - 'A');
-	if (ch >= '0' && ch <= '9') return static_cast<eng::s8>(26 + (ch - '0'));
-	return -1;
-}
-
-void draw_glyph(playfield::Surface& s, eng::s32 px, eng::s32 py, eng::s32 scale, eng::s8 gi, eng::u8 ink) {
-	if (gi < 0) return;
-	for (eng::u8 r = 0; r < 7; ++r) {
-		const eng::u8 bits = kFont[gi][r];
-		for (eng::u8 c = 0; c < 5; ++c) {
-			if ((bits & (1u << (4u - c))) == 0u) continue;
-			for (eng::s32 sy = 0; sy < scale; ++sy)
-				for (eng::s32 sx = 0; sx < scale; ++sx)
-					s.set_pixel(px + c * scale + sx, py + r * scale + sy, ink);
-		}
-	}
-}
-
-// Dibuja un string de ancho fijo SOBRE un fondo ya rellenado; `ink` marca los
-// píxeles del glifo y `bg` rellena las celdas no usadas (para borrar lo previo).
-void draw_text(playfield::Surface& s, eng::s32 x, eng::s32 y, eng::s32 scale, const char* t, eng::u8 ink, eng::u8 bg) {
-	const eng::s32 gw = 6 * scale;          // avance de celda (5 + 1 de espacio)
-	const eng::s32 gh = 7 * scale;
-	eng::s32 cx = x;
-	for (; *t != '\0'; ++t) {
-		if (bg != ink) s.fill_rect(cx, y, gw, gh, bg);
-		if (*t != ' ') draw_glyph(s, cx, y, scale, font_index(*t), ink);
-		cx += gw;
-	}
-}
-
-// Número decimal a cadena (p. ej. 12345 -> "12345").
-void u16_to_str(eng::u16 v, char* out) {
-	char tmp[6] = {};
-	eng::u8 i = 0;
-	do { tmp[i++] = static_cast<char>('0' + (v % 10u)); v = static_cast<eng::u16>(v / 10u); }
-	while (v != 0u && i < 5u);
-	eng::u8 j = 0;
-	while (i > 0u) { out[j++] = tmp[--i]; }
-	out[j] = '\0';
-}
-
-// -----------------------------------------------------------------------------
 // Juego
 // -----------------------------------------------------------------------------
 struct DemoGame {
@@ -511,7 +438,6 @@ struct DemoGame {
 	eng::u32 frameOfDay = 0;
 	bool ready = false;
 	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
-	bool hudDirty = true;   // redibujar el HUD (inicio + cada segmento)
 	// Estado del auto-verificador de framebuffer (diagnóstico).
 	bool fbChecked = false;
 	bool fbStartDone = false;
@@ -525,7 +451,7 @@ struct DemoGame {
 		// 200 KB de arena Chip para display+copper+relleno; el banco incbinado se
 		// alia sin copiar. Con los 512 KB del A500 (quickstart=a500,1) sobra.
 		if (!backend.configure_memory({200u * 1024u, 16u * 1024u, 8u * 1024u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00020101u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
 			return;
 		}
 
@@ -593,7 +519,7 @@ struct DemoGame {
 		//  dice qué tiles/tiles deberían verse y recorta la referencia).
 		// ---------------------------------------------------------------------
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00020102u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::SceneBegin);
 			return;
 		}
 		// Límites de scroll del motor (el campo ve main_h = viewport - hud).
@@ -602,7 +528,7 @@ struct DemoGame {
 		driver.begin(maxX, maxY, K_START_X, K_START_Y);
 
 		if (!scene.fill(backend, plan)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00020103u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Fill);
 			return;
 		}
 		// ORIGEN ARBITRARIO: si el juego arranca en una coordenada del mapa
@@ -612,63 +538,18 @@ struct DemoGame {
 		// sin re-pintar la pantalla). Con K_START_X=K_START_Y=0 no hace nada.
 		if (K_START_X != 0 || K_START_Y != 0) {
 			if (!scene.pre_scroll(backend, plan, K_START_X, K_START_Y)) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00020105u);
+				eng::debug::mark_failed(g_eng_run_status, Fail::PreScroll);
 				return;
 			}
 		}
 		if (!scene.compose()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00020104u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeInit);
 			return;
 		}
 		scene.takeover(backend);
-		// Pinta el HUD inicial (fase 1, salto máx. 4 px/frame) con datos en 0.
-		draw_hud();
 
 		ready = true;
-		eng::debug::mark_ready(g_eng_run_status, 0x00020100u);
-	}
-
-	// Redibuja la franja HUD (solo al cambiar de segmento). Se llama desde
-	// render() (durante el vblank) para no competir con el DMA en scanlines
-	// visibles. HUD con texto pequeño (1x): modo/step + carga del segmento
-	// sobre fondo oscuro limpio.
-	void draw_hud() {
-		auto hud = scene.hud_surface();
-		// Guarda izquierda de fetch del corkscrew (DDFSTRT $30): el display lee el
-		// lienzo del HUD con esa guarda oculta a la izquierda, así que el texto se
-		// dibuja desplazado kHudFetchGuard para quedar alineado a la ventana.
-		constexpr eng::s32 kHudFetchGuard = 16;
-		// Sin barrido previo del lienzo completo: draw_text rellena cada celda con
-		// el fondo (bg) antes de pintar el glifo, y el resto de la franja quedó
-		// negro desde el init. Así el coste por redibujado es solo texto.
-		// Línea 1 (cian, ink 6): "OBLIQ^ P=4"
-		{   char line[20]; eng::u8 i = 0;
-			const char* mn = driver.phase_name();
-			while (*mn && i < 19) line[i++] = *mn++;
-			const char* sp = " P=";
-			while (*sp && i < 19) line[i++] = *sp++;
-			const eng::u8 st = static_cast<eng::u8>(kPhaseStep);
-			if (st >= 10) line[i++] = static_cast<char>('0' + st / 10u);
-			line[i++] = static_cast<char>('0' + st % 10u);
-			line[i] = '\0';
-			draw_text(hud, 2 + kHudFetchGuard, 3, 1, line, 6, 0);
-		}
-		// Línea 2 (gris claro, ink 14): "BLITS=nn WORDS=nnnnn"
-		{   char n1[7], n2[7]; u16_to_str(driver.last_blit_max(), n1); u16_to_str(driver.last_words_max(), n2);
-			char line[28]; eng::u8 i = 0;
-			const char* parts[4] { "BLITS=", n1, " WORDS=", n2 };
-			for (eng::u8 p = 0; p < 4; ++p) { const char* t = parts[p]; while (*t && i < 27) line[i++] = *t++; }
-			line[i] = '\0';
-			draw_text(hud, 2 + kHudFetchGuard, 17, 1, line, 14, 0);
-		}
-		// Línea 3 (azul, ink 4): "COPPER=nnn FPS=50"
-		{   char n1[7], n2[7]; u16_to_str(driver.last_copper(), n1); u16_to_str(50, n2);
-			char line[24]; eng::u8 i = 0;
-			const char* parts[4] { "COPPER=", n1, " FPS=", n2 };
-			for (eng::u8 p = 0; p < 4; ++p) { const char* t = parts[p]; while (*t && i < 23) line[i++] = *t++; }
-			line[i] = '\0';
-			draw_text(hud, 2 + kHudFetchGuard, 31, 1, line, 4, 0);
-		}
+		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
 	}
 
 	// ---------------------------------------------------------------------
@@ -788,12 +669,12 @@ struct DemoGame {
 
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00020117u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 			return;
 		}
 		if (!scene.compose()) {
 			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00020110u);
+			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeFrame);
 			return;
 		}
 
@@ -812,7 +693,7 @@ struct DemoGame {
 		if (!fbChecked && scene.bg().mapposx() >= kMaxScrollX && scene.bg().mapposy() == 0) {
 			fbMismatch = framebuffer_mismatch_tiles();
 			fbChecked = true;
-			g_eng_run_status.detail = 0x00020100u | static_cast<eng::u32>(fbStart) |
+			g_eng_run_status.detail = kReadyDetail | static_cast<eng::u32>(fbStart) |
 				(static_cast<eng::u32>(fbMismatch) << 8u);
 		}
 #endif
@@ -820,15 +701,17 @@ struct DemoGame {
 		// Acumula en el segmento en curso para reportar el pico en el HUD.
 		driver.note_telemetry(tel.blit_jobs, tel.blit_words, tel.copper_words);
 		++frameOfDay;
+		eng::util::TextLine<96> stats;
+		stats << driver.phase_name() << " P=" << eng::u16(kPhaseStep)
+		      << " BLITS=" << driver.last_blit_max()
+		      << " WORDS=" << driver.last_words_max()
+		      << " COPPER=" << driver.last_copper();
 		m_host_hud.draw(backend.debug(), "201 EHB MAP", kVersion, frameOfDay,
-				eng::debug::prof_clock());
+				eng::debug::prof_clock(), stats.c_str());
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) {
-			if (hudDirty) { draw_hud(); hudDirty = false; }
-			// Redibuja el HUD al cambiar de segmento (una vez cada ~3 s).
-			if (driver.just_changed()) { draw_hud(); }
 			scene.install(backend);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);

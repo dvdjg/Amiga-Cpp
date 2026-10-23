@@ -1360,7 +1360,6 @@ private:
 	// --- Pintado de la franja ---
 	void draw_hud_static() {
 		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, kHudW, kHudLines}};
-		hud.fill_rect(0, 0, static_cast<s16>(kHudW), static_cast<s16>(kHudLines), 0u);
 		build_verbs();
 		for (u8 i = 0u; i < m_verbs.size(); ++i) {
 			m_verb_state[i] = 0xffu; // sentinela: la primera pintura no se salta

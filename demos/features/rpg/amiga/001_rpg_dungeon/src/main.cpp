@@ -73,6 +73,12 @@ constexpr eng::u16 kHudY = 224u;       // franja inferior reservada (norma del r
 constexpr eng::u8 kMovePeriod = 8u;    // frames por paso de casilla (6,25 casillas/s)
 constexpr eng::debug::Version kVersion {1u, 0u}; // el build lo inyecta build-demo.sh
 
+/// Códigos de fallo de la demo 001 (byte alto = demo, bajo = etapa).
+enum class Fail : eng::u32 {
+	Memory = 0x00010101u,  ///< `configure_game_memory`
+	Display = 0x00010102u, ///< `set_display`/`start`
+};
+
 constexpr eng::u8 kColBack = 0u;        // fondo y paso abierto (negro)
 constexpr eng::u8 kColWall = 2u;        // muros
 constexpr eng::u8 kColPlayer = 3u;      // cuerpo del jugador
@@ -861,21 +867,14 @@ struct RpgGame {
 	/// solo cuando numeros visibles cambian (la division es un desplazamiento).
 	eng::u8 m_hud_hunger_band = 0xffu;
 
-	/// Compone las tres lineas del HUD en la tira Chip (llamado solo cuando cambia el
-	/// estado): glifos de `Font8` como palabras de 16 px, sin pasar por el rasterizador.
+	/// Compone las dos líneas de juego del HUD en la tira Chip (llamado solo cuando
+	/// cambia el estado): glifos de `Font8` como palabras de 16 px, sin pasar por el
+	/// rasterizador. La identidad/frame/fps los muestra `HostHud` en el overlay.
 	void compose_hud(eng::Words<eng::BobTag> strip) {
 		for (eng::u16 i = 0u; i < kHudRows * kHudWordsPerRow * 4u; ++i) {
 			strip[i] = 0u; // fondo negro de la tira (autoborra el HUD anterior)
 		}
 		eng::util::StaticString<48> line {};
-		// Linea 1: nombre + version (build inyectado) + contador de frames (depuracion).
-		char label[16] = {};
-		(void)eng::debug::version_label(kVersion, label, sizeof(label));
-		line.assign("RPG DUNGEON ");
-		(void)line.append(label);
-		(void)line.append(" F ");
-		(void)eng::util::to_chars(line, m_frame_no);
-		compose_hud_line(strip, 2u, line.c_str(), kColText);
 
 		// Linea 2: inventario, ataque derivado y hambre.
 		line.clear();
@@ -891,7 +890,7 @@ struct RpgGame {
 		(void)eng::util::to_chars(line, static_cast<eng::s32>(derived_stat(m_stats, 0u)));
 		(void)line.append(" HUNGER ");
 		(void)eng::util::to_chars(line, static_cast<eng::u32>(m_needs.hunger));
-		compose_hud_line(strip, 11u, line.c_str(), kColText);
+		compose_hud_line(strip, 2u, line.c_str(), kColText);
 
 		// Linea 3: objetivo (se mueve con los hechos de historia).
 		line.clear();
@@ -902,7 +901,7 @@ struct RpgGame {
 		} else {
 			(void)line.append("OBJ CRAFT A SWORD AT THE ANVIL");
 		}
-		compose_hud_line(strip, 20u, line.c_str(), kColText);
+		compose_hud_line(strip, 11u, line.c_str(), kColText);
 	}
 
 	/// Publica el HUD: la tira es plane-major (plano 0: 24x20 palabras; luego plano 1...) y
@@ -967,7 +966,7 @@ int main() {
 
 	eng::amiga::AmigaBackend backend {};
 	if (!backend.configure_game_memory()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00010101u);
+		eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
 		return 0;
 	}
 
@@ -992,9 +991,11 @@ int main() {
 	RpgGame game {};
 	eng::App app {backend, game, backend.memory_manager()};
 	if (!app.set_display(display) || !app.start()) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00010102u);
+		eng::debug::mark_failed(g_eng_run_status, Fail::Display);
 		return 0;
 	}
-	app.run(0xffffu);
+	// Bajo un SO vivo el backend declara la espera por IRQ insegura (0xE212): usar el
+	// bucle por sondeo, igual que las demos 119/120, para no colgar el VBlank.
+	app.run_polling(0xffffu);
 	return 0;
 }

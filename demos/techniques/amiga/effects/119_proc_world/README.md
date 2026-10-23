@@ -58,13 +58,9 @@ g++ -std=gnu++23 -O2 -Iengine/include $D/tools/gen_assets.cpp -o out/tmp/gen_ass
 estable a **49,8 fps**. Durante la validación se reconfirmó el fallo `a5=0` del 212 para el
 bucle por IRQ (evidencia y alcance en [`VALIDATION.md`](VALIDATION.md) §Latido).
 
-## Franja de versión y telemetría viva
+## HUD de depuración
 
-La franja inferior de 16 px (norma del repo) muestra `PROC WORLD v<major>.<minor>.<build>`
-(el **build lo inyecta** `build-demo.sh` con el contador persistente `out/.build-number`),
-`LOAD <NNNN>KC PIECES 78` y un **contador de frames** (`F nnnnnn`) que se refresca cada
-frame por **parcheo planar mínimo** (`IndexedDisplay::patch_text`: solo se reescriben por
-planos los dígitos que cambian, sin C2P) — ~1-2 celdas de 8×8 por frame.
+El overlay del host (`HostHud`) muestra `PROC WORLD v<major>.<minor>.<build>`, el frame renderizado y los fps, y una línea de telemetría con `LOAD <NNNN>KC PIECES 78`. La franja inferior de 16 px queda negra para conservar la geometría histórica; el contador de frames y la versión ya no se parchean en bitplanes.
 
 **Bajo un SO vivo la espera de VBlank es ACTIVA** (`set_vblank_sleep(false)`, variante 2 del
 212): con `Wait()` el libro de display del SO reescribe `INTENA` y borra el `VERTB` del

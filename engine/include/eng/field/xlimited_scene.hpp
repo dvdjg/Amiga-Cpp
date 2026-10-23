@@ -536,6 +536,7 @@ public:
         }
         m_phase_frame = 0;
         m_phase = cfg.path.start_phase; // fase inicial del ciclo (update_auto)
+        if (cfg.hud.height != 0u) m_hud.clear(); // HUD limpio por defecto, sin trabajo del llamador
         m_initialized = true;
         return {};
     }
@@ -740,9 +741,10 @@ public:
         else m_single.install(backend);
     }
 
-    /// Toma el control del display e instala la primera copperlist (una vez).
+    /// Toma el control del display e instala la primera copperlist (una vez). El lienzo
+    /// HUD ya nace limpio en `begin`; dibújalo después de esta llamada si lo necesitas.
     template <typename Backend>
-    void takeover(Backend& backend) const {
+    void takeover(Backend& backend) {
         if (!m_initialized) return;
         if (m_cfg.dpf.enabled) m_dual.takeover(backend);
         else m_single.takeover(backend);
@@ -878,7 +880,8 @@ public:
     Surface bg_surface() {
         return Surface(m_field[0], {0, 0, m_field[0].width(), m_field[0].display_height()});
     }
-    /// Superficie de dibujo sobre el lienzo HUD (coordenadas de lienzo = pantalla).
+    /// Superficie de dibujo sobre el lienzo HUD (coordenadas de lienzo = pantalla). El
+    /// lienzo nace limpio a negro en `begin`; dibuja el contenido después.
     Surface hud_surface() {
         return Surface(m_hud, {0, 0, m_hud.width(), m_hud.height()});
     }

@@ -26,6 +26,7 @@ public:
     };
 
     /// Reserva el framebuffer en Chip RAM (interleaved, `row_bytes*height*planes`).
+    /// El lienzo queda **limpio a negro** (índice 0); el llamador no debe limpiarlo a mano.
     bool begin(MemoryManager& memory, const Config& cfg) {
         if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
         gfx::BitmapConfig bc;
@@ -38,8 +39,8 @@ public:
         sync_from_bitmap();
         m_width = cfg.width; // coordenadas del juego = fila visible (sin la guarda)
         m_x_offset_px = cfg.x_offset_px;
-        __builtin_memset(m_frontbuffer.ptr(), 0, m_total_bytes);
         m_initialized = true;
+        clear();
         return true;
     }
 
@@ -67,6 +68,28 @@ public:
         m_frontbuffer = bitplanes.mem_view_chip().address(); // vía cruda interna (núcleo)
         m_initialized = true;
         return true;
+    }
+
+    /// **Limpia el lienzo completo** al índice de color `color` (0 = negro). La usa
+    /// `begin` para dejar un estado inicial determinista; el llamador no necesita
+    /// repetirla al arrancar. `HudStrip::bind` también la usa sobre su franja.
+    /// `bind` sobre buffers externos no borra contenido ajeno. Coste O(planos × filas × bytes), solo en init.
+    /// \param color índice de paleta (se escribe como bits de plano; 0 = todo negro).
+    void clear(u8 color = 0u) noexcept {
+        if (!m_initialized || m_total_bytes == 0u) return;
+        if (color == 0u) {
+            __builtin_memset(m_frontbuffer.ptr(), 0, m_total_bytes);
+            return;
+        }
+        const u32 bytes = static_cast<u32>(m_bytes_per_row);
+        for (u32 y = 0u; y < m_height; ++y) {
+            for (u8 p = 0u; p < m_planes; ++p) {
+                const u8 byte = ((color >> p) & 1u) != 0u ? 0xffu : 0u;
+                u8* dst = m_frontbuffer.ptr() +
+                          (y * m_planes + p) * bytes;
+                for (u32 b = 0u; b < bytes; ++b) dst[b] = byte;
+            }
+        }
     }
 
     /// Planos del lienzo cuando se construyó con `bind` (vacío si se usó `begin`, cuyo

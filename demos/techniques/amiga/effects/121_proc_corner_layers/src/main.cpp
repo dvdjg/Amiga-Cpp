@@ -24,8 +24,9 @@
 //      fondo en Chip (`add_world_bitmap`) y (b) dibujar el actor desplazado
 //      (`add_world_bitmap_masked`; 16 variantes de subpíxel precomputadas y máscara =
 //      `actor & ~copas`, de modo que los píxeles de copa no se escriben).
-//   5. **HUD de 1 bitplane** con nombre + versión + contador de frames por palabras
-//      (`Surface::draw_text_words`, norma del repo).
+//   5. **HUD de host** (`HostHud`): nombre + número + versión + frame + fps, con las
+//      piezas cocidas como línea de telemetría. La franja de 48 px se conserva para la
+//      geometría del corkscrew y queda sin texto de depuración.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/121_proc_corner_layers --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/121_proc_corner_layers --warp
@@ -445,6 +446,47 @@ static_assert(kBaked.overflow == 0u, "el mundo cabe en el tileset cocido");
 /// Formato de la demo (major.minor; el build inyecta `-DENG_BUILD_NUMBER`).
 constexpr eng::debug::Version kVersion {1u, 0u};
 
+// Códigos de fallo de la demo 121 (byte alto = demo, bajo = etapa). Se usan como
+// constantes con nombre para que `mark_failed`/los diagnósticos no lleven hex opaco.
+constexpr eng::u32 kFailBadSub = 0x00012100u;        ///< subposición/verificación de banda
+constexpr eng::u32 kFailMemory = 0x00012101u;        ///< `configure_memory`
+constexpr eng::u32 kFailScratchOrBody = 0x00012102u; ///< scratch del actor / cuerpo fuera de sitio
+constexpr eng::u32 kFailSceneBegin = 0x00012103u;    ///< `scene.begin`
+constexpr eng::u32 kFailFill = 0x00012104u;          ///< `scene.fill`
+constexpr eng::u32 kFailCompose = 0x00012105u;       ///< `scene.compose`
+constexpr eng::u32 kFailBodyGrid = 0x00012106u;      ///< rejilla de cuerpos
+constexpr eng::u32 kFailBlit = 0x00012107u;          ///< `execute_frame_plan`
+constexpr eng::u32 kFailPixel = 0x00012108u;         ///< lectura de píxel de contraste
+constexpr eng::u32 kFailBands = 0x00012109u;         ///< bandas del actor
+constexpr eng::u32 kFailFrameCompose = 0x00012110u;  ///< compose por frame
+constexpr eng::u32 kFailFrameBlitA = 0x00012111u;    ///< blit por frame (A)
+constexpr eng::u32 kFailFrameBlitB = 0x00012112u;    ///< blit por frame (B)
+constexpr eng::u32 kFailTwoPlan = 0x00012113u;       ///< plan partido
+constexpr eng::u32 kFailLane = 0x00012114u;          ///< carril del actor
+constexpr eng::u32 kFailRingGuard = 0x00012115u;     ///< guarda del anillo
+constexpr eng::u32 kFailRect = 0x00012116u;          ///< validación de rectángulo
+constexpr eng::u32 kFailWord = 0x00012117u;          ///< validación de palabra
+constexpr eng::u32 kFailDisplayBase = 0x00012119u;   ///< base de display
+constexpr eng::u32 kFailActorAdd = 0x00012120u;      ///< alta de actor
+constexpr eng::u32 kFailActorBlit = 0x00012121u;     ///< blit de actor
+constexpr eng::u32 kFailActorExecute = 0x00012122u;  ///< ejecución del plan del actor
+constexpr eng::u32 kFailGoldenAdd = 0x00012123u;     ///< alta golden
+constexpr eng::u32 kFailActorEmit = 0x00012124u;     ///< emisión de actor
+constexpr eng::u32 kFailGoldenExecute = 0x00012125u; ///< ejecución golden
+constexpr eng::u32 kFailBodyFault = 0x0001212Fu;     ///< cuerpo fuera de la ventana
+constexpr eng::u32 kFailAux = 0x00012130u;           ///< reserva auxiliar
+constexpr eng::u32 kFailActorValid = 0x00012131u;    ///< actor inválido
+constexpr eng::u32 kFailEmitActor = 0x00012132u;     ///< emisión inicial del actor
+constexpr eng::u32 kFailBodyRead = 0x00012133u;      ///< lectura del cuerpo
+constexpr eng::u32 kFailUpdateEmit = 0x00012134u;    ///< emisión en update
+constexpr eng::u32 kFailTop = 0x00012135u;           ///< píxel superior
+constexpr eng::u32 kFailWrapped = 0x00012136u;       ///< píxel envuelto
+constexpr eng::u32 kFailCorner = 0x00012137u;        ///< píxel de esquina
+constexpr eng::u32 kFailDisplayDelta = 0x00012141u;  ///< delta de base de display
+
+/// `detail` de `mark_ready`: identifica la demo 121 en el canal lateral.
+constexpr eng::u32 kReadyDetail = 0x00000121u;
+
 // Paleta del HUD (1 bitplane, 2 colores) y del campo (32 colores del atlas).
 eng::u16 g_hud_palette[2] {0x000u, 0xFFFu};
 eng::u16 g_world_palette[32] {};
@@ -482,19 +524,15 @@ struct ProcStructuresDemo {
 	u16 m_restore_x = kActorMinX; // ventana alineada del actor del frame anterior
 	s16 m_dir = 1;
 	u32 m_frames = 0u;
-	eng::util::TextLine<16> m_frame_text;
-	bool m_hud_dirty = true;
-	bool m_hud_cleared = false;
 	bool m_ready = false;
 	eng::debug::HostHud m_host_hud {}; ///< HUD del host (nombre/número/versión/frame/fps)
 	u8 m_body_faults = 0u; // fallos consecutivos de la guarda de render
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_frame_text << 'F' << ' ' << 0u;
 		// Chip: anillo del corkscrew + banco + copper + HUD + scratch del actor.
 		if (!backend.configure_memory({200u * 1024u, 16u * 1024u, 8u * 1024u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012101u);
+			eng::debug::mark_failed(g_eng_run_status, kFailMemory);
 			return;
 		}
 		m_scratch = backend.memory_manager().chip().reserve<eng::PlaneTag>(
@@ -507,7 +545,7 @@ struct ProcStructuresDemo {
 #endif
 			,
 			16u);	if (!m_scratch.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012102u);
+			eng::debug::mark_failed(g_eng_run_status, kFailScratchOrBody);
 			return;
 		}
 		u16* const base = reinterpret_cast<u16*>(m_scratch.view.data());
@@ -567,7 +605,7 @@ struct ProcStructuresDemo {
 		scene_cfg.palette = eng::PaletteWords {g_world_palette, 32u};
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012103u);
+			eng::debug::mark_failed(g_eng_run_status, kFailSceneBegin);
 			return;
 		}
 		// **Invariante de geometría del anillo**: la guarda que suman los blits del actor
@@ -576,7 +614,7 @@ struct ProcStructuresDemo {
 		// (`read_visible_pixel`); si divergen, el actor se dibuja fuera de la fila que se
 		// muestra y la verificación leería otro píxel.
 		if (scene.bg().hardware_view().display_offset != kRingGuardY) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012115u);
+			eng::debug::mark_failed(g_eng_run_status, kFailRingGuard);
 			return;
 		}
 		// **Chequeo de solape scratch ↔ bitmap del campo**: el scratch del actor
@@ -599,7 +637,7 @@ struct ProcStructuresDemo {
 				const eng::u32 delta = (fb > sb) ? (fb - sb) : (sb - fb);
 				eng::debug::mark_failed(
 					g_eng_run_status,
-					0x00012119u | ((delta >> 10u) & 0xFFFFu) << 8u);
+					kFailDisplayBase | ((delta >> 10u) & 0xFFFFu) << 8u);
 				return;
 			}
 		}
@@ -629,7 +667,7 @@ struct ProcStructuresDemo {
 				if (!r.ok()) {
 					eng::debug::mark_failed(
 						g_eng_run_status,
-						0x00012116u | (u32(r.code) << 8u) |
+						kFailRect | (u32(r.code) << 8u) |
 							(u32(r.actual & 0xFFFFu) << 16u));
 					return;
 				}
@@ -639,18 +677,18 @@ struct ProcStructuresDemo {
 							       u16(kLaneWordCells));
 			if (!w.ok()) {
 				eng::debug::mark_failed(g_eng_run_status,
-							0x00012117u | (u32(w.actual) << 16u));
+							kFailWord | (u32(w.actual) << 16u));
 				return;
 			}
 		}
 		// **Relleno por el motor de tiles**: todos los tiles del mundo al bitmap con el
 		// Blitter (banco interleaved). Sin compose por píxel ni C2P.
 		if (!scene.fill(backend, plan)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012104u);
+			eng::debug::mark_failed(g_eng_run_status, kFailFill);
 			return;
 		}
 		if (!scene.compose()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012105u);
+			eng::debug::mark_failed(g_eng_run_status, kFailCompose);
 			return;
 		}
 		scene.takeover(backend);
@@ -662,7 +700,7 @@ struct ProcStructuresDemo {
 		// por subpíxel ni restaurador de ventana propios: el sistema lo cubre.
 		m_aux = backend.memory_manager().chip().reserve<eng::PlaneTag>(2048u, 16u);
 		if (!m_aux.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012130u);
+			eng::debug::mark_failed(g_eng_run_status, kFailAux);
 			return;
 		}
 		m_pack = reinterpret_cast<u16*>(m_aux.view.data());
@@ -715,7 +753,7 @@ struct ProcStructuresDemo {
 			m_actor_id = m_actor_store.add(d, m_actor_alloc);
 			auto actor = m_actor_store.get(m_actor_id);
 			if (!actor.valid()) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00012131u);
+				eng::debug::mark_failed(g_eng_run_status, kFailActorValid);
 				return;
 			}
 			// Contrato del destino interleaved: pack con guarda (ver HOST-453).
@@ -734,7 +772,7 @@ struct ProcStructuresDemo {
 		// **Auto-chequeo del camino nuevo**: emite una vez en la posición inicial y relee
 		// el cuerpo (el primer `update` restaurará esa caja con el save-under).
 		if (!emit_actor_system(backend)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012132u);
+			eng::debug::mark_failed(g_eng_run_status, kFailEmitActor);
 			return;
 		}
 #if defined(K121_ACTOR_SEAM)
@@ -748,7 +786,7 @@ struct ProcStructuresDemo {
 			const u8 body = read_body_stable(u16(kActorMinX + kRingGuardX + 8u), u16(kActorY + 8u));
 			if (body != 31u) {
 				eng::debug::mark_failed(g_eng_run_status,
-							0x00012133u | (u32(body) << 16u));
+							kFailBodyRead | (u32(body) << 16u));
 				return;
 			}
 		}
@@ -777,7 +815,7 @@ struct ProcStructuresDemo {
 						    prev.top, scene.bg().hardware_view().display_height, m_ring_target, a0->desc.save[0],
 						    a0->desc.save_words_per_row, a0->desc.save_height) ||
 					    !backend.execute_frame_plan(plan)) {
-						eng::debug::mark_failed(g_eng_run_status, 0x00012122u);
+						eng::debug::mark_failed(g_eng_run_status, kFailActorExecute);
 						return;
 					}
 				}
@@ -806,7 +844,7 @@ struct ProcStructuresDemo {
 				const eng::scene::ActorId gid = m_actor_store.add(gd, m_actor_alloc);
 				auto ga = m_actor_store.get(gid);
 				if (!ga.valid()) {
-					eng::debug::mark_failed(g_eng_run_status, 0x00012123u);
+					eng::debug::mark_failed(g_eng_run_status, kFailGoldenAdd);
 					return;
 				}
 				ga->bob.sheet = eng::ChipView<eng::BobTag> {
@@ -822,12 +860,12 @@ struct ProcStructuresDemo {
 				ga->bob.frame_stride = 0u;
 				if (eng::scene::actor_emit(plan, *ga, gctx) !=
 				    eng::scene::ActorEmitStatus::Ok) {
-					eng::debug::mark_failed(g_eng_run_status, 0x00012124u);
+					eng::debug::mark_failed(g_eng_run_status, kFailActorEmit);
 					return;
 				}
 #if defined(K121_GOLDEN_ONE_PLAN_PER_ACTOR)
 				if (!backend.execute_frame_plan(plan)) {
-					eng::debug::mark_failed(g_eng_run_status, 0x00012125u);
+					eng::debug::mark_failed(g_eng_run_status, kFailGoldenExecute);
 					return;
 				}
 				plan.clear();
@@ -835,7 +873,7 @@ struct ProcStructuresDemo {
 #endif
 			}
 			if (!backend.execute_frame_plan(plan)) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00012125u);
+				eng::debug::mark_failed(g_eng_run_status, kFailGoldenExecute);
 				return;
 			}
 			m_actor_x = kActorMinX;
@@ -867,7 +905,7 @@ struct ProcStructuresDemo {
 			    kActorRows, u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u,
 			    kPlanes) ||
 		    !backend.execute_frame_plan(plan)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012114u);
+			eng::debug::mark_failed(g_eng_run_status, kFailLane);
 			return;
 		}
 		m_restore_x = u16((m_actor_x >> 4u) << 4u);
@@ -907,14 +945,14 @@ struct ProcStructuresDemo {
 						    gm, eng::u32(kActorWords) * kActorRows},
 					    s32(cols[k] * 16u + kRingGuardX), s32(kActorY) + s32(kRingGuardY), 32u,
 					    kActorRows, 4u, kActorRows * 4u, kPlanes)) {
-					eng::debug::mark_failed(g_eng_run_status, 0x00012120u);
+					eng::debug::mark_failed(g_eng_run_status, kFailActorAdd);
 					return;
 				}
 #if defined(K121_GOLDEN_ONE_PLAN_PER_ACTOR)
 				// Bisección: cada actor en su PROPIO plan/execute (para aislar si el
 				// corrimiento de subposiciones viene del plan multi-job/lote).
 				if (!backend.execute_frame_plan(plan)) {
-					eng::debug::mark_failed(g_eng_run_status, 0x00012121u);
+					eng::debug::mark_failed(g_eng_run_status, kFailActorBlit);
 					return;
 				}
 				plan.clear();
@@ -922,7 +960,7 @@ struct ProcStructuresDemo {
 #endif
 			}
 			if (!backend.execute_frame_plan(plan)) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00012121u);
+				eng::debug::mark_failed(g_eng_run_status, kFailActorBlit);
 				return;
 			}
 			m_actor_x = kActorMinX;
@@ -930,9 +968,8 @@ struct ProcStructuresDemo {
 		}
 #endif
 #endif // !K121_ACTOR_SYSTEM
-		draw_hud();
 		m_ready = true;
-		eng::debug::mark_ready(g_eng_run_status, 0x00000121u);
+		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
@@ -955,7 +992,7 @@ struct ProcStructuresDemo {
 				m_ready = false;
 				eng::debug::mark_failed(
 					g_eng_run_status,
-					0x00012141u | (((delta >> 8u) & 0xFFFFu) << 8u));
+					kFailDisplayDelta | (((delta >> 8u) & 0xFFFFu) << 8u));
 				return;
 			}
 		}
@@ -993,7 +1030,7 @@ struct ProcStructuresDemo {
 			cook_pack_mask(m_actor_x);
 			if (!emit_actor_system(backend)) {
 				m_ready = false;
-				eng::debug::mark_failed(g_eng_run_status, 0x00012134u);
+				eng::debug::mark_failed(g_eng_run_status, kFailUpdateEmit);
 				return;
 			}
 #if defined(K121_ACTOR_SEAM)
@@ -1015,7 +1052,7 @@ struct ProcStructuresDemo {
 			    s32(kActorY) + s32(kRingGuardY),
 			    2u, kActorRows, u16(kLaneWordCells), kPlanes)) {
 			m_ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00012110u);
+			eng::debug::mark_failed(g_eng_run_status, kFailFrameCompose);
 			return;
 		}
 		// **Plan único por frame** (restaurador + actor en el MISMO `FramePlan`): la
@@ -1027,7 +1064,7 @@ struct ProcStructuresDemo {
 #if defined(K121_TWO_PLAN_SPLIT)
 		if (!backend.execute_frame_plan(plan)) {
 			m_ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00012113u);
+			eng::debug::mark_failed(g_eng_run_status, kFailTwoPlan);
 			return;
 		}
 		plan.clear();
@@ -1055,7 +1092,7 @@ struct ProcStructuresDemo {
 4u,
 			    kActorRows * 4u, kPlanes)) {
 			m_ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00012111u);
+			eng::debug::mark_failed(g_eng_run_status, kFailFrameBlitA);
 			return;
 		}
 		// La ventana a restaurar el frame siguiente es la que ocupa el actor ahora.
@@ -1063,7 +1100,7 @@ struct ProcStructuresDemo {
 #endif
 		if (!backend.execute_frame_plan(plan)) {
 			m_ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00012112u);
+			eng::debug::mark_failed(g_eng_run_status, kFailFrameBlitB);
 			return;
 		}
 		// **Guarda de render por frame** (COHERENCIA_DE_SETUP §22): relee el píxel del
@@ -1087,7 +1124,7 @@ struct ProcStructuresDemo {
 				if (m_body_faults >= 3u) {
 					m_ready = false;
 					eng::debug::mark_failed(g_eng_run_status,
-								0x0001212Fu |
+								kFailBodyFault |
 									(u32(m_actor_x) << 8u) |
 									(u32(body) << 24u));
 					return;
@@ -1100,25 +1137,14 @@ struct ProcStructuresDemo {
 		// Telemetría: posición y sentido del actor.
 		g_eng_run_status.detail = u32(m_actor_x) | (u32(u16(m_dir)) << 16u);
 		++m_frames;
+		eng::util::TextLine<64> stats;
+		stats << "X-LIMITED 20x13 PIECES " << kBaked.count;
 		m_host_hud.draw(backend.debug(), "121 PROC CORNER LAYERS", kVersion, m_frames,
-				eng::debug::prof_clock());
-#if !defined(K121_SKIP_HUD)
-		if ((m_frames & 63u) == 0u) {
-			m_frame_text.clear();
-			m_frame_text << 'F' << ' ' << u16(m_frames & 0xFFFFu);
-			m_hud_dirty = true;
-		}
-#endif
+				eng::debug::prof_clock(), stats.c_str());
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_ready) {
-#if !defined(K121_SKIP_HUD)
-			if (m_hud_dirty) {
-				draw_hud();
-				m_hud_dirty = false;
-			}
-#endif
 			scene.install(backend);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -1162,17 +1188,17 @@ private:
 		const u16 sx = u16(kActorMinX + kRingGuardX + 8u); // centro del arte (columna de bitmap)
 		const u8 top = eng::playfield::read_ring_pixel(hv, u16(kDisplayH - 2u), sx);
 		if (top != 31u) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012135u | (u32(top) << 16u));
+			eng::debug::mark_failed(g_eng_run_status, kFailTop | (u32(top) << 16u));
 			return false;
 		}
 		const u8 wrapped = eng::playfield::read_ring_pixel(hv, 8u, sx);
 		if (wrapped != 31u) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012136u | (u32(wrapped) << 16u));
+			eng::debug::mark_failed(g_eng_run_status, kFailWrapped | (u32(wrapped) << 16u));
 			return false;
 		}
 		const u8 corner = eng::playfield::read_ring_pixel(hv, 11u, sx);
 		if (corner == 31u) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012137u | (u32(corner) << 16u));
+			eng::debug::mark_failed(g_eng_run_status, kFailCorner | (u32(corner) << 16u));
 			return false;
 		}
 		return true;
@@ -1205,7 +1231,7 @@ private:
 				kPlanes);
 			if (!qr || !backend.execute_frame_plan(plan)) {
 				m_actor_x = saved_x;
-				return 0x00012107u;
+				return kFailBlit;
 			}
 			// Re-lectura de confirmación contra lecturas transitorias.
 			got = eng::playfield::read_confirm(
@@ -1237,7 +1263,7 @@ private:
 					     << "xp32" << eng::util::hex(read_field_pixel(u16(137u + 32u), u16(kActorY + 6u)), 2u);
 					eng::debug::DebugPeripheral::console_line(line.c_str());
 				}
-				bad = 0x00012108u | (u32(got) << 16u) | (u32(exp) << 24u); // 0x12108 | got | exp
+				bad = kFailPixel | (u32(got) << 16u) | (u32(exp) << 24u); // 0x12108 | got | exp
 		}
 		// (2) Integridad de las bandas en Chip: el contenido debe ser exactamente lo que
 		//     produce `make_band_from_pixels` (detección de corrupción de memoria).
@@ -1249,7 +1275,7 @@ private:
 					kActorPixels, sh, ref, refmask);
 				for (u32 i = 0u; i < kActorBandWords; ++i) {
 					if (ref[i] != m_bands[eng::u32(sh) * kActorBandWords + i]) {
-						bad = 0x00012109u | (u32(sh) << 8u) | (i << 16u);
+						bad = kFailBands | (u32(sh) << 8u) | (i << 16u);
 						break;
 					}
 				}
@@ -1273,9 +1299,9 @@ private:
 			const bool ran = queued && backend.execute_frame_plan(plan);
 			const u8 body = ran ? read_body_stable(u16(px + kRingGuardX + 8u), u16(kActorY + 8u)) : 0xFFu;
 			if (!ran) {
-				bad = 0x00012107u;
+				bad = kFailBlit;
 			} else if (body != 31u) {
-				bad = 0x00012100u | (u32(sub) << 8u) | (u32(body) << 16u);
+				bad = kFailBadSub | (u32(sub) << 8u) | (u32(body) << 16u);
 			}
 		}
 		// (4) Columnas de la pista con subposiciones representativas.
@@ -1300,9 +1326,9 @@ private:
 				const u8 body =
 					ran ? read_body_stable(u16(px + kRingGuardX + 8u), u16(kActorY + 8u)) : 0xFFu;
 				if (!ran) {
-					bad = 0x00012107u;
+					bad = kFailBlit;
 				} else if (body != 31u) {
-					bad = 0x00012106u | (u32(i * 3u + k) << 8u) | (u32(body) << 16u);
+					bad = kFailBodyGrid | (u32(i * 3u + k) << 8u) | (u32(body) << 16u);
 				}
 			}
 		}
@@ -1327,7 +1353,7 @@ private:
 					u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u,
 					kPlanes);
 				if (!q0 || !backend.execute_frame_plan(plan)) {
-					bad = 0x00012107u;
+					bad = kFailBlit;
 					break;
 				}
 				plan.clear();
@@ -1348,13 +1374,13 @@ private:
 				body = ran ? read_body_stable(u16(px + kRingGuardX + 8u), u16(kActorY + 8u))
 					   : 0xFFu;
 				if (!ran) {
-					bad = 0x00012107u;
+					bad = kFailBlit;
 					break;
 				}
 				if (body == 31u) break;
 			}
 			if (bad == 0u && body != 31u) {
-				bad = 0x00012102u | (u32(sub) << 8u) | (u32(body) << 16u);
+				bad = kFailScratchOrBody | (u32(sub) << 8u) | (u32(body) << 16u);
 			}
 		}
 		m_actor_x = saved_x;
@@ -1444,26 +1470,6 @@ private:
 			m_mask[u32(r) * 2u + 0u] = u16(am[u32(r) * 2u + 0u] & u16(~cm[0u]));
 			m_mask[u32(r) * 2u + 1u] = u16(am[u32(r) * 2u + 1u] & u16(~cm[1u]));
 		}
-	}
-
-	/// HUD de 1 bitplane (norma del repo): nombre + versión + contador + nº de piezas
-	/// cocidas. Texto **por palabras** (`draw_text_words`), nunca píxel a píxel.
-	void draw_hud() {
-		auto hud = scene.hud_surface();
-		if (!m_hud_cleared) {
-			hud.fill_rect(0, 0, 512, kHudH, 0u);
-			m_hud_cleared = true;
-		}
-		char label[24];
-		const u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
-		eng::util::TextLine<64> line1;
-		line1 << "PROC STRUCTURES " << eng::util::StringView(label, vlen)
-		      << "  " << m_frame_text.view();
-		(void)hud.draw_text_words(16, 4, line1.c_str(), 1u);
-
-		eng::util::TextLine<64> line2;
-		line2 << "X-LIMITED 20x13  PIECES " << kBaked.count;
-		(void)hud.draw_text_words(16, 20, line2.c_str(), 1u);
 	}
 };
 

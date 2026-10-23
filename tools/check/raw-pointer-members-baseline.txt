@@ -152,7 +152,6 @@ eng/retro/lib2d.hpp:src
 eng/retro/lib2d.hpp:src
 eng/retro/lib2d.hpp:t
 eng/rpg/hud_bridge.hpp:equipped
-eng/scene/actor_sprite.hpp:cache
 eng/scene/composite_actor.hpp:composite_current_frame
 eng/scene/composite_actor.hpp:fr
 eng/scene/composite_actor.hpp:fr

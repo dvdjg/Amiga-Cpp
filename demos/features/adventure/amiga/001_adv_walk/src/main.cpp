@@ -767,7 +767,6 @@ private:
 
 	void draw_hud_static() {
 		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, 320u, kHudLines}};
-		hud.fill_rect(0, 0, 352, static_cast<s16>(kHudLines), 0u);
 		char label[40] {};
 		(void)eng::debug::version_label(kVersion, label, sizeof(label));
 		(void)hud.draw_text_words(16, 2, "001 ADV WALK", 1u);

@@ -105,6 +105,7 @@ public:
 		if (!m_canvas.bind(planes, c)) {
 			return false;
 		}
+		m_canvas.clear(); // la franja nace limpia; el modelo pinta encima
 		// **Rellenos del HUD por CPU** (la franja es la ruta CPU de referencia): las
 		// operaciones del modelo son rectangulos pequenos/medianos (pips 8x8, deltas de
 		// medidor de 2x6, marcos de 1 px) y en un lienzo de 2 planos el arranque del Blitter

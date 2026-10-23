@@ -1413,7 +1413,6 @@ private:
 	void draw_hud_static() {
 		playfield::Surface hud {m_hud_pf,
 					playfield::SurfaceRect {0, 0, kFbW, kHudLines}};
-		hud.fill_rect(0, 0, static_cast<s16>(kFbW), static_cast<s16>(kHudLines), 0u);
 		(void)hud.draw_text_words(16, 2, "080 CAMERA PAN WINDOW", 1u);
 		// Suelos de la fase F1: base (Full) >= 12.5 Hz con display interpolado >= 25 Hz;
 		// el numero de fakes por Full lo decide el coste medido (render_pacing.hpp).
