@@ -24,18 +24,14 @@ buffers del llamador. La arquitectura de juego 3D completa está en
 | Malla (render) | `eng/core/data/mesh3d.hpp` | `MeshView` triangular y `PolyMeshView` n-gon convexo, `Vec3`, `mesh_transform`, culling y orden de caras (`MeshFaceOrder<Kind>`) |
 | Objeto empaquetado (lib3d) | `eng/platform/amiga/object3d.hpp`, `lib3d.hpp` | `Object3D`, `objectToWorld`/`worldToObject`, transform+proyección+visibilidad de un mesh tipo `obj2c` |
 | Sombreado / relleno | `eng/core/math/light.hpp`, `eng/platform/amiga/polygon_fill.hpp` | Sombreado por cara; relleno de polígonos por CPU o Blitter |
+| Renderer de juego | `eng/graphics/render3d.hpp` | `Camera3D`, clip de cámara (near + laterales), proyección acotada, culling por área, `render_solid`/`render_mesh`; HOST-481 |
 | Escalares | `eng/core/math/fixed.hpp`, `fixed_math.hpp` | `Fixed`, `q12` (4.12), `q24`; sin `float`, con `muls.w`/`divs.w` |
 
-Evidencia: demos `077_math3d_cube` (alambre), `078_math3d_solid`, `079`, `116_flatshade_convex`
-y tests HOST-011/013/014/047/050/051/053/055.
+Evidencia: demos `077_math3d_cube` (alambre), `078_math3d_solid`, `079`, `087_blit3d_triangles`, `088_blit3d_planes`, `090_polyhedra_orbit` y `116_flatshade_convex`; tests HOST-011/013/014/047/050/051/053/055/481 y sondas L1-003/L1-005.
 
 ### 1.3 Frontera del pipeline de cámara
 
-`mesh_renderer` transforma, ordena/culla, proyecta y delega los polígonos a `Surface`. `Surface`
-recorta en 2D contra su clip después de la proyección. No existe todavía un paso de clipping en
-espacio de cámara contra el near plane antes de la división por `z`; por tanto, el renderer actual es
-adecuado solo para mallas/cámaras cuyos vértices visibles ya respeten ese rango. Sustituir `z=0` por
-`1` en `project_perspective` no resuelve geometría detrás de cámara ni caras que cruzan el near plane.
+`graphics/render3d.hpp` es la ruta de juego: transforma por objeto, recorta en espacio de cámara contra el near y los cuatro planos laterales **antes** de dividir por `z`, proyecta acotado al viewport y delega el relleno en `Surface` (HOST-481; sondas L1-003/L1-005). `graphics/mesh_renderer.hpp` conserva la ruta anterior, que proyecta y delega el recorte 2D en `Surface` sin clip de cámara; no es apta para vértices con `z <= 0` y no se usa en la fachada de juego. El renderer de escena, los assets, la animación y la física están planificados en [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md); el renderer de bajo nivel y las rutas de relleno, en [`ROADMAP_3D_BLITTER.md`](../../guides/roadmap/ROADMAP_3D_BLITTER.md).
 
 El raster Amiga no ofrece rasterización de triángulos por hardware: la salida eficaz es convex n-gon
 o spans por scanline, y una cara cóncava debe particionarse en convexos fuera del hot path. El orden
@@ -111,8 +107,7 @@ internas. Para evitarlo:
 - **Jerarquía de escena**: `Affine` compone (`compose`), pero no hay grafo de nodos
   padre/hijo con transformaciones en cascada; cada `Object3D` lleva su propia `objectToWorld`.
 
-La colisión que sí existe es **2D**: `eng/core/util/collision.hpp` (AABB, segmentos,
-triángulo, círculo y, desde HOST-125, **SAT 2D** de polígonos convexos).
+La colisión que sí existe es **2D**: `eng/core/util/collision.hpp` (AABB, segmentos, triángulo, círculo y, desde HOST-125, **SAT 2D** de polígonos convexos). El plan para cubrir colisión 3D, masa/inercia, broadphase y jerarquía de escena está en [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G2/G6/G7; los costes de los kernels y la opción preferida, en [`3D_PHYSICS.md`](3D_PHYSICS.md).
 
 ## 3. GJK/EPA y por qué no están
 

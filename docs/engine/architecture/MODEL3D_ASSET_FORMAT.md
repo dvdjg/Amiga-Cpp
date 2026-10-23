@@ -1,9 +1,6 @@
 # Formato de assets 3D para Amiga
 
-Especificación de autoría y de runtime para modelos 3D destinados al engine Amiga. El formato parte
-de una premisa: el asset debe describir la **geometría que el raster planar puede rellenar**, no
-forzar un pipeline de triángulos/GPU. La fuente editable es JSON; el runtime consume chunks UAF-R
-big-endian, validados y cuantizados para 68000.
+Especificación de autoría y de runtime para modelos 3D destinados al engine Amiga. El formato parte de una premisa: el asset debe describir la **geometría que el raster planar puede rellenar**, no forzar un pipeline de triángulos/GPU. La fuente editable es JSON; el runtime consume chunks UAF-R big-endian, validados y cuantizados para 68000. La implementación del cooker y del loader se planifica en [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G1.
 
 ## Objetivos
 

@@ -1,0 +1,205 @@
+# Roadmap: API de juego 3D para A500 (escena, assets, materiales, animación, física y math)
+
+Estado: **abierto**. Este documento planifica la **capa de juego** que convierte las piezas 3D existentes en un sistema fácil de usar para juegos poligonales en A500. No duplica el renderer de bajo nivel (paquete 1, [`ROADMAP_3D_BLITTER.md`](ROADMAP_3D_BLITTER.md)), ni la presentación Full/Fake y el horizonte Copper ([`ROADMAP_3D_PRESENTACION.md`](ROADMAP_3D_PRESENTACION.md)), ni la arquitectura de referencia ([`3D_GAME_ARCHITECTURE.md`](../../engine/architecture/3D_GAME_ARCHITECTURE.md)). Cubre los paquetes 2–8 de esa arquitectura (assets, escena, queries, física, animación, LOD y juego de prueba); el paquete 9 (presentación Full/Fake) tiene su propio plan.
+
+## 0. Criterio de éxito: un juego 3D sin plomería
+
+El contrato contra el que se juzga cada fase es que un juego pueda describir **qué** quiere sin nombrar bitplanes, registros, `Block<Tag>`, scratch por objeto ni rutas de relleno. El boceto siguiente es el destino, no código existente:
+
+```cpp
+#include <eng/api/api.hpp>   // App, Screen, assets, input, audio
+#include <eng/api/3d.hpp>    // fachada 3D (objetivo)
+
+struct MyGame {
+    // Capacidades fijas: nodos, caras visibles y vértices de escena.
+    eng::scene3d::Scene<64, 512, 1024> scene;
+
+    void init(eng::App& app) {
+        m_room = scene.spawn(app.assets().model("room"));
+        m_hero = scene.spawn(app.assets().model("hero"));
+        m_cam = scene.camera({.focal = 340, .near = 64});
+        m_body = scene.physics().attach_box(m_hero, {.half = {8, 16, 8}, .mass = 4});
+        scene.play(m_hero, app.assets().clip("idle"), eng::scene3d::Loop::Yes);
+    }
+
+    void update(eng::App& app, eng::s16 dt) {
+        scene.move(m_hero, app.input().dir_x(), app.input().dir_z());
+        scene.physics().step(dt);
+        scene.camera_follow(m_cam, m_hero);
+    }
+
+    void render(eng::App& app) {
+        scene.render(app.screen(), m_cam);   // decide clip, orden y ruta de relleno
+    }
+};
+```
+
+El juego no elige `PerFace`/`PerPlane`/`Silhouette`, no ordena sólidos a mano, no recorta contra planos, no calcula `1/z` y no conoce la máscara del Blitter. La escena posee pools de capacidad fija y el motor decide la ruta con presupuesto medido.
+
+## 1. Diagnóstico (estado 2026-10)
+
+### 1.1 Lo que ya es sólido (reutilizar, no reimplementar)
+
+| Área | Pieza actual | Estado |
+|---|---|---|
+| Núcleo de cámara, clipping y proyección | `eng/graphics/render3d.hpp` (`Camera3D`, `clip_camera_polygon`, `camera_contains_vertices`, `project_camera_vertex`, `screen_area2`); HOST-481; sondas L1-003/L1-005 | **Sólido**: near + cuatro laterales antes de dividir, proyección acotada, culling por área, sin heap y genérico sobre el escalar |
+| Malla y orden de caras | `eng/core/data/mesh3d.hpp` (`MeshViewT`, `PolyMeshViewT`, normales por cara, `MeshFaceOrder<Kind>`); HOST-013/HOST-211 | **Sólido**: n-gon sin triangular, sólido convexo sin sort, parches convexos con pintor |
+| Primitivas de malla | `eng/retro/mesh_primitives.hpp` (caja, prisma, tubo, cono, esfera, cápsula, platónicos); HOST-477 | **Sólido** para contenido de arranque y sondas |
+| Relleno Amiga | `eng/graphics/polygon_planes.hpp`; `AmigaBackend::fill_polygons_by_plane*`, `blitter_fill_polygon_strided`, `blitter_apply_pattern`; `eng/graphics/fill_pattern.hpp`; `eng/retro/flat_shade_xor.hpp`; HOST-062/HOST-217/HOST-474 | **Sólido**: por cara, por plano, con patrón, dirty-rect, spans CPU como oráculo |
+| Culling de entrada por entidad | `eng/core/math/frustum.hpp` (`YawView`, `Frustum`, `sphere_visible`); HOST-478 | **Hecho** para esfera/AABB contra volumen visible |
+| Contenedor y vistas de assets | `eng/assets/uaf.hpp` (`Blob`, `Mesh`, `MeshPoly`, `MeshAssetView`, `PolyMeshAssetView`); `tools/assets/uaf-pack.ts`; HOST-012 | **Hecho** como base; el modelo completo no existe |
+| Matemática fija | `fixed`, `fixed_math`, `fixed_trig`, `sinetable`, `isqrt`, `inv_sqrt`, `fast_div`, `mul_wide`/`div_wide`, `linalg`, `scalar_traits` | **Base sólida**; falta el kit de aproximaciones 3D |
+| Presentación y pacing | `eng/graphics/render_pacing.hpp`, `present_controller.hpp`, `pan_window.hpp`; HOST-470/471/476; demo 080 | **Base hecha**; no hay integración con una escena 3D retenida |
+| Colisión y trayectorias 2D | `eng/core/util/collision.hpp`, `broadphase.hpp`, `eng/scene/trajectory.hpp` | **Sólido en 2D**; no hay equivalente 3D |
+| Especificación de assets 3D | [`MODEL3D_ASSET_FORMAT.md`](../../engine/architecture/MODEL3D_ASSET_FORMAT.md) (JSON → chunks UAF-R `Model3D`/`Material3D`/`RasterPattern`/`Animation3D`/`Collider3D`) | **Especificación**, sin runtime |
+
+### 1.2 Huecos por área
+
+| Área | Qué falta | Consecuencia para el juego |
+|---|---|---|
+| **Render de modelos** | `render_solid`/`render_mesh` son primitivas por objeto: el llamador transforma, ordena, limpia, aporta scratch y elige la ruta. `mesh_renderer.hpp` conserva una segunda ruta sin near clip. | Un juego escribe plomería por objeto y conviven dos contratos de cámara distintos |
+| **Formato de archivos y carga** | Chunks 15–19, cooker JSON, loader tipado, `Assets::model` y validación de materiales/nodos/clips/proxies no existen; `MeshPoly` solo lleva geometría. | El contenido se escribe en C++; no hay pipeline de autoría ni carga desde disco |
+| **Escena y modo retenido** | No hay `Scene3D`, `Node3D`, handles generacionales, transform dirty, extracción de renderables, cámara de juego ni presupuestos. `scene::World` es 2D y `composition::Scene` es display. | Cada juego reinventa la escena y el orden; el culling y el LOD no se pueden optimizar en un único sitio |
+| **Modelos deformables** | No hay clips TRS de nodos, poses precocinadas, morph targets ni skinning; `graphics/anim.hpp` es animación de sprites 2D. | Un personaje articulado no se puede animar con el pipeline |
+| **Color, materiales y entramado** | `Surface::fill_polygon` solo acepta un `u8 color`; los patrones viven en `polygon_planes`/backend y no llegan a `render3d`; no hay tabla de materiales ni política de sombreado plano. | El damero o entramado por cara obliga a bajar al backend; un material de asset no se puede expresar |
+| **Visibilidad y LOD** | Solo hay esfera/AABB contra frustum; faltan sectores/portales, flood con presupuesto, descarte por tamaño proyectado, selector de LOD y contabilidad de objetos transformados. | Se transforman objetos invisibles y el frame se agota antes de dibujar |
+| **Intersecciones, colisiones y física** | Sin broadphase 3D, raycast/sweep, esfera/plano, OBB SAT 3D, heightfield, masa/inercia, integrador, reposo ni escala temporal. [`3D_PHYSICS.md`](../../engine/architecture/3D_PHYSICS.md) tiene costes y plan, no implementación. | No hay interacción: el jugador atraviesa paredes y los proyectiles no consultan el mundo |
+| **Matemática rápida** | `project_camera_vertex` divide por vértice; no hay LUT de `1/z` con interpolación, `atan2` aproximado, `inv_sqrt` runtime ni utilidad de rebase de origen. Los rangos de `Q4.12` (±8) y `Q8.8` (±128) no están encapsulados, y el clip satura a ±16384 unidades del escalar (para `Q4.12` son solo ±4.0). | El coste por vértice domina, el mundo se limita a ±128 unidades y la precisión de cámara no tiene una política validada |
+| **Rutas de relleno Amiga** | La composición por objeto (máscara de silueta `S` + máscaras por plano `M_p`) está diseñada pero no implementada; no hay doble buffer del lienzo FG ni selección automática de ruta por coste. 087 mide 7,98 fps y 090 mide 15,3–16,2 fps. | El suelo de 25 fps del relleno poligonal no se cumple y el juego no puede escalar caras |
+| **Ergonomía** | No hay `eng/api/3d.hpp`; las demos 3D incluyen `eng/graphics/render3d.hpp` y manejan buffers. | El 3D no cumple el criterio «un juego sin bajar al metal» de [`ROADMAP_GAME_API.md`](ROADMAP_GAME_API.md) |
+
+### 1.3 Evaluación de conjunto
+
+La base 3D es **más sólida que la media** de un engine casero para A500: el clip de cámara, las caras n-gon, el culling, el relleno por Blitter y las pruebas host ya están resueltos y documentados. Lo que falta no es «más rasterizador», sino la capa que convierte esas primitivas en un sistema de juego: **asset → escena retenida → material y ruta de relleno → consultas y física**. El riesgo principal es de **coste de relleno** (el suelo de 25 fps no se cumple con las demos actuales), no de corrección geométrica; el segundo riesgo es de **ergonomía**, porque la API actual expone scratch, orden y ruta al llamador. La estrategia correcta es **envolver el renderer robusto, no sustituirlo**.
+
+## 2. Decisiones de diseño
+
+- **Namespace y vocabulario**: `eng::scene3d` para la capa de juego (`Scene`, `NodeId`, `ModelHandle`, `MaterialId`, `BodyId`, `CameraId`). El renderer sigue en `eng::graphics::render3d` y la cámara física en `eng::graphics::Camera3D`; la fachada de juego reexporta el tipo de cámara y añade el controlador de juego.
+- **Capacidad fija y handles generacionales**: la escena se parametriza por número de nodos, caras y vértices (`Scene<MaxNodes, MaxFaces, MaxVertices>`), usa pools de arrays y handles con generación; cero heap, cero RTTI, cero excepciones, cero despacho dinámico.
+- **Escalar y rangos**: el renderer está instanciado hoy con `eng::coord` (`Fixed<s16,0>`) y satura las coordenadas de cámara a ±16384 unidades del escalar. La simulación de mundo usa `Q8.8` (±128) con **rebase alrededor de la cámara**; ratios/ángulos en `Q4.12` (±8). La política exacta de cámara (q0, q12 o Q8.8; límite de saturación, near y focal) se **fija y valida en G0/G8** con una sonda de rango: no se asume que el pipeline actual sea genérico en rango. No se ensancha el fixed a 32 bits (sus productos acaban en `__muldi3`).
+- **Un solo renderer 3D**: `render3d` es la única ruta de juego. `mesh_renderer.hpp` queda como ruta histórica de tests hasta migrar sus consumidores; no se añade a la fachada.
+- **La escena decide la ruta de relleno**: el juego declara el objeto y su material; el router interno elige `PerFace`, `PerPlane`, `Silhouette`, `StaticCopy` o `CpuSpans` según perfil y coste medido. La ruta no se expone en la API de juego.
+- **Materiales de paleta, no RGB**: `FaceMaterial { u8 color; u8 pattern; MaterialFlags flags; }`; el color es índice de paleta, el patrón indexa el catálogo `FillPattern` o un `RasterPattern` cocinado, y las flags declaran `opaque`/`doubleSided`/`noCull`. La iluminación es **plano por cara** (normal + luz), sin focos ni iluminación por píxel.
+- **Assets cocinados**: JSON de autoría → UAF-R big-endian validado; el runtime nunca parsea JSON ni hace `memcpy` por frame; las tablas de materiales, nodos, clips y proxies son opcionales y no se reservan si el asset no las usa.
+- **Deformables por coste creciente**: primero animación de **nodos rígidos** (partes del personaje), después poses precocinadas, después **morph targets sparse**; el skinning por vértice queda condicionado a un consumidor y a una medida que lo justifique.
+- **Física arcade B+C+D**: cuerpos rígidos con gravedad, esfera/OBB por SAT 3D, heightfield, un impulso por contacto, corrección posicional ligera, fricción saturada, sleep y escala temporal por actor. Sin solver iterativo, sin GJK/EPA, sin CCD y sin blandos en el primer corte.
+- **Visibilidad por capas**: sector/portal con flood presupuestado → esfera/AABB de entidad → descarte por tamaño proyectado → LOD de malla → back-face/painter. Sin BSP con split, PVS por leaf ni occlusion queries en la primera versión.
+- **Matemática rápida con oráculo**: todo atajo (LUT de `1/z`, `atan2`, `inv_sqrt`) declara rango y error máximo, tiene test contra la versión exacta y pasa `codegen-report` y `asm-audit` sin libcalls de 32/64 bits ni instrucciones 68020.
+- **Ergonomía primero**: la fachada usa constantes con nombre, designated initializers y agregados documentados; ningún ejemplo necesita `60000u`, buffers ni registros. Si el corte vertical enseña un `#include` de bajo nivel, la abstracción ha fallado.
+
+## 3. Piezas que se congelan y piezas que se retiran
+
+| Pieza | Decisión |
+|---|---|
+| `render3d` (`Camera3D`, clip, proyección, `render_solid`/`render_mesh`) | **Se conserva** como núcleo; la escena lo envuelve y no lo duplica |
+| `mesh3d` (`MeshViewT`, `PolyMeshViewT`, `MeshFaceOrder`) | **Se conserva** como modelo de malla |
+| `mesh_renderer.hpp` | **Se retira de la ruta de juego**; se mantiene hasta migrar los tests que lo usan |
+| `object3d`/`lib3d`/`obj2c` | **Se conserva** como formato histórico y oráculo; el asset nuevo no depende de él |
+| `polygon_planes` + backend de relleno | **Se conserva** como motor; la escena elige la ruta |
+| `fill_pattern`/`blitter_apply_pattern` | **Se conserva** y se conecta a materiales |
+| `frustum.hpp` | **Se conserva**; se integra en la escena y se amplía con LOD/sectores |
+| `collision.hpp`/`broadphase.hpp` 2D | **Se conserva** para 2D; el 3D usa cabeceras nuevas, no finge `z=0` |
+| `scene/trajectory.hpp` 2D | **Se generaliza** a `Vec<3,S>` sin duplicar spline |
+| `scene::World`/`composition::Scene` | **No se reutilizan como escena 3D**: son 2D y display respectivamente |
+
+## 4. Fases
+
+| Fase | Objetivo | Entregable | Verificación | Depende de |
+|---|---|---|---|---|
+| **G0 — Contrato y auditoría** | Fijar nombres, capacidades, propiedad y límites de la fachada; cerrar la frontera con el renderer y la política numérica | `eng/api/3d.hpp` (esqueleto compilable), este roadmap, matriz de decisión de tipos y una sonda host que instancia una escena vacía; sonda de rango que contrasta q0/Q8.8/Q4.12 con near, focal y saturación del clip | Compila en host; test de humo de la fachada; revisión de acoplamiento (sin punteros/registros/buffers en la firma de juego); informe de rango con el escalar elegido y su límite útil | — |
+| **G1 — Asset 3D cocinado y carga** | Convertir el JSON de autoría en chunks UAF-R y cargarlo sin parseo en runtime | Cooker host (`tools/assets/cook-model3d.*`), chunks `Model3D=15`/`Material3D=16`/`RasterPattern=17`/`Animation3D=18`/`Collider3D=19`, vistas tipadas, `Assets::model(name)`/`clip(name)`; informe de validación (índices, winding, convexidad, cuantización, bytes) | Round-trip host byte a byte; test de rechazo de assets inválidos; sonda L1 que carga y dibuja una malla desde UAF; presupuesto de bytes Chip/Fast | G0 |
+| **G2 — Escena 3D retenida** | Nodos, handles, transforms sucios, renderables, cámara, extracción y presupuesto | `eng/scene3d/scene.hpp` (`Scene<...>`, `Node3D`, `NodeId`, `Renderable`, `CameraId`, scratch propio), jerarquía padre/hijo de capacidad fija, orden por profundidad entre objetos, contabilidad de overflow | HOST-XXX: composición de transforms contra oráculo, dirty flags, orden estable, overflow reportado, sin heap; demo `091_scene3d_nodes` con dos sólidos y HUD | G0, G1 |
+| **G3 — Materiales, sombreado plano y entramado** | Modelo de material de asset y política de sombreado; la cara tiene color + patrón + flags sin bajar al backend | `FaceMaterial`/`MaterialTable` en el asset; `ShadePolicy` (normal + luz → índice) y anclaje de patrón objeto/cara/pantalla; asignación de material por nodo/cara; agrupación de caras por material cuando el painter lo permita; consume el `FaceStyle` de P7 de [`ROADMAP_3D_BLITTER.md`](ROADMAP_3D_BLITTER.md) | HOST-XXX: patrón por cara coincide con el oráculo CPU; demo `092_material_dither_faces`; secuencia de visión; sin operaciones por píxel en CPU | G2, P7 |
+| **G4 — Animación rígida y deformables** | Animar partes y, después, deformar sin comprometer el presupuesto | Runtime de `Animation3D`: clips por ticks, tracks TRS, loop/one-shot, eventos; partes rígidas por jerarquía; poses precocinadas; morph targets sparse; rig rígido (un hueso por vértice) y skinning solo si la medida lo justifica | HOST-XXX: interpolación vs oráculo, loop/eventos, delta morph, bounds por clip; demo `093_rigid_anim`; coste por objeto visible medido | G2, G1 |
+| **G5 — Visibilidad y LOD** | Dejar de transformar lo invisible | `Sector`/`Portal`, flood con `max_rooms`/profundidad, rect de portal + clip, entidades de cada sector contra volumen visible, descarte por tamaño proyectado, selector de LOD con histéresis, contador de objetos transformados vs totales | HOST-XXX: grafo de sectores, flood conservador, culling contra oráculo; demo `094_rooms_portals`; métrica «objetos que nunca llaman a `transform_vertices`» | G2 |
+| **G6 — Queries, colisiones y trayectorias** | Raycast, sweep y contacto para jugador, armas y objetos | `collision3d.hpp` (esfera-esfera, esfera-plano, AABB/OBB SAT 3D, segmento/rayo, sweep de esfera/cápsula), `SpatialHash3D` de rejilla fija, `trajectory` 3D sobre `Vec<3,S>`, capas/máscaras, eventos de trigger | HOST-XXX: SAT contra oráculo, raycast, sweep sin túnel a velocidad de juego; sonda L1; demo `095_collision3d` | G2 |
+| **G7 — Física arcade** | Integración, impulso, reposo y tiempo lento | Pool de cuerpos, `dt` fijo, integración semi-implícita, un impulso por contacto, Baumgarte ligero, fricción saturada, sleep, escala temporal por actor/grupo y triggers; masa/inercia cocinadas en host | HOST-XXX: caída/rebote, reposo, estabilidad de 2 cajas (3+ documentadas); demo `096_physics_boxes`; coste dentro del presupuesto de física y codegen sin libcalls | G6 |
+| **G8 — Matemática 3D rápida** | Quitar divisiones y funciones caras del bucle sin ocultar defectos; cerrar la política de rango | `eng/core/math/fast3d.hpp` o equivalente: `1/z` por LUT + interpolación, `atan2` aproximado, `inv_sqrt` runtime por tabla, `sin`/`cos` en vueltas y radianes, `sqrt` fija, `div` por constante y helpers de rebase; `Camera3D::project` con `1/z`; saturación/límite de cámara parametrizable si G0 lo pide; error máximo documentado | HOST-XXX con dos escalares y error acotado; sonda de codegen sin `__mulsi3`/`__udivsi3`/`__muldi3`; A/B del coste de proyección; `asm-audit` en 68000; veredicto de rango (q0 vs Q8.8 vs Q4.12) | G0 |
+| **G9 — Corte vertical 3D** | Probar que la fachada basta para un juego real | `games/401_3d_room` (siguiente libre; si se reserva un bloque 600 para 3D, actualizar [`NUMBERING.md`](../../ai-dev-environment/NUMBERING.md)): habitación, jugador, props, cámara, colisión, materiales, HUD y presentación Full/Fake; toda la lógica por `eng/api/3d.hpp` | `build -> run -> analyze`, `measure-fps`, secuencia de visión, flicker 0, `demo-ergonomics`/`prior-art`/`demo-docs`; **cero includes de `render3d`/backend en el código del juego**; base ≥12,5 Hz y display ≥25 Hz | G2–G8 |
+
+### Dependencias
+
+```text
+G0 contrato
+ ├─ G1 assets ── G2 escena ── G4 animación ──────────────┐
+ │                  ├─ G5 visibilidad/LOD ───────────────┤
+ │                  ├─ G6 colisiones/trayectorias ── G7 física ──┤
+ │                  └─ G3 materiales (con P7) ───────────┤
+ ├─ G8 math rápida ─────────────────────────────────────┘
+ └─ P7/P8 del renderer (materiales y rutas de relleno) ──┘
+                                                        G9 corte vertical
+```
+
+**Primer corte jugable** (sin esperar a deformables ni física completa): G0 + G1 + G2 + G3 + G6 (esfera/OBB y raycast) + G9 con una habitación estática, jugador-cápsula y props. Ese corte valida la ergonomía, el coste y el pipeline de assets antes de añadir animación, LOD y física dinámica.
+
+## 5. Alcance excluido (para no inflar el sistema)
+
+- **Texturas RGB y UV por píxel**: el material es índice de paleta + patrón 1 bit; una textura indexada sería otro codec con presupuesto explícito de Chip y un consumidor real.
+- **Z-buffer, rasterizador de triángulos por hardware, subpíxel y antialiasing**: el painter + caras convexas es el contrato; el subpíxel sigue en F6 de la presentación, no aquí.
+- **Iluminación por píxel, sombras, focos y materiales PBR**: el sombreado es plano por cara; se hornea en el asset o se elige por normal/luz.
+- **ECS general, reflexión, scripting y editor visual**: la escena es un grafo de nodos de capacidad fija, no un framework.
+- **BSP con split, PVS por leaf, occlusion queries y Hi-Z**: fuera del presupuesto de un 68000; sectores/portales con flood acotado es el techo.
+- **GJK/EPA, CCD, cuerpos blandos, telas, fluidos y restricciones articuladas**: la física es arcade B+C+D; se documentan los límites (pilas de 2, sin túnel a velocidad acotada).
+- **Skinning general por vértice**: solo si un caso visual concreto no se resuelve con partes rígidas o poses precocinadas y la medida lo justifica.
+
+## 6. Presupuesto y rendimiento
+
+| Escenario | Medida actual | Objetivo | Nota |
+|---|---|---|---|
+| 087 triángulos (7 caras) | 7,98 fps (6,27 campos) | ≥25 fps (suelo de relleno) | El coste está en 4 copias por plano del relleno por cara; la ruta debe cambiar, no el renderer |
+| 088 cubo con clip y doble buffer | 40,02–48,34 fps, 1,147 campos, **inestable**; 0 ciclos CPU libres | Cadencia uniforme, sin tirones | P5 abierta; la resolución de símbolos del perfil está SIN VERIFICAR |
+| 090 icosidodecaedro + cubo | 15,3–16,2 fps (3 campos) | ≥25 fps o excepción documentada | ~80 blits de línea + transform del 68000; el damero no es el cuello |
+| Transform de 60 vértices | ~57k ciclos (medido) | No ejecutarlo para objetos invisibles | El culling de entrada es el multiplicador más barato |
+| Escena de juego (objetivo) | — | Base ≥12,5 Hz + display ≥25 Hz con Full/Fake | Contrato de [`ROADMAP_3D_PRESENTACION.md`](ROADMAP_3D_PRESENTACION.md) |
+| Física (objetivo) | — | ≤30k–60k ciclos/frame | [`3D_PHYSICS.md`](../../engine/architecture/3D_PHYSICS.md) §1 |
+
+Reglas transversales: cero heap y cero `memset`/`memcpy` de assets en el bucle; cero `*`/`/`/`%` de 32 bits en bucles calientes; cero productos de 64 bits; buffers de scratch dimensionados por plantilla; overflow de capacidades **reportado**, no truncado silencioso.
+
+## 7. Contrato de rutas de relleno (Amiga)
+
+El motor de relleno y sus pruebas viven en [`ROADMAP_3D_BLITTER.md`](ROADMAP_3D_BLITTER.md) (P8). La escena solo aplica este contrato de selección:
+
+```text
+objeto visible
+  ├─ geometría estática ya compuesta          → copia pre-renderizada (lo más barato)
+  ├─ sólido convexo, sin solape con otro       → silueta XOR + 1 fill por plano (090)
+  ├─ varios objetos que se solapan             → S de silueta + M_p por color + composición (2·planos blits)
+  ├─ caras pequeñas o pocas                    → spans CPU / cookie-cut por cara (medir umbral)
+  └─ objeto dinámico grande                    → doble buffer FG + clear por dirty-rect
+```
+
+Invariantes: el clear de un objeto cubre su bbox anterior y el actual; las caras cóncavas se particionan en el cocinado; el painter sustituye al z-buffer y las intersecciones entre sólidos se documentan como limitación; los patrones se aplican **después** del fill y no tocan el contorno; el Blitter asíncrono solo se usa cuando hay CPU que solapar (campaña 218).
+
+**Memoria Chip de las máscaras**: `S` y cada `M_p` son planos 1 bpp de `row_bytes × height`; a 320×256 son 10.240 bytes por máscara. La composición mínima usa `S` + un `M_p` reutilizado por plano (2 máscaras, ~20 KB); mantener las `M_p` de todos los planos vive cuesta `planes + 1` máscaras (~51 KB con 4 planos). El doble buffer FG a 4 planos añade 2 × 40.960 bytes (~80 KB). Estas cifras entran en el presupuesto de Chip del juego antes de elegir la ruta; si no caben, se reutiliza una sola máscara o se baja a copia estática/CPU spans.
+
+## 8. Tests y evidencia
+
+- **Host por fase**: cada cabecera nueva entra con test host y dos escalares cuando aplique; los IDs se reservan en [`TAXONOMY.md`](../../testing/TAXONOMY.md) al crear el test.
+- **On-target**: sondas L1 para carga de asset, escena, culling, colisión y física; el fallo se aísla en sonda mínima antes de tocar la demo (AGENTS §1.17).
+- **Visión**: toda demo con imagen pasa por Ollama con secuencia, no una captura suelta; `VISION.md` con el prompt canónico.
+- **Presupuesto**: `measure-fps.mjs`, `.amigaprofile` + IA local, `codegen-report.mjs`, `asm-audit.mjs`; se registran ciclos por sección y se comparan rutas A/B.
+- **Gates**: `demo-docs`, `demo-ergonomics`, `prior-art`, `generic-headers`, `api-facade`, `links`, `encoding` y `md-wrap` en verde en la misma pasada.
+- **Matriz mínima**: G1 round-trip + rechazo; G2 jerarquía/dirty/overflow; G3 patrón vs oráculo; G4 interpolación/loop/morph; G5 flood conservador; G6 SAT/raycast/sweep; G7 reposo/estabilidad; G8 error de aproximación + codegen; G9 build/run/analyze/visión/flicker.
+
+## 9. Riesgos y falsación
+
+- **Coste de relleno (principal)**: si dos sólidos con cuatro planos no alcanzan 25 fps con ninguna ruta, la falsación es la medida y el fallback es copia estática, menos colores, viewport menor o excepción documentada con base ≥12,5 Hz + Fakes. No se relaja el suelo sin medida y motivo.
+- **Escena retenida**: si el recorrido + extracción + orden cuesta más del 10 % del frame, se simplifica (listas estáticas, dirty spans, orden precalculado); no se convierte en un ECS general.
+- **Pipeline de assets**: si el cooker se vuelve un proyecto por sí solo, el primer corte usa primitivas `constexpr` + UAF binario y se posponen nodos/clips/proxies; el formato sigue siendo el de `MODEL3D_ASSET_FORMAT.md`.
+- **Deformables**: si las partes rígidas no bastan visualmente, se prueban poses precocinadas antes de skinning; el skinning por vértice no entra sin consumidor y medida.
+- **Física**: si las pilas de 3+ cajas vibran, se documenta el límite de 2 y se evita apilar; no se añade un solver iterativo para maquillar la demo.
+- **Rango de 16 bits**: si el mundo supera ±128 unidades, se rebasa alrededor de la cámara; si aun así no cabe, se replantea el escalar con codegen como gate, no con un `float` en el bucle. La saturación ±16384 del clip es un límite del **escalar de cámara**, no del mundo: si G0 elige `Q4.12` (±8 de rango útil), el near/focal deben caber en ±4.0 tras la saturación y se valida con una sonda antes de fijar la política.
+- **Ergonomía**: si el corte vertical necesita `render3d`, scratch o `Block<Tag>` en el código de juego, G0/G2 no han cumplido y se corrige la fachada antes de añadir fases.
+
+## 10. Demos, juegos y numeración
+
+- Demos candidatas del ámbito `demos/techniques/amiga/3d` (siguiente libre: **091**, verificar con `node tools/check/next-number.mjs demos/techniques/amiga/3d`): `091_scene3d_nodes` (G2), `092_material_dither_faces` (G3), `093_rigid_anim` (G4), `094_rooms_portals` (G5), `095_collision3d` (G6), `096_physics_boxes` (G7).
+- Juego del corte vertical: `games/401_3d_room` (siguiente libre; si se acuerda un bloque 600 para 3D, reservarlo en [`NUMBERING.md`](../../ai-dev-environment/NUMBERING.md) y actualizar este documento).
+- Tests host: reservar IDs en `TAXONOMY.md`; sondas on-target en `tests/amiga/l1_backend/` con el siguiente número libre.
+
+## 11. Referencias
+
+- Arquitectura: [`3D_GAME_ARCHITECTURE.md`](../../engine/architecture/3D_GAME_ARCHITECTURE.md), [`3D_RENDER_VS_PHYSICS.md`](../../engine/architecture/3D_RENDER_VS_PHYSICS.md), [`3D_PHYSICS.md`](../../engine/architecture/3D_PHYSICS.md), [`MODEL3D_ASSET_FORMAT.md`](../../engine/architecture/MODEL3D_ASSET_FORMAT.md), [`RASTER.md`](../../engine/architecture/RASTER.md), [`PUBLIC_API.md`](../../engine/architecture/PUBLIC_API.md).
+- Roadmaps: [`ROADMAP_3D_BLITTER.md`](ROADMAP_3D_BLITTER.md) (renderer y rutas de relleno), [`ROADMAP_3D_PRESENTACION.md`](ROADMAP_3D_PRESENTACION.md) (Full/Fake y horizonte), [`ROADMAP_GAME_API.md`](ROADMAP_GAME_API.md) (fachada 2D de referencia), [`ROADMAP_UNIFICADO.md`](ROADMAP_UNIFICADO.md) (estado vigente).
+- Técnicas: [`blitter-line-subpixel-fill.md`](../../reference/amiga/techniques/blitter-line-subpixel-fill.md), [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md), [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md).
+- Código y evidencia: [`render3d.hpp`](../../../engine/include/eng/graphics/render3d.hpp), [`mesh3d.hpp`](../../../engine/include/eng/core/data/mesh3d.hpp), [`frustum.hpp`](../../../engine/include/eng/core/math/frustum.hpp), [`polygon_planes.hpp`](../../../engine/include/eng/graphics/polygon_planes.hpp), [`fill_pattern.hpp`](../../../engine/include/eng/graphics/fill_pattern.hpp), [`uaf.hpp`](../../../engine/include/eng/assets/uaf.hpp); HOST-012/013/046/062/211/217/474/477/478/481; L1-003/L1-005; demos 087/088/089/090.

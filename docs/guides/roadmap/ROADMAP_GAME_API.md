@@ -379,4 +379,5 @@ Camino `update`/`render` de la 213 revisado con la regla «coste ~cero en el buc
 - Audio (contrato actual): [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md), [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   [`AUDIO_MIXER.md`](../../engine/architecture/AUDIO_MIXER.md).
 - Display/composición: [`DISPLAY_COMPOSITION.md`](../../engine/architecture/DISPLAY_COMPOSITION.md), [`OBJECT_SYSTEM.md`](../../engine/architecture/OBJECT_SYSTEM.md).
+- 3D de juego (escena, assets, materiales, animación, colisiones y física): [`ROADMAP_3D_GAME_API.md`](ROADMAP_3D_GAME_API.md), con el renderer en [`ROADMAP_3D_BLITTER.md`](ROADMAP_3D_BLITTER.md).
 - Estado global: [`ROADMAP_UNIFICADO.md`](ROADMAP_UNIFICADO.md).

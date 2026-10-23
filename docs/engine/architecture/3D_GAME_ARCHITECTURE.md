@@ -1,10 +1,6 @@
 # Arquitectura 3D para juegos sobre el engine
 
-Este documento define las piezas que necesita una capa 3D utilizable por un juego y cómo reutilizar
-las matemáticas, mallas, polígonos, superficies y primitivas actuales. El objetivo es una arquitectura
-modular para juegos pequeños en Amiga 500, incluida una adaptación *Lite* de *Superhot*. No afirma
-que el pipeline completo descrito esté implementado; el estado actual y las carencias están en
-[`3D_RENDER_VS_PHYSICS.md`](3D_RENDER_VS_PHYSICS.md) y [`3D_PHYSICS.md`](3D_PHYSICS.md).
+Este documento define las piezas que necesita una capa 3D utilizable por un juego y cómo reutilizar las matemáticas, mallas, polígonos, superficies y primitivas actuales. El objetivo es una arquitectura modular para juegos pequeños en Amiga 500, incluida una adaptación *Lite* de *Superhot*. No afirma que el pipeline completo descrito esté implementado; el estado actual y las carencias están en [`3D_RENDER_VS_PHYSICS.md`](3D_RENDER_VS_PHYSICS.md) y [`3D_PHYSICS.md`](3D_PHYSICS.md), y el plan por paquetes en [`ROADMAP_3D_BLITTER.md`](../../guides/roadmap/ROADMAP_3D_BLITTER.md) (renderer) y [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) (juego).
 
 ## Restricción raster y representación geométrica
 
@@ -92,10 +88,7 @@ La carga de geometría debe separar formato fuente de representación de runtime
 - **Memoria**: malla y tablas CPU-only prefieren Fast cuando exista; datos leídos por DMA viven en
   Chip. La vista del asset nunca es propietaria.
 
-`MeshBlob`, `MeshViewT`, `PolyMeshViewT`, `obj2c` y el chunk `MeshPoly` ya aportan puntos de partida,
-pero falta un contrato único de `MeshAsset` que conecte loader, material, jerarquía, bounds, receta
-de clipping, LOD y proxy físico. El formato de fuente y runtime previsto se especifica en
-[`MODEL3D_ASSET_FORMAT.md`](MODEL3D_ASSET_FORMAT.md).
+`MeshBlob`, `MeshViewT`, `PolyMeshViewT`, `obj2c` y el chunk `MeshPoly` ya aportan puntos de partida, pero falta un contrato único de `MeshAsset` que conecte loader, material, jerarquía, bounds, receta de clipping, LOD y proxy físico. El formato de fuente y runtime previsto se especifica en [`MODEL3D_ASSET_FORMAT.md`](MODEL3D_ASSET_FORMAT.md); la implementación del cooker, los chunks 15–19 y la carga tipada está planificada en [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G1.
 
 ## Rigging y animación
 
@@ -178,7 +171,7 @@ El LOD de agentes de `eng::sim` es de simulación de criaturas y no reemplaza un
 - **Culling de entrada implementado** (`eng/core/math/frustum.hpp`, HOST-478): vía **yaw-only** (`YawView`: cuña 2D + franja + rango Z; sin planos normalizados ni `sqrt`, rechazos conservadores con la cota `sqrt(1+W²) ≤ 1+W`) y **frustum general de 6 planos** para pitch/roll (cuña pre-escalada por `1/(1+W)`; requiere escalar fraccionario, no q0). Convenio de borde: **un objeto que cruza el plano cercano es visible** (cero falsos negativos; el recorte fino lo hacen los clippings existentes).
 - **Datos** (`Sector`, `Portal`, entidades con `sector_id` + esfera): arrays de capacidad fija, sin heap; PVS de sectores (bitset `visible[from][to]`) **solo si el flood se vuelve caro**.
 - **Encaje con la presentación**: el culling corre en el **Full** (los Fakes solo desplazan ventana: no se recalcula visibilidad); el cielo/outdoor va al Copper (PF2), no a geometría.
-- **Estado**: capa 3 (esfera vs volumen, HOST-478) **hecha**; sectores/portales (capas 1-2) y su integración en el juego 3D (F5/`082`) **pendientes** — orden pragmático: esfera sobre lista plana → sectores/pertenencia → portales/flood → far/tamaño → grid outdoor → PVS.
+- **Estado**: capa 3 (esfera vs volumen, HOST-478) **hecha**; sectores/portales (capas 1-2) y su integración en la escena 3D están planificados en [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G5 y la demo `098_superhot_room` de [`ROADMAP_3D_PRESENTACION.md`](../../guides/roadmap/ROADMAP_3D_PRESENTACION.md). Orden pragmático: esfera sobre lista plana → sectores/pertenencia → portales/flood → far/tamaño → grid outdoor → PVS.
 
 ## Optimización por invariantes verificadas
 
@@ -225,18 +218,19 @@ Arquitectura inicial sugerida, sin convertirla en requisito de todo juego 3D:
 Este perfil valida las abstracciones comunes y permite introducir fast paths de cuarto estático sin
 comprometer la corrección de otros consumidores.
 
-## Paquetes de trabajo que podrán convertirse en roadmap
+## Paquetes de trabajo y roadmaps
 
-1. Renderer 3D: cámara, near clipping, viewport clipping, buffers acotados y equivalencia con el
-   relleno CPU.
-2. Asset 3D cocinado: materiales, convexidad, bounds, proxies, nodos, versiones LOD y validación.
-3. Scene3D: jerarquía, transforms sucios, cámara, extracción de renderables y presupuestos.
-4. Queries/collision: raycast, sweep del jugador, broadphase 3D y proxies.
-5. Física arcade: fixed timestep, triggers, cuerpos simples, sleep y time scale por actor.
-6. Animación: nodos rígidos y clips; evaluar después si hace falta skinning CPU limitado.
-7. LOD y fast paths: perfiles estáticos/confinados/convexos con aserciones y fallback.
-8. Juego de prueba: una habitación Superhot Lite, validada primero en host y luego A500 con perfil.
-9. Presentación Full/Fake: fotogramas intermedios por paneo de cámara sobre framebuffer sobredimensionado y horizonte Copper por scanline (variantes RoboCod y DPF 2+3; plan: [`ROADMAP_3D_PRESENTACION.md`](../../guides/roadmap/ROADMAP_3D_PRESENTACION.md); técnicas: [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md)).
+| Paquete | Contenido | Plan vigente |
+|---|---|---|
+| 1 | Renderer 3D: cámara, near clipping, viewport clipping, buffers acotados, materiales y rutas de relleno | [`ROADMAP_3D_BLITTER.md`](../../guides/roadmap/ROADMAP_3D_BLITTER.md) (P1 hecho; P2–P8) |
+| 2 | Asset 3D cocinado: materiales, convexidad, bounds, proxies, nodos, LOD y validación | [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G1 |
+| 3 | Scene3D: jerarquía, transforms sucios, cámara, extracción de renderables y presupuestos | [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G2 |
+| 4 | Queries/collision: raycast, sweep del jugador, broadphase 3D y proxies | [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G6 |
+| 5 | Física arcade: fixed timestep, triggers, cuerpos simples, sleep y time scale por actor | [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G7 |
+| 6 | Animación: nodos rígidos, clips y deformables; skinning CPU solo con consumidor y medida | [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G4 |
+| 7 | Visibilidad/LOD y fast paths: sectores/portales, perfiles estáticos/confinados/convexos con aserciones y fallback | [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G5; renderer en [`ROADMAP_3D_BLITTER.md`](../../guides/roadmap/ROADMAP_3D_BLITTER.md) P8 |
+| 8 | Juego de prueba: una habitación Superhot Lite, validada primero en host y luego A500 con perfil | [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G9 |
+| 9 | Presentación Full/Fake: fotogramas intermedios por paneo de cámara y horizonte Copper por scanline (RoboCod y DPF 2+3) | [`ROADMAP_3D_PRESENTACION.md`](../../guides/roadmap/ROADMAP_3D_PRESENTACION.md); técnicas: [`camera-pan-fake-frames.md`](../../reference/amiga/techniques/camera-pan-fake-frames.md) y [`copper-horizon.md`](../../reference/amiga/techniques/copper-horizon.md) |
 
 ## Criterio de diseño
 

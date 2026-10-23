@@ -203,8 +203,7 @@ entre formulaciones).
 | F4 | Heightfield + actor controlado (jugador-cápsula) sobre el terreno | el jugador sube/baja pendientes y no atraviesa el suelo |
 | F5 | Integración con render (`PolyMeshView`) y con el juego/demo | demo 3D con física visible, `build -> run -> analyze` OK |
 
-Cada hito entra con su test host y, cuando toque hardware, con sonda de codegen sin libcalls ni
-68020.
+Cada hito entra con su test host y, cuando toque hardware, con sonda de codegen sin libcalls ni 68020. La ejecución de estos hitos se coordina con las fases G6 (queries/colisiones/trayectorias) y G7 (física arcade) de [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md); F1 (masa/inercia en host) es requisito de G7.
 
 ## 8. Qué queda fuera
 
