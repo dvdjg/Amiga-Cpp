@@ -40,7 +40,7 @@ cambia:
   **reasignar** (sprite→BOB) al añadir elementos, sin que el dev reescriba nada.
 - El actor declara una **preferencia** (p. ej. `Visual`/`Layer`), no un mecanismo.
 - Implementación: `engine/include/eng/scene/representation.hpp` (`ActorTemplate`, `RepresentationBudget`,
-  `choose_representation`, `RepresentationAllocator`). Test: `tests/host/scene/028_representation`.
+  `choose_representation`, `RepresentationAllocator`). La cobertura directa de `RepresentationAllocator` se retir? con HOST-028; el camino nuevo se cubre en HOST-485.
 
 ## 3. Modelo de recursos y ocupación
 

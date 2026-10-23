@@ -9,7 +9,6 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | Demo |
 |---|
 | [053_sprite_multiplex](053_sprite_multiplex/README.md) |
-| [054_sprite_allocator](054_sprite_allocator/README.md) |
 | [206_sprite_collision](206_sprite_collision/README.md) |
 | [208_risky_woods](208_risky_woods/README.md) |
 | [211_risky_woods_layer](211_risky_woods_layer/README.md) |

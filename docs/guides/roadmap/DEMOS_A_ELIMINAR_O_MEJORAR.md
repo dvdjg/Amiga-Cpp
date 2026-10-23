@@ -75,7 +75,7 @@ Cuándo: **al tocar una demo** (su fila + `check-fps --demo`), y en el **barrido
 | `cards_amiga_124_cards_bench` | 22,46 | bench (por diagnosticar) |
 | `engine_amiga_065_mechanisms_bridge` | 23,81 | deuda conocida (interleaved/hojas) |
 | `205_hw_probe` | 24,16 | por diagnosticar |
-| `055_copper_rainbow` / `054_sprite_allocator` / `212_blitter_feeder` | 24,9 | 2 campos = en el suelo (24,96 nominal); vigilar que no bajen |
+| `055_copper_rainbow` / `212_blitter_feeder` | 24,9 | 2 campos = en el suelo (24,96 nominal); vigilar que no bajen |
 
 ### Sin medida (no arranca / crash tras READY / falta runner)
 

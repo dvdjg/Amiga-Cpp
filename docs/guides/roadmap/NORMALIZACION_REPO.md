@@ -155,7 +155,7 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 | Objeto CPU 2D (posición+imagen+clip) | **NO EXISTE** | solo `Surface` (`field/surface.hpp`) y structs locales en demos (110/111) |
 | Sprite HW: emitter + plantilla + allocator + intents | **EXISTE** | `sprite_manager.hpp`, `sprite.hpp`, `sprite_allocator.hpp`, `raster_intent.hpp:96-104` |
 | Actor-sprite con estado y **overflow sprite→BOB cableado** | **NO EXISTE/PARCIAL** | 054 solo cuenta el `as_bob` (`054/.../main.cpp:145-149`) |
-| Escena/actores (World/Actor/Layer/recursos/`Visual.id`) | **SOLO DISEÑO** | `docs/engine/architecture/SCENE_AND_RESOURCES.md`; la política sí existe (`scene/representation.hpp` + HOST-028) |
+| Escena/actores (World/Actor/Layer/recursos/`Visual.id`) | **SOLO DISEÑO** | `docs/engine/architecture/SCENE_AND_RESOURCES.md`; la política sí existe (`scene/representation.hpp`, deprecado; sin HOST directo) |
 
 | # | Tarea | Estado |
 |---|---|---|
