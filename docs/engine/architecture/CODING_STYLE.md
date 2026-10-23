@@ -102,6 +102,8 @@ Una abstraccion es buena si:
 - no oculta asignaciones ni copias caras;
 - permite cambiar de driver grafico sin reescribir la logica de juego.
 
+Antes de implementar, **compara al menos dos opciones** y elige la mas simple, clara y legible que cumpla el contrato. Evita los literales opacos: usa `enum class`, un tipo, una constante con nombre o un parametro de plantilla, y documenta unidades/rango/significado. Ejemplo: `mark_failed(g_eng_run_status, Fail::SceneBegin)`, no `mark_failed(..., 0x00020102u)`; gate `magic-fail` (baseline por fichero). Si un lienzo necesita estado inicial, el engine lo deja limpio en `begin`/`HudStrip::bind`; el llamador no hace plomeria de Chip RAM. Si detectas un problema claro de arquitectura, usabilidad o funcionalidad, corrigelo directamente y explica el cambio; si hay una disyuntiva de diseno o coste relevante, planteala antes de seguir.
+
 ## `inline` no es una sugerencia de inline
 
 En una libreria **header-only** como esta, `inline` en una funcion de cabecera es un
@@ -243,6 +245,7 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
 - El texto dinámico se compone con `eng::util::TextLine<N>` y su `operator<<` de dominio (texto, enteros y los manipuladores `hex(v, dígitos)`, `dec(v, ancho)` y `fixed(valor, decimales)`); por dentro usa `StaticString`/`to_chars`/`to_chars_hex`. **Nunca** `char buf[N]` + `char* p` + un `append` local, ni una cadena de `(void)append(...)`/`(void)to_chars(...)`: eso es el nivel bajo, no la fachada. La capacidad es parte del tipo; si no cabe, `truncated()` queda a `true` y no se toca más memoria.
 - No dupliques conversiones (`append_u32`, `append_hex`, `digits[]`): viven en `eng/core/util/text.hpp`/`text_line.hpp` y se prueban en HOST-096. Si falta una conversión, se añade allí, no en la demo.
 - El HUD del host (`app.debug().text`) y la franja (`draw_hud`) usan `TextLine`; una línea de HUD no puede desbordar la pila ni depender de un `append` sin límite.
+- **Los lienzos del engine nacen limpios**: `CanvasPlayfield::begin` y `XlimitedScene::begin` dejan el HUD a negro (índice 0); `HudStrip::bind` limpia su franja. La demo no limpia Chip RAM a mano con `fill_rect(0, 0, …, 0)`/`fill_span`; si necesita otro fondo, usa `CanvasPlayfield::clear(color)` una vez en el setup. `CanvasPlayfield::bind` sobre buffers externos conserva su contenido. Gate: `demo-ergonomics` regla `hud-manual-clear`.
 - **Gate:** `tools/check/raw-text-buffer.mjs` (baseline histórico decreciente) prohíbe nuevas parejas `char buf[N]` + `char* = buf` en demos/juegos. El baseline solo puede encoger.
 
 ## Reglas obligatorias de diseño

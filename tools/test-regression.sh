@@ -161,6 +161,20 @@ if [ -f "$LINKS_CHECK" ]; then
 fi
 
 # --- Texto de HUD: sin `char buf[N]` + `char* p = buf` (CODING_STYLE §Texto formateado) ---
+# --- Códigos de fallo: sin hexadecimales opacos nuevos en mark_failed/mark_ready ---
+MAGIC_FAIL_CHECK="$ROOT/tools/check/magic-fail.mjs"
+if [ -f "$MAGIC_FAIL_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== magic-fail =="
+		if ! node "$MAGIC_FAIL_CHECK"; then
+			echo "magic-fail fallo: usa un enum/constante documentado para el código de fallo." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite magic-fail." >&2
+	fi
+fi
+
 if [ -f "$RAW_TEXT_CHECK" ]; then
 	if command -v node >/dev/null 2>&1; then
 		echo "== raw-text-buffer =="

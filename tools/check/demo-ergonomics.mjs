@@ -50,6 +50,11 @@ const RULES = [
 		re: /mark_(?:failed|ready)\s*\([^)]*0x/,
 		why: 'literal hexadecimal en `mark_*`; usa `eng::debug::BootFail` o una constante con nombre',
 	},
+	{
+		id: 'hud-manual-clear',
+		re: /hud_surface\(\)[\s\S]{0,200}?fill_(?:rect|span)\([^;]*?,\s*0[uU]?\s*\)/,
+		why: 'el HUD ya nace limpio en `CanvasPlayfield::begin`/`XlimitedScene::begin`; no limpies Chip RAM a mano con `fill_rect(0, 0, …, 0)`',
+	},
 ];
 
 function listSources(dir) {

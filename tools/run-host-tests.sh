@@ -306,6 +306,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Códigos de fallo: sin hexadecimales opacos en `mark_failed`/`mark_ready` nuevos.
+	MAGIC_FAIL="$ROOT/tools/check/magic-fail.mjs"
+	if [ -f "$MAGIC_FAIL" ] && command -v node >/dev/null 2>&1; then
+		echo "== magic-fail =="
+		if ! node "$MAGIC_FAIL"; then
+			echo "magic-fail fallo: usa un enum/constante documentado para el código de fallo." >&2
+			exit 1
+		fi
+	fi
 	# Escrituras crudas por view.data() en demos/juegos: fronteras declaradas + baseline decreciente.
 	DEMO_RAW_WRITES="$ROOT/tools/check/demo-raw-writes.mjs"
 	if [ -f "$DEMO_RAW_WRITES" ] && command -v node >/dev/null 2>&1; then
