@@ -113,30 +113,37 @@ public:
 
 	[[nodiscard]] bool header_ok() const { return m_bytes.size() >= kHeaderSize; }
 	[[nodiscard]] u16 version() const { return header_ok() ? read_be16(m_bytes.data()) : 0u; }
+	/// \return flags de formato declaradas por la cabecera.
 	[[nodiscard]] u16 flags() const {
 		return header_ok() ? read_be16(m_bytes.data() + 2u) : 0u;
 	}
+	/// \return numero de vertices declarado por la cabecera.
 	[[nodiscard]] u16 vertex_count() const {
 		return header_ok() ? read_be16(m_bytes.data() + 4u) : 0u;
 	}
 	[[nodiscard]] u16 face_count() const {
 		return header_ok() ? read_be16(m_bytes.data() + 6u) : 0u;
 	}
+	/// \return numero de indices declarado por la cabecera.
 	[[nodiscard]] u16 index_count() const {
 		return header_ok() ? read_be16(m_bytes.data() + 8u) : 0u;
 	}
+	/// \return numero de materiales declarado por la cabecera.
 	[[nodiscard]] u16 material_count() const {
 		return header_ok() ? read_be16(m_bytes.data() + 10u) : 0u;
 	}
+	/// \return offset del bloque de vertices dentro del blob.
 	[[nodiscard]] u32 vertex_offset() const {
 		return header_ok() ? read_be32(m_bytes.data() + 12u) : 0u;
 	}
+	/// \return offset del bloque de indices dentro del blob.
 	[[nodiscard]] u32 index_offset() const {
 		return header_ok() ? read_be32(m_bytes.data() + 16u) : 0u;
 	}
 	[[nodiscard]] u32 face_offset() const {
 		return header_ok() ? read_be32(m_bytes.data() + 20u) : 0u;
 	}
+	/// \return offset del bloque de materiales dentro del blob.
 	[[nodiscard]] u32 material_offset() const {
 		return header_ok() ? read_be32(m_bytes.data() + 24u) : 0u;
 	}

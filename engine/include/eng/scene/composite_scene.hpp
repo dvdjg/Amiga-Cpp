@@ -373,9 +373,9 @@ private:
 	bool publish_pair(Entry& e, eng::usize part_index, eng::u16 even_channel,
 			  eng::u16 k) noexcept {
 		const eng::graphics::CompositePart& part = e.visual->parts[part_index];
-		const eng::graphics::CompositeFrame* fr =
+		const eng::Ref<const eng::graphics::CompositeFrame> fr =
 			eng::scene::composite_current_frame(*e.visual, e.state);
-		if (fr == nullptr) {
+		if (!fr.valid()) {
 			return false;
 		}
 		const eng::u16 h = part.visual.h;

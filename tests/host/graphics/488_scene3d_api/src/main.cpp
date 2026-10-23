@@ -208,14 +208,14 @@ void test_scene_lifecycle() {
 				     .position = math3d::vec3(1, 2, 3)});
 	check(id.valid(), "spawn valido");
 	check(scene.live_count() == 1u, "live_count sube");
-	check(scene.node(id) != nullptr, "node() devuelve el nodo");
+	check(scene.node(id).valid(), "node() devuelve el nodo");
 	check(scene.node(id)->position.v[2] == 3, "posicion inicial");
 	check(scene.set_position(id, math3d::vec3(4, 5, 6)), "set_position");
 	check(scene.node(id)->position.v[0] == 4, "posicion actualizada");
 	check(scene.set_visible(id, false), "set_visible");
 	check(!scene.node(id)->visible, "visibilidad actualizada");
 	check(scene.remove(id), "remove valido");
-	check(scene.node(id) == nullptr, "handle invalidado");
+	check(!scene.node(id).valid(), "handle invalidado");
 	check(scene.live_count() == 0u, "live_count baja");
 	check(!scene.remove(id), "remove de handle viejo devuelve false");
 
@@ -232,7 +232,7 @@ void test_scene_lifecycle() {
 	check(f != c, "el handle reciclado cambia de generacion");
 	scene.clear();
 	check(scene.live_count() == 0u, "clear vacia");
-	check(scene.node(f) == nullptr, "clear invalida los handles");
+	check(!scene.node(f).valid(), "clear invalida los handles");
 
 	const Camera defaults = scene.camera();
 	check(eng::math::scalar_traits<eng::coord>::to_int(defaults.focal) == 340,
@@ -348,9 +348,9 @@ void test_model_asset() {
 	const scene3d::ModelHandle handle = table.add(asset);
 	check(handle.valid(), "ModelTable add");
 	check(table.size() == 1u, "ModelTable size");
-	check(table.mesh(handle) != nullptr && table.mesh(handle)->vertex_count() == 8u,
+	check(table.mesh(handle).valid() && table.mesh(handle)->vertex_count() == 8u,
 	      "ModelTable malla");
-	check(table.mesh(handle) != nullptr && table.mesh(handle)->face_count() == 6u,
+	check(table.mesh(handle).valid() && table.mesh(handle)->face_count() == 6u,
 	      "ModelTable caras");
 	check(table.color(handle, 0u) == 3u, "material color cara 0");
 	check(table.color(handle, 3u) == 5u, "material color cara 3");
@@ -456,8 +456,8 @@ void test_scene_render() {
 	check(far.valid() && near.valid(), "dos cubos en escena");
 
 	const auto color = [&](SceneT::NodeId id, u32) -> u8 {
-		const scene3d::Node3D* node = scene.node(id);
-		return (node != nullptr && node->position.v[2] > 170) ? u8 {2} : u8 {3};
+		const eng::Ref<const scene3d::Node3D> node = scene.node(id);
+		return (node.valid() && node->position.v[2] > 170) ? u8 {2} : u8 {3};
 	};
 
 	const u32 faces = scene.render(table, surf, color);
@@ -532,6 +532,58 @@ void test_scene_render() {
 	      "escena vacia no pinta");
 	check(scene.render(Span<const scene3d::Mesh> {}, surf, color) == 0u,
 	      "tabla de modelos vacia no pinta");
+}
+
+void test_hierarchy() {
+	using SceneT = scene3d::Scene<8, 8>;
+	using TR = eng::math::scalar_traits<eng::real>;
+	MockPlayfield pf;
+	pf.init(320, 200, 4);
+	Surface surf(pf, SurfaceRect {0, 0, 320, 200});
+	SceneT scene;
+	check(scene.set_camera(Camera {}), "camara de jerarquia");
+
+	const auto root = scene.spawn({.model = {0}, .position = math3d::vec3(10, 0, 100)});
+	const auto child = scene.spawn(
+		{.model = {0}, .position = math3d::vec3(10, 0, 0), .parent = root});
+	check(root.valid() && child.valid(), "padre e hijo");
+	check(scene.node(child)->parent == root, "parent registrado");
+
+	const Span<const scene3d::Mesh> empty {};
+	const auto color = [](SceneT::NodeId, u32) -> u8 { return 1u; };
+	scene.render(empty, surf, color);
+	check(scene.node(child)->world_position.v[0] == 20 &&
+		      scene.node(child)->world_position.v[2] == 100,
+	      "hijo hereda la traslacion del padre");
+
+	eng::math::Mat<3, eng::real> rot {};
+	rot.m[0][2] = TR::one();
+	rot.m[1][1] = TR::one();
+	rot.m[2][0] = -TR::one();
+	check(scene.set_rotation(root, rot), "rotacion del padre");
+	scene.render(empty, surf, color);
+	check(scene.node(child)->world_position.v[0] == 10 &&
+		      scene.node(child)->world_position.v[2] == 90,
+	      "hijo hereda la rotacion del padre");
+
+	check(!scene.set_parent(root, child), "set_parent rechaza el ciclo");
+	check(scene.set_parent(child, {}), "hijo pasa a raiz");
+	scene.render(empty, surf, color);
+	check(scene.node(child)->world_position.v[0] == 10 &&
+		      scene.node(child)->world_position.v[2] == 0,
+	      "hijo raiz usa su transform local");
+
+	check(scene.set_parent(child, root), "hijo vuelve al padre");
+	check(scene.set_position(root, math3d::vec3(30, 0, 100)), "mover padre");
+	scene.render(empty, surf, color);
+	check(scene.node(child)->world_position.v[0] == 30 &&
+		      scene.node(child)->world_position.v[2] == 90,
+	      "dirty propaga el cambio del padre");
+
+	check(scene.remove(root), "liberar padre");
+	check(!scene.node(child)->parent.valid(), "hijo queda como raiz al liberar padre");
+	scene.render(empty, surf, color);
+	check(scene.node(child)->world_position.v[0] == 10, "hijo raiz tras liberar padre");
 }
 
 void test_camera_and_wire() {
@@ -625,6 +677,16 @@ void test_camera_and_wire() {
 	check(graphics::render_wire(cube.view(), model, cam, surf, 1u, world, edges, 4u,
 				    scratch, xs, ys) <= 4u,
 	      "alambre con capacidad corta no desborda");
+
+	scene3d::ModelTable<1, 8, 24, 6, 1> table;
+	const auto handle = table.add_mesh(cube.view(), 15u);
+	check(handle.valid(), "ModelTable add_mesh para alambre");
+	scene3d::Scene<2, 8> scene;
+	check(scene.set_camera(cam), "camara de escena de alambre");
+	check(scene.spawn({.model = handle, .position = math3d::vec3(0, 0, 120)}).valid(),
+	      "nodo de escena de alambre");
+	check(scene.render_wire(table, surf, 1u) == 12u,
+	      "Scene::render_wire dibuja las 12 aristas del cubo");
 }
 
 } // namespace
@@ -634,6 +696,7 @@ int main() {
 	test_scene_lifecycle();
 	test_model_asset();
 	test_scene_render();
+	test_hierarchy();
 	test_camera_and_wire();
 
 	if (g_fail == 0) {

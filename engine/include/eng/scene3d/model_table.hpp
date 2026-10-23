@@ -19,6 +19,7 @@
 #include <eng/assets/model3d.hpp>
 #include <eng/core/data/mesh3d.hpp>
 #include <eng/core/math/scalar.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/noncopyable.hpp>
@@ -94,23 +95,78 @@ public:
 		return ModelHandle {static_cast<u16>(m_count - 1u)};
 	}
 
+	/// Registra una malla **ya construida** (primitiva `constexpr`, malla de un
+	/// demo/test) con un único material plano. Es la vía sin cooker para contenido
+	/// procedural; copia vértices/índices/caras a un slot libre.
+	/// \param mesh vista n-gon; debe tener 3..MaxVertices vértices, ≤ MaxIndices
+	///        índices y ≤ MaxFaces caras.
+	/// \param color índice de paleta de todas las caras.
+	/// \param pattern id de `FillPattern` de todas las caras (0 = sólido).
+	/// \return handle del modelo, o inválido si no cabe o la tabla está llena.
+	[[nodiscard]] ModelHandle add_mesh(const Mesh& mesh, u8 color = 1u,
+					   u8 pattern = 0u) noexcept {
+		const u32 nv = mesh.vertex_count();
+		const u32 ni = static_cast<u32>(mesh.indices.size());
+		const u32 nf = static_cast<u32>(mesh.faces.size());
+		if (nv == 0u || nf == 0u || ni < 3u || nv > MaxVertices || ni > MaxIndices ||
+		    nf > MaxFaces || m_count >= MaxModels) {
+			return {};
+		}
+		Slot& slot = m_slots[m_count];
+		for (u32 i = 0u; i < nv; ++i) {
+			slot.verts[i] = mesh.vertices[i];
+		}
+		for (u32 i = 0u; i < ni; ++i) {
+			slot.indices[i] = mesh.indices[i];
+		}
+		for (u32 i = 0u; i < nf; ++i) {
+			slot.faces[i] = mesh.faces[i];
+			slot.face_material[i] = 0u;
+		}
+		slot.materials[0] = assets::ModelMaterial {color, pattern, 0u};
+		slot.bounds.min = slot.verts[0];
+		slot.bounds.max = slot.verts[0];
+		for (u32 i = 1u; i < nv; ++i) {
+			for (u8 k = 0u; k < 3u; ++k) {
+				if (slot.verts[i].v[k] < slot.bounds.min.v[k]) {
+					slot.bounds.min.v[k] = slot.verts[i].v[k];
+				}
+				if (slot.verts[i].v[k] > slot.bounds.max.v[k]) {
+					slot.bounds.max.v[k] = slot.verts[i].v[k];
+				}
+			}
+		}
+		slot.view = Mesh {
+			eng::Span<const math3d::Vec3t<eng::coord>>(slot.verts, nv),
+			eng::Span<const u16>(slot.indices, ni),
+			eng::Span<const math3d::FaceSpan>(slot.faces, nf),
+			{},
+		};
+		slot.nv = static_cast<u16>(nv);
+		slot.ni = static_cast<u16>(ni);
+		slot.nf = static_cast<u16>(nf);
+		slot.nm = 1u;
+		++m_count;
+		return ModelHandle {static_cast<u16>(m_count - 1u)};
+	}
+
 	/// Vista de la malla del modelo, o `nullptr` si el handle no está registrado.
-	[[nodiscard]] const Mesh* mesh(ModelHandle handle) const noexcept {
-		return handle.index < m_count ? &m_slots[handle.index].view : nullptr;
+	[[nodiscard]] eng::Ref<const Mesh> mesh(ModelHandle handle) const noexcept {
+		return handle.index < m_count ? eng::Ref<const Mesh> {m_slots[handle.index].view} : eng::Ref<const Mesh> {};
 	}
 
 	/// Material de la cara `face` del modelo, o `{}` si el handle/cara no existen.
 	[[nodiscard]] assets::ModelMaterial material(ModelHandle handle, u32 face) const noexcept {
-		const Slot* slot = slot_of(handle);
-		if (slot == nullptr || face >= slot->nf) return {};
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		if (!slot.valid() || face >= slot->nf) return {};
 		const u16 mi = slot->face_material[face];
 		return mi < slot->nm ? slot->materials[mi] : assets::ModelMaterial {};
 	}
 
 	/// Índice de material de la cara `face`, o `0xffff` si no existe.
 	[[nodiscard]] u16 material_index(ModelHandle handle, u32 face) const noexcept {
-		const Slot* slot = slot_of(handle);
-		return (slot != nullptr && face < slot->nf) ? slot->face_material[face] : 0xffffu;
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		return (slot.valid() && face < slot->nf) ? slot->face_material[face] : 0xffffu;
 	}
 
 	/// Índice de paleta de la cara `face` (atajo para el callback de color).
@@ -125,8 +181,8 @@ public:
 
 	/// Límites del modelo, o `{}` si el handle no existe.
 	[[nodiscard]] assets::ModelBounds bounds(ModelHandle handle) const noexcept {
-		const Slot* slot = slot_of(handle);
-		return slot != nullptr ? slot->bounds : assets::ModelBounds {};
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		return slot.valid() ? slot->bounds : assets::ModelBounds {};
 	}
 
 	/// \return número de modelos registrados.
@@ -152,8 +208,10 @@ private:
 		u16 nm = 0;
 	};
 
-	[[nodiscard]] const Slot* slot_of(ModelHandle handle) const noexcept {
-		return handle.index < m_count ? &m_slots[handle.index] : nullptr;
+	/// \param handle modelo consultado.
+	/// \return slot interno, o `nullptr` si el handle no esta vivo.
+	[[nodiscard]] eng::Ref<const Slot> slot_of(ModelHandle handle) const noexcept {
+		return handle.index < m_count ? eng::Ref<const Slot> {m_slots[handle.index]} : eng::Ref<const Slot> {};
 	}
 
 	Slot m_slots[MaxModels] {};

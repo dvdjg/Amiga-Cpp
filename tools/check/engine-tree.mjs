@@ -28,7 +28,7 @@ const UPDATE = process.argv.includes('--update-baseline');
 const ALLOWED_TOP = new Set([
 	'adv', 'ai', 'api', 'assets', 'audio', 'board', 'cards', 'core', 'cpu', 'debug', 'field',
 	'graphics', 'hud', 'hw', 'input', 'memory', 'os', 'parallel', 'platform', 'res', 'retro',
-	'rpg', 'scene', 'setup', 'sim', 'task', 'ui', 'engine.hpp',
+	'rpg', 'scene', 'scene3d', 'setup', 'sim', 'task', 'ui', 'engine.hpp',
 ]);
 const ALLOWED_CORE = new Set(['math', 'types', 'data', 'util']);
 const ALLOWED_FAMILIES = new Set(['amiga', 'atarist', 'megadrive']);

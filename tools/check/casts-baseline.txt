@@ -18,15 +18,15 @@
   0     2  engine/include/eng/ai/planning/htn.hpp
   0     5  engine/include/eng/ai/steering/crowd.hpp
   0     2  engine/include/eng/ai/steering/steering.hpp
+  0     5  engine/include/eng/api/3d.hpp
   0     1  engine/include/eng/api/copper.hpp
   0     1  engine/include/eng/api/device.hpp
   0     3  engine/include/eng/api/effects/fine_scroll.hpp
   0    23  engine/include/eng/api/effects/risky_woods.hpp
   1    38  engine/include/eng/api/effects/sprite_layer.hpp
   0     3  engine/include/eng/api/framebuffer.hpp
-  0    19  engine/include/eng/scene/composite_scene.hpp
   0     1  engine/include/eng/api/scroll.hpp
-  0     3  engine/include/eng/scene/sprite_scene.hpp
+  0    15  engine/include/eng/assets/model3d.hpp
   4    35  engine/include/eng/assets/uaf.hpp
   0     7  engine/include/eng/audio/acp1_stream.hpp
   0    18  engine/include/eng/audio/acp1_v3.hpp
@@ -181,7 +181,7 @@
   0     3  engine/include/eng/field/scroll_variant.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
   1     6  engine/include/eng/field/strip_composer.hpp
-  2    56  engine/include/eng/field/surface.hpp
+  2    58  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
   0     2  engine/include/eng/field/tile_map.hpp
   0    10  engine/include/eng/field/tile_source.hpp
@@ -214,7 +214,7 @@
   0     7  engine/include/eng/graphics/effects/rotozoom.hpp
   0     6  engine/include/eng/graphics/fast_bob_margins.hpp
   0    58  engine/include/eng/graphics/field_controller.hpp
-  2     5  engine/include/eng/graphics/fill_pattern.hpp
+  2     6  engine/include/eng/graphics/fill_pattern.hpp
   0     7  engine/include/eng/graphics/font_italic.hpp
   0     2  engine/include/eng/graphics/font5x7.hpp
   0     4  engine/include/eng/graphics/font8.hpp
@@ -231,7 +231,7 @@
   0     2  engine/include/eng/graphics/present_controller.hpp
   0     2  engine/include/eng/graphics/raster_intent.hpp
   0     2  engine/include/eng/graphics/render_pacing.hpp
-  0    19  engine/include/eng/graphics/render3d.hpp
+  0    29  engine/include/eng/graphics/render3d.hpp
   0    36  engine/include/eng/graphics/sprite_allocator.hpp
   2     0  engine/include/eng/graphics/sprite_asset.hpp
   3    11  engine/include/eng/graphics/sprite_chain.hpp
@@ -315,19 +315,21 @@
   0     9  engine/include/eng/scene/band_plan.hpp
   0     1  engine/include/eng/scene/banded_target.hpp
   0    18  engine/include/eng/scene/composite_actor.hpp
+  0    19  engine/include/eng/scene/composite_scene.hpp
   0    35  engine/include/eng/scene/display.hpp
   0    23  engine/include/eng/scene/formation.hpp
   0     7  engine/include/eng/scene/layer.hpp
   0    32  engine/include/eng/scene/mechanisms.hpp
-  0     1  engine/include/eng/scene/representation.hpp
   0    31  engine/include/eng/scene/rope.hpp
   0    32  engine/include/eng/scene/route_camera.hpp
   0    23  engine/include/eng/scene/scroll_plan.hpp
   0     9  engine/include/eng/scene/sprite_director_types.hpp
   0    18  engine/include/eng/scene/sprite_director.hpp
+  0     3  engine/include/eng/scene/sprite_scene.hpp
   0    38  engine/include/eng/scene/sprite_visual.hpp
   0    15  engine/include/eng/scene/trajectory.hpp
   0    25  engine/include/eng/scene/virtual_scene.hpp
+  0     7  engine/include/eng/scene3d/model_table.hpp
   0    26  engine/include/eng/setup/coherence.hpp
   0     3  engine/include/eng/sim/archetypes.hpp
   0    10  engine/include/eng/sim/avatar.hpp
