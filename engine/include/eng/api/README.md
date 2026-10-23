@@ -13,8 +13,6 @@ Blitter (`graphics::OrBob`/`LineEor`/`C2p4`).
 pasa a `eng::Engine`. Un juego portable incluye solo esta fachada; una demo Amiga añade su
 backend.
 
-Las fachadas directas `api/sprites.hpp` (`SpriteScene`) y `api/objects.hpp`
-(`CompositeScene`) son **legacy avanzado**: no se incluyen desde `api.hpp` y no deben usarse
-en codigo nuevo; la via canonica es `scene::SpriteDirector`.
+Las fachadas directas `api/sprites.hpp` (`SpriteScene`) y `api/objects.hpp` (`CompositeScene`) son **legacy avanzado**: no se incluyen desde `api.hpp` y no deben usarse en codigo nuevo; la via canonica es `scene::SpriteDirector`.
 
 Estado y decisiones de consolidación: `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md`.
