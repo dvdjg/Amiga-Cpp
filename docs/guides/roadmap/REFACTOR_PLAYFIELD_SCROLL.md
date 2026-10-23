@@ -114,7 +114,7 @@ en el proceso.
   (frontera de API pública).
 - **Escena retenida y recursos** (`SCENE_AND_RESOURCES.md`): `World` como fuente única de recursos,
   **modelo de ocupación** (`used`/`available`/`headroom`/`can_add`) e **introspección** de depuración.
-- **Representación de actores** (`RepresentationAllocator`): sprite / BOB / CPU / **playfield** (capa
+- **Representación de actores** (`SpriteAllocator`): sprite / BOB / CPU / **playfield** (capa
   de un DPF, patrón Jim Power), elegida por el engine y reasignable sin tocar la app.
 - **Composición en compile-time**: capacities como tipos/policies; sin `switch` runtime sobre modos
   ni virtuals (evitar código no usado).
@@ -124,7 +124,7 @@ en el proceso.
   matriz; el scroll consume el accesor.
 - **Mundo disperso**: `WorldMap` por **chunks** poblados (no matriz densa), índice barato y **cache
   de chunks residentes** con streaming bajo presupuesto de Chip RAM (background queue).
-- **Sprites/animaciones**: hoja de sprite/`Frame`/`Animation` + `ActorTemplate`, con representación
+- **Sprites/animaciones**: hoja de sprite/`Frame`/`Animation` + `ActorDesc`, con representación
   elegida por el engine.
 - **Audio**: `Sound`/`Music` como handles; `SampleBank`/`GameAudio`; presupuesto en el modelo de
   recursos.
@@ -132,7 +132,7 @@ en el proceso.
 - Detalle: `docs/engine/architecture/CONTENT_AND_TILEMAP.md`.
 - **Estado**: piezas puras implementadas y testeadas (HOST-025/026/027/028/029/030): `TileSource` +
   `SparseTileMap` (`tile_source.hpp`), `ChunkCache` (`chunk_cache.hpp`), `Animation`/`Frame`
-  y hoja de sprite (`animation.hpp`), `RepresentationAllocator` (`representation.hpp`),
+  y hoja de sprite (`animation.hpp`), `SpriteAllocator` (`representation.hpp`),
   `StreamingWorldMap` (`streaming_map.hpp`) y `TileMapView` (`tile_source.hpp`). El importador
   `tools/ehb/parse-tmx.mjs` soporta mapas finitos e infinitos (`<chunk>`) y las codificaciones
   CSV/XML/base64(gzip/zlib). El scroll ya consume el accesor abstracto: `XLimitedPlayfield`/

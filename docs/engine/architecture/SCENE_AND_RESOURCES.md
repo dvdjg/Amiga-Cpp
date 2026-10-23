@@ -36,11 +36,10 @@ cambia:
 | **Playfield** (capa de un DPF) | objeto grande con scroll propio (patrón Jim Power). |
 | CPU | casos pequeños/especiales (p. ej. un marcador). |
 
-- La elección es **política del engine** (`RepresentationAllocator`), transparente a la app; puede
+- La elección es **política del engine** (`SpriteAllocator`), transparente a la app; puede
   **reasignar** (sprite→BOB) al añadir elementos, sin que el dev reescriba nada.
 - El actor declara una **preferencia** (p. ej. `Visual`/`Layer`), no un mecanismo.
-- Implementación: `engine/include/eng/scene/representation.hpp` (`ActorTemplate`, `RepresentationBudget`,
-  `choose_representation`, `RepresentationAllocator`). La cobertura directa de `RepresentationAllocator` se retir? con HOST-028; el camino nuevo se cubre en HOST-485.
+- Implementaci?n: `engine/include/eng/scene/representation.hpp` (enum `Representation`), `engine/include/eng/scene/actor_types.hpp` (`ActorDesc`) y `engine/include/eng/graphics/sprite_allocator.hpp` (reparto efectivo al componer). Cobertura: HOST-003/072/391/485.
 
 ## 3. Modelo de recursos y ocupación
 
@@ -87,7 +86,7 @@ Ventana de blanking           líneas             trabajo que debe caer fuera de
 ## 6. Playfield-as-actor (patrón Jim Power)
 
 Un actor grande puede materializarse como **capa** (un playfield de un DPF) con su propia cámara y
-scroll: es una representación más del `RepresentationAllocator`.
+scroll: es una representación más del `SpriteAllocator`.
 
 - El dev lo describe como actor con preferencia `Layer`; el engine decide si cabe (planos, DMA,
   fetch) y lo promociona a capa.

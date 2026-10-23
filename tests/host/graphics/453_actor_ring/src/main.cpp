@@ -34,8 +34,6 @@ using eng::scene::ActorEmitContext;
 using eng::scene::ActorEmitStatus;
 using eng::scene::ActorStore;
 using eng::scene::BackgroundPolicy;
-using eng::scene::RepresentationAllocator;
-using eng::scene::RepresentationBudget;
 using eng::scene::TransparencyMode;
 
 namespace {
@@ -112,8 +110,7 @@ eng::ChipView<Tag> chip_view(const T (&a)[N]) {
 }
 
 /// Construye el actor del test con el pack cocinado (bob width 32 = 16 + guarda).
-[[nodiscard]] eng::scene::ActorId make_pack_actor(ActorStore<1>& store,
-						  RepresentationAllocator& alloc) {
+[[nodiscard]] eng::scene::ActorId make_pack_actor(ActorStore<1>& store) {
 	eng::scene::ActorDesc d {};
 	d.visual.pixels = eng::Span<const u16> {g_pack_be, 8u * kPlanes * 4u};
 	d.visual.w = 16u;
@@ -128,7 +125,7 @@ eng::ChipView<Tag> chip_view(const T (&a)[N]) {
 	d.save_words_per_row = 4u;        // 2 palabras + guarda de shift (x&15)
 	d.save_height = 8u;
 	d.animation = &kAnim;
-	const eng::scene::ActorId id = store.add(d, alloc);
+	const eng::scene::ActorId id = store.add(d);
 	return id;
 }
 
@@ -178,9 +175,7 @@ void test_subpixels_and_save_under() {
 
 	ActorStore<1> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
-	const eng::scene::ActorId id = make_pack_actor(store, alloc);
+	const eng::scene::ActorId id = make_pack_actor(store);
 	auto a = store.get(id);
 	check(a.valid(), "actor creado");
 	set_pack_bob(*a);
@@ -259,9 +254,7 @@ void test_ring_split_actor() {
 
 	ActorStore<1> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
-	const eng::scene::ActorId id = make_pack_actor(store, alloc);
+	const eng::scene::ActorId id = make_pack_actor(store);
 	auto a = store.get(id);
 	set_pack_bob(*a);
 

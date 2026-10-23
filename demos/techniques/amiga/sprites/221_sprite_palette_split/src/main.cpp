@@ -128,7 +128,6 @@ struct PaletteSplitDemo {
 		g_palette_b[19] = 0xfffu;
 
 		// Escena de juego: dos actores de 16x16 en el canal 0, cada uno con su paleta.
-		m_scene.set_budget(eng::scene::RepresentationBudget { 8u, 60000u, 0u });
 		eng::graphics::Visual vis {};
 		vis.pixels = m_ring.view().as_words().raw();
 		vis.w = 16u;

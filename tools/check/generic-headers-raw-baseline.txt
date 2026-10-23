@@ -7,7 +7,7 @@
   1  ai/navigation/navmesh_lite.hpp
   1  ai/perception/influence_map.hpp
   1  ai/planning/goap.hpp
-  1  api/objects.hpp
+  1  scene/composite_scene.hpp
   1  audio/sfx_mixer.hpp
   3  audio/wave_tables.hpp
   4  board/core/types.hpp

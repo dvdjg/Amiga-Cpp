@@ -26,7 +26,7 @@ La **lista viva y priorizada de pendientes de sprites** sigue en `ROADMAP_UNIFIC
 - **BOB** (*Blitter object*, «sprite blob»): copia de bitmap por Blitter (`graphics/bob.hpp`).
 - **Sprite CPU**: objeto rasterizado por la CPU (en A1200, *CPU Blit Assist*); corresponde a `Representation::Cpu`, aún sin camino de juego implementado.
 - **Sprite Playfield**: una capa de playfield (p. ej. PF2 de un DPF) usada como un objeto grande con scroll (enemigo gigante, patrón Jim Power); corresponde a `Representation::Layer`.
-- **Materialización**: el cómo se dibuja este frame un sprite (Sprite HW / BOB / CPU / Playfield). La elige el **planner** (`RepresentationAllocator` y composición) y puede degradar sin cambiar el contenido.
+- **Materialización**: el cómo se dibuja este frame un sprite (Sprite HW / BOB / CPU / Playfield). La elige el **planner** (`SpriteAllocator` y composición) y puede degradar sin cambiar el contenido.
 - **Contenido**: los píxeles, máscara y frames (`Visual`), sin flags de hardware ni de representación.
 
 **Frontera de capas (regla):** el contenido dice **qué se ve**; la preferencia de materialización vive en `ActorDesc::preferred` (`Representation`); la decisión efectiva (canal, par *attached*, layout, paleta, Copper) la toma el **planner/materializador** a partir de la forma del contenido y del presupuesto. Ni `Visual` ni `CompositePart` llevan registros, canales ni flags de Sprite HW.
@@ -54,10 +54,10 @@ La **lista viva y priorizada de pendientes de sprites** sigue en `ROADMAP_UNIFIC
 | Fondo repetitivo **Risky Woods** (reposiciona `POS` cada ≥24 px) | `effects::RiskyWoodsLayer` | `api/effects.hpp` | HOST-417; demos 208/211 |
 | Capa/HUD por línea (parchea `POS`+`DATA` por scanline) | `SpriteLineLayer` | `graphics/sprite_line_layer.hpp` | HOST-418 |
 | Fondo **Free Form** no repetitivo (fachada con scroll por Copper) | `effects::FreeFormSpriteLayer` | `api/effects/free_form_sprite.hpp` | HOST-419; demo 212 rota, mejora apuntada en 213 |
-| Emisión: armado de objeto (`arm_object`), armado por placements con **rearme vertical** | `SpriteManager` | `graphics/sprite_manager.hpp` | HOST-428; demos 053/054/214/216/217 |
+| Emisión: armado de objeto (`arm_object`), armado por placements con **rearme vertical** | `SpriteManager` | `graphics/sprite_manager.hpp` | HOST-428; demos 053/214/216/217 |
 | Colisión de hardware (`CLXCON`/`CLXDAT`), sin posición | `SpriteCollisionConfig`/`decode_clxdat` | `graphics/sprite_collision.hpp` | demo 206 |
 | Prioridad sprite/playfield (`BPLCON2`), `Priority` intent | `emit_planes_display` + `CopperIntentKind::Priority` | `graphics/copper/scheduler.hpp`, `raster_intent.hpp` | 206/216; `winuae/sprite-color-priority.md` |
-| Animación de DATA por frame (hoja + `frame_stride`) de un objeto HW | `compose_sprites` publica el frame vigente | `scene/actor_sprite.hpp` | HOST-072; demos 054/216 |
+| Animación de DATA por frame (hoja + `frame_stride`) de un objeto HW | `compose_sprites` publica el frame vigente | `scene/actor_sprite.hpp` | HOST-072; demos 216 |
 | Límites de hardware (canales, gap, reuso ≥24 px, planos de parcheo) | `kSpriteChannels`, `kSpriteVerticalGapLines`, `kSpriteMinReusePx`, `kSpriteLineDataMaxBitplanes` | `graphics/sprite_limits.hpp` | fuente única citada |
 | Fachada de juego (actores → compuestos HW + fallback BOB + Copper) | `SpriteScene<MaxActors>` | `scene/sprite_scene.hpp` | HOST-391/072; demos 216/217 |
 
@@ -115,9 +115,9 @@ La tabla mapea cada técnica de la consulta al estado real del engine. «Cubiert
 | Ruta | Para qué sirve | Estatus propuesto |
 |---|---|---|
 | `emit_placements_into` | **Camino de juego**: placements del compositor, primera config por canal en línea temprana, rearme vertical y paleta por franja intercalada | **Canónico** |
-| `emit_armed_into` + `arm_object` | Armado directo de los 8 canales de un `SpriteManager` configurado a mano (demos 054, HOST-428) | Driver de bajo nivel (demos) |
+| `emit_armed_into` + `arm_object` | Armado directo de los 8 canales de un `SpriteManager` configurado a mano (HOST-428) | Driver de bajo nivel (demos) |
 | `emit_template_into` | Plantilla de franjas sobre UN canal con `WAIT` por segmento (demo 053) | Driver de bajo nivel (demos) |
-| `emit_into` | Un `WAIT` por `VSTART`; usado por demos antiguas (062, dk_port) | **Legado**: retirar cuando esas demos migren a `emit_armed_into`/`emit_placements_into` |
+| `emit_into` | Un `WAIT` por `VSTART`; usado por dk_port | **Legado**: retirar cuando esas demos migren a `emit_armed_into`/`emit_placements_into` |
 
 La retirada de `emit_into` no se aplica todavía (rompería demos antiguas aún no migradas); lo que sí se ha aplicado es **dejar el contrato escrito** en la cabecera para que la migración sea mecánica y nadie añada rutas nuevas al mismo tiempo. Regla para código nuevo: la lógica de juego **no llama a `SpriteManager` directamente** — usa `SpriteScene::emit` + `emit_placements_into` (o `Screen`/API de nivel A cuando exista el equivalente).
 

@@ -69,7 +69,7 @@ int main() {
 	std::printf("== HOST-329 world_actors ==\n");
 
 	scene::World<2u, 4u> w;
-	w.reset_actors(0, 60000u, 0u);
+	w.reset_actors();
 
 	const scene::ActorId a = w.add_actor(make_bob(16, 16, 10u));
 	const scene::ActorId b = w.add_actor(make_bob(48, 16, 20u));
@@ -89,7 +89,7 @@ int main() {
 	}
 
 	// reset_actors limpia el mundo de actores.
-	w.reset_actors(0, 60000u, 0u);
+	w.reset_actors();
 	check(w.actors().count() == 0u, "reset_actors limpia");
 	{
 		graphics::FramePlan plan;

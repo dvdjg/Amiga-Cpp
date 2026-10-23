@@ -37,7 +37,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 
 | Pieza | Estado | Dónde |
 |---|---|---|
-| Elección de representación (`Representation`, `ActorTemplate`, `RepresentationBudget`, `RepresentationAllocator`, `choose_representation`) | EXISTE | `engine/include/eng/scene/representation.hpp` |
+| Elección de representación (`Representation`, `ActorDesc`, `SpriteBudget`, `SpriteAllocator`, `SpriteAllocator`) | EXISTE | `engine/include/eng/scene/representation.hpp` |
 | Contenido portable (`Visual`) y vocabulario de intención (`CopperIntent`, `SpriteIntent`, concept `Effect`) | EXISTE | `engine/include/eng/graphics/raster_intent.hpp` |
 | Contenido animado (`Animation`, `Frame`) | EXISTE | `engine/include/eng/graphics/animation.hpp` |
 | Plan de Blits (`FramePlan`, `BlitJob`, `BlitJobKind`, `DirtyRect`, `BlitBudget`) | EXISTE | `engine/include/eng/graphics/frame_plan.hpp` |
@@ -109,7 +109,7 @@ Invariantes:
 
 ## 4. Elección y degradación de representación
 
-La representación actual se expresa con `eng::scene::Representation`: `Cpu`, `Sprite`, `Bob` y `Layer`. La aplicación solo aporta una **preferencia** dentro de `ActorTemplate` (`preferred`, `priority`, `scrolls`, geometría y planos); el `RepresentationAllocator` elige y consume recursos con `choose_representation`, cuyo orden es `Layer > Sprite > Bob > Cpu`.
+La representación actual se expresa con `eng::scene::Representation`: `Cpu`, `Sprite`, `Bob` y `Layer`. La aplicación solo aporta una **preferencia** dentro de `ActorDesc` (`preferred`, `priority`, `scrolls`, geometría y planos); el `SpriteAllocator` elige y consume recursos con `SpriteAllocator`, cuyo orden es `Layer > Sprite > Bob > Cpu`.
 
 Reglas de elegibilidad ya codificadas:
 
@@ -294,7 +294,7 @@ Demo con gate visual (secuencias, no un frame suelto, y con veredicto de visión
 
 - Usar el camino poligonal del Blitter (line-draw + area-fill) para dibujar objetos.
 - Emitir registros de Copper, Blitter o sprite desde un actor o desde la aplicación.
-- Duplicar los caminos de `FramePlan`, `copper::Plan`, `SpriteAllocator` o `RepresentationAllocator`.
+- Duplicar los caminos de `FramePlan`, `copper::Plan`, `SpriteAllocator` o `SpriteAllocator`.
 - Suponer que la paleta de un sprite colisiona con la del playfield.
 - Asumir geometría, ancla o tamaño constantes en el save-under.
 - Tipos de actor distintos por cada combinación de animación, transparencia y Copper: todo es paramétrico sobre el contenido más políticas.
@@ -306,7 +306,7 @@ Demo con gate visual (secuencias, no un frame suelto, y con veredicto de visión
 
 Ordenadas por dependencia, dentro del roadmap F6:
 
-1. **Estado de actor retenido** (`Actor` + `ActorStore<Max>` con handles generacionales), consumiendo `ActorTemplate`/`RepresentationAllocator` y el contenido de `Visual`/`Animation`. **HECHO** (`scene/actor.hpp`), cubierto por el test host `072_actor`.
+1. **Estado de actor retenido** (`Actor` + `ActorStore<Max>` con handles generacionales), consumiendo `ActorDesc`/`SpriteAllocator` y el contenido de `Visual`/`Animation`. **HECHO** (`scene/actor.hpp`), cubierto por el test host `072_actor`.
 2. **Políticas de actor** (`TransparencyMode`, `BackgroundPolicy`) y su traducción a `BlitJob::minterm`/máscara y a la secuencia de jobs de save-under. **HECHO** (`transparency_plan`, `resolve_background`, `emit_save`/`emit_restore`), con `RestoreUnder` para destinos planares e **interleaved** (anillo corkscrew verificado por HOST-453).
 3. **Anclaje y offset** por actor y animación con velocidad entera. **HECHO** (`actor_screen_rect`, `actor_tick`); el anclaje por frame distinto queda pendiente.
 4. **Emisión de BOB** desde el actor: `bob_draw`/`bob_erase_box` con el rectángulo efectivo y el origen del frame dentro de la hoja. **HECHO**; el **recorte parcial** a la ventana (x/y negativos) queda pendiente (hoy se rechaza el objeto que no cabe entero). La **costura del anillo** (rect que cruza el fin del bucle del corkscrew) **SÍ se reparte** desde `graphics/bob_ring.hpp`: con `ActorEmitContext::ring_height` el dibujo, el borrado y el save-under salen como hasta dos trabajos lineales (la parte envuelta va a las líneas 0.. con la fuente avanzada); sin anillo o sin cruce el camino es lineal con una única comparación. Cubierto por HOST-453 (píxeles exactos con la línea envuelta, save-under espejado byte a byte, variantes Or flat/planar) y ejercitado en hardware por el modo `K121_ACTOR_SEAM` de la 121 (auto-chequeo por frame leyendo la parte visible y la envuelta del bitmap del anillo).
@@ -336,7 +336,7 @@ Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algor
 - **Framebuffer (dueños de memoria)**: `MemoryManager`/bancos, `eng::gfx::Bitmap`, `field::Playfield` (+ derivados), `composition::Scene`. `MemorySystem` conserva el scratch y compatibilidades en migración.
 - **Vistas/sectores (no poseen)**: `field::Surface`, `field::DrawTarget`, `Screen`, `BobTarget`, `scene::ActorEmitContext`, `scene::Layer`/`Camera2D`, `copper::BandScope`.
 - **Descriptores de contenido**: `graphics::Visual`, `graphics::Sprite` (BOB cocinado), `graphics::Bob` (crudo), `HwSpriteTemplate`/`HwSpritePlacement`, `SpriteIntent`, `BlitJob`, `CopperIntent`.
-- **Algoritmos**: `Camera2D`, `TileScrollDriver`/`FineScroll`, `PaletteTransition`/`PaletteCycle`/`RasterGradient`/`Rotozoom`, `SpriteAllocator`, `RepresentationAllocator`, `copper::Timeline`/`Plan`, `FramePlan`, `Animation`.
+- **Algoritmos**: `Camera2D`, `TileScrollDriver`/`FineScroll`, `PaletteTransition`/`PaletteCycle`/`RasterGradient`/`Rotozoom`, `SpriteAllocator`, `SpriteAllocator`, `copper::Timeline`/`Plan`, `FramePlan`, `Animation`.
 - **Retenido/planner**: `Actor`/`ActorStore`, `World`/`Layer`, `SceneResources`/`DisplayLimits`/`compose`.
 
 ### 15.2 Tabla de responsabilidades
@@ -372,7 +372,7 @@ Reglas: el nivel 4 **no** ve `BlitJob`; el 3 **no** ve el plan; el 2 **no** ve e
 con `C2P`: una **conversión** no es un blit (debe salir de `BlitJobKind`).
 | `Camera2D`/`TileScrollDriver`/`FineScroll` | algoritmo | scroll |
 | `PaletteTransition`/`Cycle`/`RasterGradient` | algoritmo | color/raster |
-| `SpriteAllocator`/`RepresentationAllocator` | algoritmo | reparto/representación |
+| `SpriteAllocator`/`SpriteAllocator` | algoritmo | reparto/representación |
 
 ### 15.3 Copperlist
 

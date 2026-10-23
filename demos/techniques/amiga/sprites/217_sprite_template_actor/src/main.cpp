@@ -213,11 +213,6 @@ private:
 	/// El juego describe UN actor con la plantilla; el engine decide cómo materializarlo.
 	bool add_actor() {
 		m_scene.clear();
-		m_scene.set_budget(eng::scene::RepresentationBudget{
-			.sprite_channels = eng::graphics::kSpriteChannels,
-			.bob_budget_words = kBobBudgetWords,
-			.layer_slots = 0u,
-		});
 		scene::ActorDesc d {};
 		// Contenido para el fallback a BOB (la primera franja como sprite normal).
 		d.visual.pixels = m_sprite_block.view.as_words().as_const().subspan(0u, kSegWords).raw();

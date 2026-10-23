@@ -555,7 +555,6 @@ private:
 
 	bool add_actors() {
 		m_actors.reset();
-		m_allocator.reset({0u, 60000u, 0u}); // sin sprites: todo va por Blitter
 		const eng::u8* const sheet = m_sheet.view.data();
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
 			const eng::u8 policy = static_cast<eng::u8>(i % kObjPolicies);
@@ -608,7 +607,7 @@ private:
 				need.count = 1u;
 			}
 			d.copper = eng::Span<const graphics::CopperIntent> {g_obj_needs[i], kObjCopperSteps};
-			m_ids[i] = m_actors.add(d, m_allocator);
+			m_ids[i] = m_actors.add(d);
 			if (!m_ids[i].valid()) {
 				return false;
 			}
@@ -693,7 +692,6 @@ private:
 	graphics::BobTarget m_target {};
 	eng::copper::Plan m_plan {};
 	scene::ActorStore<16> m_actors {};
-	scene::RepresentationAllocator m_allocator {};
 	scene::ActorId m_ids[kBobCount > 0u ? kBobCount : 1u] {};
 #if K_086_PLANNER
 	graphics::Sprite m_sprites[kPlanCount] {};

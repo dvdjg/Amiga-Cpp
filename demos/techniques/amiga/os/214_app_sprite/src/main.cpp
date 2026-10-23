@@ -124,7 +124,7 @@ struct AppSpriteDemo {
 
 		// Segundo objeto por el **mundo retenido**: el engine elige la representación (aquí
 		// BOB). Usa el **mismo descriptor** que `screen.sprite` (`actor_desc_from_sprite`).
-		app.world().reset_actors(0, 60000u, 0u);
+		app.world().reset_actors();
 		m_actor = app.world().add_actor(eng::scene::actor_desc_from_sprite(m_sprite, 0, 0, 10u));
 		if (!m_actor.valid()) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);

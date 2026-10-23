@@ -1,16 +1,15 @@
 # Demo 053: sprites hardware — multiplexado y color multiplexing
 
-Valida el camino de sprites de la nueva estructura del engine: `HwSpriteTemplate`
-(plantilla portable con segmentos y cambios de paleta) + `SpriteManager`
-(`emit_template_into`), que reusa UN canal de sprite hardware para dibujar SEIS
+Valida el camino de sprites de alto nivel: `scene::SpriteDirector` recibe una entidad con `HwSpriteTemplate`
+(plantilla portable con segmentos y cambios de paleta) y `present` reusa UN canal de sprite hardware para dibujar SEIS
 objetos distintos en franjas verticales distintas ("chasing the raster"), cada uno
 con su propio color (`HwSpritePaletteSwitch` cambia `COLORxx` por franja).
 
 Qué muestra: seis barras de 16 px (anchura decreciente, a modo de pirámide), cada
 una de un tono saturado distinto (rojo, verde, azul, amarillo, cian, magenta),
 apiladas verticalmente y servidas por el canal 0. En `update()` el bloque entero
-**rebota horizontalmente** (onda triangular, 40..229 px) reconstruyendo la
-copperlist por frame, para mostrar el reposicionado por Copper en movimiento.
+**rebota horizontalmente** (onda triangular, 40..166 px de pantalla) reconstruyendo la
+copperlist por frame, para mostrar el reposicionado por Copper en movimiento. La demo ya no llama a `SpriteManager` directamente.
 
 ## Lo que esta demo destapó y corrigió
 

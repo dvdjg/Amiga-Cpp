@@ -313,11 +313,6 @@ private:
 		m_bullet_vis.w = 16u;
 		m_bullet_vis.h = 8u;
 		m_bullet_vis.bitplanes = 2u;
-		m_bullets.set_budget(eng::scene::RepresentationBudget{
-			.sprite_channels = eng::graphics::kSpriteChannels,
-			.bob_budget_words = kBulletBobBudgetWords,
-			.layer_slots = 0u,
-		});
 		// Pool FIJO de 8 balas (Sprite HW): se crean aquí y se reciclan por posición.
 		for (eng::u8 s = 0u; s < kBulletsMax; ++s) {
 			eng::scene::ActorDesc d {};

@@ -141,7 +141,7 @@ Ya existe buena parte:
   (HOST-418).
 - **Límites de hardware** (`graphics/sprite_limits.hpp`): `kSpriteChannels`, `kSpriteMinReusePx`,
   `kSpriteLineDataMaxBitplanes`, fuente única de los topes que respetan el allocator y los drivers.
-- **`scene::RepresentationAllocator`**: elige sprite/BOB/CPU al dar de alta el actor.
+- **`scene::SpriteAllocator`**: elige sprite/BOB/CPU al dar de alta el actor.
 
 **Pendiente (lo que aporta esta técnica):**
 

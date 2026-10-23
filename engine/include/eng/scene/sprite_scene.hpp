@@ -24,7 +24,7 @@
 ///
 /// ```cpp
 /// eng::SpriteScene<64> sprites;                   // hasta 64 actores (NES OAM)
-/// // `set_budget(RepresentationBudget)` está deprecado: usa `SpriteDirector`/`SpriteBudget`.
+/// // `add_direct`/`SpriteDirector`
 /// sprites.set_cooked_pool(cooked_block.mem_view()); // par attached: pool Chip de estructuras
 /// sprites.add_direct({.visual = gema, .x = 100, .y = 40, .sprite_priority = 1});
 /// // render: compone (los BOB van al `plan`) y deja las colocaciones HW en `placements()`
@@ -51,15 +51,6 @@ namespace eng {
 template <eng::u16 MaxActors = 64u>
 class SpriteScene {
 public:
-	/// Fija el **presupuesto de representación** (canales de sprite HW, slots de capa, palabras de
-	/// BOB): cuántos actores caben como sprite hardware antes de degradar a BOB. Llámalo **antes**
-	/// de `add` (el presupuesto se consume al dar de alta cada actor).
-	/// \param b  `{sprite_channels, bob_budget_words, layer_slots}`.
-	/// \deprecated Presupuesto grueso heredado (`RepresentationAllocator`), no ve attached/tiras/
-	///             scanline/Copper. En código nuevo usa `add_direct` + `SpriteDirector`/
-	///             `SpriteLoadReport`, que contabilizan con el `SpriteAllocator` real.
-	void set_budget(const eng::scene::RepresentationBudget& b) noexcept { m_alloc.reset(b); }
-
 	/// **Pool Chip para los pares *attached***: `emit` cocina sus estructuras DMA (dos por par).
 	/// La DATA estática se cocina una vez y se reutiliza; el contenido animado se recocina al
 	/// cambiar su fuente/altura. El llamador mantiene el pool vivo durante la escena.
@@ -107,14 +98,13 @@ public:
 	/// \return id del actor, o `ActorId{}` si no se pudo dar de alta.
 	[[nodiscard]] eng::scene::ActorId add(const eng::scene::ActorDesc& desc) noexcept {
 		invalidate_cooked_cache();
-		return m_store.add(desc, m_alloc);
+		return m_store.add(desc);
 	}
-	/// Alta **sin presupuesto** para el `SpriteDirector`: la decisión real la toma
-	/// `SpriteAllocator` al componer (canales, gap, scanline), no el contador grueso de
-	/// `RepresentationAllocator`. El actor se marca como sprite y degrada a BOB si no cabe.
+	/// Alias historico de `add`; la materializacion real la decide la composicion.
+	/// \param desc descripcion del actor.
+	/// \return id del actor, o `ActorId{}` si no se pudo dar de alta.
 	[[nodiscard]] eng::scene::ActorId add_direct(const eng::scene::ActorDesc& desc) noexcept {
-		invalidate_cooked_cache();
-		return m_store.add_unbudgeted(desc);
+		return add(desc);
 	}
 
 	/// \param id  id devuelto por `add`.
@@ -229,7 +219,6 @@ private:
 	/// Claves de raster PAL/ECS (0..511) para counting-sort estable de placements.
 	static constexpr eng::u16 kRasterLines = 512u;
 	eng::scene::ActorStore<MaxActors> m_store {};
-	eng::scene::RepresentationAllocator m_alloc {};
 	eng::scene::ActorId m_order[MaxActors] {};
 	eng::u16 m_prev_actors[MaxActors] {}; ///< secuencia Y del frame anterior (incremental)
 	eng::u16 m_prev_count = 0u;

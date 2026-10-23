@@ -65,7 +65,6 @@ int main() {
 	eng::SpriteScene<4u> sp {};
 	// 2 canales de sprite hardware, sin capas, con presupuesto de BOB: 2 actores caben como sprite,
 	// el resto degrada a BOB.
-	sp.set_budget(eng::scene::RepresentationBudget {2u, 60000u, 0u});
 
 	for (eng::usize i = 0u; i < 32u; ++i) {
 		g_sheet[i] = 0xffffu;
@@ -117,7 +116,6 @@ int main() {
 	// Tres actores 16x8 con `preferred_channel = 0` y franjas disjuntas se sirven por UN
 	// canal (multiplexado vertical): el caso de la ristra que la cadena optimiza.
 	eng::SpriteScene<4u> ch_scene {};
-	ch_scene.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
 	eng::graphics::Visual v8 = v;
 	v8.h = 8u;
 	v8.pixels = eng::Span<const eng::u16> {g_sheet, 32u}; // 8 líneas × 2 planos con guarda
@@ -188,7 +186,6 @@ int main() {
 		pal_c[i] = static_cast<eng::u16>(0x300u + i);
 	}
 	eng::SpriteScene<8u> pal_scene {};
-	pal_scene.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
 	eng::scene::ActorDesc pa = d;
 	pa.preferred_channel = 0u;
 	pa.sprite_palette = eng::PaletteWords {pal_a, 32u};
@@ -216,7 +213,6 @@ int main() {
 	eng::graphics::Visual vm = v;
 	vm.mask = eng::Span<const eng::u16> {g_mask, 32u};
 	eng::SpriteScene<8u> pal_scene2 {};
-	pal_scene2.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
 	eng::scene::ActorDesc pc = pa;
 	pc.visual = vm;
 	pc.sprite_palette = eng::PaletteWords {pal_c, 32u};
@@ -242,7 +238,6 @@ int main() {
 	// Cada canal sirve un objeto por banda (Y separadas por 40 px > alto+gap): el allocator
 	// debe reutilizarlo cinco veces y la telemetría del frame lo refleja sin contenedores.
 	eng::SpriteScene<40u> grid {};
-	grid.set_budget(eng::scene::RepresentationBudget {40u, 0u, 0u});
 	for (eng::u8 band = 0u; band < 5u; ++band) {
 		for (eng::u8 ch = 0u; ch < 8u; ++ch) {
 			eng::scene::ActorDesc g = d;

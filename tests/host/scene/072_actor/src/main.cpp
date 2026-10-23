@@ -59,8 +59,6 @@ using eng::scene::ActorId;
 using eng::scene::ActorStore;
 using eng::scene::BackgroundPolicy;
 using eng::scene::Representation;
-using eng::scene::RepresentationAllocator;
-using eng::scene::RepresentationBudget;
 using eng::scene::TransparencyMode;
 
 constexpr eng::u16 kRowBytes = 40;
@@ -164,28 +162,25 @@ int fails = 0;
 void test_store() {
 	ActorStore<4> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
-
-	const ActorId a = store.add(make_desc(), alloc);
+	const ActorId a = store.add(make_desc());
 	CHECK(a.valid(), "alta valida");
 	CHECK(store.count() == 1u, "cuenta tras alta");
 	CHECK(store.get(a).valid(), "get del id valido");
 	CHECK(store.get(a)->actual == Representation::Sprite, "16x8 cabe como sprite");
 
-	const ActorId b = store.add(make_desc(), alloc);
-	const ActorId c = store.add(make_desc(), alloc);
-	const ActorId d = store.add(make_desc(), alloc);
+	const ActorId b = store.add(make_desc());
+	const ActorId c = store.add(make_desc());
+	const ActorId d = store.add(make_desc());
 	CHECK(b.valid() && c.valid() && d.valid(), "hasta capacidad");
 	CHECK(store.full(), "store lleno");
-	const ActorId extra = store.add(make_desc(), alloc);
+	const ActorId extra = store.add(make_desc());
 	CHECK(!extra.valid(), "sin capacidad devuelve id invalido");
 
 	CHECK(store.remove(b), "baja valida");
 	CHECK(!store.get(b).valid(), "id dado de baja no resuelve");
 	CHECK(store.count() == 3u, "cuenta tras baja");
 
-	const ActorId e = store.add(make_desc(), alloc);
+	const ActorId e = store.add(make_desc());
 	CHECK(e.valid(), "alta recicla slot");
 	CHECK(e.index == b.index, "recicla el mismo slot");
 	CHECK(e.generation != b.generation, "generacion nueva");
@@ -197,7 +192,7 @@ void test_store() {
 	// Sin contenido no se da de alta.
 	ActorDesc sin_contenido = make_desc();
 	sin_contenido.visual.pixels = {};
-	const ActorId bad = store.add(sin_contenido, alloc);
+	const ActorId bad = store.add(sin_contenido);
 	CHECK(!bad.valid(), "sin contenido no se da de alta");
 }
 
@@ -224,9 +219,7 @@ void test_policies() {
 void test_geometry() {
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
-	const ActorId id = store.add(make_desc(), alloc);
+	const ActorId id = store.add(make_desc());
 	auto a = store.get(id);
 
 	CHECK(a->bob.draw == eng::graphics::BobDraw::CookieCut, "bob draw segun transparencia");
@@ -249,12 +242,10 @@ void test_geometry() {
 void test_animation_speed() {
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	ActorDesc d = make_desc();
 	d.anim_rate_num = 1u;
 	d.anim_rate_den = 2u; // media velocidad
-	const ActorId id = store.add(d, alloc);
+	const ActorId id = store.add(d);
 	auto a = store.get(id);
 
 	CHECK(!eng::scene::actor_tick(*a, 1u), "sin llegar al medio tick no avanza");
@@ -268,9 +259,7 @@ void test_animation_speed() {
 void test_emit_clear() {
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
-	const ActorId id = store.add(make_desc(), alloc);
+	const ActorId id = store.add(make_desc());
 	auto a = store.get(id);
 	a->prev[0] = DirtyRect {10, 20, 26, 28}; // caja previa (16x8)
 
@@ -315,9 +304,7 @@ void test_emit_clear() {
 void test_emit_frame_offset() {
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
-	const ActorId id = store.add(make_desc(), alloc);
+	const ActorId id = store.add(make_desc());
 	auto a = store.get(id);
 	eng::scene::actor_tick(*a, 1u); // pasa al frame 1 (x = 16 en la hoja)
 
@@ -337,9 +324,7 @@ void test_emit_frame_offset() {
 void test_emit_clipped_and_full() {
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
-	const ActorId id = store.add(make_desc(), alloc);
+	const ActorId id = store.add(make_desc());
 	auto a = store.get(id);
 
 	FramePlan plan {};
@@ -365,9 +350,7 @@ void test_emit_clipped_and_full() {
 	lejos.surface = 5u;
 	ActorStore<2> store2;
 	store2.reset();
-	RepresentationAllocator alloc2 {};
-	alloc2.reset(RepresentationBudget {8u, 10000u, 0u});
-	const ActorId id2 = store2.add(lejos, alloc2);
+	const ActorId id2 = store2.add(lejos);
 	auto a2 = store2.get(id2);
 	FramePlan plan2 {};
 	plan2.clear();
@@ -379,13 +362,11 @@ void test_surface_selection_and_sprite_intent() {
 	// El mismo actor dibujado en la superficie 1 (segundo playfield de un DPF).
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	ActorDesc d = make_desc();
 	d.surface = 1u;
 	d.z = 10u;
 	d.sprite_priority = 2u;
-	const ActorId id = store.add(d, alloc);
+	const ActorId id = store.add(d);
 	auto a = store.get(id);
 
 	FramePlan plan {};
@@ -419,8 +400,6 @@ void test_emit_save_under_sweep() {
 	static eng::u16 save[256u / 2u] {};
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	Bob bob {};
 	bob.sheet = chip_view(sheet);
 	bob.width = 32u; // ventana = arte + guarda (hoja par)
@@ -442,7 +421,7 @@ void test_emit_save_under_sweep() {
 	d.save[0] = chip_view(save);
 	d.save_words_per_row = 2u;
 	d.save_height = 16u;
-	const ActorId id = store.add(d, alloc);
+	const ActorId id = store.add(d);
 	auto a = store.get(id);
 	a->bob = bob; // patrón de las demos 121/302 (el camino visual no expresa la hoja par)
 	const BobTarget target = make_bob_target(chip_view<eng::PlaneTag>(g_screen), kRowBytes,
@@ -480,14 +459,12 @@ void test_emit_save_under_sweep() {
 void test_emit_save_under() {
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	ActorDesc d = make_desc();
 	d.background = BackgroundPolicy::SaveUnder;
 	d.save[0] = chip_view(g_save);
 	d.save_words_per_row = 2u; // con desplazamiento fino el blit cubre 1 palabra extra
 	d.save_height = 8u;
-	const ActorId id = store.add(d, alloc);
+	const ActorId id = store.add(d);
 	auto a = store.get(id);
 	a->prev[0] = DirtyRect {10, 20, 26, 28};
 
@@ -516,7 +493,7 @@ void test_emit_save_under() {
 	sin_buffer.save[0] = {};
 	ActorStore<2> store2;
 	store2.reset();
-	const ActorId id2 = store2.add(sin_buffer, alloc);
+	const ActorId id2 = store2.add(sin_buffer);
 	auto a2 = store2.get(id2);
 	FramePlan plan2 {};
 	plan2.clear();
@@ -555,11 +532,9 @@ void test_copper_anchoring() {
 
 	ActorStore<2> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	ActorDesc d = make_desc();
 	d.copper = eng::Span<const CopperIntent> {needs, 2u};
-	const ActorId id = store.add(d, alloc);
+	const ActorId id = store.add(d);
 	auto a = store.get(id);
 
 	CopperIntent out[4] {};
@@ -575,9 +550,6 @@ void test_emit_order_by_surface_and_z() {
 	// superficie y, dentro de cada una, ir de atrás hacia delante.
 	ActorStore<8> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
-
 	const auto add = [&](eng::u8 surface, eng::u8 z, eng::s16 y) {
 		ActorDesc d = make_desc();
 		d.anchor = {0, 0};
@@ -586,7 +558,7 @@ void test_emit_order_by_surface_and_z() {
 		d.y = y;
 		d.surface = surface;
 		d.z = z;
-		return store.add(d, alloc);
+		return store.add(d);
 	};
 	add(1u, 200u, 200);
 	add(0u, 50u, 50);
@@ -698,10 +670,6 @@ void test_sprite_template_projection() {
 void test_sprite_allocation_and_bob_fallback() {
 	ActorStore<12> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
-
-	// 10 actores con la MISMA franja (solape total) y `z` creciente con el slot; cada
 	// uno con su propia hoja, para poder identificar por la fuente quién se emite.
 	for (eng::u16 i = 0; i < 10u; ++i) {
 		ActorDesc d = make_desc();
@@ -712,7 +680,7 @@ void test_sprite_allocation_and_bob_fallback() {
 		d.surface = 0u;
 		d.z = static_cast<eng::u8>(10u * (i + 1u));
 		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 24u, 24u};
-		CHECK(store.add(d, alloc).valid(), "alta de actor para el reparto");
+		CHECK(store.add(d).valid(), "alta de actor para el reparto");
 	}
 
 	// Orden de emisión deliberadamente por `z` DESCENDENTE: así el orden por `top` de las
@@ -759,9 +727,6 @@ void test_sprite_allocation_and_bob_fallback() {
 void test_compose_sprite_frame_data() {
 	ActorStore<4> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
-
 	ActorDesc d = make_desc();
 	d.anchor = {0, 0};
 	d.offset = {0, 0};
@@ -770,7 +735,7 @@ void test_compose_sprite_frame_data() {
 	d.z = 10;
 	d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 64u};
 	d.visual.frame_stride = 32u; // 2 frames de 16 words
-	const ActorId id = store.add(d, alloc);
+	const ActorId id = store.add(d);
 	CHECK(id.valid(), "actor animado de alta");
 
 	ActorEmitContext ctx {};
@@ -845,9 +810,7 @@ void test_compose_attached_pair() {
 
 	ActorStore<4> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
-	const ActorId id = store.add(make_attached(), alloc);
+	const ActorId id = store.add(make_attached());
 	CHECK(id.valid(), "alta del actor attached");
 
 	ActorEmitContext ctx {};
@@ -909,13 +872,11 @@ void test_compose_attached_pair() {
 	// Par que no cabe (5 actores = 10 canales): degrada y el BOB sale UNA sola vez.
 	ActorStore<5> many;
 	many.reset();
-	RepresentationAllocator alloc5 {};
-	alloc5.reset(RepresentationBudget {8u, 60000u, 0u});
 	for (eng::u16 i = 0; i < 5u; ++i) {
 		ActorDesc d = make_attached();
 		d.y = 100;
 		d.z = static_cast<eng::u8>(10u * (i + 1u));
-		CHECK(many.add(d, alloc5).valid(), "alta attached para el desbordamiento");
+		CHECK(many.add(d).valid(), "alta attached para el desbordamiento");
 	}
 	plan.clear();
 	ActorId order5[5] {};
@@ -962,8 +923,6 @@ void test_compose_template_chain() {
 
 	ActorStore<4> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
 	ActorDesc d = make_desc();
 	d.anchor = {0, 0};
 	d.offset = {0, 0};
@@ -976,7 +935,7 @@ void test_compose_template_chain() {
 	d.visual.bitplanes = 2u;
 	d.sheet_row_bytes = 4u; // base 1 palabra + guarda
 	d.sprite_template = tpl;
-	CHECK(store.add(d, alloc).valid(), "alta del actor con plantilla");
+	CHECK(store.add(d).valid(), "alta del actor con plantilla");
 
 	ActorEmitContext ctx {};
 	use_targets(ctx);
@@ -1036,9 +995,6 @@ void test_compose_template_chain() {
 void test_compose_group_and_rank() {
 	ActorStore<6> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
-
 	auto make_actor = [&](eng::s16 y, eng::u8 z) {
 		ActorDesc d = make_desc();
 		d.anchor = {0, 0};
@@ -1057,7 +1013,7 @@ void test_compose_group_and_rank() {
 	ActorDesc fixed = make_actor(100, 10);
 	fixed.assign_rank = 1u;
 	fixed.preferred_channel = 5u;
-	CHECK(store.add(fixed, alloc).valid(), "alta del fijo");
+	CHECK(store.add(fixed).valid(), "alta del fijo");
 
 	for (eng::u8 k = 0; k < 3u; ++k) {
 		ActorDesc g = make_actor(static_cast<eng::s16>(120 + 4 * k),
@@ -1065,10 +1021,10 @@ void test_compose_group_and_rank() {
 		g.group = 7u;
 		g.group_index = k;
 		g.group_span = 3u;
-		CHECK(store.add(g, alloc).valid(), "alta del miembro de grupo");
+		CHECK(store.add(g).valid(), "alta del miembro de grupo");
 	}
 	ActorDesc free_actor = make_actor(124, 30);
-	CHECK(store.add(free_actor, alloc).valid(), "alta del libre");
+	CHECK(store.add(free_actor).valid(), "alta del libre");
 
 	ActorEmitContext ctx {};
 	use_targets(ctx);
@@ -1100,15 +1056,13 @@ void test_compose_group_and_rank() {
 	// Grupo + *attached* (4 planos de 16 px, derivado): rechazo controlado.
 	ActorStore<2> bad_store;
 	bad_store.reset();
-	RepresentationAllocator bad_alloc {};
-	bad_alloc.reset(RepresentationBudget {8u, 60000u, 0u});
 	ActorDesc bad = make_actor(120, 10);
 	bad.visual.bitplanes = 4u;
 	bad.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 32u};
 	bad.group = 1u;
 	bad.group_index = 0u;
 	bad.group_span = 2u;
-	CHECK(bad_store.add(bad, bad_alloc).valid(), "alta del grupo+attached");
+	CHECK(bad_store.add(bad).valid(), "alta del grupo+attached");
 	plan.clear();
 	ActorId order1[2] {};
 	SpriteIntent intents1[4] {};
@@ -1128,9 +1082,6 @@ void test_compose_group_and_rank() {
 void test_compose_sprites() {
 	ActorStore<12> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
-
 	static const CopperIntent need {
 		CopperIntentKind::PaletteLine, 0u, 4u, 0u,
 		eng::PaletteWords {g_copper_colors, 2u}, 1u, 2u, 0, {}, 0u, nullptr};
@@ -1147,7 +1098,7 @@ void test_compose_sprites() {
 		d.sprite_priority = 2u;
 		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 24u, 24u};
 		d.copper = eng::Span<const CopperIntent> {&need, 1u};
-		CHECK(store.add(d, alloc).valid(), "alta para componer");
+		CHECK(store.add(d).valid(), "alta para componer");
 	}
 
 	ActorEmitContext ctx {};
@@ -1214,9 +1165,6 @@ void test_compose_sprites_overlapping_windows() {
 
 	ActorStore<4> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
-
 	auto add_at = [&](eng::u16 y) {
 		ActorDesc d = make_desc();
 		d.anchor = {0, 0};
@@ -1227,7 +1175,7 @@ void test_compose_sprites_overlapping_windows() {
 		d.z = 10u;
 		d.sprite_priority = 2u;
 		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 24u};
-		return store.add(d, alloc);
+		return store.add(d);
 	};
 	CHECK(add_at(105u).valid(), "actor arriba (solo A)");
 	CHECK(add_at(130u).valid(), "actor en el solape (A y B)");
@@ -1275,8 +1223,6 @@ void test_copper_priority_wiring() {
 
 	ActorStore<4> store;
 	store.reset();
-	RepresentationAllocator alloc {};
-	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
 	CopperIntent hi {
 		CopperIntentKind::PaletteLine, 0u, 0u, 0u,
 		eng::PaletteWords {hi_cols, 2u}, 1u, 1u, 0, {}, 0u, nullptr};
@@ -1287,7 +1233,7 @@ void test_copper_priority_wiring() {
 	d.anchor = {0, 0};
 	d.offset = {0, 0};
 	d.y = 100;
-	const ActorId id = store.add(d, alloc);
+	const ActorId id = store.add(d);
 	auto a = store.get(id);
 	CHECK(a.valid(), "actor con necesidad de copper");
 

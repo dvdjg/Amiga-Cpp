@@ -6,16 +6,15 @@
 // Demo 053: multiplexado de sprites hardware + color multiplexing.
 // ============================================================================
 //
-// Valida el camino de sprites de la nueva estructura del engine:
-// `HwSpriteTemplate` (plantilla portable con segmentos y cambios de paleta) +
-// `SpriteManager::emit_template_into` (reuso vertical "chasing the raster" y
-// color multiplexing por franja).
+// Valida el camino de sprites de la nueva estructura del engine a trav?s de
+// `scene::SpriteDirector`: una plantilla portable (`HwSpriteTemplate`) con seis
+// segmentos y cambios de paleta, publicada con `emit` + `present`.
 //
 // Qué muestra: SEIS objetos de 16 px de ancho y altura 24, con anchura creciente
 // (pirámide), servidos por UN SOLO canal de sprite hardware (canal 0). Cada
 // objeto se rearma en su línea (el Copper reapunta SPRxPT/POS/CTL) y cambia su
 // color `COLOR17` en esa misma línea. Es la técnica de amiga-bootcamp: el juego
-// emite intenciones; el scheduler/manager materializa el hardware.
+// emite una entidad con plantilla; el director materializa el hardware.
 //
 // Fondo EHB estático (6 planos) con COLOR00 navy para que los sprites destaquen.
 
@@ -45,6 +44,8 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
+namespace scene = eng::scene;
+
 // Geometría del display EHB 320x256 (igual que StaticEhbScene).
 constexpr eng::u16 kBytesPerRow = 40;
 constexpr eng::u8  kPlanes = 6;
@@ -57,6 +58,7 @@ constexpr eng::u8  kSpriteHeight = 24;
 constexpr eng::u16 kWordsPerLine = 2;   // DAT + DATB
 constexpr eng::u16 kInstanceWords = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine; // 48
 constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kInstances);     // 288
+constexpr eng::u32 kFailAddActor = 0x00005304u;
 constexpr eng::u16 kBaseY = 40;         // primera línea del primer segmento
 constexpr eng::u16 kSpriteHpos = 152;   // centrado: (320-16)/2
 
@@ -71,6 +73,9 @@ constexpr eng::Palette32 kBasePalette {{
 
 // Seis tonos saturados (RGB444): uno por instancia.
 constexpr eng::u16 kHues[kInstances] = { 0xf00, 0x0f0, 0x00f, 0xff0, 0x0ff, 0xf0f };
+
+// 6 segmentos -> SpriteScene<2> reserva 8 intents (2 * 4) para una entidad.
+using Director = eng::scene::SpriteDirector<2u, 1u, 1u, 1u, 8u, 8u>;
 
 struct SpriteMultiplexDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
@@ -96,6 +101,10 @@ struct SpriteMultiplexDemo {
 
 		build_sprite_sheet(sprite_data);
 		build_template(sprite_data.as_const());
+		if (!add_actor(sprite_data.as_const())) {
+			eng::debug::mark_failed(g_eng_run_status, kFailAddActor);
+			return;
+		}
 
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005303u);
@@ -113,7 +122,10 @@ struct SpriteMultiplexDemo {
 		const eng::u16 period = 64u;
 		const eng::u16 phase = static_cast<eng::u16>(frame & (2u * period - 1u));
 		const eng::u16 t = (phase < period) ? phase : static_cast<eng::u16>(2u * period - 1u - phase);
-		m_hpos = static_cast<eng::u16>(40u + t * 3u);  // 40..229 px
+		m_hpos = static_cast<eng::u16>(40u + t * 2u);  // 40..166 px de pantalla
+		if (m_dir.actor(m_id).valid()) {
+			m_dir.actor(m_id)->desc.x = static_cast<eng::s16>(m_hpos + eng::graphics::kSpriteScreenXOrigin);
+		}
 		if (build_copper()) {
 			backend.install_copper_list(m_copper_view);
 		}
@@ -153,10 +165,34 @@ private:
 			};
 			const eng::u16 line = static_cast<eng::u16>(kBaseY + i * (kSpriteHeight + 1u));
 			// `PaletteWords` es una vista tipada (word view): puntero + tamaño.
-			m_template.switches[i] = {line, eng::PaletteWords {&kHues[i], 17u}, 1u};
+			m_template.switches[i] = {line, eng::PaletteWords {&kHues[i], 1u}, 17u};
 		}
 		m_template.segment_count = kInstances;
 		m_template.switch_count = kInstances;
+	}
+
+	bool add_actor(eng::WordView<eng::SpriteTag> sheet) {
+		eng::graphics::Visual v {};
+		v.pixels = sheet.subspan(0u, kInstanceWords).raw();
+		v.w = 16u;
+		v.h = kSpriteHeight;
+		v.bitplanes = 2u;
+		const scene::VisualId visual = m_dir.add_visual(v);
+		if (!visual.valid()) {
+			return false;
+		}
+		scene::SpriteDesc d {};
+		d.content = scene::SpriteVisualRef::simple(visual);
+		d.sprite_template = m_template.view();
+		d.hint.policy = scene::SpritePolicy::Sprite;
+		d.hint.reuse = scene::SpriteReuse::VerticalDma;
+		d.x = static_cast<eng::s16>(m_hpos);
+		d.y = static_cast<eng::s16>(kBaseY);
+		d.z = 10u;
+		d.transparency = scene::TransparencyMode::Opaque;
+		d.background = scene::BackgroundPolicy::None;
+		m_id = m_dir.add(d);
+		return m_id.valid();
 	}
 
 	bool build_copper() {
@@ -183,7 +219,11 @@ private:
 			)
 		);
 		sched.emit_palette(kBasePalette.color);
-		m_sprites.emit_template_into(sched, m_template, 0, kBaseY, m_hpos);
+		m_frame_plan.clear();
+		scene::ActorEmitContext ctx {};
+		ctx.display_top = 0x2cu;
+		m_report = m_dir.emit(m_frame_plan, ctx);
+		m_dir.present(sched, 0x20u, true);
 		sched.wait_line(0xf8);
 		sched.move(eng::copper::Register::COLOR00, 0x0000);
 		sched.end();
@@ -202,7 +242,10 @@ private:
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::Block<eng::SpriteTag> m_sprite_block {};
 	eng::graphics::HwSpriteTemplate<kInstances, kInstances> m_template {};
-	eng::graphics::SpriteManager m_sprites {};
+	Director m_dir {};
+	scene::SpriteId m_id {};
+	scene::SpriteLoadReport m_report {};
+	eng::graphics::FramePlan m_frame_plan {};
 	eng::u16 m_hpos = kSpriteHpos;   // posición horizontal animada en update()
 };
 

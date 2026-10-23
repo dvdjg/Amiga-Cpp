@@ -272,11 +272,6 @@ private:
 	/// el reparto y la materialización.
 	bool add_actors(eng::WordView<eng::SpriteTag> spark_sheet) {
 		m_scene.clear();
-		m_scene.set_budget(eng::scene::RepresentationBudget{
-			.sprite_channels = eng::graphics::kSpriteChannels,
-			.bob_budget_words = kBobBudgetWords,
-			.layer_slots = 0u,
-		}); // 8 canales HW, 4k palabras de BOB, 0 capas
 		// El pool de cocinado de los pares es del llamador (sin heap): bloque Chip reservado.
 		m_scene.set_cooked_pool(m_cooked_block.mem_view());
 		for (eng::u8 i = 0; i < kGems; ++i) {

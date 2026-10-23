@@ -14,7 +14,7 @@
 ///     rango, grupo y tira horizontal).
 ///   - `SpriteBudget`/`SpriteLoadReport`: el contrato único de contabilidad (runtime y
 ///     preflight estático). Los campos de hardware se calculan con el `SpriteAllocator`
-///     real; el contador grueso de `RepresentationAllocator` no se usa en esta fachada.
+///     real; el contador grueso de `SpriteAllocator` no se usa en esta fachada.
 ///   - `BandPalette`/`CopperCue`: paletas por banda con `top` móvil (`scroll_y`).
 ///   - `SpriteStaticDesc`/`evaluate_static`: escenas estáticas evaluables en compilación
 ///     (`constexpr`/`static_assert`), con el mismo gap de 1 línea que el runtime.

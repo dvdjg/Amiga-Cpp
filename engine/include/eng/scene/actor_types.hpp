@@ -10,7 +10,7 @@
 /// Este header cubre el modelo de estado y las políticas; la emisión de hardware
 /// pasa por las piezas existentes:
 ///
-///   - `RepresentationAllocator` (`representation.hpp`): elige sprite/BOB/CPU/capa.
+///   - `SpriteAllocator` (`representation.hpp`): elige sprite/BOB/CPU/capa.
 ///   - `Bob` / `bob_draw` / `bob_erase_box` (`bob.hpp`): dibujo y borrado por Blitter.
 ///   - `FramePlan` (`frame_plan.hpp`): cola de blits, presupuesto y dirty rects.
 ///   - `CopperIntent` (`raster_intent.hpp`): necesidades de Copper, que el actor

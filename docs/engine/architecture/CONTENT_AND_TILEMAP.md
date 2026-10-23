@@ -98,11 +98,11 @@ decide el engine (`SCENE_AND_RESOURCES.md` §2).
 Sheet de sprite  píxeles de las celdas de un sprite + paleta; identidad de contenido.
 Frame          una celda del sheet (x, y, w, h) + duración opcional.
 Animation      secuencia de Frame + bucle/one-shot + eventos (disparar sonido, spawn).
-ActorTemplate  Visual (Animation) + tamaño + anclaje + preferencia de representación.
+ActorDesc  Visual (Animation) + tamaño + anclaje + preferencia de representación.
 ```
 
 - La animación avanza por **tiempo de juego fijo** (determinista), no por frame de vídeo.
-- Un `Actor` de la escena instancia un `ActorTemplate`; el engine elige representación y la puede
+- Un `Actor` de la escena instancia un `ActorDesc`; el engine elige representación y la puede
   reasignar (sprite→BOB) al cambiar el presupuesto, sin tocar el contenido.
 - El enemigo grande con scroll propio puede declararse con preferencia `Layer` (playfield de un
   DPF, patrón Jim Power).

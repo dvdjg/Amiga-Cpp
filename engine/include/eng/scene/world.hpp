@@ -358,19 +358,12 @@ public:
 	}
 
 	// --- Actores retenidos ---------------------------------------------------
-	/// Limpia los actores y fija el presupuesto de representación (canales de sprite /
-	/// palabras de Blitter / capas). Llámalo antes de dar de alta actores.
-	void reset_actors(s32 sprite_channels = 0, u16 bob_budget_words = 60000u,
-			  u8 layer_slots = 0) noexcept {
-		m_actors.reset();
-		m_allocator.reset(RepresentationBudget {
-			static_cast<u8>(sprite_channels < 0 ? 0 : sprite_channels), bob_budget_words,
-			layer_slots});
-	}
+	/// Limpia los actores del mundo.
+	void reset_actors() noexcept { m_actors.reset(); }
 	/// Da de alta un actor; la **representación** (sprite/BOB/CPU/playfield) la elige el
 	/// engine según el presupuesto. `ActorId` inválido si no cabe.
 	[[nodiscard]] ActorId add_actor(const ActorDesc& desc) noexcept {
-		return m_actors.add(desc, m_allocator);
+		return m_actors.add(desc);
 	}
 	[[nodiscard]] Ref<Actor> actor(ActorId id) noexcept { return m_actors.get(id); }
 	[[nodiscard]] ActorStore<MaxActors>& actors() noexcept { return m_actors; }
@@ -408,7 +401,6 @@ private:
 	Layer m_layers[MaxLayers] {};
 	u8 m_count = 0u;
 	ActorStore<MaxActors> m_actors {};
-	RepresentationAllocator m_allocator {};
 	ActorId m_order[MaxActors] {};
 	WorldRegion m_regions[MaxRegions] {};
 	u8 m_region_count = 0u;

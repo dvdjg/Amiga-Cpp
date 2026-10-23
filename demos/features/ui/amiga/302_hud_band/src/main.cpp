@@ -397,7 +397,7 @@ private:
 		bob.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
 		bob.frame_count = 1u;
 		m_actor_sprite = eng::graphics::Sprite {bob, kActorSheetBytes, 0u};
-		app.world().reset_actors(0u, 60000u, 0u);
+		app.world().reset_actors();
 		eng::scene::ActorDesc d = eng::scene::actor_desc_from_sprite(
 			m_actor_sprite, kPathCx, kPathCy, 10u, 0u,
 			eng::scene::TransparencyMode::Mask1Bit, eng::scene::BackgroundPolicy::SaveUnder);

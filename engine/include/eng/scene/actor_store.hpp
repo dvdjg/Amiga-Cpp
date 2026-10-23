@@ -213,37 +213,9 @@ public:
 	constexpr eng::u16 count() const { return static_cast<eng::u16>(m_pool.size()); }
 	constexpr bool full() const { return m_pool.full(); }
 
-	/// Alta de un actor. Consume presupuesto del allocator. Devuelve un id inválido si
-	/// no queda capacidad o si la descripción no tiene contenido.
-	ActorId add(const ActorDesc& desc, RepresentationAllocator& alloc) {
-		if (m_pool.full() || desc.visual.pixels.empty() || desc.visual.w == 0u ||
-		    desc.visual.h == 0u) {
-			return {};
-		}
-		const auto handle = m_pool.add();
-		if (!handle.valid()) {
-			return {};
-		}
-		Actor& a = *m_pool.get(handle);
-		a.desc = desc;
-		a.bob = bob_from_visual(desc.visual, desc.layout, desc.transparency);
-		a.bob.sheet_row_bytes = desc.sheet_row_bytes;
-		ActorTemplate tmpl {};
-		tmpl.width = desc.visual.w;
-		tmpl.height = desc.visual.h;
-		tmpl.planes = desc.visual.bitplanes;
-		tmpl.preferred = desc.preferred;
-		tmpl.priority = desc.z;
-		tmpl.scrolls = false;
-		a.actual = alloc.allocate(tmpl);
-		return ActorId {handle.index, handle.generation};
-	}
-
-	/// Alta **sin presupuesto de representación**: la usa el `SpriteDirector`, que decide
-	/// con el `SpriteAllocator` real (canales/scanline/gap) en vez de con el contador
-	/// grueso de `RepresentationAllocator`. El actor queda marcado como sprite; la
-	/// composición lo degradará a BOB si no cabe.
-	ActorId add_unbudgeted(const ActorDesc& desc) {
+	/// Alta de un actor. La materializacion la decide la composicion; aqui solo se
+	/// registra el contenido.
+	ActorId add(const ActorDesc& desc) {
 		if (m_pool.full() || desc.visual.pixels.empty() || desc.visual.w == 0u ||
 		    desc.visual.h == 0u) {
 			return {};

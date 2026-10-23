@@ -516,7 +516,6 @@ struct ProcStructuresDemo {
 #else
 	eng::scene::ActorStore<1> m_actor_store {};
 #endif
-	eng::scene::RepresentationAllocator m_actor_alloc {};
 	eng::scene::ActorId m_actor_id {};
 	u16 m_sil_mask[kTile] {}; // silueta del actor por fila (precomputada: art != 0)
 #endif
@@ -746,11 +745,9 @@ struct ProcStructuresDemo {
 			d.save_height = kTile;
 			m_actor_store.reset();
 #if defined(K121_GOLDEN_ACTORS)
-			m_actor_alloc.reset(eng::scene::RepresentationBudget {24u, 20000u, 0u});
 #else
-			m_actor_alloc.reset(eng::scene::RepresentationBudget {8u, 10000u, 0u});
 #endif
-			m_actor_id = m_actor_store.add(d, m_actor_alloc);
+			m_actor_id = m_actor_store.add(d);
 			auto actor = m_actor_store.get(m_actor_id);
 			if (!actor.valid()) {
 				eng::debug::mark_failed(g_eng_run_status, kFailActorValid);
@@ -841,7 +838,7 @@ struct ProcStructuresDemo {
 				gd.offset.y = s16(kRingGuardY);
 				gd.transparency = eng::scene::TransparencyMode::Mask1Bit;
 				gd.background = eng::scene::BackgroundPolicy::None;
-				const eng::scene::ActorId gid = m_actor_store.add(gd, m_actor_alloc);
+				const eng::scene::ActorId gid = m_actor_store.add(gd);
 				auto ga = m_actor_store.get(gid);
 				if (!ga.valid()) {
 					eng::debug::mark_failed(g_eng_run_status, kFailGoldenAdd);
