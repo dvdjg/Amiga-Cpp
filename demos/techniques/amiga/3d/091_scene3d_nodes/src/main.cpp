@@ -48,7 +48,7 @@ constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
 constexpr u16 kWorldH = 208u;
 constexpr u16 kRowBytes = kWidth / 8u; // 40
-constexpr u8 kPlanes = 4u;
+constexpr u8 kPlanes = 1u; // alambre 1 bpp: 1 job de línea por arista (presupuesto)
 constexpr u32 kPlaneBytes = static_cast<u32>(kRowBytes) * kHeight;
 constexpr u16 kBandY = kWorldH;
 constexpr u16 kBandH = kHeight - kWorldH;
@@ -66,7 +66,7 @@ constexpr eng::Palette32 kPalette {{
 	0x013, 0xf80, 0x0df, 0x7ef, 0xff0, 0x6f6, 0xf9c, 0xf24,
 	0x333, 0x888, 0xccc, 0x05f, 0x444, 0x0a3, 0xa07, 0xfff,
 }};
-constexpr u8 kHudColor = 15u;
+constexpr u8 kHudColor = 1u; // blanco (COLOR01; display de 1 plano)
 constexpr eng::debug::Version kVersion {1u, 0u};
 constexpr u16 kPhaseStep = 12u;
 
@@ -104,7 +104,7 @@ struct Scene3dDemo {
 		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
 		res.buffers = kBuffers;
 		if (!comp::compose(m_display, backend.memory_manager(), res, comp::ocs_a500,
-				   comp::display(res), comp::palette(kPalette, 0u, 16u))) {
+				   comp::display(res), comp::palette(kPalette, 0u, 2u))) {
 			eng::debug::mark_failed(
 				g_eng_run_status,
 				kBootCompose + static_cast<u32>(m_display.config_error().code));
@@ -135,14 +135,11 @@ struct Scene3dDemo {
 		// materiales distintos. Todos son primitivas `constexpr` en rodata.
 		retro::MeshData<eng::coord, 8, 24, 6> big;
 		retro::MeshData<eng::coord, 8, 24, 6> small;
-		retro::MeshData<eng::coord, 8, 24, 6> tiny;
 		(void)retro::fill_box(big, math3d::vec3(28, 28, 28));
-		(void)retro::fill_box(small, math3d::vec3(14, 14, 14));
-		(void)retro::fill_box(tiny, math3d::vec3(10, 10, 10));
+		(void)retro::fill_box(small, math3d::vec3(16, 16, 16));
 		const auto big_model = m_models.add_mesh(big.view(), 3u);
 		const auto small_model = m_models.add_mesh(small.view(), 5u);
-		const auto tiny_model = m_models.add_mesh(tiny.view(), 6u);
-		if (!big_model.valid() || !small_model.valid() || !tiny_model.valid()) {
+		if (!big_model.valid() || !small_model.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, kBootModels);
 			return;
 		}
@@ -153,12 +150,9 @@ struct Scene3dDemo {
 		}
 		m_root = m_world.spawn({.model = big_model, .position = math3d::vec3(0, 0, 320)});
 		m_child_a = m_world.spawn({.model = small_model,
-					   .position = math3d::vec3(82, 0, 0),
+					   .position = math3d::vec3(64, 0, 0),
 					   .parent = m_root});
-		m_child_b = m_world.spawn({.model = tiny_model,
-					   .position = math3d::vec3(-82, 0, 0),
-					   .parent = m_root});
-		if (!m_root.valid() || !m_child_a.valid() || !m_child_b.valid()) {
+		if (!m_root.valid() || !m_child_a.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, kBootScene);
 			return;
 		}
@@ -186,22 +180,23 @@ struct Scene3dDemo {
 				    retro::turns(0u));
 		(void)m_world.set_rotation(m_child_a, child_a_rot);
 
-		math3d::Mat3<> child_b_rot {};
-		math3d::load_rotate(child_b_rot, retro::turns(0u),
-				    retro::turns(static_cast<u16>((m_phase * 11u) & 4095u)),
-				    retro::turns(static_cast<u16>((m_phase * 13u) & 4095u)));
-		(void)m_world.set_rotation(m_child_b, child_b_rot);
-
 		eng::playfield::Surface world {m_canvas,
 					       eng::playfield::SurfaceRect {0, 0, kWidth, kWorldH}};
+		eng::util::TextLine<40> stats {};
 #if K091_WIRE
-		(void)m_world.render_wire(m_models, world, kHudColor);
+		m_plan.clear();
+		const u32 edges = m_world.render_wire(
+			m_models, world, kHudColor, eng::Ref<eng::graphics::FramePlan> {m_plan});
+		const bool plan_ok = backend.execute_frame_plan(m_plan);
+		stats << 'E' << edges << " J" << m_plan.blit_job_count()
+		      << (plan_ok ? " OK" : " ERR") << (m_plan.ok() ? " ok" : " bad");
 #else
-		(void)m_world.render(m_models, world);
+		const u32 faces = m_world.render(m_models, world);
+		stats << 'F' << faces;
 #endif
 
 		m_host_hud.draw(backend.debug(), "091 SCENE3D NODES", kVersion,
-				context.frame.frame_index, eng::debug::prof_clock());
+				context.frame.frame_index, eng::debug::prof_clock(), stats.c_str());
 		m_display.commit();
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -222,10 +217,10 @@ private:
 	eng::amiga::PolygonFillService m_fill {};
 	eng::Block<eng::MaskTag, eng::MemoryKind::Chip> m_mask {};
 	scene3d::Scene<8, 8> m_world {};
-	scene3d::ModelTable<3, 8, 24, 6, 2> m_models {};
+	scene3d::ModelTable<2, 8, 24, 6, 2> m_models {};
 	scene3d::NodeId m_root {};
 	scene3d::NodeId m_child_a {};
-	scene3d::NodeId m_child_b {};
+	eng::graphics::FramePlan m_plan {};
 	eng::debug::HostHud m_host_hud {};
 	u16 m_phase = 0u;
 };

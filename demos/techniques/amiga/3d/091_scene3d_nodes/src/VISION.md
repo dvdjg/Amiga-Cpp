@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-23T23:13:20.497Z
+- Fecha: 2026-10-23T23:23:33.381Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_002.png, frame_003.png, frame_005.png (4)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png (4)
 - Secuencia: `out/run/091_scene3d_nodes/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -17,28 +17,27 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Imagen 1:**
 - **Fondo:** Pantalla de color azul oscuro uniforme.
-- **Objeto principal:** Un objeto 3D que parece un cubo o un paralelepípedo, representado por un contorno blanco. Está orientado en perspectiva isométrica, con una cara frontal visible y bordes visibles en profundidad.
-- **Contorno del objeto:** El contorno es limpio, sin halos ni artefactos. No hay píxeles cortados ni restos de su posición anterior.
-- **Fondo alrededor del objeto:** El fondo azul oscuro permanece uniforme y no está tapado por el objeto; el objeto se superpone a él sin dejar rastros de recorte o de color diferente.
+- **Elementos gráficos:** Ninguno. La pantalla está completamente vacía.
 - **Texto en la esquina superior izquierda:**
-  - `091 SCENE3D NODE5 v1.0.6227`
-  - `F1 0.0FPS`
+  - `091 SCENE3D NODE5 v1.0.6232`
+  - `F2 3000FPS` (nota: el valor "3000FPS" es inusual y probablemente un error de visualización o un valor de prueba).
+  - `E24 J24 OK OK`
 
 **Imagen 2:**
 - **Fondo:** Igual que en la imagen 1, azul oscuro uniforme.
-- **Objeto principal:** El mismo objeto 3D, ahora rotado ligeramente en comparación con la imagen 1. La rotación es perceptible en la orientación de sus bordes y caras.
-- **Contorno del objeto:** El contorno sigue siendo limpio, sin halos ni artefactos. No hay píxeles cortados ni restos de su posición anterior.
-- **Fondo alrededor del objeto:** El fondo azul oscuro permanece uniforme y no está tapado por el objeto; el objeto se superpone a él sin dejar rastros de recorte o de color diferente.
+- **Elementos gráficos:**
+  - **Objeto principal (superior):** Un rectángulo de contorno naranja, ligeramente inclinado, que parece representar una caja o un objeto tridimensional. Sus bordes son limpios, sin halos ni píxeles cortados.
+  - **Objeto secundario (inferior):** Un pequeño rectángulo de contorno naranja, también inclinado, con una línea que se extiende desde su lado derecho hacia arriba y a la derecha, como si fuera una antena o un soporte. Sus bordes también son limpios.
 - **Texto en la esquina superior izquierda:**
-  - `091 SCENE3D NODE5 v1.0.6227`
-  - `F6 3.0FPS`
+  - `091 SCENE3D NODE5 v1.0.6232`
+  - `F2 13.6FPS` (el valor de FPS ha cambiado de 3000 a 13.6, lo que sugiere que el sistema está renderizando gráficos).
+  - `E24 J24 OK OK`
 
 **Cambios entre imágenes:**
-- El objeto 3D ha cambiado de orientación (rotación).
-- El valor de FPS en la esquina superior izquierda ha cambiado de `0.0FPS` a `3.0FPS`.
+- Se ha añadido un objeto gráfico compuesto por dos formas geométricas (un rectángulo grande y uno pequeño con una línea) en la imagen 2.
+- El valor de FPS en el texto ha cambiado de "3000FPS" a "13.6FPS".
 
 **Observaciones:**
-- Ambas imágenes muestran el mismo objeto 3D, pero en diferentes posiciones de rotación.
-- El contorno del objeto es siempre limpio y completo en ambos casos.
-- El fondo es uniforme y no presenta artefactos ni recortes.
-- No hay elementos superpuestos o incompletos.
+- Los objetos gráficos tienen contornos limpios y no presentan artefactos visibles.
+- El fondo permanece uniforme y no se observan restos de la posición anterior de los objetos.
+- No hay elementos superpuestos ni recortes visibles.
