@@ -177,23 +177,4 @@ struct SpriteDesc {
 	return r;
 }
 
-/// Informe desde el compositor de actores (para que runtime y preflight compartan campos).
-/// \param s Resultado del compositor de actores (`SpriteScene::emit`).
-/// \return Reporte con `hw`/`bob`/`degraded`/Copper/paleta/canales/reuse y `ok` copiados;
-///         no inventa campos que el compositor no mide.
-[[nodiscard]] inline SpriteLoadReport report_from_compose(
-	const SpriteComposeResult& s) noexcept {
-	SpriteLoadReport r {};
-	r.hw = s.sprites;
-	r.bob = s.bobs;
-	r.degraded = s.degraded;
-	r.copper_intents = s.copper;
-	r.palette_events = s.palette;
-	r.channels_used = s.channels;
-	r.max_reuse = s.max_reuse;
-	r.ok = s.ok;
-	return r;
-}
-
-
 } // namespace eng::scene

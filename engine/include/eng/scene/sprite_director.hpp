@@ -425,9 +425,8 @@ public:
 
 		// 2) Simples: el allocator evita los canales ocupados por compuestos.
 		if (m_simple.count() != 0u) {
-			const eng::scene::SpriteComposeResult sr =
+			const SpriteLoadReport simple_report =
 				m_simple.emit(plan, ctx, copper, m_ledger);
-			const SpriteLoadReport simple_report = report_from_compose(sr);
 			r.bob += simple_report.bob;
 			r.hw += simple_report.hw;
 			r.degraded += simple_report.degraded;

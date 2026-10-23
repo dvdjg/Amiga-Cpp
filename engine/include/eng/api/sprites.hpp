@@ -7,7 +7,7 @@
 /// fallback + Copper) **sin** que el juego declare los buffers de trabajo ni un `FramePlan`.
 ///
 /// Es la fachada del sistema de objetos NES (8 sprites/línea + overflow): los actores que no caben
-/// como sprite hardware se **degradan a BOB** (`result.degraded`), dibujados por Blitter en el plan
+/// como sprite hardware se **degradan a BOB** (`report.degraded`), dibujados por Blitter en el plan
 /// del frame. El juego **no ve** canales, registros ni `BPLxPT`.
 ///
 /// **Modo avanzado.** La fachada por intención con `VisualId`/`CompositeId`, presupuesto real y
@@ -19,7 +19,7 @@
 /// consume **dos canales contiguos** y se publica como dos placements de 15 colores; el engine
 /// cocina sus dos estructuras DMA en el pool Chip que da `set_cooked_pool`
 /// (`ChipView<SpriteTag>`), con la DATA del frame vigente. Sin pool, el par se rechaza de forma
-/// controlada (`result.ok == false`).
+/// controlada (`report.ok == false`).
 ///
 /// ```cpp
 /// eng::SpriteScene<64> sprites;                   // hasta 64 actores (NES OAM)
@@ -41,6 +41,7 @@
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/scene/representation.hpp>
+#include <eng/scene/sprite_visual.hpp>
 
 namespace eng {
 
@@ -139,8 +140,8 @@ public:
 	/// \param plan    plan del frame (recibe los BOB degradados).
 	/// \param ctx     contexto de emisión (targets, cámara, buffer, `display_top`).
 	/// \param copper  plan de Copper opcional para las intenciones ancladas.
-	/// \return resumen: `sprites` (HW), `degraded` (no cupieron), `bobs`, `copper`, `ok`.
-	[[nodiscard]] eng::scene::SpriteComposeResult
+	/// \return reporte con los mismos campos que `SpriteLoadReport` (runtime/preflight).
+	[[nodiscard]] eng::scene::SpriteLoadReport
 	emit(eng::graphics::FramePlan& plan, const eng::scene::ActorEmitContext& ctx,
 	     eng::Ref<eng::copper::Plan> copper = {},
 	     eng::Ref<const eng::graphics::SpriteChannelLedger> ledger = {}) noexcept {
@@ -164,7 +165,16 @@ public:
 						       ledger);
 		m_prev_count = sc.prev_count; // la secuencia de este frame queda para el siguiente
 		m_cooked_used = sc.cooked_used;
-		return m_result;
+		eng::scene::SpriteLoadReport r {};
+		r.hw = m_result.sprites;
+		r.bob = m_result.bobs;
+		r.degraded = m_result.degraded;
+		r.copper_intents = m_result.copper;
+		r.palette_events = m_result.palette;
+		r.channels_used = m_result.channels;
+		r.max_reuse = m_result.max_reuse;
+		r.ok = m_result.ok;
+		return r;
 	}
 
 	/// Colocaciones de sprite hardware del **último** `emit` (válidas las `result().sprites`

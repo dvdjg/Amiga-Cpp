@@ -107,8 +107,8 @@ int main() {
 
 	const auto r = sp.emit(plan, ctx);
 	check(r.ok, "emit ok");
-	check(r.sprites + r.degraded == 1u, "1 actor materializado (sprite o degradado)");
-	check(sp.placements().size() == r.sprites, "placements == sprites");
+	check(r.hw + r.degraded == 1u, "1 actor materializado (sprite o degradado)");
+	check(sp.placements().size() == r.hw, "placements == sprites");
 
 	check(sp.remove(sp.store().id_at(0u)), "remove");
 	check(sp.count() == 0u, "count = 0 tras remove");
@@ -131,7 +131,7 @@ int main() {
 	}
 	eng::graphics::FramePlan plan_ch {};
 	const auto rch = ch_scene.emit(plan_ch, ctx);
-	check(rch.ok && rch.sprites == 3u, "3 sprites compuestos");
+	check(rch.ok && rch.hw == 3u, "3 sprites compuestos");
 
 	// Sin cadenas: present emite un rearme por franja (WAIT en 140 y 180).
 	eng::MemoryManager mem_a = make_memory();
@@ -168,7 +168,7 @@ int main() {
 	// placements (la fachada conserva la secuencia de actores entre frames como memoria).
 	ch_scene.store().at(ch_scene.store().id_at(1u).index).desc.y = 108;
 	const auto rch2 = ch_scene.emit(plan_ch, ctx);
-	check(rch2.ok && rch2.sprites == 3u, "re-emit con movimiento ok");
+	check(rch2.ok && rch2.hw == 3u, "re-emit con movimiento ok");
 	{
 		const auto ps = ch_scene.placements();
 		bool sorted = true;
@@ -199,8 +199,8 @@ int main() {
 	check(pal_scene.add(pa).valid() && pal_scene.add(pb).valid(), "add paletas A/B");
 	eng::graphics::FramePlan plan_pal {};
 	const auto rpal = pal_scene.emit(plan_pal, ctx);
-	check(rpal.ok && rpal.sprites == 2u && rpal.degraded == 0u, "2 sprites con paletas A/B");
-	check(rpal.palette == 1u, "un evento de conmutacion de paleta");
+	check(rpal.ok && rpal.hw == 2u && rpal.degraded == 0u, "2 sprites con paletas A/B");
+	check(rpal.palette_events == 1u, "un evento de conmutacion de paleta");
 	const auto pev = pal_scene.palette_events();
 	// La `y` del actor es la línea raster del sprite: la conmutación va en su `top`.
 	check(pev.size() == 1u && pev[0].line == 140u, "conmutacion en la linea del segundo (y=140)");
@@ -234,9 +234,9 @@ int main() {
 	eng::graphics::FramePlan plan_pal2 {};
 	const auto rpal2 = pal_scene2.emit(plan_pal2, ctx);
 	check(rpal2.ok, "compose con conflicto ok");
-	check(rpal2.degraded == 1u && rpal2.bobs == 1u, "el de menor z degrada a BOB");
-	check(rpal2.sprites == 2u, "A y B siguen como sprites");
-	check(rpal2.palette == 1u, "B conmuta (A en otra franja)");
+	check(rpal2.degraded == 1u && rpal2.bob == 1u, "el de menor z degrada a BOB");
+	check(rpal2.hw == 2u, "A y B siguen como sprites");
+	check(rpal2.palette_events == 1u, "B conmuta (A en otra franja)");
 
 	// --- Telemetría de reparto: 8 canales × 5 franjas = 40 placements ------------------
 	// Cada canal sirve un objeto por banda (Y separadas por 40 px > alto+gap): el allocator
@@ -259,8 +259,8 @@ int main() {
 	eng::graphics::FramePlan plan_grid {};
 	const auto rgrid = grid.emit(plan_grid, ctx);
 	check(rgrid.ok && rgrid.degraded == 0u, "rejilla 8x5 sin degradados");
-	check(rgrid.sprites == 40u, "40 placements (8 canales x 5 franjas)");
-	check(rgrid.channels == 0xffu, "telemetria: los 8 canales ocupados");
+	check(rgrid.hw == 40u, "40 placements (8 canales x 5 franjas)");
+	check(rgrid.channels_used == 0xffu, "telemetria: los 8 canales ocupados");
 	check(rgrid.max_reuse == 5u, "telemetria: 5 reusos verticales por canal");
 
 	if (g_fail != 0) {
