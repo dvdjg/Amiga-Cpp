@@ -41,6 +41,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/raster.hpp>
+#include <eng/graphics/face_style.hpp>
 #include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/font8.hpp>
 
@@ -136,34 +137,44 @@ public:
     /// llamador solo pide «pinta esta cara» igual en EHB/single/DPF.
     bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
         if (!valid() || xs == nullptr || ys == nullptr || n < 3u) return false;
-        constexpr u8 kCap = 12; // convexo y recortado: nunca crece más de 4 lados
-        eng::retro::Vec2 in[kCap];
-        eng::retro::Vec2 tmp[kCap];
-        const u8 nn = n < kCap ? n : kCap;
-        for (u8 i = 0u; i < nn; ++i) {
-            in[i] = eng::retro::v2(xs[i], ys[i]);
-        }
-        const eng::retro::Rect win = eng::retro::rect(
-            static_cast<s16>(m_clip.x), static_cast<s16>(m_clip.y),
-            static_cast<s16>(m_clip.x + static_cast<s32>(m_clip.w) - 1),
-            static_cast<s16>(m_clip.y + static_cast<s32>(m_clip.h) - 1));
-        const u32 m = eng::retro::clip_polygon(win, in, tmp, nn,
-                                           static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
-                                                           eng::retro::PF_RIGHT | eng::retro::PF_BOTTOM));
+        s16 cx[12];
+        s16 cy[12];
+        const u8 m = clip_polygon_to_clip(xs, ys, n, cx, cy);
         if (m < 3u) return true;
-        s16 cx[kCap];
-        s16 cy[kCap];
-        for (u32 i = 0u; i < m; ++i) {
-            cx[i] = in[i].x().v;
-            cy[i] = in[i].y().v;
-        }
         return m_target->fill_polygon(eng::Span<const s16>(cx, m), eng::Span<const s16>(cy, m), color);
+    }
+
+    /// Igual que `fill_polygon(xs, ys, n, color)`, pero con **estilo de cara**:
+    /// color + patrón de cobertura (`FaceStyle`). Un `pattern == 0` (sólido) toma la
+    /// ruta normal; un patrón no nulo delega en `Playfield::fill_polygon_pattern`
+    /// (CPU, oráculo del Blitter; la ruta hardware con patrón llega en P8/G3).
+    /// \param xs,ys polígono convexo en píxeles; se recorta contra el clip.
+    /// \param n número de vértices (≥ 3).
+    /// \param style color/patrón/flags de la cara.
+    /// \return `false` si el contexto o el polígono no son válidos; `true` si se dibujó
+    ///         o quedó completamente fuera del clip.
+    bool fill_polygon(const s16* xs, const s16* ys, u8 n, graphics::FaceStyle style) {
+        if (style.pattern == 0u) return fill_polygon(xs, ys, n, style.color);
+        if (!valid() || xs == nullptr || ys == nullptr || n < 3u) return false;
+        s16 cx[12];
+        s16 cy[12];
+        const u8 m = clip_polygon_to_clip(xs, ys, n, cx, cy);
+        if (m < 3u) return true;
+        return m_target->fill_polygon_pattern(eng::Span<const s16>(cx, m),
+                                              eng::Span<const s16>(cy, m), style.color,
+                                              style.pattern);
     }
 
     /// Atajo para arrays de tamaño fijo: `surf.fill_polygon(xs, ys, color)` sin el `n`.
     template <eng::usize N>
     bool fill_polygon(const s16 (&xs)[N], const s16 (&ys)[N], u8 color) {
         return fill_polygon(xs, ys, static_cast<u8>(N), color);
+    }
+
+    /// Atajo con estilo para arrays de tamaño fijo.
+    template <eng::usize N>
+    bool fill_polygon(const s16 (&xs)[N], const s16 (&ys)[N], graphics::FaceStyle style) {
+        return fill_polygon(xs, ys, static_cast<u8>(N), style);
     }
 
     /// **Círculo** de radio `radius` centrado en `(cx, cy)` (contorno de 1 px), recortado
@@ -400,6 +411,35 @@ public:
     }
 
 private:
+    /// Recorta un polígono convexo contra el clip de la superficie y devuelve sus
+    /// vértices en píxeles (`cx`/`cy`, capacidad ≥ 12). `0` si no queda nada.
+    /// Centraliza la convención de bordes que comparten `fill_polygon` y
+    /// `fill_polygon(..., FaceStyle)`.
+    [[nodiscard]] u8 clip_polygon_to_clip(const s16* xs, const s16* ys, u8 n, s16* cx,
+                                          s16* cy) const {
+        constexpr u8 kCap = 12; // convexo y recortado: nunca crece más de 4 lados
+        eng::retro::Vec2 in[kCap];
+        eng::retro::Vec2 tmp[kCap];
+        const u8 nn = n < kCap ? n : kCap;
+        for (u8 i = 0u; i < nn; ++i) {
+            in[i] = eng::retro::v2(xs[i], ys[i]);
+        }
+        const eng::retro::Rect win = eng::retro::rect(
+            static_cast<s16>(m_clip.x), static_cast<s16>(m_clip.y),
+            static_cast<s16>(m_clip.x + static_cast<s32>(m_clip.w) - 1),
+            static_cast<s16>(m_clip.y + static_cast<s32>(m_clip.h) - 1));
+        const u32 m = eng::retro::clip_polygon(
+            win, in, tmp, nn,
+            static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP | eng::retro::PF_RIGHT |
+                            eng::retro::PF_BOTTOM));
+        if (m < 3u) return 0u;
+        for (u32 i = 0u; i < m; ++i) {
+            cx[i] = in[i].x().v;
+            cy[i] = in[i].y().v;
+        }
+        return static_cast<u8>(m);
+    }
+
     /// Inversión de bits de un byte: Font8 guarda **bit 0 = columna izquierda** y el
     /// bitplane Amiga tiene el **MSB a la izquierda**, así que cada byte de fila de glifo
     /// se invierte al colocarlo en la palabra. Tres pasos de máscara, sin tabla.

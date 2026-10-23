@@ -47,6 +47,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/bitmap.hpp>
+#include <eng/graphics/fill_pattern.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -510,6 +511,21 @@ public:
         return true;
     }
 
+    /// **Run con patrón de cobertura** (CPU): escribe `color` donde el patrón tiene 1 y 0
+    /// donde tiene 0, solo dentro del span. Es el oráculo del `D = A & B` del Blitter
+    /// (`blitter_apply_pattern`); el patrón está anclado a la **fila de pantalla** `wy`.
+    bool draw_span_pattern(eng::pix x0, eng::pix x1, eng::pix wy, u8 color,
+                           eng::graphics::FillPattern kind) {
+        if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
+        const u16 word = eng::graphics::fill_pattern_word(kind, static_cast<u32>(wy));
+        if (word == 0xffffu) return draw_span(x0, x1, wy, color);
+        for (s32 x = x0; x <= x1; ++x) {
+            const bool on = (word & (0x8000u >> (static_cast<u32>(x) & 15u))) != 0u;
+            (void)write_pixel(x, wy, on ? color : 0u);
+        }
+        return true;
+    }
+
     /// **Run uniforme de una fila, directo a planos**: mismo resultado que `draw_span` por el
     /// camino barato del materializador de capas indexadas (`Screen::fill_run`). Calcula la
     /// base de cada plano **una vez por run**, escribe las palabras completas con store plano
@@ -886,6 +902,35 @@ public:
     template <eng::usize N>
     bool fill_polygon(const s16 (&xs)[N], const s16 (&ys)[N], u8 color) {
         return fill_polygon(Span<const s16>(xs, N), Span<const s16>(ys, N), color);
+    }
+
+    /// Como `fill_polygon`, pero aplica un **patrón de cobertura** (`FillPattern`) al
+    /// relleno: color donde el patrón tiene 1 y 0 donde tiene 0. En CPU es el oráculo
+    /// del `D = A & B` del Blitter; la ruta de hardware con patrón llega en P8/G3, así
+    /// que esta variante **no** usa el sink de Blitter.
+    /// \param xs,ys polígono convexo ya recortado por `Surface`.
+    /// \param color índice de paleta del relleno.
+    /// \param pattern id de `FillPattern` (0 = sólido; > `kFillPatternMax` se rechaza).
+    /// \return `false` si el polígono/patrón no es válido; `true` si se procesó.
+    virtual bool fill_polygon_pattern(eng::Span<const s16> xs, eng::Span<const s16> ys,
+                                       u8 color, u8 pattern) {
+        const u8 n = static_cast<u8>(xs.size());
+        if (ys.size() != xs.size() || n < 3u) return false;
+        if (pattern == 0u) return fill_polygon(xs, ys, color);
+        if (pattern > eng::graphics::kFillPatternMax) return false;
+        constexpr u8 kMaxFillVerts = 16u;
+        if (n > kMaxFillVerts) return false;
+        const auto kind = static_cast<eng::graphics::FillPattern>(pattern);
+        s32 x32[kMaxFillVerts];
+        s32 y32[kMaxFillVerts];
+        for (u8 i = 0u; i < n; ++i) {
+            x32[i] = xs[i];
+            y32[i] = ys[i];
+        }
+        eng::math3d::convex_spans(
+            eng::Span<const s32>(x32, n), eng::Span<const s32>(y32, n),
+            [&](s32 y, s32 xl, s32 xr) { draw_span_pattern(xl, xr, y, color, kind); });
+        return true;
     }
 
     // --- Blits (virtuales; la costura/espejo dependen del layout) ---------    /// Fuente y máscara viajan como `Span<const u16>`: el tamaño que el caller

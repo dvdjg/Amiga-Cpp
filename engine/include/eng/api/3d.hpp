@@ -212,7 +212,10 @@ public:
 					       ? &models[handle.index]
 					       : nullptr;
 			},
-			target, color_of);
+			target,
+			[&](NodeId id, u32 face) -> graphics::FaceStyle {
+				return graphics::FaceStyle {static_cast<u8>(color_of(id, face)), 0u, 0u};
+			});
 	}
 
 	/// **Pinta la escena resolviendo las mallas contra una `ModelTable`** (G1): el
@@ -235,19 +238,48 @@ public:
 		  u16 TableMaterials, class ColorFn>
 	u32 render(const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
 		   playfield::Surface& target, ColorFn&& color_of) noexcept {
-		return render_with([&](ModelHandle handle) { return models.mesh(handle); }, target,
-				   color_of);
+		return render_with(
+			[&](ModelHandle handle) { return models.mesh(handle); }, target,
+			[&](NodeId id, u32 face) -> graphics::FaceStyle {
+				return graphics::FaceStyle {static_cast<u8>(color_of(id, face)), 0u, 0u};
+			});
+	}
+
+	/// **Pinta la escena con los materiales cocinados** de la `ModelTable`: usa
+	/// `ModelTable::color` y `ModelTable::pattern` de la cara, sin callback. Es la
+	/// forma normal de un juego G1/G3: registrar modelos y llamar `render(models, screen)`.
+	/// \tparam MaxModels capacidad de modelos de la tabla.
+	/// \tparam TableVertices vértices máximos por modelo de la tabla.
+	/// \tparam TableIndices índices máximos por modelo de la tabla.
+	/// \tparam TableFaces caras máximas por modelo de la tabla.
+	/// \tparam TableMaterials materiales máximos por modelo de la tabla.
+	/// \param models tabla de modelos no propietaria; debe sobrevivir a la llamada.
+	/// \param target superficie de destino (el llamador la limpia antes).
+	/// \return número total de caras rellenadas; 0 si no hay nada visible.
+	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
+		  u16 TableMaterials>
+	u32 render(const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
+		   playfield::Surface& target) noexcept {
+		return render_with(
+			[&](ModelHandle handle) { return models.mesh(handle); }, target,
+			[&](NodeId id, u32 face) -> graphics::FaceStyle {
+				const Node3D* node = this->node(id);
+				const ModelHandle handle = node != nullptr ? node->model : ModelHandle {};
+				return graphics::FaceStyle {models.color(handle, face),
+							    models.pattern(handle, face), 0u};
+			});
 	}
 
 private:
 	using ModelTransform = eng::math::Affine<3, eng::real, eng::coord>;
 
-	/// Implementación común de los dos `render`: `mesh_at` resuelve un `ModelHandle`
-	/// a una vista (o `nullptr`); el resto del pipeline es idéntico.
+	/// Implementación común de los `render`: `mesh_at` resuelve un `ModelHandle`
+	/// a una vista (o `nullptr`); `style_of` da el estilo de cada cara; el resto del
+	/// pipeline es idéntico.
 	/// \tparam MeshAt callable `const Mesh*(ModelHandle)`.
-	/// \tparam ColorFn callable `u8(NodeId, u32)`.
-	template <class MeshAt, class ColorFn>
-	u32 render_with(MeshAt&& mesh_at, playfield::Surface& target, ColorFn&& color_of) noexcept {
+	/// \tparam StyleFn callable `graphics::FaceStyle(NodeId, u32)`.
+	template <class MeshAt, class StyleFn>
+	u32 render_with(MeshAt&& mesh_at, playfield::Surface& target, StyleFn&& style_of) noexcept {
 		u16 count = 0u;
 		m_nodes.for_each([&](Node3D& node, NodeId id) {
 			if (!node.visible) {
@@ -282,9 +314,10 @@ private:
 			}
 			m_model.m = math::Mat<3, eng::real>::identity();
 			m_model.t = node->position;
-			faces += graphics::render_solid(*mesh, m_model, m_camera, target,
-							[&](u32 face) { return color_of(id, face); },
-							m_world, m_cam_scratch, m_xs, m_ys);
+			faces += graphics::render_solid_styled(
+				*mesh, m_model, m_camera, target,
+				[&](u32 face) { return style_of(id, face); }, m_world,
+				m_cam_scratch, m_xs, m_ys);
 		}
 		return faces;
 	}

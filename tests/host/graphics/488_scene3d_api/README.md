@@ -2,7 +2,9 @@
 
 Verifica `eng/api/3d.hpp` (G0 de [`ROADMAP_3D_GAME_API.md`](../../../../docs/guides/roadmap/ROADMAP_3D_GAME_API.md)): la escena retenida de capacidad fija con handles generacionales, cámara `Camera3D<eng::coord>`, alta/baja de nodos, posición/visibilidad, validación de cámara y render por `eng::graphics::render_solid` con painter entre nodos.
 
-También cubre el primer tramo de G1: `eng::assets::Model3DAssetView` (chunk `Model3D` 15) valida un payload big-endian construido con `BlobWriter`, y `eng::scene3d::ModelTable` copia la malla/materiales a buffers propios y la pinta con la sobrecarga `Scene::render(ModelTable, ...)`. Se prueban los rechazos de payload truncado, índice fuera de rango, cara de 2 vértices, tabla llena y malla mayor que `MaxVertices`.
+También cubre el primer tramo de G1 y P7: `eng::assets::Model3DAssetView` (chunk `Model3D` 15) valida un payload big-endian construido con `BlobWriter`, y `eng::scene3d::ModelTable` copia la malla/materiales a buffers propios y la pinta con la sobrecarga `Scene::render(ModelTable, ...)`. Se prueban los rechazos de payload truncado, índice fuera de rango, cara de 2 vértices, tabla llena y malla mayor que `MaxVertices`.
+
+P7 aporta `graphics::FaceStyle` (color + patrón), el relleno CPU de patrón (`Surface::fill_polygon(..., FaceStyle)` → `Playfield::fill_polygon_pattern`/`draw_span_pattern`), el render con materiales de `ModelTable` sin callback, `CameraView`/`world_to_camera` y `render_wire` con aristas únicas y clip de segmento contra near/laterales. El test verifica que los colores y el patrón del material llegan al relleno, el damero CPU alterna en X, el cubo dibuja 12 aristas sin duplicados, un cubo detrás del near no dibuja y un buffer de aristas corto no desborda.
 
 La prueba de render usa un `Playfield` de host que captura los polígonos delegados por `Surface` (el mismo borde que en Amiga usa el `PolygonFillSink` del Blitter). Comprueba que las caras caen dentro del viewport, que el nodo lejano se pinta antes que el cercano, que un nodo oculto no emite caras, que un cubo detrás del near no se pinta, y que se omiten las mallas fuera de rango o con más vértices que `MaxVertices`.
 
@@ -10,7 +12,7 @@ La sonda de política numérica fija la decisión de G0: `eng::coord` (`Fixed<s1
 
 El cruce con el cooker se completa con su self-test (`node dist/tools/assets/cook-model3d.js --self-test`), que empaqueta un cubo con el mismo layout y reparsea el UAF-R; el test C++ valida el mismo contrato desde el lado del runtime.
 
-Alcance y límites: host puro, relleno CPU por `Surface`, sin Blitter, sin rotación, sin jerarquía padre/hijo, sin `Assets::model`, sin animación/proxies y sin medida de fps. La validación on-target, la visión y el presupuesto quedan para las demos de G2/G3; este test **no** declara verificada la fachada completa.
+Alcance y límites: host puro, relleno CPU por `Surface` (el patrón por Blitter y la aplicación de patrón en el sink quedan para P8/G3), sin rotación de nodo, sin jerarquía padre/hijo, sin `Assets::model`, sin animación/proxies y sin medida de fps. `CameraView` existe y se prueba como transformación, pero la escena aún no tiene cámara mundo→cámara integrada. La validación on-target, la visión y el presupuesto quedan para las demos de G2/G3; este test **no** declara verificada la fachada completa.
 
 ```bash
 CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/488_scene3d_api

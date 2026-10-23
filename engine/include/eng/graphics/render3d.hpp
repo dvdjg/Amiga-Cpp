@@ -49,7 +49,9 @@
 #include <eng/core/math/scalar.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/type_traits.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/face_style.hpp>
 
 namespace eng::graphics {
 
@@ -74,6 +76,40 @@ struct CamVertex {
 	S y {};
 	S z {};
 };
+
+/// **Vista mundo→cámara** para `render3d`: posición del mundo que ocupa la cámara
+/// (origen del espacio de cámara) y rotación **ortogonal** que lleva del mundo a
+/// cámara. La rotación se aporta ya construida (Q4.12) para no meter trigonometría
+/// en el renderer; el juego la compone con sus ángulos o con `math3d::load_rotate`.
+///
+/// \tparam S escalar de las posiciones (en la máquina `eng::coord` = q0).
+template <class S = eng::coord>
+struct CameraView {
+	math3d::Vec3t<S> position {}; ///< posición de la cámara en el mundo.
+	eng::math::Mat<3, eng::real> rotation {}; ///< rotación mundo→cámara (Q4.12).
+};
+
+/// Lleva un punto de mundo a espacio de cámara: `R · (world - position)`.
+/// \tparam S escalar de la posición (mismo que el `CameraView`).
+/// \param view posición y rotación de la cámara.
+/// \param world punto en coordenadas de mundo.
+/// \return punto en espacio de cámara, listo para `render_solid`/`project_camera_vertex`.
+/// \pre `view.rotation` es una rotación ortogonal (el llamador la construye así).
+template <class S>
+[[nodiscard]] inline math3d::Vec3t<S> world_to_camera(const CameraView<S>& view,
+						      const math3d::Vec3t<S>& world) noexcept {
+	const math3d::Vec3t<S> d {
+		{world.v[0] - view.position.v[0], world.v[1] - view.position.v[1],
+		 world.v[2] - view.position.v[2]}};
+	math3d::Vec3t<S> out {};
+	for (int i = 0; i < 3; ++i) {
+		auto acc = view.rotation.m[i][0] * d.v[0];
+		acc = acc + view.rotation.m[i][1] * d.v[1];
+		acc = acc + view.rotation.m[i][2] * d.v[2];
+		out.v[i] = eng::math::scalar_traits<S>::norm_from(acc);
+	}
+	return out;
+}
 
 namespace detail3d {
 
@@ -188,6 +224,20 @@ template <class S, class W>
 			const TS out = dro < 0 ? ra - static_cast<TS>(mag)
 					       : ra + static_cast<TS>(mag);
 			return eng::math::scalar_traits<S>::from_wide(out);
+		};
+		return CamVertex<S> {lerp(first->x, second->x), lerp(first->y, second->y),
+				     lerp(first->z, second->z)};
+	} else if constexpr (eng::util::is_integral_v<S>) {
+		// Host/int: la interpolación en 12 bits sobre s64 evita el truncado de la
+		// división entera (`t = 0` para |da| < |da-db|). En 68000 `S` es `Fixed` y
+		// toma la rama `to_wide`; este camino no se instancia en target.
+		const s64 num = static_cast<s64>(da);
+		const s64 den = static_cast<s64>(da) - static_cast<s64>(db);
+		if (den == 0) return *first;
+		const s64 q = (num << 12) / den;
+		auto lerp = [q](S ca, S cb) -> S {
+			const s64 d = static_cast<s64>(cb) - static_cast<s64>(ca);
+			return static_cast<S>(static_cast<s64>(ca) + ((d * q) >> 12));
 		};
 		return CamVertex<S> {lerp(first->x, second->x), lerp(first->y, second->y),
 				     lerp(first->z, second->z)};
@@ -377,17 +427,19 @@ template <class S>
 	return sum;
 }
 
-/// **Pinta un sólido n-gon** (caras convexas) sobre `surface`.
+/// **Pinta un sólido n-gon con estilo de cara** (caras convexas) sobre `surface`.
+/// Es la ruta que usa la escena G1/G3: `style_of(face_index)` devuelve
+/// `FaceStyle` (color + patrón + flags) y `Surface::fill_polygon` aplica el patrón.
 ///
 /// Buffers del llamador: `world` (capacidad = vértices), `cam_scratch`/`xs`/`ys`
-/// (capacidad ≥ 16). `color_of(face_index)` da el índice de paleta (sombreado del juego).
-/// `double_sided` pinta también las caras con área negativa (mallas abiertas).
-/// Devuelve el número de caras emitidas.
-template <class S, class Model, class ColorFn>
-inline u32 render_solid(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
-			const Camera3D<S>& cam, playfield::Surface& target, ColorFn&& color_of,
-			math3d::Vec3t<S>* world, CamVertex<S>* cam_scratch, s16* xs, s16* ys,
-			bool double_sided = false) noexcept {
+/// (capacidad ≥ 16). `double_sided` pinta también las caras con área negativa
+/// (mallas abiertas). Devuelve el número de caras emitidas.
+/// \tparam StyleFn callable `FaceStyle(u32 face_index)`.
+template <class S, class Model, class StyleFn>
+inline u32 render_solid_styled(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
+			       const Camera3D<S>& cam, playfield::Surface& target, StyleFn&& style_of,
+			       math3d::Vec3t<S>* world, CamVertex<S>* cam_scratch, s16* xs, s16* ys,
+			       bool double_sided = false) noexcept {
 	const u32 nv = mesh.vertex_count();
 	const u32 nf = mesh.face_count();
 	if (world == nullptr || cam_scratch == nullptr || xs == nullptr || ys == nullptr) return 0u;
@@ -431,7 +483,157 @@ inline u32 render_solid(const math3d::PolyMeshViewT<S>& mesh, const Model& model
 		const s32 area = screen_area2(xs, ys, m);
 		if (area == 0) continue; // degenerada (canto de perfil)
 		if (!double_sided && area < 0) continue; // back-face
-		if (target.fill_polygon(xs, ys, m, static_cast<u8>(color_of(fi)))) {
+		if (target.fill_polygon(xs, ys, m, style_of(fi))) {
+			++drawn;
+		}
+	}
+	return drawn;
+}
+
+/// **Pinta un sólido n-gon con color plano** (sin patrón). Envoltorio de
+/// `render_solid_styled` que conserva la firma histórica: `color_of(face_index)`
+/// devuelve el índice de paleta.
+/// \tparam ColorFn callable convertible a `u8`.
+template <class S, class Model, class ColorFn>
+inline u32 render_solid(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
+			const Camera3D<S>& cam, playfield::Surface& target, ColorFn&& color_of,
+			math3d::Vec3t<S>* world, CamVertex<S>* cam_scratch, s16* xs, s16* ys,
+			bool double_sided = false) noexcept {
+	return render_solid_styled(
+		mesh, model, cam, target,
+		[&](u32 face) -> graphics::FaceStyle {
+			return graphics::FaceStyle {static_cast<u8>(color_of(face)), 0u, 0u};
+		},
+		world, cam_scratch, xs, ys, double_sided);
+}
+
+/// Arista única de una malla para la ruta de alambre: índice menor primero.
+struct WireEdge {
+	u16 a = 0;
+	u16 b = 0;
+};
+
+/// **Recorta un segmento en espacio de cámara** contra near + los cuatro laterales.
+/// Devuelve `false` si queda completamente fuera. Misma convención de planos y ajuste
+/// final que `clip_camera_polygon`; se usa en `render_wire` para no proyectar
+/// coordenadas inválidas ni desbordar `s16`.
+template <class S>
+[[nodiscard]] inline bool clip_camera_segment(const Camera3D<S>& cam, CamVertex<S> a,
+					      CamVertex<S> b, CamVertex<S>& out_a,
+					      CamVertex<S>& out_b) noexcept {
+	using detail3d::Plane;
+	using T = eng::math::scalar_traits<S>;
+	const detail3d::CameraPlanes<S> cp = detail3d::camera_planes(cam);
+	a.x = detail3d::saturate_coord(a.x);
+	a.y = detail3d::saturate_coord(a.y);
+	a.z = detail3d::saturate_coord(a.z);
+	b.x = detail3d::saturate_coord(b.x);
+	b.y = detail3d::saturate_coord(b.y);
+	b.z = detail3d::saturate_coord(b.z);
+	for (u8 pi = 0u; pi < 5u; ++pi) {
+		const Plane<S>& pl = cp.planes[pi];
+		using Dist = decltype(pl.dist(a));
+		const Dist zero {};
+		const Dist da = pl.dist(a);
+		const Dist db = pl.dist(b);
+		const bool ain = da >= zero;
+		const bool bin = db >= zero;
+		if (!ain && !bin) return false;
+		if (ain != bin) {
+			const CamVertex<S> cut = detail3d::cut_edge<S>(a, b, da, db);
+			if (!ain) {
+				a = cut;
+			} else {
+				b = cut;
+			}
+		}
+	}
+	// Mismo ajuste final que el clip de polígono: el corte truncado no debe dejar
+	// coordenadas fuera del viewport ni z < near (contrato del Blitter/Surface).
+	out_a = a;
+	out_b = b;
+	CamVertex<S>* const ends[2] = {&out_a, &out_b};
+	for (u8 e = 0u; e < 2u; ++e) {
+		CamVertex<S>& v = *ends[e];
+		if (v.z < cam.near_z) v.z = cam.near_z;
+		const S xmax = T::mul_div(v.z, cam.half_w, cam.focal);
+		const S ymax = T::mul_div(v.z, cam.half_h, cam.focal);
+		if (v.x > xmax) v.x = xmax;
+		if (v.x < -xmax) v.x = -xmax;
+		if (v.y > ymax) v.y = ymax;
+		if (v.y < -ymax) v.y = -ymax;
+	}
+	return true;
+}
+
+/// **Pinta una malla n-gon en alambre** con aristas únicas. Transforma la malla,
+/// deduplica aristas (índice menor primero), recorta cada segmento en espacio de
+/// cámara (near + laterales) y lo proyecta; `target.draw_line` recorta en 2D.
+///
+/// \param mesh malla n-gon convexa (caras de 3..8 vértices).
+/// \param model transformación afín de la malla.
+/// \param cam cámara (espacio de cámara; ver `CameraView`).
+/// \param target superficie de destino; el llamador la limpia antes.
+/// \param color índice de paleta de las líneas.
+/// \param world scratch de `mesh.vertex_count()` vértices.
+/// \param edges scratch de aristas únicas; capacidad `edge_cap` (una malla cúbica
+///        usa 12; un sólido de 30 vértices, hasta 60). Si se llena, se omiten las
+///        aristas sobrantes (no se desborda).
+/// \param edge_cap capacidad de `edges`; debe ser > 0.
+/// \param cam_scratch scratch de al menos 2 `CamVertex` (se reutiliza el de 16).
+/// \param xs,ys scratch de al menos 2 `s16` (se reutiliza el de 16).
+/// \return número de aristas dibujadas.
+/// \pre La malla y los buffers no son nulos; `edge_cap > 0`.
+template <class S, class Model>
+inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
+		       const Camera3D<S>& cam, playfield::Surface& target, u8 color,
+		       math3d::Vec3t<S>* world, WireEdge* edges, u16 edge_cap,
+		       CamVertex<S>* cam_scratch, s16* xs, s16* ys) noexcept {
+	const u32 nv = mesh.vertex_count();
+	const u32 nf = mesh.face_count();
+	if (world == nullptr || edges == nullptr || cam_scratch == nullptr || xs == nullptr ||
+	    ys == nullptr || nv == 0u || nf == 0u || edge_cap == 0u) {
+		return 0u;
+	}
+	math3d::mesh_transform(mesh.vertices, model,
+			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+	u16 edge_count = 0u;
+	for (u32 fi = 0u; fi < nf; ++fi) {
+		const eng::Span<const u16> idx = mesh.face_indices(fi);
+		const u8 n = static_cast<u8>(idx.size());
+		if (n < 3u || n > 8u) continue;
+		for (u8 k = 0u; k < n; ++k) {
+			const u8 j = static_cast<u8>((k + 1u == n) ? 0u : (k + 1u));
+			u16 ia = idx[k];
+			u16 ib = idx[j];
+			if (ia >= nv || ib >= nv || ia == ib) continue;
+			if (ia > ib) {
+				const u16 tmp = ia;
+				ia = ib;
+				ib = tmp;
+			}
+			bool found = false;
+			for (u16 e = 0u; e < edge_count; ++e) {
+				if (edges[e].a == ia && edges[e].b == ib) {
+					found = true;
+					break;
+				}
+			}
+			if (!found && edge_count < edge_cap) {
+				edges[edge_count++] = WireEdge {ia, ib};
+			}
+		}
+	}
+	u32 drawn = 0u;
+	for (u16 e = 0u; e < edge_count; ++e) {
+		const math3d::Vec3t<S>& wa = world[edges[e].a];
+		const math3d::Vec3t<S>& wb = world[edges[e].b];
+		CamVertex<S> a {wa.v[0], wa.v[1], wa.v[2]};
+		CamVertex<S> b {wb.v[0], wb.v[1], wb.v[2]};
+		if (!clip_camera_segment<S>(cam, a, b, a, b)) continue;
+		if (!project_camera_vertex<S>(a, cam, xs[0], ys[0])) continue;
+		if (!project_camera_vertex<S>(b, cam, xs[1], ys[1])) continue;
+		if (target.draw_line(xs[0], ys[0], xs[1], ys[1], color)) {
 			++drawn;
 		}
 	}

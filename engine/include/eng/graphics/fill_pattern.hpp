@@ -49,6 +49,9 @@ enum class FillPattern : eng::u8 {
 	Oblique135, ///< líneas a 45° (bajan hacia la izquierda)
 };
 
+/// Último id válido del catálogo (`Oblique135`); los valores mayores se rechazan.
+inline constexpr eng::u8 kFillPatternMax = static_cast<eng::u8>(FillPattern::Oblique135);
+
 /// Palabra de 16 px del patrón en la fila `y` (**MSB = píxel izquierdo**, como el resto del
 /// engine); se repite a lo ancho con periodo 16 px.
 [[nodiscard]] constexpr eng::u16 fill_pattern_word(FillPattern kind, eng::u32 y) {

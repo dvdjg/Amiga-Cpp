@@ -25,6 +25,7 @@
 #include <vector>
 
 using namespace eng;
+using namespace eng::graphics;
 using namespace eng::playfield;
 using namespace eng::scene3d;
 
@@ -47,10 +48,21 @@ struct MockPlayfield : Playfield {
 		s16 ys[16] {};
 		u8 n = 0;
 		u8 color = 0;
+		u8 pattern = 0;
 	};
 
 	std::vector<u8> mem;
 	std::vector<Poly> polys;
+	bool record_patterns = true;
+
+	bool px(s32 x, s32 y) const {
+		const u32 row = m_bytes_per_row;
+		const u32 base = static_cast<u32>(planeline_for(y)) * row;
+		const u32 byte = byte_for(x);
+		const u16 mask = static_cast<u16>(0x8000u >> (x & 15));
+		const u16 v = *reinterpret_cast<const u16*>(mem.data() + base + byte);
+		return (v & mask) != 0u;
+	}
 
 	void init(u16 w, u16 h, u8 p) {
 		m_width = w;
@@ -91,6 +103,25 @@ struct MockPlayfield : Playfield {
 		Poly p {};
 		p.n = static_cast<u8>(xs.size());
 		p.color = color;
+		for (u8 i = 0u; i < p.n; ++i) {
+			p.xs[i] = xs[i];
+			p.ys[i] = ys[i];
+		}
+		polys.push_back(p);
+		return true;
+	}
+	bool fill_polygon_pattern(Span<const s16> xs, Span<const s16> ys, u8 color,
+				  u8 pattern) override {
+		if (!record_patterns) {
+			return Playfield::fill_polygon_pattern(xs, ys, color, pattern);
+		}
+		if (xs.size() != ys.size() || xs.size() < 3u || xs.size() > 16u) {
+			return false;
+		}
+		Poly p {};
+		p.n = static_cast<u8>(xs.size());
+		p.color = color;
+		p.pattern = pattern;
 		for (u8 i = 0u; i < p.n; ++i) {
 			p.xs[i] = xs[i];
 			p.ys[i] = ys[i];
@@ -337,6 +368,33 @@ void test_model_asset() {
 	check(faces > 0u, "render con ModelTable");
 	check(!pf.polys.empty(), "ModelTable llega a Surface");
 
+	pf.polys.clear();
+	const u32 material_faces = scene.render(table, surf);
+	check(material_faces > 0u, "render con materiales de ModelTable");
+	bool color3 = false;
+	bool color5 = false;
+	bool pattern1 = false;
+	for (const auto& p : pf.polys) {
+		color3 = color3 || p.color == 3u;
+		color5 = color5 || p.color == 5u;
+		pattern1 = pattern1 || p.pattern == 1u;
+	}
+	check(color3 && color5, "colores de material llegan al relleno");
+	check(pattern1, "patron de material llega al relleno");
+
+	// Ruta CPU del patrón: `draw_span_pattern` (oráculo del Blitter) con damero 1×1.
+	pf.record_patterns = false;
+	for (auto& byte : pf.mem) {
+		byte = 0u;
+	}
+	pf.polys.clear();
+	const s16 rx[4] = {10, 30, 30, 10};
+	const s16 ry[4] = {10, 10, 30, 30};
+	check(surf.fill_polygon(rx, ry, 4u, graphics::FaceStyle {1u, 1u, 0u}),
+	      "patron CPU rellena");
+	check(pf.px(10, 10) != pf.px(11, 10), "Checker2 alterna en X");
+	pf.record_patterns = true;
+
 	// Rechazos: asset truncado, índice fuera de rango, cara no convexa por conteo,
 	// capacidad de tabla y desbordamiento de MaxVertices.
 	{
@@ -476,6 +534,99 @@ void test_scene_render() {
 	      "tabla de modelos vacia no pinta");
 }
 
+void test_camera_and_wire() {
+	using TR = eng::math::scalar_traits<eng::real>;
+	CameraView<eng::coord> view {};
+	view.position = math3d::vec3(10, 20, 30);
+	view.rotation = eng::math::Mat<3, eng::real>::identity();
+	const math3d::Vec3t<eng::coord> p0 =
+		world_to_camera(view, math3d::vec3(13, 24, 35));
+	check(p0.v[0] == 3 && p0.v[1] == 4 && p0.v[2] == 5, "CameraView identidad");
+
+	eng::math::Mat<3, eng::real> rot {};
+	rot.m[0][2] = TR::one();
+	rot.m[1][1] = TR::one();
+	rot.m[2][0] = -TR::one();
+	view.rotation = rot;
+	view.position = {};
+	const math3d::Vec3t<eng::coord> p1 =
+		world_to_camera(view, math3d::vec3(1, 0, 0));
+	check(p1.v[0] == 0 && p1.v[1] == 0 && p1.v[2] == -1, "CameraView rotacion");
+
+	Camera cam {};
+	cam.focal = TC::from_int(340);
+	cam.cx = 160;
+	cam.cy = 100;
+	cam.near_z = TC::from_int(64);
+	cam.half_w = TC::from_int(160);
+	cam.half_h = TC::from_int(100);
+
+	CamVertex<eng::coord> a {TC::from_int(0), TC::from_int(0), TC::from_int(32)};
+	CamVertex<eng::coord> b {TC::from_int(0), TC::from_int(0), TC::from_int(100)};
+	CamVertex<eng::coord> ca {};
+	CamVertex<eng::coord> cb {};
+	check(graphics::clip_camera_segment(cam, a, b, ca, cb), "clip segmento near");
+	check(ca.z == cam.near_z, "clip segmento ajusta z al near");
+	check(cb.z == TC::from_int(100), "clip segmento conserva el extremo dentro");
+
+	CamVertex<eng::coord> behind_a {TC::from_int(0), TC::from_int(0), TC::from_int(20)};
+	CamVertex<eng::coord> behind_b {TC::from_int(0), TC::from_int(0), TC::from_int(30)};
+	check(!graphics::clip_camera_segment(cam, behind_a, behind_b, ca, cb),
+	      "segmento detras del near se descarta");
+
+	CamVertex<eng::coord> right {TC::from_int(100), TC::from_int(0), TC::from_int(100)};
+	CamVertex<eng::coord> left {TC::from_int(-100), TC::from_int(0), TC::from_int(100)};
+	CamVertex<eng::coord> origin {TC::from_int(0), TC::from_int(0), TC::from_int(100)};
+	check(graphics::clip_camera_segment(cam, origin, right, ca, cb), "clip lateral derecho");
+	check(cb.x <= TC::from_int(48), "clip lateral derecho acota x");
+	check(!graphics::clip_camera_segment(cam, left, left, ca, cb),
+	      "segmento fuera del lateral se descarta");
+
+	MockPlayfield pf;
+	pf.init(320, 200, 4);
+	Surface surf(pf, SurfaceRect {0, 0, 320, 200});
+
+	retro::MeshData<eng::coord, 8, 24, 6> cube;
+	check(retro::fill_box(cube, math3d::vec3(20, 20, 20)), "cubo para alambre");
+	math3d::Vec3t<eng::coord> world[8] {};
+	graphics::WireEdge edges[16] {};
+	CamVertex<eng::coord> scratch[16] {};
+	s16 xs[16] {};
+	s16 ys[16] {};
+	eng::math::Affine<3, eng::real, eng::coord> model {};
+	model.m = eng::math::Mat<3, eng::real>::identity();
+	model.t = math3d::vec3(0, 0, 120);
+
+	const u32 drawn = graphics::render_wire(cube.view(), model, cam, surf, 1u, world,
+						 edges, 16u, scratch, xs, ys);
+	check(drawn == 12u, "alambre del cubo dibuja 12 aristas");
+	u16 unique = 0u;
+	while (unique < 16u && !(edges[unique].a == 0u && edges[unique].b == 0u)) {
+		++unique;
+	}
+	check(unique == 12u, "Buffer de aristas unicas sin duplicados");
+	bool duplicate = false;
+	for (u16 i = 0u; i < unique; ++i) {
+		for (u16 j = static_cast<u16>(i + 1u); j < unique; ++j) {
+			if (edges[i].a == edges[j].a && edges[i].b == edges[j].b) {
+				duplicate = true;
+			}
+		}
+	}
+	check(!duplicate, "Sin aristas duplicadas");
+
+	model.t = math3d::vec3(0, 0, 20);
+	check(graphics::render_wire(cube.view(), model, cam, surf, 1u, world, edges, 16u,
+				    scratch, xs, ys) == 0u,
+	      "alambre detras del near no dibuja");
+
+	model.t = math3d::vec3(0, 0, 70);
+	pf.polys.clear();
+	check(graphics::render_wire(cube.view(), model, cam, surf, 1u, world, edges, 4u,
+				    scratch, xs, ys) <= 4u,
+	      "alambre con capacidad corta no desborda");
+}
+
 } // namespace
 
 int main() {
@@ -483,9 +634,10 @@ int main() {
 	test_scene_lifecycle();
 	test_model_asset();
 	test_scene_render();
+	test_camera_and_wire();
 
 	if (g_fail == 0) {
-		std::printf("OK: HOST-488 fachada 3D (G0) y modelo cocinado (G1) validados.\n");
+		std::printf("OK: HOST-488 fachada 3D (G0), modelo cocinado (G1) y P7 (patron/alambre) validados.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones.\n", g_fail);

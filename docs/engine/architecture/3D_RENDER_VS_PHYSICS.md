@@ -24,7 +24,7 @@ buffers del llamador. La arquitectura de juego 3D completa está en
 | Malla (render) | `eng/core/data/mesh3d.hpp` | `MeshView` triangular y `PolyMeshView` n-gon convexo, `Vec3`, `mesh_transform`, culling y orden de caras (`MeshFaceOrder<Kind>`) |
 | Objeto empaquetado (lib3d) | `eng/platform/amiga/object3d.hpp`, `lib3d.hpp` | `Object3D`, `objectToWorld`/`worldToObject`, transform+proyección+visibilidad de un mesh tipo `obj2c` |
 | Sombreado / relleno | `eng/core/math/light.hpp`, `eng/platform/amiga/polygon_fill.hpp` | Sombreado por cara; relleno de polígonos por CPU o Blitter |
-| Renderer de juego | `eng/graphics/render3d.hpp` | `Camera3D`, clip de cámara (near + laterales), proyección acotada, culling por área, `render_solid`/`render_mesh`; HOST-481 |
+| Renderer de juego | `eng/graphics/render3d.hpp` | `Camera3D`, `CameraView`, clip de cámara (near + laterales), proyección acotada, culling por área, `render_solid`/`render_solid_styled`/`render_mesh` y `render_wire`; HOST-481/488 |
 | Escalares | `eng/core/math/fixed.hpp`, `fixed_math.hpp` | `Fixed`, `q12` (4.12), `q24`; sin `float`, con `muls.w`/`divs.w` |
 
 Evidencia: demos `077_math3d_cube` (alambre), `078_math3d_solid`, `079`, `087_blit3d_triangles`, `088_blit3d_planes`, `090_polyhedra_orbit` y `116_flatshade_convex`; tests HOST-011/013/014/047/050/051/053/055/481/484 y sondas L1-003/L1-005.
