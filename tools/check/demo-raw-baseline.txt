@@ -1,3 +1,7 @@
 # Baseline del gate demo-raw-writes (ver tools/check/demo-raw-writes.mjs):
 # ficheros con escritura directa por view.data() pendientes de migrar a primitivas
 # del engine. NO-REINCIDENCIA: solo puede encoger.
+demos/nes/dk_port_gen/src/main.cpp
+demos/nes/dk_port_lazy/src/main.cpp
+demos/nes/popeye_port_xl/src/main.cpp
+demos/techniques/amiga/3d/090_polyhedra_orbit/src/main.cpp

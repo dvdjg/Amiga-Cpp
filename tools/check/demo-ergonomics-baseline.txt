@@ -17,7 +17,11 @@ demos/features/ui/amiga/301_gui_layouts
 demos/techniques/amiga/3d/077_math3d_cube
 demos/techniques/amiga/3d/078_math3d_solid
 demos/techniques/amiga/3d/079_wireframe
+demos/techniques/amiga/3d/080_camera_pan_window
 demos/techniques/amiga/3d/084_mf_rotation
+demos/techniques/amiga/3d/085_fill_clip_probe
+demos/techniques/amiga/3d/086_patch_probe
+demos/techniques/amiga/3d/090_polyhedra_orbit
 demos/techniques/amiga/audio/057_audio_mixer
 demos/techniques/amiga/audio/058_sfx_mixer
 demos/techniques/amiga/audio/059_music_player
@@ -63,6 +67,7 @@ demos/techniques/amiga/copper/020_copper_basic
 demos/techniques/amiga/copper/030_ehb_palette_zones
 demos/techniques/amiga/copper/055_copper_rainbow
 demos/techniques/amiga/copper/085_copper_plan_scene
+demos/techniques/amiga/copper/086_palette_checkerboard
 demos/techniques/amiga/debug/205_hw_probe
 demos/techniques/amiga/effects/040_palette_cycle_effect
 demos/techniques/amiga/effects/080_fire_rgb

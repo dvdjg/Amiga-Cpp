@@ -38,3 +38,11 @@ platform/amiga/backend.hpp
 # API de motor en el informe de la 121); pendientes de una extracción compartida, no de un
 # troceo por tamaño. Se acepta mientras tanto.
 field/xlimited_playfield.hpp
+#
+# field/playfield_base.hpp (1010): base de playfield de otro hilo; se acepta mientras se
+# consolida la familia de playfields (mismo criterio que xlimited_playfield).
+field/playfield_base.hpp
+#
+# hud/model.hpp (1227): modelo del HUD (regiones/widgets); el corte por regiones/widgets
+# es una pasada pendiente de HEADER_POLICY, no un troceo arbitrario.
+hud/model.hpp

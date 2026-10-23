@@ -2,7 +2,7 @@
 // **portable** y no usa hardware directo. Falla si:
 //   1. referencia registros de chipset (`0xdff…`, `$dff…`, `DFF0…`) en código;
 //   2. incluye vocabulario de plataforma (`eng/platform/<familia>/X`) que no sea el
-//      adaptador mínimo permitido (`backend.hpp` e `input_poll.hpp`).
+//      adaptador mínimo permitido (`backend.hpp`, `input_poll.hpp` y `entry.hpp` para el\n//      bootstrap de la feature específica de plataforma).
 //
 // El vocabulario de chipset vive en `demos/techniques/**` (y en `engine/src/platform/`).
 // Ver `docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md`.
@@ -17,7 +17,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const FEATURES = path.join(ROOT, 'demos/features');
 
 const QUIET = process.argv.includes('--quiet');
-const ALLOWED_PLATFORM_INCLUDE = /^eng\/platform\/[^/]+\/(backend|input_poll)\.hpp$/;
+const ALLOWED_PLATFORM_INCLUDE = /^eng\/platform\/[^/]+\/(backend|input_poll|entry)\.hpp$/;
 const INCLUDE_RE = /#\s*include\s*[<"]([^>"]+)[>"]/;
 const REGISTER_RE = /0x[dD][fF][fF]|\$[dD][fF][fF]|\bDFF0\b/;
 
