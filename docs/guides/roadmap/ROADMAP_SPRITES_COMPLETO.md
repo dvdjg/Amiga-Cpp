@@ -232,7 +232,7 @@ struct SpritePosCtl { u16 pos; u16 ctl; };
                                           SpriteDmaChain& out) noexcept;
 ```
 
-**Reglas del builder (todas testables en host):** un solo canal; posiciones ascendentes **con `kSpriteVerticalGapLines` de separación entre bloques** (más estricto que la ocupación del `SpriteAllocator`, que admite bloques contiguos con `bottom` exclusivo: el gap se exige aquí, no se hereda); `height` recortado a `kSpriteMaxHeightLines` y DATA suficiente (`height*width_words*2` words); `attach` solo en canal impar; terminador `0,0` y **no tocar el resto del buffer** (el runway ya está a cero); todo-o-nada por canal (si no cabe, el selector usa `Rearm`).
+**Reglas del builder (todas testables en host):** un solo canal; posiciones ascendentes **con `kSpriteVerticalGapLines` de separación entre bloques** (el `SpriteAllocator` aplica el mismo gap en su ocupación, de modo que los placements publicados ya lo respetan; el builder lo vuelve a exigir porque es el contrato de la estructura que lee Agnus); `height` recortado a `kSpriteMaxHeightLines` y DATA suficiente (`height*width_words*2` words); `attach` solo en canal impar; terminador `0,0` y **no tocar el resto del buffer** (el runway ya está a cero); todo-o-nada por canal (si no cabe, el selector usa `Rearm`).
 
 **Extraer y compartir `encode_sprite_pos_ctl`**: hoy la codificación vive privada en `SpriteManager::emit_config` (`sprite_manager.hpp:396-411`); al integrar F3.2, `emit_config` pasa a **usar esta función** (AGENTS §1.7: nada de dos codificaciones; hasta entonces conviven y el golden de HOST-434 fija el formato).
 

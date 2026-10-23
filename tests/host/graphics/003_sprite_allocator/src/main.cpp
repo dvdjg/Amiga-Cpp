@@ -8,7 +8,8 @@
 // el overflow → BOB. Es lógica pura (sin hardware), por eso se prueba con g++.
 //
 // Comprobaciones:
-//   1) Multiplexado vertical: sprites sin solape vertical comparten canal.
+//   1) Multiplexado vertical: sprites con el gap de 1 línea comparten canal; los
+//      contiguos no (el DMA necesita una línea de separación).
 //   2) Overflow horizontal: más de 8 sprites solapados desbordan a `as_bob`.
 //   3) Mixto: sprites que solapan consumen canales distintos; los que no
 //      solapan reutilizan.
@@ -104,16 +105,39 @@ void test_mixed_reuse() {
 }
 
 void test_no_overflow_boundary() {
-	std::printf("SpriteAllocator: el canal queda libre justo en el límite\n");
+	std::printf("SpriteAllocator: reuso con el gap vertical de 1 línea\n");
 
-	// Un sprite termina en 63 y el siguiente empieza en 64: no solapan
-	// (busy_until 63 < top 64), así que comparten canal.
+	// El primer tramo ocupa [40,63) = líneas 40..62; el siguiente empieza en 64, así que
+	// la línea 63 queda libre como separación mínima del DMA y comparten canal.
 	SpriteIntent intents[2] { make_intent(40, 63), make_intent(64, 87) };
 	SpriteSlot slots[2] {};
 
 	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 2}, slots);
 	CHECK(in_hw == 2u);
 	CHECK(slots[0].channel == slots[1].channel);
+}
+
+void test_vertical_gap_rejects_contiguous() {
+	std::printf("SpriteAllocator: dos tramos contiguos NO comparten canal\n");
+
+	// `top == bottom` anterior deja cero líneas entre ambos: el DMA no reencuentra la
+	// cabecera (AHRM 3.ª cap. 4), así que el segundo va a otro canal.
+	SpriteIntent intents[2] { make_intent(40, 63), make_intent(63, 86) };
+	SpriteSlot slots[2] {};
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 2}, slots);
+	CHECK(in_hw == 2u);
+	CHECK(!slots[0].as_bob && slots[0].channel == 0u);
+	CHECK(!slots[1].as_bob && slots[1].channel != slots[0].channel);
+
+	// El gap también se exige frente a una ventana de fondo que ocupa el mismo canal.
+	eng::graphics::SpriteChannelLedger ledger {};
+	ledger.reset();
+	CHECK(ledger.occupy(0u, 0u, 40u)); // fondo en [0,40): última línea 39
+	SpriteIntent below[1] { make_intent(40u, 60u) };
+	SpriteSlot below_slot[1] {};
+	const eng::u8 hw = SpriteAllocator{}.assign({below, 1u}, below_slot, ledger);
+	CHECK(hw == 1u);
+	CHECK(!below_slot[0].as_bob && below_slot[0].channel != 0u);
 }
 
 void test_horizontal_strip() {
@@ -441,6 +465,7 @@ int main() {
 	test_horizontal_overflow();
 	test_mixed_reuse();
 	test_no_overflow_boundary();
+	test_vertical_gap_rejects_contiguous();
 	test_horizontal_strip();
 	test_strip_starts_after_busy_channel();
 	test_strip_overflow_to_bob();

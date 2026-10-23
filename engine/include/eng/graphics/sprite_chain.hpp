@@ -34,9 +34,9 @@
 ///
 /// **Gap obligatorio.** El DMA necesita una línea entre el `VSTOP` de un bloque y el
 /// `VSTART` del siguiente para consumir y decodificar su cabecera; el builder **rechaza**
-/// bloques que abutan (`kSpriteVerticalGapLines`). Es más estricto que la ocupación del
-/// `SpriteAllocator` (que trabaja con `[top,bottom)` y `bottom` exclusivo, de modo que dos
-/// placements pueden quedar contiguos): por eso el gap se **exige aquí** y no se hereda.
+/// bloques que abutan (`kSpriteVerticalGapLines`). El `SpriteAllocator` aplica el mismo gap
+/// en su ocupación, de modo que los placements publicados ya lo respetan; el builder vuelve
+/// a exigirlo porque es el contrato de la estructura que lee Agnus.
 ///
 /// **Contrato.** Todo-o-nada por canal: si algo no cuadra (canales mezclados, `attach` en
 /// canal par, gap/orden, capacidad, DATA corta) devuelve `false` y no escribe nada — el

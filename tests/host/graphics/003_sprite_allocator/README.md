@@ -10,8 +10,7 @@ Cubre:
 - `multiplexado vertical`: sprites sin solape vertical comparten canal.
 - `overflow horizontal`: más de 8 sprites solapados desbordan a `as_bob`.
 - `reuso`: sprites que no solapan reutilizan canales libres entre franjas.
-- `límite`: el canal queda libre justo cuando termina el tramo anterior (ocupación exacta
-  por línea: bitfield de 256 líneas por canal).
+- `gap vertical`: dos tramos contiguos no comparten canal; con una línea libre entre el `bottom` exclusivo del anterior y el `top` del siguiente sí (AHRM 3.ª cap. 4); el gap se exige también frente a las ventanas del ledger de fondos.
 - `tiras horizontales`: corrida contigua o la tira entera a BOB.
 - `par attached`: el par va en un canal par, el impar en el contiguo.
 - `cadena vertical`: todas las franjas del mismo objeto al mismo canal (o entera a BOB).

@@ -26,6 +26,15 @@
 /// objeto libre por delante de un fijo en Y puede reusar el canal del fijo si sus tramos no
 /// se solapan.
 ///
+/// **Gap vertical obligatorio** (AHRM 3.ª, cap. 4; `kSpriteVerticalGapLines`): el DMA necesita
+/// al menos una línea horizontal entre dos reutilizaciones del mismo canal, así que la
+/// ocupación reserva también las líneas de separación anteriores y posteriores a cada tramo.
+/// `bottom` exclusivo no basta: `[top,bottom)` seguido de otro intent con `top == bottom` usa
+/// el mismo canal en líneas consecutivas y el DMA no reencuentra la cabecera. WinUAE procesa
+/// `VSTART` y `VSTOP` en la misma línea de `generate_sprites` (`../WinUAE-DBG/custom.cpp:10088-10101`)
+/// y `sprstartstop` desarma al llegar a `vstop` (`custom.cpp:4031-4042`). `SpriteDmaChain`
+/// aplica el mismo criterio al construir la cadena (`sprite_chain.hpp`).
+///
 /// **Preferencia de canal:** el `channel` del intent es una **preferencia**: el allocator lo
 /// intenta primero (canal par para pares *attached*, base de la corrida para tiras/grupos) y
 /// si está ocupado reparte el primero libre. Es la "tabla de slots preferidos" del
@@ -50,6 +59,7 @@
 #include <eng/core/util/bitset.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite_channel_window.hpp>
+#include <eng/graphics/sprite_limits.hpp>
 
 namespace eng::graphics {
 
@@ -63,7 +73,9 @@ struct SpriteSlot {
 ///
 /// Contrato: `intents` debe venir ordenado por `top` ascendente (el llamador lo
 /// garantiza; no hay heap para ordenar). Con `assign_rank` el orden dentro de cada rango se
-/// conserva. El `channel` de cada `SpriteIntent` es preferencia (ver arriba). **Sí** modela
+/// conserva. Dos tramos del mismo canal deben dejar `kSpriteVerticalGapLines` líneas libres
+/// entre el `bottom` (exclusivo) del anterior y el `top` del siguiente. El `channel` de cada
+/// `SpriteIntent` es preferencia (ver arriba). **Sí** modela
 /// los pares **attached** (15 colores): el par va en un canal PAR y el intent impar
 /// (`attach = true`) en el contiguo. El ancho de 32 px de AGA (`width_words = 2`) no cambia
 /// el nº de canales (1 por sprite), solo el coste de DMA; no altera la asignación.
@@ -140,15 +152,39 @@ public:
 		u8 run_span = 1u;
 		bool run_ok = false;
 
-		// Canal libre para un tramo `[top,bottom)`: ninguna línea ocupada y el fondo no lo
-		// reserva (`ledger.free`).
+		// Líneas de separación que el DMA exige alrededor de cada tramo: una reutilización
+		// del mismo canal no puede empezar en el `bottom` exclusivo del anterior (AHRM 3.ª
+		// cap. 4 y `../WinUAE-DBG/custom.cpp:10088-10101`). Reservar ambos lados protege
+		// también cuando las pasadas por rango asignan los tramos fuera de orden.
+		auto gap_top = [](u16 top) -> u16 {
+			if (top <= kSpriteVerticalGapLines) {
+				return 0u;
+			}
+			u16 start = top;
+			start -= kSpriteVerticalGapLines;
+			return start;
+		};
+		auto gap_bottom = [](u16 bottom) -> u16 {
+			if (bottom >= kOccupancyLines) {
+				return bottom;
+			}
+			u16 end = bottom;
+			end += kSpriteVerticalGapLines;
+			return end > kOccupancyLines ? kOccupancyLines : end;
+		};
+
+		// Canal libre para un tramo `[top,bottom)`: ninguna línea ocupada (la ocupación ya
+		// incluye el gap de los tramos anteriores) y el fondo no lo reserva (`ledger.free`).
 		auto ch_free = [&](u8 c, u16 top, u16 bottom) -> bool {
 			if (!lines_free(occ[c], top, bottom)) {
 				return false;
 			}
-			return !reserved.valid() || reserved->free(c, top, bottom);
+			return !reserved.valid() ||
+			       reserved->free(c, gap_top(top), gap_bottom(bottom));
 		};
-		auto reserve = [&](u8 c, u16 top, u16 bottom) { mark_lines(occ[c], top, bottom); };
+		auto reserve = [&](u8 c, u16 top, u16 bottom) {
+			mark_lines(occ[c], gap_top(top), gap_bottom(bottom));
+		};
 		// Retira las corridas cuyo último tramo ya pasó (liberan su entrada).
 		auto retire = [&](u16 top) {
 			for (u8 k = 0; k < kChannels; ++k) {

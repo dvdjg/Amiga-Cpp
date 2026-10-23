@@ -23,8 +23,9 @@ inline constexpr u8 kSpriteChannels = 8u;
 inline constexpr u8 kSpriteMaxPerLine = kSpriteChannels;
 
 /// Línea(s) de separación mínima entre **dos reusos verticales** del mismo canal (el DMA
-/// necesita reencontrar el canal libre; dos sprites contiguos comparten canal porque
-/// `bottom` es exclusivo). Fuente: `sprite-techniques-catalog.md` §Multiplexado vertical.
+/// necesita reencontrar el canal libre; `bottom` exclusivo no basta: dos tramos contiguos
+/// dejan cero líneas). La exigen `SpriteAllocator` y `SpriteDmaChain`. Fuente: AHRM 3.ª
+/// cap. 4 («at least one horizontal line between each reuse of a sprite processor»).
 inline constexpr u8 kSpriteVerticalGapLines = 1u;
 
 /// Altura máxima de un sprite (líneas): cota de recorte que aplican `SpriteConfig` /

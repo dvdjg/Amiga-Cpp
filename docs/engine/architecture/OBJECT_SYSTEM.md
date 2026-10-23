@@ -198,7 +198,7 @@ Fusión y conflictos, en orden de prioridad decreciente: intenciones del **frame
 
 ### 8.1 Asignación y multiplexado de sprites
 
-`SpriteAllocator::assign` implementa **greedy first-fit con multiplexado vertical**: recorre los intents ordenados por `top` ascendente y asigna el primer canal cuyo último uso terminó en `<= top` (el `bottom` es exclusivo, de modo que dos sprites contiguos comparten canal y uno que arranca en la línea 0 también encuentra canal); si no hay canal, marca `SpriteSlot::as_bob`. Es O(n·8) sobre una lista ordenada (el llamador ordena; el asignador no reserva memoria).
+`SpriteAllocator::assign` implementa **greedy first-fit con multiplexado vertical**: recorre los intents ordenados por `top` ascendente y asigna el primer canal cuyo último uso terminó con al menos `kSpriteVerticalGapLines` líneas de separación (`top >= bottom + gap`; el `bottom` es exclusivo, pero dos tramos contiguos dejan cero líneas y el DMA no reencuentra la cabecera); si no hay canal, marca `SpriteSlot::as_bob`. Es O(n·8) sobre una lista ordenada (el llamador ordena; el asignador no reserva memoria).
 
 **Tiras horizontales** (`SpriteIntent::strip_id`, `strip_index`, `strip_span`): un objeto más ancho que 16 px se compone con varios canales contiguos. El líder (`strip_index == 0`) reserva la primera corrida de `strip_span` canales libres en su franja y los miembros toman `base + strip_index`; si no hay corrida del tamaño pedido, o la tira no llega con el líder primero, la tira **entera** va a `as_bob` (nunca se parte a medias). Es lo que habilita los fondos de sprites uno al lado del otro descritos en §7.
 
