@@ -16,7 +16,7 @@
 
 #include <cstdio>
 
-#include <eng/api/sprites.hpp>
+#include <eng/scene/sprite_scene.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/memory_manager.hpp>

@@ -21,8 +21,8 @@
 /// placements para `present`. La validación visual/demo se hace con el procedimiento
 /// normal de demos; los tests host cubren la contabilidad y la composición.
 
-#include <eng/api/objects.hpp>
-#include <eng/api/sprites.hpp>
+#include <eng/scene/composite_scene.hpp>
+#include <eng/scene/sprite_scene.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/sprite_line_layer.hpp>
 #include <eng/graphics/sprite_manager.hpp>

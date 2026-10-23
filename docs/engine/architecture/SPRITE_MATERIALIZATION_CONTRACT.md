@@ -60,7 +60,7 @@ Se calculan en una pasada sobre los placements ya emitidos (sin asignación), de
 
 ## 5. Referencias
 
-- `engine/include/eng/api/sprites.hpp` (`SpriteScene`), `eng/scene/actor_sprite.hpp` (`compose_sprites`), `eng/graphics/sprite_allocator.hpp`.
+- `engine/include/eng/scene/sprite_scene.hpp` (`SpriteScene`), `eng/scene/actor_sprite.hpp` (`compose_sprites`), `eng/graphics/sprite_allocator.hpp`.
 - `docs/engine/architecture/OBJECT_SYSTEM.md` (contenido, transparencia, fondos), `SPRITE_CHANNEL_WINDOWS.md` (ventanas y ledger).
 - `docs/reference/amiga/techniques/sprite-layer.md` y `sprite-multiplexer-bob-fallback.md`.
 - Demos de referencia: 216 (attached), 217 (plantillas), 219 (cadena), 224 (lista estática parcheada a 50 fps).

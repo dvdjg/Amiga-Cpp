@@ -6,8 +6,8 @@
 /// algoritmo por debajo del umbral de tamaño y permitir reutilizarlos sin arrastrar la
 /// implementación del pool.
 
-#include <eng/api/objects.hpp>
-#include <eng/api/sprites.hpp>
+#include <eng/scene/composite_scene.hpp>
+#include <eng/scene/sprite_scene.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/sprite_line_layer.hpp>
 #include <eng/scene/sprite_visual.hpp>

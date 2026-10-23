@@ -2,7 +2,7 @@
 
 ## Qué hace
 
-Demuestra la **fachada de sprites** (`eng::SpriteScene`): el juego da de alta actores (`ActorDesc`) y llama `emit`; el engine compone (sprites hardware + `SpriteAllocator` + degradado a BOB) sin que el juego declare buffers de trabajo ni un `FramePlan`. Nueve actores de 16×16 con **lissajous de x e y** (recompuestos cada 4 frames) sobre un fondo estructurado; el reparto HW/degradados se publica por contadores.
+Demuestra la **fachada de sprites** (`eng::scene::SpriteDirector`): el juego da de alta actores (`SpriteDesc`) y llama `emit`; el engine compone (sprites hardware + `SpriteAllocator` + degradado a BOB) sin que el juego declare buffers de trabajo ni un `FramePlan`. Nueve actores de 16×16 con **lissajous de x e y** (recompuestos cada 4 frames) sobre un fondo estructurado; el reparto HW/degradados se publica por contadores.
 
 ## Qué pretende demostrar
 
@@ -17,6 +17,6 @@ Demuestra la **fachada de sprites** (`eng::SpriteScene`): el juego da de alta ac
 
 ## Evolución temporal
 
-1. **Init**: fondo + hoja de sprites + 9 actores + composición + copperlist (reset de canales, DMACON, paleta, `emit_into`); READY con `sprites << 8 | degradados`.
+1. **Init**: fondo + hoja de sprites + 9 actores + composición + copperlist (reset de canales, DMACON, paleta, `present`); READY con `sprites << 8 | degradados`.
 2. **Frames**: cada 4 frames los actores avanzan su lissajous (x ±24, y ±18), se **recompone** y se re-emite la copperlist (las posiciones SPRxPOS/CTL viajan en ella). El resto de frames solo actualiza telemetría.
 3. **Cada composición**: self-check de memoria — `sprites_hw + degradados == 9` (`comp_bad` debe quedarse en 0) y `split` publica el reparto vigente.

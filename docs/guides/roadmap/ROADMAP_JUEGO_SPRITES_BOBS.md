@@ -59,7 +59,7 @@ La **lista viva y priorizada de pendientes de sprites** sigue en `ROADMAP_UNIFIC
 | Prioridad sprite/playfield (`BPLCON2`), `Priority` intent | `emit_planes_display` + `CopperIntentKind::Priority` | `graphics/copper/scheduler.hpp`, `raster_intent.hpp` | 206/216; `winuae/sprite-color-priority.md` |
 | Animación de DATA por frame (hoja + `frame_stride`) de un objeto HW | `compose_sprites` publica el frame vigente | `scene/actor_sprite.hpp` | HOST-072; demos 054/216 |
 | Límites de hardware (canales, gap, reuso ≥24 px, planos de parcheo) | `kSpriteChannels`, `kSpriteVerticalGapLines`, `kSpriteMinReusePx`, `kSpriteLineDataMaxBitplanes` | `graphics/sprite_limits.hpp` | fuente única citada |
-| Fachada de juego (actores → compuestos HW + fallback BOB + Copper) | `SpriteScene<MaxActors>` | `api/sprites.hpp` | HOST-391/072; demos 216/217 |
+| Fachada de juego (actores → compuestos HW + fallback BOB + Copper) | `SpriteScene<MaxActors>` | `scene/sprite_scene.hpp` | HOST-391/072; demos 216/217 |
 
 ### 2.2 BOBs (objetos de Blitter)
 
@@ -148,7 +148,7 @@ Orden por **dependencia y valor para juego**. Cada fase declara objetivo, contra
 
 | Fase | Estado |
 |---|---|
-| F1 actores compuestos | **Hecha**: `graphics/composite_visual.hpp` + `scene/composite_actor.hpp` (HOST-429) y fachada `api/objects.hpp` (`CompositeScene`, HOST-432); demo **063_composite_actors** validada con visión. `Visual.Kind` retirado y par *attached* derivado. |
+| F1 actores compuestos | **Hecha**: `graphics/composite_visual.hpp` + `scene/composite_actor.hpp` (HOST-429) y fachada `scene/composite_scene.hpp` (`CompositeScene`, HOST-432); demo **063_composite_actors** validada con visión. `Visual.Kind` retirado y par *attached* derivado. |
 | F2 trayectorias/formaciones/pool | **Hecha**: `scene/{trajectory,formation,entity_pool}.hpp` (HOST-430) + **generadores de ola en V** `gen_formation_v`/`gen_formation_v_sine` (F2.1, HOST-435, usados por la demo); demo **064_shmup_wave** (formación seno en espejo + pool de enemigos) validada con visión. |
 | F3 DMA encadenado + selector | **Hecha**: builder `graphics/sprite_chain.hpp` (HOST-434), armado por registro + `emit_placements_into(chains)`, selector y cadena persistente; demo **219** validada (A/B de copperlist 304→114 words, 50 fps). Detalle en `ROADMAP_SPRITES_COMPLETO.md` §3.2. |
 | F4 cierre de pendientes de sprites | **Parcial**: hechos bending (HOST-436/demo 220) y palette splitting (F7/HOST-391/demo 221). Abiertos: Jim Power DATA por línea (215 NO VERIFICADA), FreeForm 212 no verificada (213 es la referencia; extraer a engine), demo de prioridad BPLCON2 por franjas y arbitraje de paleta con 5+ planos/EHB. |
@@ -501,4 +501,4 @@ F1 → F2 (o F2 → F1 si el primer juego objetivo es un shmup) → F8 si hay ni
 - Técnicas: `sprite-techniques-catalog.md`, `sprite-tricks-games.md`, `sprite-layer.md`, `sprite-horizontal-multiplex.md`, `sprite-multiplexer-bob-fallback.md`, `dual-playfield-fastbobs.md`, `interleaved-bob-single-blit.md`.
 - Emulador: `docs/reference/emulators/winuae/sprite-dma.md`, `sprite-color-priority.md`; AHRM 3.ª cap. 4 (sprites) y cap. 7 (`BPLCON2`, `CLXCON`/`CLXDAT`); *CPU Blit Assist* (Power Programs) para el camino de Sprite CPU (A1200).
 - Reutilización en el engine: `core/math/spline.hpp` (Bézier/Hermite/Catmull-Rom genéricos), `core/math/interp.hpp` (lerp/easings), `core/math/isqrt.hpp`, `core/math/sinetable.hpp`, `core/util/{state_machine,event}.hpp`, `scene/representation.hpp` (`Representation`), `graphics/copper/plan.hpp` (conflictos por línea), `scene/route_camera.hpp`.
-- Estado vivo: `ROADMAP_UNIFICADO.md` §«Sprites hardware — estado»; fachada `eng/api/sprites.hpp`; metódica `DEMO_VISUAL_DEBUG.md` y `docs/testing/README.md`.
+- Estado vivo: `ROADMAP_UNIFICADO.md` §«Sprites hardware — estado»; fachada `eng/scene/sprite_scene.hpp`; metódica `DEMO_VISUAL_DEBUG.md` y `docs/testing/README.md`.

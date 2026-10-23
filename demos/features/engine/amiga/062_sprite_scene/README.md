@@ -1,20 +1,19 @@
-# Demo 062 — fachada de sprites de nivel A (`eng::SpriteScene`)
+# Demo 062 — fachada de sprites de nivel A (`eng::scene::SpriteDirector`)
 
-Tutorial: el juego **da de alta actores** (`ActorDesc`) y llama `emit`; el engine **compone**
+Tutorial: el juego **da de alta actores** (`SpriteDesc`) y llama `emit`; el engine **compone**
 (HW sprites + `SpriteAllocator` + BOB fallback) **sin** que el juego declare los buffers de trabajo ni
 un `FramePlan`. Es la fachada del sistema de objetos NES (8 sprites/línea + overflow).
 
 ```cpp
-eng::SpriteScene<9> sprites;
-sprites.set_budget({8u, 4096u, 0u});              // 8 canales HW, 4k palabras de BOB, 0 capas
-sprites.add(d);                                   // d = ActorDesc (visual + posicion + prioridad)
+eng::scene::SpriteDirector<9, 9, 1, 1, 18, 4> sprites;
+sprites.add({.content = SpriteVisualRef::simple(visual), .x = x, .y = y});
 auto r = sprites.emit(plan, ctx);                 // compone; los BOB van al plan
-m_manager.apply(sprites.placements().data(), r.sprites);  // HW sprites a los registros (copper)
+sprites.present(sched, 32u, true);          // HW sprites a los registros (copper)
 ```
 
 Muestra 9 actores de 16×16 en fila (y=100): los **8 primeros caben** en los canales 0..7 (parejas de
 color: rojo, verde, azul, amarillo); el **noveno no cabe** y queda `as_bob` (contado en
-`result.degraded`, publicado en `g_eng_run_status.detail`). Por debajo trabaja `scene::compose_sprites`
+`r.degraded`, publicado en `g_eng_run_status.detail`). Por debajo trabaja `scene::compose_sprites`
 (+ `SpriteAllocator` + BOB); la demo de técnica equivalente (nivel B) es
 [054_sprite_allocator](../../../../techniques/amiga/sprites/054_sprite_allocator/README.md).
 

@@ -60,8 +60,8 @@ Antes de crear cada pieza se busca su equivalente en el engine (regla §1.7 de `
 | Composición de capas de la sala | `scene::LayerPlan`/`LayerRole`/`SceneStrategy` (`eng/scene/plan.hpp`) | **Reutilizar**: el Stage Composer produce esas capas |
 | Técnicas de scroll y su coste | `scene::{ScrollKind,ScrollSpec,RegionCost}` (`eng/scene/world.hpp`), `eng/scene/scroll_plan.hpp` | **Reutilizar**: la técnica es dato de capa y el planner ya sabe degradar |
 | Elección sprite/BOB/capa/CPU | `scene::Representation`/`choose_representation` (`eng/scene/representation.hpp`) | **Reutilizar** (con `RepresentationBudget` del compositor) |
-| Sprites HW (cursor, props) y degradación | `sprite_allocator`, `sprite_channel_window`, `sprite_chain`, `api/sprites.hpp` | **Reutilizar** (cursor por sprite HW ya es patrón de `eng::ui`) |
-| BOBs, compuestos, trayectorias y pool | `scene/composite_actor.hpp`, `trajectory.hpp`, `entity_pool.hpp`, `api/objects.hpp` | **Reutilizar** |
+| Sprites HW (cursor, props) y degradación | `sprite_allocator`, `sprite_channel_window`, `sprite_chain`, `scene/sprite_scene.hpp` | **Reutilizar** (cursor por sprite HW ya es patrón de `eng::ui`) |
+| BOBs, compuestos, trayectorias y pool | `scene/composite_actor.hpp`, `trajectory.hpp`, `entity_pool.hpp`, `scene/composite_scene.hpp` | **Reutilizar** |
 | Navegación por polígonos convexos | `eng::ai::NavMesh` (`eng/ai/navigation/navmesh_lite.hpp`, HOST-118) + `eng::util::graph`/`pathfinding` | **Reutilizar**: las walkboxes son polígonos convexos con portales; el grafo se deriva de la adyacencia |
 | Cámara de mundo (follow/pan/dead-zone) | No existe fachada (`scene::RouteCamera` es de demos) | **Nuevo** `eng/adv/camera.hpp`, puro y host-testable |
 | Copper por línea y doble buffer | `eng::Copper` (`eng/api/copper.hpp`), `copper::{Scheduler,ListBuilder,Plan,DoubleBuffer}`, validadores `eng::setup` | **Reutilizar**: el *copper score* es una capa de datos encima |

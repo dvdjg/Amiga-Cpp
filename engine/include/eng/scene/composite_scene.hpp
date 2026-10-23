@@ -49,6 +49,8 @@
 namespace eng {
 
 /// Escena de sprites compuestos de capacidad fija (sin heap). Ver doc del fichero.
+/// \tparam MaxActors capacidad de actores compuestos vivos.
+/// \tparam MaxIntents capacidad de intents de Sprite HW (por defecto 4 por actor).
 template <eng::u16 MaxActors, eng::u16 MaxIntents = static_cast<eng::u16>(MaxActors * 4u)>
 class CompositeScene {
 public:
@@ -291,6 +293,7 @@ public:
 
 	/// **Publica los Sprite HW del frame**: arma las colocaciones en la copperlist (un solo
 	/// `WAIT` temprano + rearmes verticales). Se llama una vez por frame, tras `emit`.
+	/// \tparam Sched emisor de Copper (`wait_line`/`move`).
 	template <class Sched>
 	void present(Sched& sched, eng::u16 arm_line = 32u) const {
 		eng::graphics::SpriteManager::emit_placements_into(

@@ -161,7 +161,7 @@ mapéalos al mando NES. El runner puede presentar un **pad CD32** con `--cd32`.
 - **BG nametable**: `tilemap::TileMap16` + `tilemap::TileEditor` (HOST-342) + `tilemap::AttributeTable`
   (HOST-344), y los **drivers** `field::StripScrollLayer` (tiras, 50 fps single) / `field::XlimitedScene`
   (corcóscru) / `ScrollKind` (`CopperRing`/`BlitterColumns`/`Fine`).
-- **Sprites/OAM**: **`eng::SpriteScene<MaxActors>`** (fachada de nivel A, `eng/api/sprites.hpp`):
+- **Sprites/OAM**: **`eng::SpriteScene<MaxActors>`** (fachada de nivel A, `eng/scene/sprite_scene.hpp`):
   `add(ActorDesc)` + `emit(plan, ctx)` → HW sprites (`placements()`) + **BOB fallback** (`degraded`)
   + Copper anclado. Por debajo, `scene::ActorStore`/`Actor` + `SpriteAllocator` + `compose_sprites`.
 - ✅ Existen `decode_2bpp_planar` (F7.1), `TileEditor`/`AttributeTable` (F7.2), `eng::Copper` (F7.4),

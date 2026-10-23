@@ -11,11 +11,10 @@
 // ni un `FramePlan`. Es la fachada del sistema de objetos NES (8 sprites/línea + overflow).
 //
 // ```cpp
-// eng::SpriteScene<9> sprites;
-// sprites.set_budget(RepresentationBudget) esta deprecado: usa SpriteDirector/SpriteBudget.
-// sprites.add(d);                            // d = ActorDesc (visual + posicion + prioridad)
+// eng::scene::SpriteDirector<9, 9, 1, 1, 18, 4> sprites;
+// sprites.add({.content = simple(visual), .x = x, .y = y});
 // auto r = sprites.emit(plan, ctx);          // compone; los BOB van al plan
-// m_manager.apply(sprites.placements(), r.hw);  // HW sprites a los registros (copper)
+// sprites.present(sched, 32u, true);          // HW sprites a los registros (copper)
 // ```
 //
 // Qué muestra: 9 actores de 16×16 en fila (y=100). Los 8 primeros caben en los canales 0..7 (parejas
@@ -28,13 +27,11 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
-#include <eng/api/sprites.hpp> // API directa legacy (migrar a SpriteDirector)
 #include <eng/core/math/sinetable.hpp> // lissajous de los actores (regla 25)
 #include <eng/debug/hud.hpp>           // HudFpsWindow (fps10)
 #include <eng/debug/peripheral.hpp>    // contadores (telemetria de memoria)
 #include <eng/debug/prof.hpp>          // prof_clock
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/sprite_manager.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
@@ -64,7 +61,6 @@ constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
 // 9 actores de 16x16 en fila dentro de la ventana (x = 144, 176, ..., 400); solo 8 caben.
-constexpr eng::u16 kBobBudgetWords = 4096u; // 8 KiB de BOB en este demo
 constexpr eng::u8  kActors = 9;
 constexpr eng::u8  kSpriteHeight = 16;
 constexpr eng::u16 kWordsPerLine = 2;   // DAT + DATB
@@ -77,6 +73,9 @@ constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kActors
 constexpr eng::u16 kY = 100;
 constexpr eng::u16 kHpos0 = 144;
 constexpr eng::u16 kHposStep = 32;
+
+using Director = scene::SpriteDirector<
+	kActors, kActors, 1u, 1u, static_cast<eng::u16>(kActors * 2u), 4u>;
 
 // Fondo navy + parejas de color de sprite: COLOR17=rojo, COLOR21=verde,
 // COLOR25=azul, COLOR29=amarillo (cada par de canales comparte su gama). Los indices 6 y 9
@@ -166,7 +165,7 @@ struct SpriteAllocatorDemo {
 		const eng::u16 t = static_cast<eng::u16>(context.frame.frame_index);
 		if ((t & 3u) == 0u) {
 			for (eng::u8 i = 0; i < kActors; ++i) {
-				auto a = m_scene.store().get(m_ids[i]);
+				auto a = m_dir.actor(m_ids[i]);
 				if (!a.valid()) {
 					continue;
 				}
@@ -279,28 +278,32 @@ private:
 	/// La aplicación describe los actores; el engine elegirá y podrá reasignar su
 	/// representación. Aquí todos son candidatos a sprite (16x16).
 	bool add_actors(eng::WordView<eng::SpriteTag> sprite_data) {
-		m_scene.clear();
-		m_scene.set_budget(eng::scene::RepresentationBudget{
-			.sprite_channels = eng::graphics::kSpriteChannels,
-			.bob_budget_words = kBobBudgetWords,
-			.layer_slots = 0u,
-		}); // 8 canales HW, 4k palabras de BOB, 0 capas
+		m_dir.clear();
 		for (eng::u8 i = 0; i < kActors; ++i) {
-			scene::ActorDesc d {};
-			d.visual.pixels = sprite_data.subspan(
+			eng::graphics::Visual v {};
+			v.pixels = sprite_data.subspan(
 				static_cast<eng::u16>(i) * kInstanceWords, kInstanceWords).raw();
-			d.visual.w = 16u;
-			d.visual.h = kSpriteHeight;
-			d.visual.bitplanes = 2u;
-			d.x = static_cast<eng::s16>(kHpos0 + static_cast<eng::u16>(i) * kHposStep);
-			d.y = static_cast<eng::s16>(kY);
-			d.surface = 0u;
-			d.z = static_cast<eng::u8>(10u + i);
-			d.preferred = scene::Representation::Sprite;
-			d.transparency = scene::TransparencyMode::Opaque; // sprite: transparencia nativa
-			d.background = scene::BackgroundPolicy::None;
-			d.layout = eng::graphics::BobLayout::Interleaved;
-			m_ids[i] = m_scene.add(d);
+			v.w = 16u;
+			v.h = kSpriteHeight;
+			v.bitplanes = 2u;
+			const scene::VisualId visual = m_dir.add_visual(v);
+			if (!visual.valid()) {
+				return false;
+			}
+			scene::SpriteDesc sd {};
+			sd.content = scene::SpriteVisualRef::simple(visual);
+			sd.x = static_cast<eng::s16>(
+				static_cast<eng::u16>(kHpos0 + static_cast<eng::u16>(i) * kHposStep) -
+				eng::graphics::kSpriteScreenXOrigin);
+			sd.y = static_cast<eng::s16>(kY);
+			sd.surface = 0u;
+			sd.z = static_cast<eng::u8>(10u + i);
+			sd.hint.policy = scene::SpritePolicy::Sprite;
+			sd.hint.sprite_priority = 0u;
+			sd.transparency = scene::TransparencyMode::Opaque;
+			sd.background = scene::BackgroundPolicy::None;
+			sd.layout = eng::graphics::BobLayout::Interleaved;
+			m_ids[i] = m_dir.add(sd);
 			if (!m_ids[i].valid()) {
 				return false;
 			}
@@ -319,11 +322,10 @@ private:
 		ctx.display_top = 0x2cu;
 
 		m_frame_plan.clear();
-		const scene::SpriteLoadReport res = m_scene.emit(m_frame_plan, ctx);
+		const scene::SpriteLoadReport res = m_dir.emit(m_frame_plan, ctx);
 		m_sprites_in_hw = static_cast<eng::u8>(res.hw);
 		m_bob_count = static_cast<eng::u8>(res.degraded);
-		const eng::u8 applied = m_sprites.apply(m_scene.placements().data(), m_sprites_in_hw);
-		return applied == m_sprites_in_hw;
+		return static_cast<eng::u16>(res.hw + res.degraded) == kActors;
 	}
 
 	bool build_copper() {
@@ -350,7 +352,7 @@ private:
 		);
 		sched.emit_palette(kBasePalette.color);
 		// Los sprites se programan DESPUÉS de habilitar SPREN.
-		m_sprites.emit_into(sched);
+		m_dir.present(sched, 0x20u, true);
 		sched.wait_line(0xf8);
 		sched.move(eng::copper::Register::COLOR00, 0x0000);
 		sched.end();
@@ -369,10 +371,9 @@ private:
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::Block<eng::SpriteTag> m_sprite_block {};
-	eng::SpriteScene<kActors> m_scene {}; ///< fachada: actores + compose (HW sprites + BOB)
+	Director m_dir {}; ///< fachada: actores + compose (HW sprites + BOB)
 	eng::graphics::FramePlan m_frame_plan {};
-	eng::graphics::SpriteManager m_sprites {};
-	scene::ActorId m_ids[kActors] {};      ///< ids de los actores (movimiento por frame)
+	scene::SpriteId m_ids[kActors] {};      ///< ids de los actores (movimiento por frame)
 	eng::debug::HudFpsWindow m_fps_win {}; ///< ventana de fps10 (telemetria)
 	eng::u32 m_comp_ok = 0u;               ///< composicion coherente (8 HW + 1 degradado)
 	eng::u32 m_comp_bad = 0u;              ///< composicion inesperada (deberia ser 0)

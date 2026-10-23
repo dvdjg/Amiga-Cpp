@@ -21,7 +21,7 @@ a la explicación.
 | `api/screen.hpp` | [04_referencia/api/game](../04_referencia/api/game.md) (§`Screen`) |
 | `api/scene.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [05_arquitectura/planificador_de_escena](../05_arquitectura/README.md) |
 | `api/scroll.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [01_tutoriales/08](../01_tutoriales/README.md) |
-| `api/sprites.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [01_tutoriales/07](../01_tutoriales/README.md) |
+| `scene/sprite_scene.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [01_tutoriales/07](../01_tutoriales/README.md) |
 | `api/framebuffer.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [05_arquitectura/c2p_y_framebuffer_indexado](../05_arquitectura/README.md) |
 | `memory/memory_manager.hpp` | [04_referencia/memory/manager](../04_referencia/memory/manager.md) + [05_arquitectura/modelo_de_memoria](../05_arquitectura/modelo_de_memoria.md) |
 | `memory/arena.hpp`, `block_pool.hpp` | [04_referencia/memory/arena](../04_referencia/memory/arena.md), [block_pool](../04_referencia/memory/block_pool.md) |

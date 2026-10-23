@@ -47,6 +47,6 @@ bajo GDB.
 ## Referencias
 
 - `demos/features/engine/amiga/064_shmup_wave/src/main.cpp` (workaround y comentario).
-- `engine/include/eng/api/sprites.hpp`, `engine/include/eng/scene/actor_sprite.hpp`,
+- `engine/include/eng/scene/sprite_scene.hpp`, `engine/include/eng/scene/actor_sprite.hpp`,
   `engine/include/eng/graphics/sprite_manager.hpp` (`emit_placements_into`).
 - `docs/reference/emulators/winuae/sprite-dma.md` (estructura DMA y rearme).

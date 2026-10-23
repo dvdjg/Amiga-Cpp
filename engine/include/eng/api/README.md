@@ -13,6 +13,8 @@ Blitter (`graphics::OrBob`/`LineEor`/`C2p4`).
 pasa a `eng::Engine`. Un juego portable incluye solo esta fachada; una demo Amiga añade su
 backend.
 
-Las fachadas directas `api/sprites.hpp` (`SpriteScene`) y `api/objects.hpp` (`CompositeScene`) son **legacy avanzado**: no se incluyen desde `api.hpp` y no deben usarse en codigo nuevo; la via canonica es `scene::SpriteDirector`.
+El **3D de juego** tiene su propia fachada, [`3d.hpp`](3d.hpp) (`eng::scene3d`), separada para no cargar el pipeline 2D con el renderer 3D. G0 ofrece escena retenida de capacidad fija, cámara, nodos y render por `render_solid`; los materiales de asset, la animación y la física llegan en las fases G1–G7 de `ROADMAP_3D_GAME_API.md`. Un juego 3D incluye `api.hpp` y `3d.hpp`.
+
+Las fachadas directas `scene/sprite_scene.hpp` (`SpriteScene`) y `scene/composite_scene.hpp` (`CompositeScene`) son **legacy avanzado**: no se incluyen desde `api.hpp` y no deben usarse en codigo nuevo; la via canonica es `scene::SpriteDirector`.
 
 Estado y decisiones de consolidación: `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md`.

@@ -36,7 +36,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
-#include <eng/api/sprites.hpp> // API directa legacy (migrar a SpriteDirector)
+#include <eng/scene/sprite_scene.hpp> // API directa legacy (migrar a SpriteDirector)
 #include <eng/debug/hud.hpp>        // HudFpsWindow (fps10)
 #include <eng/debug/peripheral.hpp> // contadores (telemetria de memoria)
 #include <eng/debug/prof.hpp>       // prof_clock
