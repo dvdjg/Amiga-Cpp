@@ -315,16 +315,15 @@ void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 		debug_stop_idle();
 		return;
 	}
-	// Camino **AmigaDOS con servidor de exec**: el latido de la IRQ es la referencia de campo;
-	// no se sondea VPOSR. Además de ser el modelo correcto (exec es dueño del vector/INTENA),
-	// evita que un `VPOSR` latcheado por el lightpen de WinUAE deje el bucle esperando una
-	// línea que nunca verá. `g_vblank_seq` lo incrementa el servidor tras invocar la tarea.
+	// Camino **AmigaDOS con servidor de exec**: el latido de la IRQ despierta al inicio del
+	// campo. **No se vuelve a él directamente**: el render debe publicar COP1LC/parchear la
+	// lista en el mismo punto seguro que `Polling` (VPOS 311, antes del wrap), no en la
+	// ventana 0-2 donde el latch de COP1LC compite con el Copper. Sin esta espera, el giro
+	// de lista de la 224 con `Active` se congelaba a los ~198-200 tras el cuarto commit.
 	if (thunk == nullptr && g_sys.active && g_vbl_task != nullptr) {
 		const unsigned long start = g_vblank_seq;
 		while (g_vblank_seq == start) {
 		}
-		debug_stop_idle();
-		return;
 	}
 	// Una sola lectura de VPOSR por iteracion: la condicion y el `vpos` que recibe
 	// la tarea comparten el mismo valor (no anade accesos al bus en el bucle caliente).

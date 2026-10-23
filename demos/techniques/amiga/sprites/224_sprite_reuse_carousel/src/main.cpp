@@ -577,10 +577,10 @@ int main() {
 	display.color_depth = kPlanes;
 	display.buffers = 1u;
 	display.palette = kPalette;
-	// El camino `Active`+`AddIntServer` no está cerrado: 3 planos 20 s; 4 planos 35 s sin GDB
-	// (con GDB se para); 5 planos con rotación se congela ~198-200. La causa no está aislada;
-	// no se atribuye al SO (el takeover hace Forbid; la 212/DT-011 era el HUD). El sondeo por
-	// VPOSR no depende de esa cadena y está verificado en los cuatro perfiles: modo de la demo.
+	// `Active`+`AddIntServer` queda validado en 3/4/5 planos tras esperar VPOS 311 en
+	// `wait_vblank_run`: el parón ~198-200 era el commit de COP1LC en la ventana 0-2
+	// (el `Active` despertaba en VPOS 0), no la cadena ni el SO. `Polling` sigue siendo el
+	// modo por defecto verificado en los cuatro perfiles.
 	constexpr eng::amiga::VblankWait kWaitMode = (K224_WAIT_ACTIVE != 0)
 		? eng::amiga::VblankWait::Active
 		: eng::amiga::VblankWait::Polling;

@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Verificada en los cuatro perfiles (A 3 planos, B 4, C 5, D 6 EHB)**: render, movimiento continuo, 20 s de ejecución estable y ~50 fps; secuencia revisada en A/B/C/D y visión canónica en A. El gate formal de flicker está OK en el perfil canónico A; B/C/D no se midieron. La demo usa `VblankWait::Polling` porque es el modo verificado en los cuatro perfiles: el camino `Active`+`AddIntServer` no está cerrado (3 planos 20 s; 4 planos 35 s sin GDB; 5 planos con rotación se congela ~198-200) y `measure-fps`/GDB lo perturba. No se atribuye el parón al SO: el takeover hace `Forbid` y el fallo de la 212/DT-011 era el desbordamiento del HUD, no la IRQ; ver «Cambio de sincronización». El bootstrap del engine ahora ejecuta el takeover de sistema (`Forbid` + `LoadView(NULL)` + `OwnBlitter`) antes del display y garantiza `restore_system()` al salir.
+**Verificada en los cuatro perfiles (A 3 planos, B 4, C 5, D 6 EHB)**: render, movimiento continuo, 20 s de ejecución estable y ~50 fps; secuencia revisada en A/B/C/D y visión canónica en A. El gate formal de flicker está OK en el perfil canónico A; B/C/D no se midieron. La demo usa `VblankWait::Polling` como modo por defecto verificado en los cuatro perfiles. El camino `Active`+`AddIntServer` también está **cerrado** en 3/4/5 planos: el parón ~198-200 era el commit de COP1LC en la ventana 0-2 (el `Active` despertaba en VPOS 0; `wait_vblank_run` ahora espera VPOS 311, el mismo punto seguro que `Polling`), no la IRQ ni el SO. Ver «Cambio de sincronización». El bootstrap del engine ahora ejecuta el takeover de sistema (`Forbid` + `LoadView(NULL)` + `OwnBlitter`) antes del display y garantiza `restore_system()` al salir.
 
 ## Matriz de ejecución
 
@@ -21,29 +21,31 @@
 - `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes4_release --json --duration-ms 20000` → 49,97 fps emulados / 49,89 host, 141.961 ciclos/frame, 1,0006 campos/frame, 1010 frames, `detail=0xff0528`, `stable: true`.
 - `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes5_release --json --duration-ms 20000` → 49,95 fps emulados / 49,89 host, 142.006 ciclos/frame, 1,00091 campos/frame, 1013 frames, `detail=0xff0528`, `stable: true`.
 - `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes6_release --json --duration-ms 20000` → 49,96 fps emulados / 49,89 host, 141.977 ciclos/frame, 1,00072 campos/frame, 1011 frames, `detail=0xff0528`, `stable: true`.
+- `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes5dk224_wait_active1_release --json --duration-ms 20000` → 49,92 fps emulados / 49,85 host, 142.102 ciclos/frame, 1,00159 campos/frame, 1009 frames, `stable: true` (Active + wait VPOS 311).
+- `node tools/debug/measure-fps.mjs 224_sprite_reuse_carousel A500_k224_planes4dk224_wait_active1_release --json --duration-ms 20000` → 49,92 fps emulados / 49,87 host, 142.102 ciclos/frame, 1,00159 campos/frame, 1011 frames, `stable: true` (Active + wait VPOS 311).
 - Secuencias: A 155, 212, 268, 325, 382, 439, 497, 554 (final 590); B 156, 214, 272, 329 (final 366); C 152, 209, 267, 324, 382, 440, 497, 553 (final 590); D 153, 211, 267, 327, 385, 443 (final 480). `frame-diff` con 16.864–20.239 píxeles cambiados por par (D: 18.394–19.431) y contornos limpios. `temporal-detect` marca candidatos asociados al movimiento de los sprites (72 en A, 43 en D); el gate formal de flicker se ejecutó en A (OK).
 - Telemetría de la demo: `placements=40`, `channels=0xff`, `reuse=5`, `patched=160` words por frame.
 - Flicker (canónico `A500_debug`): `tools/test-regression.sh --flicker --require-flicker-ok --demo ...` → informe `out/regression/20261023-012024/regression-report.md`, columna **Flicker = ok** y `Regression OK` (0 candidatos). El aviso `white=0 < 10` es del overlay genérico de análisis, que no aplica a esta demo (su HUD es overlay del host, no bitplanes); la columna `Analyze` del informe es `ok`.
 
 ## Cambio de sincronización (212/DT-011)
 
-Con `VblankWait::Active`, la build de 5 planos con rotación se congelaba de forma determinista en el frame 198-200 (unos 4 s). Evidencia del parón: el frame de run-status dejaba de avanzar; `INTENAR` quedaba en `0x2000`/`0x7001` con el bit VERTB (`0x20`) **a 0**; `INTREQR=0x20` (VERTB pendiente); `g_vblank_seq` atascado en ~199-201; `g_vbl_task` no nulo; la CPU quedaba en el bucle de VPOSR de `wait_vblank_run`, con el DMA/Copper en estado válido. La atribución de ese `INTENA` al SO es una hipótesis antigua no confirmada: el takeover hace `Forbid` (los cambios de tarea no reescriben INTENA) y la familia 212/DT-011 se resolvió como un desbordamiento del HUD de la 212, no como una pérdida de la IRQ. El parón del 224 sigue sin aislar. La demo usa `run_demo(..., VblankWait::Polling)`, que sincroniza por VPOSR y no depende de esa cadena: los cuatro perfiles miden 20 s estables.
+Con `VblankWait::Active`, la build de 5 planos con rotación se congelaba de forma determinista en el frame 198-200 (unos 4 s). Evidencia del parón: el frame de run-status dejaba de avanzar; `INTENAR` quedaba en `0x2000`/`0x7001` con el bit VERTB (`0x20`) **a 0**; `INTREQR=0x20` (VERTB pendiente); `g_vblank_seq` atascado en ~199-201; `g_vbl_task` no nulo; la CPU quedaba en el bucle de VPOSR de `wait_vblank_run`, con el DMA/Copper en estado válido. La causa era la **ventana de COP1LC**: el `Active` despertaba en VPOS 0 y el commit de la lista caía en 0-2 (wrap del Copper). `wait_vblank_run` ahora espera VPOS 311 tras el latido de la IRQ; 4 y 5 planos con rotación miden 20 s estables con `Active` (`stable: true`, 49,92 fps, 1 campo). La atribución al `INTENA`/SO, al stub o al lightpen queda descartada para este parón. La demo mantiene `run_demo(..., VblankWait::Polling)` por defecto.
 
-El bootstrap del engine ejecuta `takeover_system()` (`Forbid` + `LoadView(NULL)` + `OwnBlitter`, guardando DMACON/INTENA/ADKCON) **antes** de `set_display`, y `restore_system()` en un `scope_guard` al salir. Se aplica a `Active`/`Polling`; se excluye `Signal` porque `Wait()` con `Forbid` activo puede bloquear la tarea. Bajo AmigaDOS el servicio de nivel 3 usa ahora `AddIntServer(INTB_VERTB/BLIT)` (stubs ASM con Z activo), no el vector crudo: con `Active`, 3 planos miden 20 s; 4 planos 35 s sin GDB (con GDB/measure se para); 5 planos con rotación se congelan ~198-200. La demo usa `Polling`, que no depende de esa cadena y está verificada en los cuatro perfiles.
+El bootstrap del engine ejecuta `takeover_system()` (`Forbid` + `LoadView(NULL)` + `OwnBlitter`, guardando DMACON/INTENA/ADKCON) **antes** de `set_display`, y `restore_system()` en un `scope_guard` al salir. Se aplica a `Active`/`Polling`; se excluye `Signal` porque `Wait()` con `Forbid` activo puede bloquear la tarea. Bajo AmigaDOS el servicio de nivel 3 usa ahora `AddIntServer(INTB_VERTB/BLIT)` (stubs ASM con Z activo), no el vector crudo: con `Active`, 3/4/5 planos miden 20 s estables tras la espera a VPOS 311 (4 y 5 medidos con `measure-fps`/GDB); el 6 EHB no se midió con `Active`. La demo usa `Polling`, que no depende de esa cadena y está verificada en los cuatro perfiles.
 
 A/B realizado (una variable):
 
 | Prueba | Resultado |
 |---|---|
 | 5 planos, rotación desactivada (1 lista) | estable 20 s, 49,97 fps |
-| 5 planos, 5 listas, commit de COP1LC cada 50 frames | se congela en 198-200 |
-| 5 planos, commit a la **misma** dirección | se congela en 198-200 (el contenido de la lista no importa) |
-| 5 planos, commit al inicio del render (VPOS=311, margen antes del wrap) | sigue congelándose con Active (no es la carrera del wrap) |
+| 5 planos, 5 listas, commit de COP1LC cada 50 frames, `Active` antiguo | se congela en 198-200; con la espera a VPOS 311: **20 s estable** |
+| 5 planos, commit a la **misma** dirección, `Active` antiguo | se congela en 198-200 (el contenido no importa); con VPOS 311: **estable** |
+| 5 planos, commit al inicio del render + espera a VPOS 311 | **20 s estable** (la ventana 0-2 era la causa) |
 | 3 planos, rotación, Active | 20 s estables en las ejecuciones buenas |
-| 5 planos con rotación, sin GDB ni sesión MCP | se congela en 198-200 (no es un halt del depurador) |
+| 5 planos con rotación, sin GDB ni sesión MCP | se congelaba en 198-200 con `Active` antiguo; con VPOS 311: **estable** |
 | 3 planos, `Active` + takeover + `AddIntServer` | **20 s estable** (49,8–49,9 fps / 1 campo) |
 | 4 planos, `Active` + takeover + `AddIntServer`, **sin GDB** | **35 s estable**; servidor VERTB ≈1 llamada/frame (`adds=1`, `calls≈frames`) |
-| 4 planos, `Active` + takeover + `AddIntServer`, con `measure-fps`/GDB | parón tardío; perturbación del cliente de medida, no del engine |
+| 4 planos, `Active` + takeover + `AddIntServer`, con `measure-fps`/GDB | **20 s estable** tras la espera a VPOS 311 (49,92 fps, 1,002 campos) |
 | 4 perfiles, `Polling` + takeover | **49,95–49,97 fps / 1 campo**, 20 s estable |
 | Auditoría de rangos en runtime | planos `0x15070..0x21870`, sprites `0x2394c..0x245f0`, copperlists `0x258a0..0x260a0`: **sin solapes** |
 

@@ -115,7 +115,7 @@ inline void mark_failed(::eng::debug::BootFail stage) {
 /// `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
 enum class VblankWait : eng::u8 {
 	Signal = 0u, ///< duerme en `Wait()` (por defecto; no usar bajo SO vivo sin takeover)
-	Active,      ///< espera activa (`set_vblank_sleep(false)`)
+	Active,      ///< IRQ de VBlank + espera activa hasta VPOS 311 (ventana segura de COP1LC)
 	Polling,     ///< bucle por sondeo (`run_polling`), sin depender de la IRQ de VBlank
 	Messages,    ///< cooperativo: display del SO, `AddIntServer` y `Wait` (sin tocar Copper)
 };
