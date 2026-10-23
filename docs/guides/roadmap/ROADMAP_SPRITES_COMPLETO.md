@@ -40,7 +40,7 @@ Resumen de veredictos: **cubierto** (existe y está verificado por test host y/o
 | 3. Multiplexado vertical (reuso del canal en líneas distintas) | **Cubierto** | `SpriteAllocator` (first-fit + bitfield) + `emit_placements_into`; gap de 1 línea = `kSpriteVerticalGapLines` |
 | 4. Multiplexado horizontal con Copper (media línea) | **Parcial** | `SpriteLineLayer` (HUD) y Risky Woods (208/211) hechos; Free Form → F4.1 |
 | 5. Fondo repetitivo Risky Woods | **Cubierto** | `effects::RiskyWoodsLayer` (HOST-417; demos 208/211) |
-| 6. Free Form Sprite Layer sin patrón | **Deprecado** | 212/`FreeFormSpriteLayer` deprecados (212 rota); 213 implementa la técnica sobre `Scheduler` y es la referencia |
+| 6. Free Form Sprite Layer sin patrón | **Experimental** | 212/`FreeFormSpriteLayer` no verificados; 213 implementa la técnica sobre `Scheduler` y es la referencia para extraer la fachada de engine |
 | 7. Combinación sprites + BOBs | **Cubierto** | Degradación `as_bob` + `emit_bob_fallbacks`; `FastBobLayer` en DPF (HOST-355; demo 213) |
 | 8. Colisiones (hardware `CLXCON`/`CLXDAT` y software) | **Cubierto** | `sprite_collision.hpp` (demo 206) + hitboxes por frame (`composite_hitboxes`, F1) |
 | 9. Efectos de Copper sobre `SPRxPOS` por fila (bending) | **Adaptar** → F4.2 | Driver de bending reutilizando `core/math/sinetable.hpp`; el pacing de Jim Power (215) es la misma familia de problema |
@@ -416,17 +416,17 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 
 **Estado (2026-10):** demo `065_mechanisms_bridge` construida y validada por visión (puente curvo que se deforma, jugador que camina/apoya, catapulta que dispara, bola, escombros; sin artefactos). Coste: 24.5 fps (async + hojas de 2 planos + copperlist estática + franja de versión) — **deuda de presupuesto documentada** en su `VALIDATION.md` (palanca medida: target/hojas **interleaved** → 1 blit por dibujo). HOST-438 cubre la lógica por unidad (verlet, muelle, catapulta).
 
-### 3.7 F4.1 — Free Form: cierre por la campaña 218
+### 3.7 F4.1 — Free Form: extracción de 213 y retirada de 212
 
-**Objetivo:** dejar de tratar el Free Form como pendiente del driver general y cerrarlo con la **campaña medida** en curso (`ROADMAP_218_CAMPO_UNICO.md`), que ya tiene el efecto, la instrumentación y el registro de intentos.
+**Objetivo:** sustituir `FreeFormSpriteLayer`/212 por una capa de engine extraída de la demo **213_spr_layer**, que es la implementación validada (scroll de 1 px, DATA por columna, doble copperlist). El diseño de 218 queda como referencia de campaña, no como bloqueo.
 
 **Instrucciones:**
 
-1. **Cierre por deprecación:** `effects::FreeFormSpriteLayer` y la demo 212 quedan deprecados (212 rota); la referencia válida es **213_spr_layer**, que implementa la técnica sobre `Scheduler`. No se resucita el driver viejo.
+1. **Cierre por extracción:** `effects::FreeFormSpriteLayer` sigue experimental (212 rota); 213_spr_layer es la referencia validada. El paso pendiente es extraer el algoritmo de 213 a una capa de engine reutilizable antes de retirar la vieja.
 2. Variante «data-driven» de la consulta (4 copperlists, actualización repartida en frames, swap): **solo** como diseño de la 218 si la medida lo admite; la nota útil que se incorpora es organizar la copperlist **por columnas contiguas** (un blit = una columna completa de altura) para minimizar el trabajo del Blitter en cada actualización.
 3. Doble copperlist del Free Form: mejora pendiente de 213; no bloquea la técnica actual.
 
-**Criterio de salida:** el definido por la campaña 218 (fps/cadencia medidos, visión OK, registro en su bitácora); este documento solo enlaza.
+**Sustitución prevista:** `effects::SpriteColumnScrollLayer` (nombre de trabajo) con `Config` de geometría/canales/ventana, dueño de las estructuras DSPR y la copperlist doble; 213 pasará a consumirla. Criterio de salida: HOST de paridad contra 213 + demo 213 usando la capa nueva + visión/cadencia; entonces 212 y `FreeFormSpriteLayer` se retiran.
 
 ### 3.8 F4.4 — Jim Power DATA-por-línea (condicionado)
 

@@ -19,14 +19,15 @@ namespace eng::effects {
 /// (sin `SPRxCTL`; reposición de fin de línea). Es la técnica *Free Form Sprite Layer* (Jeroen
 /// Knoester); apoya en `SpriteLayer` en modo libre y añade el `bind`/`patch` del scroll (~0 CPU).
 ///
-/// **DEPRECADA para código nuevo:** la demo 212 que la usa está NO VERIFICADA/rota y 213
-/// implementa la técnica correctamente sobre `Scheduler`. Se mantiene solo por compatibilidad
-/// histórica hasta retirar 212.
+/// **EXPERIMENTAL / NO VERIFICADA:** la demo 212 que la usa está rota; la implementación
+/// de referencia que sí funciona es **213_spr_layer** (sobre `Scheduler`). No se depreca
+/// todavía porque no hay una fachada de engine equivalente; la extracción de 213 a una
+/// capa reutilizable es el paso previo antes de retirarla.
 ///
 /// Reparto de ladrillos: `RiskyWoodsLayer` = patrón que **se repite** (solo reposiciona `POS`,
 /// barato); `SpriteLayer` = capa genérica; **`FreeFormSpriteLayer` = no repetitivo**. Ver
 /// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
-class [[deprecated("FreeFormSpriteLayer está roto; usa 213_spr_layer/Scheduler")]] FreeFormSpriteLayer {
+class FreeFormSpriteLayer {
 public:
 	struct Config {
 		u16 first_line = 0u;   ///< primera línea de la banda (inclusive)

@@ -1,6 +1,6 @@
-# 212_free_scroll_layer — **DEPRECADA / NO VERIFICADA (ROTA)**
+# 212_free_scroll_layer — **EXPERIMENTAL / NO VERIFICADA (ROTA)**
 
-> **Estado: DEPRECADA.** El scroll del *Free Form Sprite Layer* está implementado a medias, no cumple los fps y `effects::FreeFormSpriteLayer` queda deprecado para código nuevo. La técnica validada vive en la demo **213_spr_layer**; esta demo se conserva como registro histórico hasta su retirada.
+> **Estado: EXPERIMENTAL (no verificada).** El scroll del *Free Form Sprite Layer* está implementado a medias y no cumple los fps. `effects::FreeFormSpriteLayer` **no se depreca todavía**: no hay una fachada de engine equivalente; la referencia que funciona es **213_spr_layer** y la extracción de su algoritmo a una capa reutilizable es el paso previo. Esta demo se conserva como registro de los intentos.
 
 **Qué es (objetivo):** un **fondo de sprites HW a pantalla completa** (mundo 640 px = 40 columnas de 16 px × 256 líneas, 3 colores) con **scroll lateral 1 px/frame** sobre una **ventana** de 20 columnas, **no repetitivo**. Técnica *Free Form Sprite Layer* (Jeroen Knoester): 8 canales por DMA (8 columnas) + el **Copper** reutilizando los canales para el resto (`POS`+`DATB`+`DATA`, sin `SPRxCTL`; reposición de fin de línea).
 
