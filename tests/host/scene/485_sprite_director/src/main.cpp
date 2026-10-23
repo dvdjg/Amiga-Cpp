@@ -27,6 +27,9 @@ namespace {
 
 using eng::scene::SpriteStaticDesc;
 
+/// Capacidad del doble buffer de Copper de este test (suficiente para pocas bandas).
+constexpr eng::u32 kTestCopperBytes = 4096u;
+
 int g_fail = 0;
 void check(bool ok, const char* m) {
 	if (!ok) {
@@ -218,16 +221,19 @@ void test_run() {
 	const eng::graphics::BobTarget targets[1] {target};
 	eng::scene::ActorEmitContext ctx {};
 	ctx.targets = eng::Span<const eng::graphics::BobTarget> {targets, 1u};
-	ctx.display_top = 0x2cu;
+	ctx.display_top = eng::copper::kPalVisibleFirstLine;
 
 	eng::copper::Plan copper {};
-	check(copper.begin(mem, eng::copper::PlanConfig {4096u, 0x2cu}), "Plan begin");
+	check(copper.begin(mem, eng::copper::PlanConfig {
+				    .copper_bytes = kTestCopperBytes,
+				    .first_line = eng::copper::kPalVisibleFirstLine,
+			    }),
+	      "Plan begin");
 	copper.begin_frame();
 
 	eng::graphics::FramePlan frame {};
 	frame.clear();
-	dir.set_budget(eng::scene::SpriteBudget {8u, 8u, 60000u, 320u, 32u, 0u, 0u,
-						 0xffffu, 0xffffu});
+	dir.set_budget(eng::scene::SpriteBudget {});
 	const eng::scene::SpriteLoadReport report = dir.emit(frame, ctx, copper);
 	check(report.ok, "emit ok");
 	check(report.hw >= 4u, "hay sprites HW (simple + attached + tira)");
@@ -236,7 +242,7 @@ void test_run() {
 	check(report.strips == 2u, "dos tramos de tira");
 	check(report.bands == 1u && report.band_lines == 16u, "banda contabilizada");
 	check(report.palette_events >= 1u, "evento de paleta de banda");
-	check(report.bob_words != 0u, "coste BOB medido");
+	check(report.blit_words != 0u, "coste BOB medido");
 	check(report.channels_used != 0u, "canales usados");
 	check(report.scanline_peak != 0u, "scanline contabilizada");
 	check(dir.placements().size() == report.hw, "placements == hw");
@@ -269,13 +275,13 @@ void test_run() {
 
 	// Present combinado.
 	eng::MemoryManager sched_mem = make_memory();
-	eng::copper::Scheduler sched {sched_mem.chip().reserve<eng::CopperTag>(4096u, 16u)};
-	dir.present(sched, 32u);
+	eng::copper::Scheduler sched {sched_mem.chip().reserve<eng::CopperTag>(kTestCopperBytes, 16u)};
+	dir.present(sched);
 	sched.end();
 	check(sched.words_used() != 0u, "present emite copperlist");
 
 	// Reporte estático (mismo contrato) y presupuesto que falla.
-	constexpr eng::scene::SpriteBudget too_few {1u, 1u, 60000u, 320u, 32u, 0u, 0u};
+	constexpr eng::scene::SpriteBudget too_few {.channels = 1u, .scanline = 1u};
 	constexpr auto bad = eng::scene::evaluate_static(
 		eng::Span<const SpriteStaticDesc> {kStatic, 3u}, too_few);
 	static_assert(!bad.ok);

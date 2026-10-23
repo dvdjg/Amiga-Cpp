@@ -292,7 +292,7 @@ int main() {
 	// --- orden con CRUCE de las 256 lineas (ventana PAL que empieza en 0x2c) ------
 	{
 		eng::copper::Plan wrap;
-		if (!wrap.begin(mem, {1024u, 0x2cu})) {
+		if (!wrap.begin(mem, {1024u, eng::copper::kPalVisibleFirstLine})) {
 			std::printf("[FAIL] Plan::begin con first_line\n");
 			return 1;
 		}
@@ -471,7 +471,7 @@ int main() {
 			for (eng::u16 i = 0; i < 32u; ++i) {
 				eng::graphics::CopperIntent it {};
 				it.kind = eng::graphics::CopperIntentKind::PaletteLine;
-				it.top = static_cast<eng::u16>(0x2cu + i);
+				it.top = static_cast<eng::u16>(eng::copper::kPalVisibleFirstLine + i);
 				it.bottom = it.top;
 				it.colors = eng::PaletteWords {kPal8, 8u};
 				it.first = static_cast<eng::u8>(i & 7u);
@@ -510,10 +510,10 @@ int main() {
 			return s;
 		}();
 		static constexpr auto kList =
-			eng::copper::compile_intents<8192u>(kScene.v, {40u, 4u, 0x2cu});
+			eng::copper::compile_intents<8192u>(kScene.v, {40u, 4u, eng::copper::kPalVisibleFirstLine});
 
 		// Gate EN COMPILACION del compilador.
-		static_assert(kList.words[0] == eng::copper::wait_word(0x2cu), "primer WAIT");
+		static_assert(kList.words[0] == eng::copper::wait_word(eng::copper::kPalVisibleFirstLine), "primer WAIT");
 		static_assert(kList.words[1] == 0xff00u, "mascara del WAIT");
 		static_assert(kList.words[2] == eng::copper::color_register(0u), "registro COLOR00");
 		static_assert(kList.words[3] == kPal8[0], "valor de la primera linea");
@@ -525,7 +525,7 @@ int main() {
 		eng::MemoryManager mem2 {};
 		mem2.configure(chip_static, sizeof(chip_static), nullptr, 0u, nullptr, 0u, 16u);
 		eng::copper::Plan dyn;
-		if (!dyn.begin(mem2, {8192u, 0x2cu})) {
+		if (!dyn.begin(mem2, {8192u, eng::copper::kPalVisibleFirstLine})) {
 			std::printf("[FAIL] Plan::begin del camino estatico\n");
 			return 1;
 		}
@@ -536,7 +536,7 @@ int main() {
 			std::printf("[FAIL] Plan::begin fallida no hizo rollback de la lista anterior\n");
 			return 1;
 		}
-		if (!dyn.begin(mem2, {8192u, 0x2cu}) || !dyn.ok()) {
+		if (!dyn.begin(mem2, {8192u, eng::copper::kPalVisibleFirstLine}) || !dyn.ok()) {
 			std::printf("[FAIL] Plan no se recupera tras rollback\n");
 			return 1;
 		}

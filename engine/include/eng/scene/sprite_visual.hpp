@@ -10,8 +10,8 @@
 ///     `CompositeVisual`) que el llamador mantiene vivas; el store no copia píxeles.
 ///   - `SpriteVisual`/`SpriteVisualRef`: una referencia por valor a contenido simple o
 ///     compuesto, para que el director tenga un solo camino público.
-///   - `SpriteHint`: la intención del juego (política, attached, ancho, reuso, gap, canal,
-///     rango, banda, paleta, presentación, tira horizontal).
+///   - `SpriteHint`: la intención del juego (política, attached, reuso, gap, canal,
+///     rango, grupo y tira horizontal).
 ///   - `SpriteBudget`/`SpriteLoadReport`: el contrato único de contabilidad (runtime y
 ///     preflight estático). Los campos de hardware se calculan con el `SpriteAllocator`
 ///     real; el contador grueso de `RepresentationAllocator` no se usa en esta fachada.
@@ -244,9 +244,6 @@ struct SpriteVisualView {
 /// director no necesita dos caminos públicos (`SpriteVisualRef` es la referencia por valor).
 using SpriteVisual = SpriteVisualView;
 
-/// Vista no propietaria de una animación simple (los compuestos usan `CompositeState`).
-using AnimationView = eng::Ref<const eng::graphics::Animation>;
-
 /// Contenido retenido de una escena: visuales simples y compuestos con handles separados.
 /// \tparam MaxVisuals Capacidad de `VisualStore` (contenido simple). Rango 1..65534;
 ///         por defecto 128. Un alta con el store lleno devuelve `VisualId` inválido.
@@ -342,13 +339,6 @@ enum class SpriteAttach : eng::u8 {
 	On = 2u,   ///< exige par; si no cabe, cae a BOB.
 };
 
-/// Ancho del sprite HW pedido.
-enum class SpriteWidth : eng::u8 {
-	Auto = 0u,
-	Px16 = 1u,
-	Px32 = 2u, ///< AGA: 32 px por canal (`width_words = 2`).
-};
-
 /// Estrategia de reuso/emisión pedida.
 enum class SpriteReuse : eng::u8 {
 	Auto = 0u,
@@ -356,17 +346,7 @@ enum class SpriteReuse : eng::u8 {
 	Chain = 2u,       ///< cadena DMA por canal (F3).
 	PerLine = 3u,     ///< rearme por línea (capa avanzada `SpriteLineLayer`).
 	Horizontal = 4u,  ///< tira horizontal / canales contiguos.
-	Bands = 5u,       ///< banda con paleta móvil.
-	None = 6u,        ///< sin sprite HW para esta entidad.
-};
-
-/// Política de presentación del frame.
-enum class SpritePresent : eng::u8 {
-	Auto = 0u,
-	VBlankPreWrap = 1u, ///< publicar antes del wrap `V=maxvpos → 0`.
-	BeforeBand = 2u,    ///< publicar antes de la banda que lo consume.
-	DoubleBuffer = 3u,  ///< copperlist de doble buffer.
-	SafeWindow = 4u,    ///< ventana segura de Blitter/Copper.
+	None = 5u,        ///< sin sprite HW para esta entidad.
 };
 
 /// Emisor efectivo elegido por el director.
@@ -383,7 +363,6 @@ enum class SpriteEmitter : eng::u8 {
 struct SpriteHint {
 	SpritePolicy policy = SpritePolicy::Auto;
 	SpriteAttach attach = SpriteAttach::Auto;
-	SpriteWidth width = SpriteWidth::Auto;
 	SpriteReuse reuse = SpriteReuse::Auto;
 	/// Gap vertical pedido. El allocator aplica `kSpriteVerticalGapLines`; un valor menor
 	/// se reporta como `GapViolation` porque no es representable en hardware.
@@ -391,9 +370,6 @@ struct SpriteHint {
 	eng::u8 channel = 0xffu; ///< 0..7 preferido; 0xff = cualquiera.
 	eng::u8 rank = 0u;       ///< 0 = libre; 1..3 = se asigna antes.
 	eng::u8 sprite_priority = 0u; ///< prioridad frente a playfields (`BPLCON2`).
-	eng::u8 band = 0xffu;    ///< índice de `BandPalette`; 0xff = sin banda.
-	eng::u16 palette_bank = 0xffffu; ///< reserva de paleta para el planner.
-	SpritePresent present = SpritePresent::Auto;
 	eng::u8 group = 0u;
 	eng::u8 group_index = 0u;
 	eng::u8 group_span = 1u;
@@ -420,7 +396,6 @@ struct SpriteHint {
 			return has_line_layer ? SpriteEmitter::PerLine : SpriteEmitter::Rearm;
 		case SpriteReuse::Horizontal:
 			return has_strip ? SpriteEmitter::Horizontal : SpriteEmitter::Rearm;
-		case SpriteReuse::Bands:
 		case SpriteReuse::Auto:
 			break;
 	}
@@ -429,17 +404,25 @@ struct SpriteHint {
 	return SpriteEmitter::Rearm;
 }
 
-/// Presupuesto de un frame o de un preflight estático.
+/// Tope de palabras de Blitter por frame que usa la fachada si el juego no fija otro.
+/// Es un presupuesto de **planificación** (no un límite de hardware): 60k palabras deja
+/// margen para Copper/CPU en un A500 con playfield activo; medir y ajustar al juego.
+inline constexpr eng::u16 kSpriteBlitWordsDefault = 60000u;
+/// Número de intenciones de Copper que reserva copper::Plan por frame.
+inline constexpr eng::u16 kSpriteCopperIntentsDefault = 320u;
+/// Eventos de paleta por frame (dos juegos de 16 registros: sprites + playfield).
+inline constexpr eng::u16 kSpritePaletteEventsDefault = 32u;
+
+/// Presupuesto de un frame o de un preflight estático. Los valores por defecto son
+/// cotas de planificación; el juego puede ajustarlos por campo.
 struct SpriteBudget {
-	eng::u8 channels = eng::graphics::kSpriteChannels;
-	eng::u16 scanline = eng::graphics::kSpriteMaxPerLine;
-	eng::u16 bob_words = 60000u;
-	eng::u16 copper_intents = 320u;
-	eng::u16 palette_events = 32u;
-	eng::u16 gap_violations = 0u;
-	eng::u16 band_overlaps = 0u;
-	eng::u16 blit_words = 0xffffu;
-	eng::u16 blit_deadline_line = 0xffffu;
+	eng::u8 channels = eng::graphics::kSpriteChannels; ///< canales HW disponibles (0..8).
+	eng::u16 scanline = eng::graphics::kSpriteMaxPerLine; ///< sprites simultáneos por scanline.
+	eng::u16 copper_intents = kSpriteCopperIntentsDefault; ///< intenciones de Copper.
+	eng::u16 palette_events = kSpritePaletteEventsDefault; ///< eventos de paleta.
+	eng::u16 gap_violations = 0u; ///< violaciones toleradas (0 = cualquiera falla).
+	eng::u16 band_overlaps = 0u; ///< solapes tolerados (0 = cualquiera falla).
+	eng::u16 blit_words = kSpriteBlitWordsDefault; ///< palabras de Blitter del frame.
 };
 
 /// Avisos del reporte; máscara de bits para acumularlos en `SpriteLoadReport::warnings`.
@@ -448,7 +431,7 @@ enum class SpriteWarning : eng::u32 {
 	Gap = 1u << 0u,
 	Scanline = 1u << 1u,
 	Channels = 1u << 2u,
-	BobBudget = 1u << 3u,
+	BlitBudget = 1u << 3u,
 	CopperBudget = 1u << 4u,
 	PaletteBudget = 1u << 5u,
 	BandOutOfRange = 1u << 6u,
@@ -483,15 +466,13 @@ struct SpriteLoadReport {
 	eng::u8 channels_used = 0u;
 	eng::u8 max_reuse = 0u;
 	eng::u16 scanline_peak = 0u;
-	eng::u16 gap_rejections = 0u;
 	eng::u16 gap_violations = 0u;
 	eng::u16 band_overlaps = 0u;
 	eng::u16 band_out_of_range = 0u;
 	eng::u16 copper_intents = 0u;
-	eng::u16 copper_words = 0u;
+	eng::u16 copper_words_estimate = 0u;
 	eng::u16 palette_events = 0u;
 	eng::u16 bob_jobs = 0u;
-	eng::u32 bob_words = 0u;
 	eng::u32 blit_words = 0u;
 	eng::u16 emitter_rearm = 0u;
 	eng::u16 emitter_chain = 0u;
@@ -523,15 +504,13 @@ struct SpriteLoadReport {
 		channels_used = static_cast<eng::u8>(channels_used | o.channels_used);
 		if (o.max_reuse > max_reuse) max_reuse = o.max_reuse;
 		if (o.scanline_peak > scanline_peak) scanline_peak = o.scanline_peak;
-		gap_rejections = static_cast<eng::u16>(gap_rejections + o.gap_rejections);
 		gap_violations = static_cast<eng::u16>(gap_violations + o.gap_violations);
 		band_overlaps = static_cast<eng::u16>(band_overlaps + o.band_overlaps);
 		band_out_of_range = static_cast<eng::u16>(band_out_of_range + o.band_out_of_range);
 		copper_intents = static_cast<eng::u16>(copper_intents + o.copper_intents);
-		copper_words = static_cast<eng::u16>(copper_words + o.copper_words);
+		copper_words_estimate = static_cast<eng::u16>(copper_words_estimate + o.copper_words_estimate);
 		palette_events = static_cast<eng::u16>(palette_events + o.palette_events);
 		bob_jobs = static_cast<eng::u16>(bob_jobs + o.bob_jobs);
-		bob_words += o.bob_words;
 		blit_words += o.blit_words;
 		emitter_rearm = static_cast<eng::u16>(emitter_rearm + o.emitter_rearm);
 		emitter_chain = static_cast<eng::u16>(emitter_chain + o.emitter_chain);
@@ -560,8 +539,8 @@ constexpr void apply_budget(SpriteLoadReport& r, const SpriteBudget& b) noexcept
 		r.warn(SpriteWarning::Scanline);
 		r.ok = false;
 	}
-	if (r.bob_words > b.bob_words) {
-		r.warn(SpriteWarning::BobBudget);
+	if (r.blit_words > b.blit_words) {
+		r.warn(SpriteWarning::BlitBudget);
 		r.ok = false;
 	}
 	if (r.copper_intents > b.copper_intents) {
@@ -619,7 +598,7 @@ struct SpriteStaticDesc {
 		    d.policy == SpritePolicy::Layer || d.reuse == SpriteReuse::None) {
 			++r.bob;
 			++r.bob_jobs;
-			r.bob_words += static_cast<eng::u32>(span) * need;
+			r.blit_words += static_cast<eng::u32>(span) * need;
 			continue;
 		}
 		eng::u8 base = 0xffu;
@@ -750,14 +729,9 @@ struct BlitDeadline {
 						  d.last_line);
 }
 
-/// Política de presentación recomendada: single buffer + BOBs exige publicar antes del
-/// wrap o en la ventana segura; con doble buffer no hay restricción adicional.
-[[nodiscard]] constexpr SpritePresent choose_present_policy(bool single_buffer,
-							    bool has_bob,
-							    bool has_bands) noexcept {
-	if (!single_buffer) return SpritePresent::DoubleBuffer;
-	if (has_bands) return SpritePresent::BeforeBand;
-	return has_bob ? SpritePresent::VBlankPreWrap : SpritePresent::SafeWindow;
-}
-
+// `SpritePresent`/`choose_present_policy` se retiraron de la API: la política de
+// presentación todavía no tiene materialización propia; el caller decide cuándo publica
+// la copperlist con su driver.
+// 
+// `blit_deadline_window` sigue siendo el único helper de ventana de CPU.
 } // namespace eng::scene

@@ -9,6 +9,9 @@
 
 namespace {
 
+/// Capacidad del doble buffer de Copper de este test.
+constexpr eng::u32 kTestCopperBytes = 4096u;
+
 unsigned g_fail = 0u;
 void check(bool ok, const char* what) {
 	if (!ok) {
@@ -62,7 +65,10 @@ int main() {
 	      "clear entre frames no libera el asset retenido");
 
 	eng::copper::Plan copper_plan {};
-	check(copper_plan.begin(memory, eng::copper::PlanConfig {4096u, 0u}),
+	check(copper_plan.begin(memory, eng::copper::PlanConfig {
+					     .copper_bytes = kTestCopperBytes,
+					     .first_line = 0u, // el test no usa bandas de raster
+				     }),
 	      "inicializa copper::Plan");
 	check(copper_plan.retain_dma_asset(cache.lease_dma(cache.view(copper_id).handle)),
 	      "copper::Plan acepta la lease de su asset");

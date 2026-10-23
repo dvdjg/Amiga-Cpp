@@ -104,6 +104,8 @@ Una abstraccion es buena si:
 
 Antes de implementar, **compara al menos dos opciones** y elige la mas simple, clara y legible que cumpla el contrato. Evita los literales opacos: usa `enum class`, un tipo, una constante con nombre o un parametro de plantilla, y documenta unidades/rango/significado. Ejemplo: `mark_failed(g_eng_run_status, Fail::SceneBegin)`, no `mark_failed(..., 0x00020102u)`; gate `magic-fail` (baseline por fichero). Si un lienzo necesita estado inicial, el engine lo deja limpio en `begin`/`HudStrip::bind`; el llamador no hace plomeria de Chip RAM. Si detectas un problema claro de arquitectura, usabilidad o funcionalidad, corrigelo directamente y explica el cambio; si hay una disyuntiva de diseno o coste relevante, planteala antes de seguir.
 
+**Contratos de API pública:** cada campo/enum publico debe tener un consumidor o un test que lo ejercite; no se aceptan placeholders ni opciones "por si acaso". Los ejemplos y tests usan constantes con nombre y **designated initializers** para agregados con mas de dos campos; nunca posicionales con `60000u`/`0xffffu`. Un ejemplo del header debe ser copiable sin numeros opacos.
+
 ## `inline` no es una sugerencia de inline
 
 En una libreria **header-only** como esta, `inline` en una funcion de cabecera es un

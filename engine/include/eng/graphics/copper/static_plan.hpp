@@ -23,8 +23,8 @@
 /// Uso:
 ///
 ///   static constexpr copper::CopperIntent kScene[] = { ... };   // o generado con constexpr
-///   static constexpr auto kList = copper::compile_intents(kScene, {40u, 4u, 0x2cu});
-///   static_assert(kList.words[0] == copper::wait_word(0x2c));   // gate en compilación
+///   static constexpr auto kList = copper::compile_intents(kScene, {40u, 4u, copper::kPalVisibleFirstLine});
+///   static_assert(kList.words[0] == copper::wait_word(copper::kPalVisibleFirstLine));   // gate en compilación
 ///   // init:  copiar kList.words[0..word_count) a los bloques de copperlist (la lista ya
 ///   //        incluye el terminador END) + parchear las ranuras de punteros reales
 ///   // frame: kList.words[kList.value_word[i]] = nuevo_valor;     // parche de dato

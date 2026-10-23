@@ -81,10 +81,9 @@ struct DirectorStressDemo {
 			m_bitplane_block.mem_view_chip(), kBytesPerRow, 256u, kPlanes,
 			eng::graphics::BobLayout::Planar);
 		m_dir.set_cooked_pool(m_cooked_block.mem_view_chip());
-		m_dir.set_budget(scene::SpriteBudget {8u, 8u, 60000u, 320u, 32u, 0u, 0u,
-						     0xffffu, 0xffffu});
+		m_dir.set_budget(scene::SpriteBudget {});
 		m_ctx.targets = eng::Span<const eng::graphics::BobTarget> {&m_target, 1u};
-		m_ctx.display_top = 0x2cu;
+		m_ctx.display_top = eng::copper::kPalVisibleFirstLine;
 		if (!build_entities() || !build_frame(backend)) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
@@ -339,8 +338,11 @@ private:
 
 	bool build_frame(auto& backend) {
 		eng::copper::SchedulerT<false> sched {m_copper_block};
-		sched.emit_planes_display(0x2c81u, 0x2cc1u, 0x0038u, 0x00d0u, kBytesPerRow,
-					  0x4200u, kPlanes, m_bitplane_block.mem_view_chip(),
+		sched.emit_planes_display(eng::copper::kPalDiwStrt, eng::copper::kPalDiwStop,
+					  eng::copper::kPalDdfStrt, eng::copper::kPalDdfStop, kBytesPerRow,
+					  eng::graphics::composition::bplcon0_for(
+						  eng::graphics::composition::SceneMode::Standard, kPlanes),
+					  kPlanes, m_bitplane_block.mem_view_chip(),
 					  kPlaneBytes);
 		sched.emit_palette(kPalette.color);
 		// `emit_planes_display` enciende Copper+bitplanes; el DMA de sprites se activa

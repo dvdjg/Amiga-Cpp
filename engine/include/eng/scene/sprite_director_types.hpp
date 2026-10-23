@@ -38,8 +38,8 @@ struct SpriteDesc {
 	/// El id debe seguir vivo en `SceneAssets` durante toda la vida de la entidad; si no,
 	/// `add` devuelve un `SpriteId` inválido.
 	SpriteVisualRef content {};
-	/// Intención de reparto/emisión (política, attached, gap, canal, rank, banda,
-	/// tira horizontal, presentación). Se copia en la entidad; los cambios posteriores
+	/// Intención de reparto/emisión (política, attached, gap, canal, rank,
+	/// tira horizontal). Se copia en la entidad; los cambios posteriores
 	/// en el `SpriteDesc` original no la actualizan.
 	SpriteHint hint {};
 	/// X de **pantalla** en píxeles low-res (0..319 típico). Para sprite HW el director

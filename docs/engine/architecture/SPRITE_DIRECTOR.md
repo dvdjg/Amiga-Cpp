@@ -35,7 +35,7 @@ const eng::scene::SpriteId id = director.add({
 
 ## Intención
 
-`SpriteHint` agrupa `policy` (Auto/Sprite/Bob/Cpu/Layer), `attach`, `width`, `reuse` (Auto/VerticalDma/Chain/PerLine/Horizontal/Bands/None), `gap_lines`, `channel`, `rank`, `sprite_priority`, `band`, `palette_bank`, `present`, grupo y tira horizontal (`strip_id`/`strip_index`/`strip_span`). `choose_sprite_emitter` elige `Rearm`, `DmaChain`, `PerLine`, `Horizontal`, `Bob` o `Cpu` a partir de los hints y de la infraestructura disponible. `SpritePolicy::Bob`, `Reuse::None` y `Attach::Off` sobre 4 planos usan `ActorDesc::force_bob`, que el compositor marca `as_bob` sin consumir canal.
+`SpriteHint` agrupa `policy` (Auto/Sprite/Bob/Cpu/Layer), `attach`, `reuse` (Auto/VerticalDma/Chain/PerLine/Horizontal/None), `gap_lines`, `channel`, `rank`, `sprite_priority`, grupo y tira horizontal (`strip_id`/`strip_index`/`strip_span`). `choose_sprite_emitter` elige `Rearm`, `DmaChain`, `PerLine`, `Horizontal`, `Bob` o `Cpu` a partir de los hints y de la infraestructura disponible. `SpritePolicy::Bob`, `Reuse::None` y `Attach::Off` sobre 4 planos usan `ActorDesc::force_bob`, que el compositor marca `as_bob` sin consumir canal.
 
 ## Composición
 
@@ -49,13 +49,13 @@ El gap vertical de 1 línea lo exige `SpriteAllocator` (y `SpriteDmaChain`). El 
 
 ## Reporte y presupuesto
 
-`SpriteLoadReport` es el contrato único de runtime y preflight: entidades, partes, HW, BOB, degradados, pares *attached*, tiras, bandas, canales, reuso máximo, pico por scanline, gap, intents/palabras de Copper, eventos de paleta, trabajos/palabras de Blitter, emisores y bits de aviso. `SpriteBudget` fija canales, scanline, palabras de BOB, intents de Copper, eventos de paleta, gap, solapes de banda y deadline de Blitter. `apply_budget` marca avisos y `ok`.
+`SpriteLoadReport` es el contrato único de runtime y preflight: entidades, partes, HW, BOB, degradados, pares *attached*, tiras, bandas, canales, reuso máximo, pico por scanline, gap, intents/palabras de Copper, eventos de paleta, trabajos/palabras de Blitter, emisores y bits de aviso. `SpriteBudget` fija canales, scanline, palabras de Blitter, intents de Copper, eventos de paleta, gap, solapes de banda y deadline de Blitter. `apply_budget` marca avisos y `ok`.
 
 `evaluate_static(Span<const SpriteStaticDesc>, SpriteBudget)` es `constexpr`: permite `static_assert` de una escena estática con el mismo gap y los mismos topes. `SpriteStaticDesc` no contiene píxeles ni punteros.
 
 ## Single buffer, Blitter y presentación
 
-`SpritePresent` declara la política (`VBlankPreWrap`, `BeforeBand`, `DoubleBuffer`, `SafeWindow`); `choose_present_policy` la recomienda según single buffer, BOBs y bandas. `BlitDeadline` acota línea y palabras; `blit_deadline_window` reutiliza `safe_blitter_window` para un blit de CPU. El director comprueba el deadline contra las palabras de Blitter medidas por delta del `FramePlan`.
+`BlitDeadline` acota palabras y orden de ventana; `blit_deadline_window` reutiliza `safe_blitter_window` para un blit de CPU. El director comprueba el deadline contra las palabras de Blitter medidas por delta del `FramePlan`. La política de presentación (`SpritePresent`) se retiró de la API hasta que exista una materialización propia; el llamador decide cuándo publica la copperlist con su driver.
 
 ## Reuso avanzado
 
@@ -66,7 +66,7 @@ El gap vertical de 1 línea lo exige `SpriteAllocator` (y `SpriteDmaChain`). El 
 - `VisualStore` guarda la vista descriptora; si se cambia el contenido de un `Visual` ya dado de alta, el actor simple conserva la copia anterior hasta rehacer el alta (o usar el camino avanzado).
 - `CompositeScene` mantiene su propio estado y política por parte; el director no replica hitboxes/eventos de Copper de compuestos en la API simple.
 - `Reuse::Horizontal` cubre la tira entre canales; el multiplexado horizontal del **mismo** canal sigue siendo una técnica avanzada de `SpriteLineLayer`/`SpriteBend`.
-- `SpriteLoadReport::copper_words` es una estimación (`intents·4 + colores·2`); la verdad materializada es `copper::Plan::words()` tras `materialize()`.
+- `SpriteLoadReport::copper_words_estimate` es una estimación (`intents·4 + colores·2`); la verdad materializada es `copper::Plan::words()` tras `materialize()`.
 
 ## Tests y demos
 

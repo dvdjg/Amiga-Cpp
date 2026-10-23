@@ -54,10 +54,19 @@
 
 namespace eng::copper {
 
+/// VPOS de la primera línea visible del display PAL canónico de 256 líneas
+/// (`DIWSTRT` = `0x2c81`). Usar este símbolo, no `0x2c`, al configurar `PlanConfig`.
+inline constexpr u16 kPalVisibleFirstLine = 0x2cu;
+
+/// Capacidad por defecto de cada bloque de copperlist del `Plan` (8 KiB): suficiente
+/// para una escena PAL de 256 líneas con intents y paletas; el llamador puede subirla.
+inline constexpr u32 kPlanCopperBytesDefault = 8192u;
+
 struct PlanConfig {
-	u32 copper_bytes = 8192u; ///< tamaño de CADA bloque del doble buffer
-	/// Línea de raster donde arranca la ventana visible (p. ej. 0x2c en PAL 256). El
-	/// Copper ejecuta la lista en el orden en que el raster alcanza las líneas, y el
+	u32 copper_bytes = kPlanCopperBytesDefault; ///< tamaño de CADA bloque del doble buffer
+	/// Línea de raster donde arranca la ventana visible (para PAL 256, usa
+	/// `kPalVisibleFirstLine`). El Copper ejecuta la lista en el orden en que el raster
+	/// alcanza las líneas, y el
 	/// display **envuelve** a las 256 líneas: las intenciones se ordenan por línea
 	/// RELATIVA a `first_line` ((top - first_line) & 0xff), no por `top` absoluto, para
 	/// que una zona de la parte baja (top < first_line) vaya DESPUÉS de una de la parte

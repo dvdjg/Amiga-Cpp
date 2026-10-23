@@ -362,12 +362,6 @@ public:
 		m_bob_transparency = transparency;
 	}
 
-	/// Política de presentación declarativa (informativa para el llamador; el commit de
-	/// copperlist lo hace `present`/el driver).
-	/// \param p `Auto`/`VBlankPreWrap`/`BeforeBand`/`DoubleBuffer`/`SafeWindow`.
-	constexpr void set_present_policy(SpritePresent p) noexcept { m_present = p; }
-	/// Política de presentación vigente.
-	[[nodiscard]] constexpr SpritePresent present_policy() const noexcept { return m_present; }
 	/// Deadline de Blitter para BOBs de CPU en single buffer (se comprueba en `emit`).
 	/// \param d ventana de líneas y tope de palabras; `hard` es informativo para el caller.
 	constexpr void set_blit_deadline(const BlitDeadline& d) noexcept { m_deadline = d; }
@@ -539,15 +533,14 @@ public:
 		// 6) Coste de Blitter del frame (delta del plan: no atribuye trabajos ajenos).
 		(void)plan.blit_budget_report();
 		if (plan.blit_budget().words >= words_before) {
-			r.bob_words = plan.blit_budget().words - words_before;
-			r.blit_words = r.bob_words;
+			r.blit_words = plan.blit_budget().words - words_before;
 		}
 		if (plan.blit_budget().jobs >= jobs_before) {
 			r.bob_jobs = static_cast<eng::u16>(plan.blit_budget().jobs - jobs_before);
 		}
-		r.copper_words = static_cast<eng::u16>(r.copper_intents * 4u +
+		r.copper_words_estimate = static_cast<eng::u16>(r.copper_intents * 4u +
 						      static_cast<eng::u32>(r.palette_events) * 2u);
-		if (!blit_deadline_ok(m_deadline, r.bob_words)) {
+		if (!blit_deadline_ok(m_deadline, r.blit_words)) {
 			r.warn(SpriteWarning::BlitDeadline);
 			r.ok = false;
 		}
@@ -707,7 +700,6 @@ private:
 	PoolType m_entities {};              ///< handles `SpriteId` (índice+generación de entidad)
 	eng::graphics::SpriteChannelLedger m_ledger {}; ///< canales ocupados por compuestos en el frame
 	SpriteBudget m_budget {};            ///< límites usados por `apply_budget` en `emit`
-	SpritePresent m_present = SpritePresent::Auto; ///< política declarativa de presentación
 	BlitDeadline m_deadline {};          ///< límite de Blitter comprobado en `emit`
 	eng::graphics::BobLayout m_bob_layout = eng::graphics::BobLayout::Planar; ///< layout BOB por defecto
 	TransparencyMode m_bob_transparency = TransparencyMode::Mask1Bit; ///< transparencia BOB por defecto
@@ -727,7 +719,6 @@ private:
 } // namespace eng::scene
 
 namespace eng {
-using scene::AnimationView;
 using scene::BandPalette;
 using scene::CompositeId;
 using scene::CopperCue;

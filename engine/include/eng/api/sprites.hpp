@@ -23,9 +23,9 @@
 ///
 /// ```cpp
 /// eng::SpriteScene<64> sprites;                   // hasta 64 actores (NES OAM)
-/// sprites.set_budget({8u, 60000u, 0u});           // 8 canales HW, 60k palabras de BOB, 0 capas
+/// // `set_budget(RepresentationBudget)` está deprecado: usa `SpriteDirector`/`SpriteBudget`.
 /// sprites.set_cooked_pool(cooked_block.mem_view()); // par attached: pool Chip de estructuras
-/// sprites.add({.visual = gema, .x = 100, .y = 40, .sprite_priority = 1});
+/// sprites.add_direct({.visual = gema, .x = 100, .y = 40, .sprite_priority = 1});
 /// // render: compone (los BOB van al `plan`) y deja las colocaciones HW en `placements()`
 /// auto r = sprites.emit(plan, ctx);
 /// ```

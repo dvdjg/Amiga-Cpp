@@ -45,6 +45,13 @@
 
 namespace eng::copper {
 
+/// Geometría de display PAL 320×256 lowres (DIW/DDF canónicos). Úsalas al llamar a
+/// `emit_planes_display`; no repitas los literales en cada driver.
+inline constexpr u16 kPalDiwStrt = 0x2c81u; ///< DIWSTRT (VPOS 0x2c, HPOS 0x81)
+inline constexpr u16 kPalDiwStop = 0x2cc1u; ///< DIWSTOP (VPOS 0x2c, HPOS 0xc1)
+inline constexpr u16 kPalDdfStrt = 0x0038u; ///< DDFSTRT estándar lores
+inline constexpr u16 kPalDdfStop = 0x00d0u; ///< DDFSTOP estándar (20 palabras = 320 px)
+
 /// Informe de una copperlist generada.
 ///
 /// Estos contadores son deliberadamente simples. Sirven para que las demos y
