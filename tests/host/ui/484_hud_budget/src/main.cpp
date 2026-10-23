@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-471: presupuesto y degradación del HUD (`eng/hud/budget.hpp`).
+// Test HOST-484: presupuesto y degradación del HUD (`eng/hud/budget.hpp`).
 // ============================================================================
 //
 // Fase H4 del roadmap (`docs/guides/roadmap/ROADMAP_HUD.md`): coste de *backing*
@@ -209,9 +209,9 @@ int main() {
 	test_region_stats();
 	test_budget_check();
 	if (g_fail == 0) {
-		std::printf("HOST-471 hud_budget: OK\n");
+		std::printf("HOST-484 hud_budget: OK\n");
 		return 0;
 	}
-	std::printf("HOST-471 hud_budget: %d fallos\n", g_fail);
+	std::printf("HOST-484 hud_budget: %d fallos\n", g_fail);
 	return 1;
 }

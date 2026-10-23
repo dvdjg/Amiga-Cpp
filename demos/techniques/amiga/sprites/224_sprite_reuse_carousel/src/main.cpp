@@ -82,7 +82,7 @@ constexpr eng::u16 kAttachedKinds = 5u;
 #endif
 /// A/B de diagnóstico: 0 = sondeo (modo de la demo), 1 = espera activa + AddIntServer.
 #ifndef K224_WAIT_ACTIVE
-#define K224_WAIT_ACTIVE 0
+#define K224_WAIT_ACTIVE 1
 #endif
 constexpr bool kRotateArt = (K224_ROTATE_ART != 0);
 constexpr eng::u8 kRotationListCount = (kProbe || !kRotateArt)
@@ -577,10 +577,10 @@ int main() {
 	display.color_depth = kPlanes;
 	display.buffers = 1u;
 	display.palette = kPalette;
-	// `Active`+`AddIntServer` queda validado en 3/4/5 planos tras esperar VPOS 311 en
+	// `Active`+`AddIntServer` está validado en 3/4/5/6 planos tras esperar VPOS 311 en
 	// `wait_vblank_run`: el parón ~198-200 era el commit de COP1LC en la ventana 0-2
-	// (el `Active` despertaba en VPOS 0), no la cadena ni el SO. `Polling` sigue siendo el
-	// modo por defecto verificado en los cuatro perfiles.
+	// (el `Active` despertaba en VPOS 0), no la cadena ni el SO. `Active` es el modo por
+	// defecto; `K224_WAIT_ACTIVE=0` deja el fallback de sondeo.
 	constexpr eng::amiga::VblankWait kWaitMode = (K224_WAIT_ACTIVE != 0)
 		? eng::amiga::VblankWait::Active
 		: eng::amiga::VblankWait::Polling;

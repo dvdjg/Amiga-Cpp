@@ -72,3 +72,7 @@ Nota: la lectura del texto del HUD por el modelo de visión no se usa como medid
 - Contraste dirigido C contra `INTENT.md` por banda y lane en las cuatro profundidades.
 - Uso total de CPU: el sondeo de VPOSR es una espera activa; no se ha medido la ocupación de CPU (solo el coste del frame).
 - Secuencia de salida al SO (`restore_system`) en una demo que termine.
+
+## Active 6 EHB y cierre (2026-10-23)
+
+La demo pasa a **VblankWait::Active por defecto** (fallback Polling con K224_WAIT_ACTIVE=0). La corrección de wait_vblank_run (commit 8235a723) espera **VPOS 311** tras el latido de la IRQ: el commit de COP1LC ya no cae en la ventana 0-2 del wrap. Evidencia: 6 EHB con rotación, A500_k224_planes6dk224_wait_active1_release, **49,92 fps / 1,002 campos / 1011 frames**, stable: true, detail=0xff0528; 4/5 ya validados (49,92) y 3 estable. El HUD usa TextLine/scaled.

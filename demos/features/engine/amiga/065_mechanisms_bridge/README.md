@@ -16,7 +16,8 @@ demos rápidas: **copia opaca con padding** (F5), **copperlist estática** emiti
 - **Catapulta** (`scene::Catapult`): ciclo cargar → disparar; el **extremo** sale de la tabla
   de seno (`catapult_tip`) y al cruzar el ángulo de suelta nace la **bola**, que sigue una
   **trayectoria balística cocinada** (`scene::Trajectory` + follower).
-- **Destructible**: la caja objetivo se rompe al impacto y deja **escombros** (4 followers).
+- **Destructible**: la caja objetivo usa `scene::Destructible`; se rompe al impacto y deja **escombros** (4 followers).
+- **Puerta y bloque sólido**: `scene::Door` (sube 24 px y vuelve a bajar con el ciclo) y `scene::SolidBox`/`solid_overlap`; el jugador se detiene en la puerta cerrada y en el bloque del camino.
 - **Render**: los BOB llevan **padding transparente** en su hoja (= paso máximo por tick) y se
   copian **opacos** (`$F0`): la propia copia tapa la posición anterior — sin borrado, sin
   máscara, sin save-under. Fondo: `COLOR00` por bandas de Copper (lista **estática**, se

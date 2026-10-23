@@ -59,3 +59,7 @@ Verificado: mecánicas F6 (puente/jugador/catapulta/bola/destructible) y su din�
 A500_debug, secuencia de 4 frames, visión dirigida; sin artefactos observados. **Sin
 verificar**: 50 fps (deuda arriba), release `-O2`, NTSC, y el rebote/impulso en casos límite
 (los cubre HOST-438 por unidad, no esta secuencia).
+
+## Puerta y bloque solido (2026-10-23)
+
+Anadidos scene::Door (12x24, sube 24 px con el ciclo) y scene::SolidBox (16x10) al camino del jugador; el objetivo usa scene::Destructible. La demo pasa a un_frames_polling (la guarda 0xE212 rechaza un_frames bajo SO sin takeover) y mide **16,46 fps / 3,038 campos / 431.076 ciclos** en A500_debug (stable: true, detail=0x15): la puerta/bloque anaden 3 jobs y el sondeo cuesta mas que el bucle anterior; queda como deuda de presupuesto ya documentada. Secuencia de 6 frames y VISION.md regenerada (Ollama; puerta/bloque y objetos en movimiento descritos sin artefactos).

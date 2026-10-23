@@ -1,4 +1,4 @@
-# HOST-471: presupuesto y degradación del HUD (`eng/hud/budget.hpp`)
+# HOST-484: presupuesto y degradación del HUD (`eng/hud/budget.hpp`)
 
 Test host de la fase **H4** del HUD: `engine/include/eng/hud/budget.hpp`. Ver `HUD_SYSTEM.md` §6.4 (backing declarado), §6.6 (presupuesto) y §6.7 (escalera de degradación); plan en `ROADMAP_HUD.md` (H4).
 
@@ -13,5 +13,5 @@ Test host de la fase **H4** del HUD: `engine/include/eng/hud/budget.hpp`. Ver `H
 ## Salida de referencia
 
 ```
-HOST-471 hud_budget: OK
+HOST-484 hud_budget: OK
 ```

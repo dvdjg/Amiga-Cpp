@@ -89,6 +89,19 @@ constexpr eng::u16 kCycle = 240u;     // ticks del ciclo (carga en 0, disparo en
 constexpr eng::u16 kFireTick = 120u;
 constexpr eng::s32 kTargetY = 172;    // altura de la caja objetivo
 
+// Puerta deslizante (se abre/cierra con el ciclo) y bloque sólido estático.
+constexpr eng::s16 kDoorX = 120;
+constexpr eng::s16 kDoorClosedY = 180;
+constexpr eng::s16 kDoorW = 12;
+constexpr eng::s16 kDoorH = 24;
+constexpr eng::u16 kDoorOpenTicks = 60;
+constexpr eng::u16 kDoorOpenPhase = 20u;
+constexpr eng::u16 kDoorClosePhase = 150u;
+constexpr eng::s16 kBlockX = 220;
+constexpr eng::s16 kBlockY = 190;
+constexpr eng::s16 kBlockW = 16;
+constexpr eng::s16 kBlockH = 10;
+
 // Padding de cada hoja = paso máximo por tick del objeto (principio FastCopy de F5).
 constexpr eng::u16 kPlankPad = 8u;   // puente (poca velocidad) y brazo de la catapulta
 constexpr eng::u16 kPlayerPad = 8u;  // jugador (vy tope 6)
@@ -150,6 +163,19 @@ struct MechanismsDemo {
 				       static_cast<eng::u16>(mask_base + plank_mask_words +
 							     player_mask_words),
 				       4u, 4u, kBallPad, 1u);
+		// Puerta (máscara: se cruza con el jugador) y bloque (fastcopy: el jugador se
+		// detiene en su borde, no lo solapa).
+		const eng::u16 door_words = padded_words(kDoorW, kDoorH, 2u);
+		const eng::u16 block_words = padded_words(kBlockW, kBlockH, 2u);
+		const eng::u16 door_off = static_cast<eng::u16>(
+			mask_base + plank_mask_words + player_mask_words +
+			mask_sheet_words(4u, 4u, kBallPad));
+		const eng::u16 door_mask_off = static_cast<eng::u16>(door_off + door_words);
+		const eng::u16 block_off = static_cast<eng::u16>(
+			door_mask_off + mask_sheet_words(kDoorW, kDoorH, 2u));
+		m_door_bob_m = make_masked(sheets, door_off, door_mask_off, kDoorW, kDoorH, 2u, 3u);
+		m_block_bob = make_padded(sheets, block_off, kBlockW, kBlockH, 2u, 1u);
+		(void)block_words;
 
 		// Puente: cadena recta con extremos anclados.
 		for (eng::u8 i = 0u; i < kLinks; ++i) {
@@ -168,6 +194,16 @@ struct MechanismsDemo {
 		m_catapult.pivot.v[1] = kCatPivotY;
 		m_catapult.arm_length = kCatArm;
 		eng::scene::catapult_load(m_catapult);
+
+		// Puerta deslizante (se sube 24 px al abrir) y bloque sólido estático.
+		m_door.closed = eng::math::Vec<2, eng::s32> {kDoorX, kDoorClosedY};
+		m_door.open_offset = eng::math::Vec<2, eng::s32> {0, -kDoorH};
+		m_door.size = eng::math::Vec<2, eng::s32> {kDoorW, kDoorH};
+		m_door.open_ticks = kDoorOpenTicks;
+		m_block = eng::scene::SolidBox<eng::s32> {
+			eng::math::Vec<2, eng::s32> {kBlockX, kBlockY},
+			eng::math::Vec<2, eng::s32> {kBlockW, kBlockH}, true};
+		m_target_state = eng::scene::Destructible {1u, 1u, true};
 
 		// **Trayectoria balística** (relativa al punto de suelta): x retrocede 4 px/tick y
 		// la Y sube con `v0` y cae con la gravedad (entera, cocinada una vez).
@@ -225,6 +261,7 @@ struct MechanismsDemo {
 		eng::scene::rope_step(m_rope);
 
 		// Jugador: gravedad, avance lateral con rebote en los extremos y contacto.
+		const eng::s16 prev_x = m_player_x;
 		m_player_vy = static_cast<eng::s32>(m_player_vy + 1); // gravedad
 		if (m_player_vy > 6) m_player_vy = 6;                 // velocidad de caída tope
 		m_player_x = static_cast<eng::s16>(m_player_x + m_player_dir);
@@ -244,6 +281,28 @@ struct MechanismsDemo {
 		}
 		m_player_y = static_cast<eng::s16>(feet.v[1] - kPlayerH);
 		m_player_vy = vy;
+
+		// Puerta deslizante: se abre/cierra con el ciclo de la catapulta.
+		const eng::u16 door_phase = static_cast<eng::u16>(context.frame.frame_index % kCycle);
+		if (door_phase == kDoorOpenPhase) {
+			eng::scene::door_request_open(m_door);
+		} else if (door_phase == kDoorClosePhase) {
+			eng::scene::door_request_close(m_door);
+		}
+		eng::scene::door_update(m_door, 1u);
+
+		// Sólidos: el jugador se detiene en el borde del bloque y de la puerta cerrada.
+		const eng::scene::SolidBox<eng::s32> player_box {
+			eng::math::Vec<2, eng::s32> {m_player_x, m_player_y},
+			eng::math::Vec<2, eng::s32> {kPlayerW, kPlayerH}, true};
+		const bool hit_block = eng::scene::solid_overlap(player_box, m_block);
+		const bool hit_door = m_door.state != eng::scene::DoorState::Open &&
+				      eng::scene::solid_overlap(player_box,
+								eng::scene::door_solid(m_door));
+		if (hit_block || hit_door) {
+			m_player_x = prev_x;
+			m_player_dir = static_cast<eng::s16>(-m_player_dir);
+		}
 
 		// Catapulta: ciclo cargar/disparar; la bola nace al cruzar el ángulo de suelta.
 		const eng::u16 phase = static_cast<eng::u16>(context.frame.frame_index % kCycle);
@@ -271,15 +330,17 @@ struct MechanismsDemo {
 			// Impacto con la caja objetivo: la rompe y suelta 4 escombros.
 			if (m_target_active && m_ball_x >= m_target_x - 14 && m_ball_x <= m_target_x + 4 &&
 			    m_ball_y >= m_target_y - 4 && m_ball_y <= m_target_y + 14) {
-				m_target_active = false;
-				m_respawn_timer = 300u;
-				for (eng::u8 i = 0u; i < 4u; ++i) {
-					eng::scene::TrajectoryFollower<eng::s16>& f = m_debris[i];
-					f = eng::scene::TrajectoryFollower<eng::s16> {};
-					f.origin.v[0] = static_cast<eng::s16>(m_target_x + (i & 1u ? 6 : 0));
-					f.origin.v[1] = static_cast<eng::s16>(m_target_y + (i >= 2u ? 6 : 0));
+				if (eng::scene::destructible_hit(m_target_state, 1u)) {
+					m_target_active = false;
+					m_respawn_timer = 300u;
+					for (eng::u8 i = 0u; i < 4u; ++i) {
+						eng::scene::TrajectoryFollower<eng::s16>& f = m_debris[i];
+						f = eng::scene::TrajectoryFollower<eng::s16> {};
+						f.origin.v[0] = static_cast<eng::s16>(m_target_x + (i & 1u ? 6 : 0));
+						f.origin.v[1] = static_cast<eng::s16>(m_target_y + (i >= 2u ? 6 : 0));
+					}
+					m_debris_active = true;
 				}
-				m_debris_active = true;
 			}
 			if (m_ball_follower.finished || m_ball_y >= kGroundY) {
 				m_ball_active = false;
@@ -299,6 +360,7 @@ struct MechanismsDemo {
 		if (!m_target_active && m_respawn_timer != 0u) {
 			--m_respawn_timer;
 			if (m_respawn_timer == 0u) {
+				m_target_state = eng::scene::Destructible {1u, 1u, true};
 				m_target_active = true;
 			}
 		}
@@ -471,6 +533,12 @@ private:
 								   m_debris_prev_y[i], m_target);
 			}
 		}
+		if (m_door_prev_valid) {
+			(void)eng::graphics::bob_erase_box(m_frame_plan, m_door_bob_m,
+							   static_cast<eng::u16>(kDoorW + 2u),
+							   static_cast<eng::u16>(kDoorH + 2u), m_door_prev_x,
+							   m_door_prev_y, m_target);
+		}
 	}
 
 	void emit_bobs() {
@@ -495,6 +563,15 @@ private:
 		m_player_prev_x = static_cast<eng::s16>(m_player_x - 1);
 		m_player_prev_y = static_cast<eng::s16>(m_player_y - 1);
 		m_player_prev_valid = true;
+		// Bloque estático (fastcopy) y puerta deslizante (cookie-cut: se cruza con el
+		// jugador y el bloque; su estela la limpia la pasada de borrado).
+		draw(m_block_bob, kBlockX, kBlockY, 2u);
+		const eng::math::Vec<2, eng::s32> door_pos = eng::scene::door_position(m_door);
+		draw(m_door_bob_m, static_cast<eng::s16>(door_pos.v[0]),
+		     static_cast<eng::s16>(door_pos.v[1]), 2u);
+		m_door_prev_x = static_cast<eng::s16>(door_pos.v[0] - 1);
+		m_door_prev_y = static_cast<eng::s16>(door_pos.v[1] - 1);
+		m_door_prev_valid = true;
 		// Catapulta: base fija (fastcopy) + brazo "punteado" con **cookie-cut**: los 4
 		// segmentos se solapan entre sí; con copia opaca el pad de uno borraría al anterior
 		// (solo se veía el último). Con máscara se ensamblan y la estela la limpia la pasada
@@ -632,6 +709,14 @@ private:
 	eng::u16 m_respawn_timer = 0u;
 	eng::s16 m_target_x = 100;
 	eng::s16 m_target_y = kTargetY;
+	eng::scene::Destructible m_target_state {};
+	eng::scene::Door<eng::s32> m_door {};
+	eng::scene::SolidBox<eng::s32> m_block {};
+	eng::graphics::Bob m_door_bob_m {};
+	eng::graphics::Bob m_block_bob {};
+	eng::s16 m_door_prev_x = 0;
+	eng::s16 m_door_prev_y = 0;
+	bool m_door_prev_valid = false;
 	// Telemetría de la franja.
 	eng::u32 m_last_cycle = 0u;
 	eng::u32 m_update_kcycles = 0u;
@@ -656,7 +741,9 @@ int main() {
 	// exclusivo — sin esto, `execute_frame_plan_async` fallaría en silencio (bug 4 de la 066).
 	engine.set_blit_service_enabled(false);
 	(void)eng::os::init(engine, 0u);
-	engine.run_frames(0xffff);
+	// La demo usa el encadenado async del FramePlan y no necesita el latido por `Wait()`;
+	// el bucle por sondeo evita la guarda 0xE212 (SO vivo sin takeover) y mantiene el VPOSR.
+	engine.run_frames_polling(0xffff);
 
 	return 0;
 }
