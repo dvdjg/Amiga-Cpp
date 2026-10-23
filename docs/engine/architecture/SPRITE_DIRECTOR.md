@@ -1,6 +1,6 @@
 # SpriteDirector: fachada de sprites por intención
 
-`eng::scene::SpriteDirector` (`engine/include/eng/scene/sprite_director.hpp`) es la fachada pública nueva para administrar sprites hardware y BOBs. El juego declara **contenido** (`VisualId`/`CompositeId`) y **qué pretende** (`SpriteHint`); el engine decide canales, reuso, paleta, BOB y coste. `SpriteScene` y `CompositeScene` siguen existiendo como implementación/camino avanzado.
+`eng::scene::SpriteDirector` (`engine/include/eng/scene/sprite_director.hpp`) es la fachada pública nueva para administrar sprites hardware y BOBs. El juego declara **contenido** (`VisualId`/`CompositeId`) y **qué pretende** (`SpriteHint`); el engine decide canales, reuso, paleta, BOB y coste. `SpriteScene` y `CompositeScene` quedan como implementación avanzada para código histórico; no deben usarse en código nuevo y se retirarán de la fachada pública tras migrar las demos.
 
 ## Capacidades de plantilla
 

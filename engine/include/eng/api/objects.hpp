@@ -20,8 +20,9 @@
 ///
 /// **Modo avanzado.** `eng::scene::SpriteDirector` es la fachada única nueva: acepta
 /// `VisualId`/`CompositeId`, comparte el reparto de canales con los sprites simples y
-/// devuelve `SpriteLoadReport`. `CompositeScene` queda como implementación/camino directo
-/// para código que ya gestiona sus propias partes.
+/// devuelve `SpriteLoadReport`. `CompositeScene` queda como implementación/camino directo para
+/// código histórico; **no usar en código nuevo** y se retirará de la fachada pública tras migrar
+/// las demos.
 ///
 /// ```cpp
 /// eng::CompositeScene<4> sprites;

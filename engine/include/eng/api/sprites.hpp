@@ -12,8 +12,9 @@
 ///
 /// **Modo avanzado.** La fachada por intención con `VisualId`/`CompositeId`, presupuesto real y
 /// `SpriteLoadReport` es `eng::scene::SpriteDirector` (`scene/sprite_director.hpp`, incluida en
-/// `eng/api/api.hpp`). `SpriteScene` sigue siendo la implementación directa de actores y el camino
-/// para código que ya declara `ActorDesc`.
+/// `eng/api/api.hpp`). `SpriteScene` sigue siendo la implementación directa de actores, pero
+/// **no es la vía nueva**: se conserva como modo avanzado para migrar código existente y se
+/// retirará de la fachada pública cuando las demos hayan pasado a `SpriteDirector`.
 ///
 /// Un actor cuyo **contenido** es de 4 planos y 16 px (par *attached* derivado del arte)
 /// consume **dos canales contiguos** y se publica como dos placements de 15 colores; el engine
