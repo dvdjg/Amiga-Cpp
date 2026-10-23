@@ -58,7 +58,6 @@ using eng::scene::ActorEmitStatus;
 using eng::scene::ActorId;
 using eng::scene::ActorStore;
 using eng::scene::BackgroundPolicy;
-using eng::scene::Representation;
 using eng::scene::TransparencyMode;
 
 constexpr eng::u16 kRowBytes = 40;
@@ -166,7 +165,6 @@ void test_store() {
 	CHECK(a.valid(), "alta valida");
 	CHECK(store.count() == 1u, "cuenta tras alta");
 	CHECK(store.get(a).valid(), "get del id valido");
-	CHECK(store.get(a)->actual == Representation::Sprite, "16x8 cabe como sprite");
 
 	const ActorId b = store.add(make_desc());
 	const ActorId c = store.add(make_desc());

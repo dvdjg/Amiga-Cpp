@@ -254,7 +254,6 @@ struct Actor {
 	Bob bob {};                  ///< materialización como BOB (misma identidad)
 	Animation::State anim {};    ///< frame actual de la animación
 	eng::u32 anim_accum = 0;     ///< acumulador de velocidad (aritmética entera)
-	Representation actual = Representation::Cpu;
 	eng::util::Array<DirtyRect, kActorBuffers> prev {}; ///< rect previo POR BUFFER (save-under/borrado)
 };
 

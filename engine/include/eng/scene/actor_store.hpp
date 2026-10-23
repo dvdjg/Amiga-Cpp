@@ -228,7 +228,6 @@ public:
 		a.desc = desc;
 		a.bob = bob_from_visual(desc.visual, desc.layout, desc.transparency);
 		a.bob.sheet_row_bytes = desc.sheet_row_bytes;
-		a.actual = Representation::Sprite;
 		return ActorId {handle.index, handle.generation};
 	}
 
