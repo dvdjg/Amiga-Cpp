@@ -52,6 +52,7 @@ inline void project_perspective(const math3d::Vec3t<S>& v, s16 focal, s16 cx, s1
 /// espacio objeto (mismo convenio que `mesh_painter_order`). `double_sided` para
 /// mallas abiertas (p. ej. suelos).
 /// `Model` es cualquier afín (`Affine<N,SR,SL>`): el renderer no sabe de qué formato es.
+/// \tparam ColorFn callable que asigna el color de un vértice
 template <typename ColorFn, typename Model>
 inline u32 mesh_render_filled(const math3d::MeshView& mesh, const Model& model,
 			      const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
@@ -89,6 +90,8 @@ inline u32 mesh_render_filled(const math3d::MeshView& mesh, const Model& model,
 /// `color_of(face_index)` devuelve el color de la cara (p. ej. su luz plana, como en
 /// `update_face_visibility`). Más de `kMaxPolyVerts` vértices por cara se omiten.
 /// Buffers del llamador: `world` (n_vertices), `order` (n_faces) y `sx`/`sy` (n_vertices).
+/// \tparam ColorFn callable que asigna el color de un vértice
+/// \tparam Model tipo de modelo geométrico
 template <typename ColorFn, typename Model>
 inline u32 mesh_render_poly_filled(const math3d::PolyMeshView& mesh, const Model& model,
 				   const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
@@ -129,6 +132,7 @@ inline u32 mesh_render_poly_filled(const math3d::PolyMeshView& mesh, const Model
 /// aristas compartidas se dibujan dos veces (barato y sin estado de aristas).
 /// Devuelve el número de caras procesadas. Buffers del llamador como en
 /// `mesh_render_filled`.
+/// \tparam Model tipo de modelo geométrico
 template <typename Model>
 inline u32 mesh_render_wire(const math3d::MeshView& mesh, const Model& model,
 			    const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,

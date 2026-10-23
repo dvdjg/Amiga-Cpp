@@ -37,6 +37,7 @@ using TaskStep = FunctionRef<TaskStatus()>;
 /// Secuencia de pasos `FunctionRef<TaskStatus()>` de capacidad fija. `tick()` ejecuta
 /// pasos encadenados hasta que uno devuelve `Running` (espera) o la secuencia termina
 /// (todas `Success`) o falla. El estado de cada paso lo lleva el propio objeto del paso.
+/// \tparam MaxSteps número máximo de pasos por avance
 template <eng::u16 MaxSteps>
 class TaskSequence {
 	static_assert(MaxSteps > 0u, "TaskSequence: MaxSteps debe ser mayor que 0");

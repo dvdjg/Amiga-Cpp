@@ -299,6 +299,7 @@ constexpr eng::u32 actor_order_key(const ActorDesc& d, eng::u16 index) {
 /// Rellena `out` con los actores vivos ordenados por superficie y, dentro de cada una,
 /// de atrás hacia delante por `z`. Devuelve cuántos escribió, o 0 si no caben en
 /// `capacity` (rechazo controlado). Ordenación por inserción: sin heap y determinista.
+/// \tparam MaxActors capacidad máxima de actores
 template <eng::u16 MaxActors>
 inline eng::u16 plan_actor_order(const ActorStore<MaxActors>& store, eng::Span<ActorId> out) {
 	if (out.empty() || store.count() > out.size()) {
@@ -330,6 +331,7 @@ inline eng::u16 plan_actor_order(const ActorStore<MaxActors>& store, eng::Span<A
 /// Emite los actores en orden por superficie y `z` (usa `plan_actor_order`). Devuelve
 /// cuántos se emitieron (los `Nothing`/`Clipped` no cuentan); 0 si el orden no cabe en
 /// `order` o si algún actor devuelve `Full` (rechazo controlado).
+/// \tparam MaxActors capacidad máxima de actores
 template <eng::u16 MaxActors>
 inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& store,
 				     const ActorEmitContext& ctx, eng::Span<ActorId> order) {
@@ -404,6 +406,7 @@ inline bool stable_sort_sprite_intents_by_top(eng::Span<SpriteIntent> intents,
 /// índice). Devuelve cuántas escribió, o 0 si no caben en `capacity` (rechazo controlado).
 /// La ordenación es estable por `top`; usa counting-sort con scratch cuando está disponible y
 /// mantiene insertion-sort como fallback.
+/// \tparam MaxActors capacidad máxima de actores
 template <eng::u16 MaxActors>
 inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 				     eng::Span<const ActorId> order, const ActorEmitContext& ctx,
@@ -520,6 +523,7 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 /// emite **una sola vez** (gana el líder). Los actores que sí caben en sprite NO se
 /// dibujan aquí (los materializa el camino de sprite). Devuelve cuántos emitió; 0 si algún
 /// actor devuelve `Full`.
+/// \tparam MaxActors capacidad máxima de actores
 template <eng::u16 MaxActors>
 inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store,
 				   eng::Span<const eng::u16> intent_actor,

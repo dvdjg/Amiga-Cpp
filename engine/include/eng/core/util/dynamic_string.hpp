@@ -29,6 +29,7 @@
 
 namespace eng::util {
 
+/// \tparam A tipo de asignador o contenedor subyacente
 template <class A>
 class DynamicString {
 public:

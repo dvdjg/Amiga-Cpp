@@ -23,6 +23,8 @@
 
 namespace eng::util {
 
+/// \tparam T tipo de elemento almacenado
+/// \tparam N capacidad o dimensión fija
 template <class T, usize N>
 class RingBuffer {
 	static_assert(N > 0u, "RingBuffer: N debe ser mayor que 0");

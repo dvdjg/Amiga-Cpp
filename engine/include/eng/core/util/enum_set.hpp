@@ -20,6 +20,8 @@
 
 namespace eng::util {
 
+/// \tparam E tipo de elemento, evento o error según el contexto
+/// \tparam N capacidad o dimensión fija
 template <class E, usize N>
 class EnumSet {
 	static_assert(is_enum_v<E>, "EnumSet: E debe ser un enum");

@@ -258,6 +258,8 @@ inline void sprite_template_view_to_intents(const HwSpriteTemplateView& tpl, u8 
 }
 
 /// Azúcar: proyecta una `HwSpriteTemplate` de capacidad fija a través de su vista.
+/// \tparam MaxSegments número máximo de segmentos verticales
+/// \tparam MaxPaletteSwitches número máximo de cambios de paleta por sprite
 template <u8 MaxSegments, u8 MaxPaletteSwitches>
 inline void sprite_template_to_intents(const HwSpriteTemplate<MaxSegments, MaxPaletteSwitches>& tpl,
 				       u8 channel, u16 base_y, u16 hpos, u8 priority,

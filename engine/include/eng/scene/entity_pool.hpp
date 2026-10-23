@@ -31,6 +31,7 @@ enum class EntityKind : eng::u8 {
 
 /// Pool de entidades de capacidad fija. El llamador guarda la tabla de trayectorias del
 /// nivel (`Span<const Trajectory<s16>>`) y llama `update` una vez por tick de juego.
+/// \tparam MaxEntities capacidad máxima de entidades
 template <eng::u16 MaxEntities>
 struct EntityPool {
 	/// Ranura de entidad. `prev_x/prev_y` permiten el borrado del rastro (BOB) o el

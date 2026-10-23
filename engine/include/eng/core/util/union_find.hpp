@@ -24,6 +24,7 @@
 
 namespace eng::util {
 
+/// \tparam MaxElements capacidad máxima de elementos
 template <eng::u16 MaxElements>
 class UnionFind {
 	static_assert(MaxElements > 0u, "UnionFind: MaxElements debe ser mayor que 0");

@@ -30,6 +30,7 @@
 namespace eng::scene {
 
 /// Emite una **paleta** `count` colores (registros `COLOR00..`).
+/// \tparam Scheduler tipo de scheduler de Copper
 template <class Scheduler>
 void emit_palette(Scheduler& sched, const eng::u16* palette, eng::u8 count) {
 	for (eng::u8 i = 0u; i < count; ++i) {
@@ -38,6 +39,7 @@ void emit_palette(Scheduler& sched, const eng::u16* palette, eng::u8 count) {
 }
 
 /// **Degradado** de `COLOR00` en las líneas `[first, last]`: `step * (linea - first + 1)`.
+/// \tparam Scheduler tipo de scheduler de Copper
 template <class Scheduler>
 void emit_gradient(Scheduler& sched, eng::u8 first, eng::u8 last, eng::u16 step) {
 	eng::u16 k = 1u;
@@ -48,6 +50,7 @@ void emit_gradient(Scheduler& sched, eng::u8 first, eng::u8 last, eng::u16 step)
 }
 
 /// **Fine-scroll horizontal** parcheable por frame: MOVE de `BPLCON1` con `handle` tipado.
+/// \tparam Scheduler tipo de scheduler de Copper
 template <class Scheduler>
 [[nodiscard]] ::eng::copper::PatchHandle emit_fine_scroll(Scheduler& sched,
 							  eng::u16 initial = 0u) {
@@ -207,6 +210,7 @@ struct Band {
 /// `bytes_per_row`. Con **dual playfield** (`planes_view_b`) emite PF1 en los planos pares y PF2
 /// en los impares, intercalados. Es lo que usa `RasterLayout` para el display y para el **split
 /// vertical** (reapuntar al inicio del bucle a mitad del tramo).
+/// \tparam Scheduler tipo de scheduler de Copper
 template <class Scheduler>
 void emit_band_pointers(Scheduler& sched, const Band& b, eng::s32 off = 0, eng::s32 off_b = 0) {
 	if (b.planes == 0u) {
@@ -236,6 +240,7 @@ void emit_band_pointers(Scheduler& sched, const Band& b, eng::s32 off = 0, eng::
 
 /// Emite un display de **una banda** (cabecera + punteros + paleta) desde su descripción: atajo de
 /// `RasterLayout` para un solo tramo. El juego no ve registros.
+/// \tparam Scheduler tipo de scheduler de Copper
 template <class Scheduler>
 void emit_display(Scheduler& sched, const Band& b) {
 	eng::playfield::FieldHeaderConfig h {};
@@ -351,6 +356,7 @@ public:
 	/// Materializa el campo: la banda 0 como display y las demás como `ModeSwitchZone` en su
 	/// `top`. Devuelve `false` si una zona no es utilizable (DDF desalineado, planos fuera de
 	/// rango, base ausente con `planes > 0`).
+	/// \tparam Scheduler tipo de scheduler de Copper
 	template <class Scheduler>
 	[[nodiscard]] bool materialize(Scheduler& sched) const {
 		if (m_count == 0u) {

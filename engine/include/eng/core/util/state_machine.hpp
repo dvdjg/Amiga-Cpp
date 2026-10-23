@@ -34,6 +34,8 @@
 namespace eng::util {
 
 /// Una transicion `from --event--> to` de la maquina.
+/// \tparam State tipo de estado almacenado
+/// \tparam Event tipo de evento que dispara transiciones
 template <class State, class Event>
 struct Transition {
 	State from;
@@ -41,6 +43,8 @@ struct Transition {
 	State to;
 };
 
+/// \tparam State tipo de estado almacenado
+/// \tparam Event tipo de evento que dispara transiciones
 template <class State, class Event>
 class StateMachine {
 public:

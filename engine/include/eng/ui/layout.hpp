@@ -190,6 +190,7 @@ inline void layout_column_fill(Widget& g, eng::u8 gap) noexcept {
 ///
 /// El llamador pasa una función `measure(Widget&)` (p. ej. `eng::ui::measure`) que devuelve el
 /// tamaño preferido; el layout no conoce los tipos. Devuelve el tamaño total ocupado.
+/// \tparam MeasureFn callable que mide un widget
 template <class MeasureFn>
 Rect layout_fit_children(Widget& g, MeasureFn&& measure, eng::u8 gap, bool vertical,
 			 bool expand_width = false) noexcept {

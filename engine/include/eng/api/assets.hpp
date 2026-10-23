@@ -103,6 +103,7 @@ public:
 	bool add(const char* name, const eng::u8* data, eng::usize size) noexcept {
 		return name != nullptr && add<Tag>(eng::util::StringView {name}, data, size);
 	}
+	/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 	template <class Tag>
 	bool add(eng::util::StringView name, const eng::u8* data, eng::usize size) noexcept {
 		return add_checked<Tag>(name, data, size).has_value();
@@ -110,12 +111,14 @@ public:
 
 	/// Como `add`, devolviendo la **causa del fallo** (`Result`): `InvalidArgument` (sin gestor,
 	/// nombre/datos nulos), `OutOfMemory` (no cabe) o `HardwareLimit` (tabla llena).
+	/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 	template <class Tag>
 	[[nodiscard]] eng::util::Expected<void, eng::Result>
 	add_checked(const char* name, const eng::u8* data, eng::usize size) noexcept {
 		if (name == nullptr) return eng::util::unexpected(eng::Result::InvalidArgument);
 		return add_checked<Tag>(eng::util::StringView {name}, data, size);
 	}
+	/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 	template <class Tag>
 	[[nodiscard]] eng::util::Expected<void, eng::Result>
 	add_checked(eng::util::StringView name, const eng::u8* data, eng::usize size) noexcept {
@@ -159,6 +162,7 @@ public:
 
 	/// Como `create`, devolviendo el bloque **o la causa** (`InvalidArgument` sin gestor,
 	/// `OutOfMemory` si no cabe).
+	/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 	template <class Tag>
 	[[nodiscard]] eng::util::Expected<Block<Tag>, eng::Result> create_checked(u32 bytes) noexcept {
 		if (!m_mem.valid()) {
@@ -173,6 +177,7 @@ public:
 
 	/// **Devuelve** un bloque reservado con `create` al banco correspondiente (según su `kind`).
 	/// La liberación ordenada (sin DMA pendiente) es del flujo; ver `MEMORY_OWNERSHIP.md`.
+	/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 	template <class Tag>
 	void release(const Block<Tag>& block) noexcept {
 		if (!m_mem.valid() || !block.valid()) {

@@ -72,6 +72,7 @@ public:
 	/// \param colors      nº de colores a emitir.
 	/// \param row_repeat  veces que se repite cada fila por Copper (divisor de `height`).
 	/// \return `false` si no cabe o la config no es válida.
+	/// \tparam Backend backend de plataforma usado por la fachada
 	template <class Backend>
 	[[nodiscard]] bool init(Backend& backend, eng::u16 width, eng::u16 height,
 				eng::PaletteWords palette, eng::u8 colors,

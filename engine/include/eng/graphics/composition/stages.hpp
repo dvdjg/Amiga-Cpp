@@ -421,6 +421,7 @@ struct PatchZone {
 /// \param stages  etapas `void(Scene&)` a ejecutar en orden.
 /// \return `false` si `res` no es válida, no cabe (ver `config_error()`) o la lista no
 ///         supera la validación de setup.
+/// \tparam Stages número de etapas de la composición
 template <class... Stages>
 bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 	     const DisplayLimits& limits, Stages... stages) {

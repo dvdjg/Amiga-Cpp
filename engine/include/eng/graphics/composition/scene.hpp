@@ -387,6 +387,7 @@ public:
 	}
 
 	/// Toma el control mostrando el buffer 0 (una vez).
+	/// \tparam Backend backend de plataforma usado por la fachada
 	template <typename Backend>
 	void takeover(Backend& backend) {
 		patch_plane_pointers(0u);
@@ -424,6 +425,7 @@ public:
 	/// Publica la copperlist recién construida con `end_build` (la instala en el backend por
 	/// `COP1LC`). La ruta **planar** no lo necesita (lista estática + parcheo de `BPLxPT`); la
 	/// usa el modo **copper chunky**, cuya lista cambia cada frame.
+	/// \tparam Backend backend de plataforma usado por la fachada
 	template <typename Backend>
 	void present(Backend& backend) {
 		m_plan.commit(backend);
@@ -481,6 +483,7 @@ public:
 	/// propietario**): pasa un **functor miembro** (como `FrameTask` en
 	/// `081_background_tasks`), no una lambda temporal. El `static_assert` lo impide en
 	/// compilación en vez de dejar una referencia colgante.
+	/// \tparam F callable invocado por la operación
 	template <class F>
 	Scene& add_effect(F&& fn) {
 		static_assert(!eng::util::is_rvalue_reference_v<F&&>,

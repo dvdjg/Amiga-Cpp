@@ -144,6 +144,7 @@ public:
 
 	/// Toma el control del display mostrando el bloque activo (una vez).
 	/// \param backend  el backend.
+	/// \tparam Backend backend de plataforma usado por la fachada
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		if (m_ok) {
@@ -153,6 +154,7 @@ public:
 
 	/// Publica el bloque activo (swap de `COP1LC`). Llamar tras VBlank.
 	/// \param backend  el backend.
+	/// \tparam Backend backend de plataforma usado por la fachada
 	template <typename Backend>
 	void install(Backend& backend) const {
 		if (m_ok) {

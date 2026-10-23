@@ -91,6 +91,7 @@ struct TileFieldState {
 	}
 };
 
+/// \tparam Scene tipo de escena consultada
 template <typename Scene>
 class TileFieldController {
 public:

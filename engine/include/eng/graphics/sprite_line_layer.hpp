@@ -118,6 +118,7 @@ public:
 	/// `arm_object`/053) y una **reposición** POS-only por (línea, canal) — el walk del DMA
 	/// entrega la DATA de cada línea. Los canales cuya X cae fuera de pantalla
 	/// (`< 0` o `> 0x1fe`) se omiten (no se arman ni se reposicionan).
+	/// \tparam Sched tipo de emisor de Copper/scheduler
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		// 1) Armado único por canal, al inicio de la banda.

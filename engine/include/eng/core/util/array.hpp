@@ -25,6 +25,8 @@
 
 namespace eng::util {
 
+/// \tparam T tipo de elemento almacenado
+/// \tparam N capacidad o dimensión fija
 template <class T, usize N>
 struct Array {
 	T elems[N];

@@ -73,6 +73,7 @@ public:
 	/// `src_scratch` (`planes * 2 * Font8::kRows` palabras, sólido compartido) y `mask_scratch`
 	/// (`pares * 2 * Font8::kRows` palabras, una máscara por par). `x` es arbitrario (la ruta
 	/// pre-desplaza el par si no está alineado). Equivalente a `text`. Ver `glyph_cache.hpp`.
+	/// \tparam Max capacidad máxima
 	template <eng::u16 Max>
 	bool text_blit(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg,
 		       eng::graphics::GlyphCache<Max>& cache, eng::Span<eng::u16> src_scratch,
@@ -87,6 +88,7 @@ public:
 	/// Texto por Blitter con **sombra** (color `shadow` 1 px abajo). Dos pasadas comparten
 	/// `mask_scratch`, así que este debe tener el **doble** (`2 * pares * 2 * Font8::kRows`
 	/// palabras). Ver `glyph_cache.hpp`.
+	/// \tparam Max capacidad máxima
 	template <eng::u16 Max>
 	bool text_shadow_blit(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg, eng::u8 shadow,
 			      eng::graphics::GlyphCache<Max>& cache, eng::Span<eng::u16> src_scratch,

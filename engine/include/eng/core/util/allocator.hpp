@@ -29,6 +29,7 @@ namespace eng::util {
 
 /// Contrato de un asignador del engine: entrega bytes alineados y no lanza.
 /// `deallocate` puede ser no-op (arenas bump); el contenedor no exige recuperarlos.
+/// \tparam A tipo de asignador o contenedor subyacente
 template <class A>
 concept Allocator = requires(A& a, usize bytes, usize align, Span<u8> block) {
 	{ a.allocate(bytes, align) } -> same_as<Span<u8>>;

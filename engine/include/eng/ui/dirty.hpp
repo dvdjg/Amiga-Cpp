@@ -16,6 +16,7 @@ namespace eng::ui {
 inline constexpr Rect kFullRepaint {0, 0, 320u, 256u};
 
 /// Lista de regiones sucias con fusión al añadir (si solapa con una existente, se fusiona).
+/// \tparam Max capacidad máxima
 template <eng::u8 Max = 8u>
 struct DirtyList {
 	Rect rects[Max] {};

@@ -49,6 +49,7 @@ enum class AdsrPhase : u8 {
 /// Envolvente **ADSR** lineal con tasas por muestra (sin división). El llamador fija
 /// `attack_step`/`decay_step`/`release_step` (incremento de nivel por muestra) y
 /// `sustain` (nivel de sostenido en `[0,1]`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct Adsr {
 	S attack_step {};
@@ -108,6 +109,7 @@ struct Adsr {
 
 /// Filtro de **un polo** (low-pass): `y += alpha·(x − y)`. `alpha` en `(0,1]` (mayor =
 /// más rápido); `0` congela. Sin división (`mul_norm`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct OnePole {
 	S alpha {};
@@ -122,6 +124,7 @@ struct OnePole {
 
 /// **Línea de retardo** de `N` muestras (cola circular). `read(delay)` con `delay == 0`
 /// devuelve la última muestra escrita; fuera de rango devuelve 0.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S, usize N>
 class DelayLine {
 	static_assert(N > 0u, "DelayLine: N debe ser mayor que 0");
@@ -156,6 +159,7 @@ private:
 };
 
 /// Recorte suave (saturación lineal a `±limit`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] constexpr S soft_clip(S x, S limit) noexcept {
 	if (x < -limit) {
@@ -167,12 +171,14 @@ template <typename S>
 // --- Osciladores de forma de onda (fase normalizada en [0,1)) ---------------
 
 /// Diente de sierra en `[-1,1)`.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] constexpr S osc_saw(S phase) noexcept {
 	return mul_norm(scalar_traits<S>::from_int(2), phase) - scalar_traits<S>::one();
 }
 
 /// Cuadrada en `{-1,+1}` (50% de ciclo).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] constexpr S osc_square(S phase) noexcept {
 	return phase < scalar_const<S>::from(0.5) ? scalar_traits<S>::one()
@@ -180,6 +186,7 @@ template <typename S>
 }
 
 /// Triangular en `[-1,1]` (pico en `phase == 0.5`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] constexpr S osc_triangle(S phase) noexcept {
 	const S half = scalar_const<S>::from(0.5);
@@ -188,6 +195,7 @@ template <typename S>
 }
 
 /// Senoidal en `[-1,1]` (requiere `sin` del escalar).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] constexpr S osc_sine(S phase) noexcept {
 	return scalar_sin<S>::op(phase * scalar_const<S>::from(6.283185307179586));

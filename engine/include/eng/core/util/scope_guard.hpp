@@ -23,6 +23,7 @@
 
 namespace eng::util {
 
+/// \tparam F callable invocado por la operación
 template <class F>
 class ScopeGuard : public Noncopyable {
 public:
@@ -52,6 +53,7 @@ private:
 };
 
 /// Crea un `ScopeGuard` que ejecuta `fn` al salir del ámbito (deduce el tipo).
+/// \tparam F callable invocado por la operación
 template <class F>
 [[nodiscard]] constexpr ScopeGuard<F> make_scope_guard(F fn) {
 	return ScopeGuard<F>(fn);

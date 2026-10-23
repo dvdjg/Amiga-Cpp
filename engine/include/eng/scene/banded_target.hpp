@@ -19,6 +19,7 @@ namespace eng::scene {
 
 /// Llama `fn(band_index, part)` por cada banda que solape `screen`, con `part` = `screen` recortado
 /// a esa banda (`clip_to_band`). No llama nada para bandas sin solape.
+/// \tparam Fn parámetro de plantilla
 template <class Fn>
 void for_each_band_part(const eng::Box& screen, eng::Span<const BandSpan> bands, Fn&& fn) {
 	for (eng::u16 i = 0u; i < static_cast<eng::u16>(bands.size()); ++i) {

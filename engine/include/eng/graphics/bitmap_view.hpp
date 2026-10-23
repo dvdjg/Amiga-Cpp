@@ -33,6 +33,7 @@ inline constexpr eng::u8 kBytesPerBlitterWord = sizeof(eng::u16);
 inline constexpr eng::u8 kPixelsPerBlitterWord = kBytesPerBlitterWord * kPixelsPerByte;
 
 /// Vista de una zona rectangular. `Bank = Chip` por defecto (el caso DMA: `BPLxPT`/Blitter/Copper).
+/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 template <class Tag, eng::MemoryKind Bank = eng::MemoryKind::Chip>
 struct BitmapView {
 	eng::MemView<Tag, Bank> planes {}; ///< memoria de la zona (tag + banco) + tamaño en bytes
@@ -115,13 +116,16 @@ struct BitmapView {
 };
 
 /// Zona DMA (Chip): la que puede ver el Blitter/Copper (`BPLxPT`).
+/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 template <class Tag>
 using ChipBitmapView = BitmapView<Tag, eng::MemoryKind::Chip>;
 /// Zona de trabajo en Fast (p. ej. chunky antes de un C2P). No DMA.
+/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 template <class Tag>
 using FastBitmapView = BitmapView<Tag, eng::MemoryKind::Fast>;
 /// Zona en Slow RAM (Agnus no la ve: **no** es DMA-visible, como Fast). Se declara por completitud
 /// del medio; su uso normal es trabajo de CPU con el banco explícito en el tipo.
+/// \tparam Tag etiqueta de tipo que identifica el recurso o destino
 template <class Tag>
 using SlowBitmapView = BitmapView<Tag, eng::MemoryKind::Slow>;
 

@@ -29,6 +29,7 @@ enum class RasterPlanError : eng::u8 {
 
 /// Construye `out` (un `RasterLayout`) desde `plan` + `views` (una por capa, en orden). Devuelve el
 /// nº de bandas añadidas, o el error. No limpia `out` (permite añadir franjas antes/después).
+/// \tparam MaxLayers número máximo de capas
 template <eng::u16 MaxLayers>
 [[nodiscard]] eng::util::Expected<eng::u8, RasterPlanError>
 plan_raster_layout(const ScenePlan<MaxLayers>& plan,

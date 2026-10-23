@@ -49,6 +49,8 @@ namespace eng::gfx::proc::terrain {
 /// entre tiles vecinos (dos tramos consecutivos casan por construcción).
 /// \param spec pieza. \param kind `Edge::Water` o `Edge::Path`. \param wx,wy arrays de 4
 ///        salidas con las coordenadas (en píxeles del tile). \return nº de puntos (0..4).
+/// \tparam TW anchura de tile en píxeles
+/// \tparam TH altura de tile en píxeles
 template <eng::u16 TW, eng::u16 TH>
 [[nodiscard]] constexpr eng::u8 course_points(const TileSpec& spec, Edge kind, eng::u16* wx,
 					      eng::u16* wy) {

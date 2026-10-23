@@ -60,6 +60,7 @@ struct SpriteBend {
 /// \param height   líneas del sprite (recortado a `kSpriteMaxHeightLines`).
 /// \param offsets  tabla de offsets X (potencia de dos; típ. 128/256).
 /// \param step     líneas por offset (1 = por línea; 2 = cada 2; 0 se corrige a 1).
+/// \tparam Sched tipo de emisor de Copper/scheduler
 template <class Sched>
 inline void emit_sprite_bend_into(Sched& sched, eng::Span<const SpriteBend> sprites,
 				  u16 base_y, u16 height, eng::Span<const s16> offsets,
@@ -109,6 +110,7 @@ inline void emit_sprite_bend_into(Sched& sched, eng::Span<const SpriteBend> spri
 }
 
 /// Azúcar de un solo canal: misma emisión con un `SpriteBend` efímero.
+/// \tparam Sched tipo de emisor de Copper/scheduler
 template <class Sched>
 inline void emit_sprite_bend_into(Sched& sched, u8 channel, eng::ChipView<eng::SpriteTag> data,
 				  u16 base_y, u16 height, u16 x_base,

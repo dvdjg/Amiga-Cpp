@@ -23,6 +23,7 @@
 namespace eng::util {
 
 /// Enlace de lista **doblemente** enlazada. El usuario deriva su tipo de aquí.
+/// \tparam T tipo de elemento almacenado
 template <class T>
 struct IntrusiveLink {
 	T* prev = nullptr;
@@ -36,6 +37,7 @@ struct IntrusiveLink {
 };
 
 /// Enlace de lista **simplemente** enlazada.
+/// \tparam T tipo de elemento almacenado
 template <class T>
 struct IntrusiveSLink {
 	T* next = nullptr;
@@ -44,6 +46,7 @@ struct IntrusiveSLink {
 
 /// Lista doblemente enlazada intrusiva. No posee los nodos; el llamador los mantiene
 /// vivos mientras estén enlazados.
+/// \tparam T tipo de elemento almacenado
 template <class T>
 class IntrusiveList {
 public:
@@ -194,6 +197,7 @@ private:
 
 /// Lista simplemente enlazada intrusiva (menos memoria por nodo, recorrido en un
 /// sentido). Útil para free-lists y colas donde solo se avanza.
+/// \tparam T tipo de elemento almacenado
 template <class T>
 class IntrusiveSList {
 public:

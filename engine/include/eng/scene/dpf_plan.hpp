@@ -18,6 +18,8 @@ namespace eng::scene {
 /// **Aplica un `ScenePlan` de estrategia `Dpf`** a una config de Xlimited: exige BG + FG a banda
 /// completa, toma la geometría/paleta del **BG** y marca el campo delantero (`foreground_is_pf2`).
 /// `false` si la estrategia no es `Dpf` o faltan los roles. El mapa/banco por field queda al juego.
+/// \tparam MapT tipo de mapa consultado
+/// \tparam MaxLayers número máximo de capas
 template <class MapT, eng::u16 MaxLayers>
 [[nodiscard]] bool apply_dpf_plan(eng::playfield::XlimitedSceneConfigT<MapT>& cfg,
 				  const ScenePlan<MaxLayers>& plan) noexcept {

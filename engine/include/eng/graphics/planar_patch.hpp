@@ -22,6 +22,7 @@ namespace eng::graphics {
 
 /// Construye el bloque planar de un parche `W`×`H` con `pixel(y, x)`; `Words` debe ser
 /// `(W/16) × 4 × H` palabras. `constexpr`: el parche nace en ROM sin código de runtime.
+/// \tparam Fn parámetro de plantilla
 template <eng::usize Words, eng::u8 W, eng::u8 H, class Fn>
 [[nodiscard]] constexpr eng::util::Array<eng::u16, Words> make_planar_patch(Fn pixel) {
 	static_assert(W % 16u == 0u, "make_planar_patch: el ancho debe ser multiplo de 16 px");

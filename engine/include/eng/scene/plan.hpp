@@ -101,6 +101,7 @@ enum class SceneStrategy : eng::u8 {
 }
 
 /// **Plan de escena** de capacidad fija (sin heap): lista de capas + la estrategia que le toca.
+/// \tparam MaxLayers número máximo de capas
 template <eng::u16 MaxLayers = 8u>
 class ScenePlan {
 public:

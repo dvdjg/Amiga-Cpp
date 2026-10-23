@@ -99,6 +99,7 @@ public:
 	/// Copper**: además, por cada línea, un `WAIT` en `arm_hpos` (después del fetch DMA) y
 	/// una **ráfaga** de `SPRxCTL`+`SPRxPOS`+`SPRxDATB`+`SPRxDATA` que reescribe posición y
 	/// data de la línea; `DATA` arma el sprite.
+	/// \tparam Sched tipo de emisor de Copper/scheduler
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2); // prioridad de fondo
@@ -178,6 +179,7 @@ public:
 	/// **Prepara el parcheo por frame**: emite la capa (como `emit_into`) **registrando** dónde
 	/// caen las palabras `SPRxPOS`. Llamar **una vez** (setup). Después, `patch(words)` reescribe
 	/// solo esas palabras con el scroll actual, sin re-emitir (coste ~0 por frame).
+	/// \tparam Sched tipo de emisor de Copper/scheduler
 	template <class Sched>
 	void bind(Sched& sched) {
 		m_binding = true;

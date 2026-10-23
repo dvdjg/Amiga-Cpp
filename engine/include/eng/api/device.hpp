@@ -25,6 +25,7 @@
 namespace eng {
 
 /// Vista de servicios de hardware sobre un backend y la escena ligada (no propietaria).
+/// \tparam Backend backend de plataforma usado por la fachada
 template <class Backend>
 class Device {
 public:
@@ -36,12 +37,14 @@ public:
 	/// (`memory_manager().chip().reserve<Tag>(...)`). El juego no toca las arenas: los recursos
 	/// persistentes van por banco (`WorksTag`/`PlaneTag`/…) y la scratch de frame la gestiona el
 	/// engine (`reset_frame`). Ver `MEMORY_OWNERSHIP.md`.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	[[nodiscard]] decltype(auto) memory_manager() {
 		return m_backend.memory_manager();
 	}
 
 	// --- Blitter ----------------------------------------------------------------------
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool wait_blitter() {
 		if constexpr (requires(B& b) { b.wait_blitter(); }) {
@@ -53,6 +56,7 @@ public:
 
 	/// Instala el **rasterizador por Blitter** de la escena (los rellenos de `screen()` usan
 	/// el Blitter). `false` si el backend no lo soporta.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool install_raster(graphics::composition::Scene& scene) {
 		if constexpr (requires(B& b, graphics::composition::Scene& s) {
@@ -74,6 +78,7 @@ public:
 	/// \param w,h          rectángulo en píxeles.
 	/// \param wait         `true` espera al Blitter; `false` lo deja en vuelo.
 	/// \return `false` si el backend no lo soporta.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w,
 			   u16 h, bool wait = true) {
@@ -101,6 +106,7 @@ public:
 	/// \param source_modulo  `BLTAMOD`/`BLTBMOD` (bytes).
 	/// \param dest_modulo    `BLTDMOD` (bytes; normalmente = `source_modulo`).
 	/// \return `false` si el backend no lo soporta.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool blitter_or_bobs(eng::Span<const graphics::OrBob> bobs, u16 words, u16 height,
 			     s16 source_modulo, s16 dest_modulo) {
@@ -122,6 +128,7 @@ public:
 	}
 
 	/// **Un solo BOB OR** (azúcar del anterior, sin envolver en `Span` a mano).
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool blitter_or_bobs(const graphics::OrBob& bob, u16 words, u16 height, s16 source_modulo,
 			     s16 dest_modulo) {
@@ -162,6 +169,7 @@ public:
 	/// Ejecuta un `FramePlan` (jobs de Blitter) en el backend.
 	/// \param plan  el plan del frame (blits encolados).
 	/// \return `false` si el backend no ejecuta planes.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool execute_frame_plan(graphics::FramePlan& plan) {
 		if constexpr (requires(B& b, const graphics::FramePlan& p) { b.execute_frame_plan(p); }) {
@@ -176,6 +184,7 @@ public:
 	/// Instala un programa de Copper propio (`copper::Plan`) en el backend (una vez, en `init`).
 	/// \param plan  el programa de Copper a instalar.
 	/// \return `false` si el programa/backend no lo permite.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool takeover_copper(copper::Plan& plan) {
 		if constexpr (requires(B& b, copper::Plan& p) { p.takeover(b); }) {
@@ -190,6 +199,7 @@ public:
 	/// Instala una copperlist **estática** propia en Chip (`takeover`, una vez en `init`).
 	/// Es el camino de mínima CPU: el driver construye la estructura una vez y por frame solo
 	/// parchea palabras de dato con `copper::patch_data`.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool takeover_copper(eng::ChipView<eng::CopperTag> list) {
 		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.takeover_display(v); }) {
@@ -207,6 +217,7 @@ public:
 	/// sin modificar words que el DMA podría estar leyendo (`WinUAE-DBG/custom.cpp:2921-2942,
 	/// `11237-11245`; AHRM 3.ª cap. 2, `COP1LC`/`COPJMP1`). Es el camino de los drivers que
 	/// cambian de estructura sin reemitirla cada frame.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool commit_copper(eng::ChipView<eng::CopperTag> list) {
 		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.install_copper_list(v); }) {
@@ -222,6 +233,7 @@ public:
 	/// Instala una copperlist de doble buffer propia (una vez, en `init`). Se usa cuando un
 	/// driver del juego recompone directamente un programa ordenado en cada frame y no necesita
 	/// el arbitraje de intenciones de `copper::Plan`.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool takeover_copper(eng::copper::DoubleBuffer& lists) {
 		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.takeover_display(v); }) {
@@ -237,6 +249,7 @@ public:
 	/// Publica un programa de Copper propio (swap de `COP1LC`, tras VBlank).
 	/// \param plan  el programa de Copper ya emitido.
 	/// \return `false` si el backend no lo publica.
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool commit_copper(copper::Plan& plan) {
 		if constexpr (requires(B& b, copper::Plan& p) { p.commit(b); }) {
@@ -249,6 +262,7 @@ public:
 	}
 
 	/// Publica la lista activa de un doble buffer ya construido (swap de `COP1LC` en VBlank).
+	/// \tparam B tipo del backend de plataforma
 	template <class B = Backend>
 	bool commit_copper(eng::copper::DoubleBuffer& lists) {
 		if constexpr (requires(B& b, eng::ChipView<eng::CopperTag> v) { b.install_copper_list(v); }) {

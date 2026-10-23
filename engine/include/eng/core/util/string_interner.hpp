@@ -26,6 +26,8 @@
 
 namespace eng::util {
 
+/// \tparam MaxStrings capacidad máxima de cadenas internadas
+/// \tparam A tipo de asignador o contenedor subyacente
 template <eng::u16 MaxStrings, class A>
 class StringInterner {
 	static_assert(Allocator<A>, "StringInterner: A debe cumplir Allocator");

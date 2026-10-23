@@ -29,6 +29,7 @@
 
 namespace eng::util {
 
+/// \tparam Args argumentos de construcción reenviados al elemento
 template <class... Args>
 struct Callback {
 	using fn_type = void (*)(void*, Args...);

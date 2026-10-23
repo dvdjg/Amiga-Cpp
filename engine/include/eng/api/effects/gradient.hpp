@@ -41,6 +41,7 @@ public:
 	void set_phase(eng::u16 phase) noexcept { m_fx.set_phase(phase); }
 
 	/// Aporta las intenciones de Copper a cualquier plan con `add(CopperIntent*, u16)`.
+	/// \tparam Plan tipo de plan de Copper
 	template <typename Plan>
 	void apply_into(Plan& plan) {
 		m_fx.apply_into(plan);

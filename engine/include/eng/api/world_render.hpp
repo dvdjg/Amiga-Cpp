@@ -19,6 +19,7 @@ namespace eng {
 
 /// Emite las capas `Bitmap` del mundo como filas de color indexado sobre `screen` (run-length por
 /// fila para reducir el número de operaciones). Devuelve `false` si alguna fila no cupo.
+/// \tparam World tipo de mundo o renderizador consultado
 template <class World>
 [[nodiscard]] bool materialize_bitmap_layers(World& world, u16 width, u16 height,
 					     Screen screen) noexcept {
@@ -47,6 +48,7 @@ template <class World>
 /// Materializa el **mundo retenido** sobre `screen` en el orden de composición: primero las capas
 /// `Fill` (fondo, cada una limpiada a color 0 y luego pintada de su color) y después las capas
 /// `Bitmap`. Devuelve `false` si algo no cupo; el llamador lo refleja en su telemetría.
+/// \tparam World tipo de mundo o renderizador consultado
 template <class World>
 [[nodiscard]] bool materialize_world_layers(World& world, u16 width, u16 height,
 					    Screen screen) noexcept {

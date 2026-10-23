@@ -31,6 +31,7 @@
 
 namespace eng::util {
 
+/// \tparam N capacidad o dimensión fija
 template <usize N>
 class BitSet {
 	static_assert(N > 0u, "BitSet: N debe ser mayor que 0");

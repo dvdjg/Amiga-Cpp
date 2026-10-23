@@ -33,6 +33,7 @@ namespace detail {
 [[noreturn]] inline void bad_access() { __builtin_trap(); }
 } // namespace detail
 
+/// \tparam T tipo de elemento almacenado
 template <class T>
 class Optional {
 public:
@@ -85,6 +86,7 @@ public:
 	constexpr void reset() noexcept { m_has = false; }
 
 	/// Construye el valor in situ y lo marca presente. Devuelve la referencia.
+	/// \tparam Args argumentos de construcción reenviados al elemento
 	template <class... Args>
 	constexpr T& emplace(Args&&... args) {
 		m_value = T(forward<Args>(args)...);

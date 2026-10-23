@@ -37,6 +37,7 @@ struct IntervalT {
 using Interval = IntervalT<eng::s32>;
 
 /// ¿Solapan `a` y `b`? (semiabiertos: tocarse por un extremo NO es solapar).
+/// \tparam T tipo de elemento almacenado
 template <class T>
 [[nodiscard]] constexpr bool interval_overlaps(IntervalT<T> a, IntervalT<T> b) noexcept {
 	return a.lo < b.hi && b.lo < a.hi;

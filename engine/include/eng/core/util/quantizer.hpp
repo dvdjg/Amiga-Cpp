@@ -32,6 +32,8 @@ struct QuantizerResult {
 };
 
 /// Entrena `centroids` con Lloyd-Max y devuelve la distorsión de la última iteración.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
+/// \tparam MaxLevels número máximo de niveles de cuantización
 template <class S, eng::usize MaxLevels = 64u>
 [[nodiscard]] QuantizerResult<S> lloyd_max(eng::Span<const S> samples, eng::Span<S> centroids,
 	eng::u16 max_iterations) noexcept {

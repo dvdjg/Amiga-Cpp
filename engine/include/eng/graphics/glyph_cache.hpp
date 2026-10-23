@@ -55,6 +55,7 @@ struct GlyphMask {
 
 /// Caché de glifos de capacidad fija: guarda la máscara por *code point* (búsqueda lineal; las
 /// UIs usan pocas decenas de glifos distintos). Sin heap.
+/// \tparam Max capacidad máxima
 template <eng::u16 Max = 128u>
 class GlyphCache {
 public:
@@ -187,6 +188,7 @@ private:
 /// `clip`: si no está vacío, solo se emiten los bloques que caben **enteros** (no parte glifos a
 /// medias; coherente con `draw_text_clipped`). Devuelve `false` si no se pudo encolar (tamaño de los
 /// buffers, planos…). La ruta CPU equivalente es `Surface::draw_text`.
+/// \tparam Max capacidad máxima
 template <eng::u16 Max>
 bool draw_text_blit(eng::playfield::Surface& s, eng::graphics::FramePlan& plan, GlyphCache<Max>& cache,
 		    eng::s32 x, eng::s32 y, const char* text, eng::u8 color,
@@ -313,6 +315,7 @@ bool draw_text_blit(eng::playfield::Surface& s, eng::graphics::FramePlan& plan, 
 /// texto) que comparten `mask_scratch`; como el plan se ejecuta al final, la segunda pasada
 /// pisaría las máscaras de la primera, así que `mask_scratch` debe tener el **doble**
 /// (`2 * pares * 2 * Font8::kRows`): la primera mitad para la sombra y la segunda para el texto.
+/// \tparam Max capacidad máxima
 template <eng::u16 Max>
 bool draw_text_shadow_blit(eng::playfield::Surface& s, eng::graphics::FramePlan& plan,
 			   GlyphCache<Max>& cache, eng::s32 x, eng::s32 y, const char* text,

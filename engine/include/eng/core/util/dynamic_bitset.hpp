@@ -26,6 +26,7 @@
 
 namespace eng::util {
 
+/// \tparam A tipo de asignador o contenedor subyacente
 template <class A>
 class DynamicBitSet {
 	static_assert(Allocator<A>, "DynamicBitSet: A debe cumplir Allocator");

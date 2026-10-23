@@ -20,6 +20,7 @@
 
 namespace eng::util {
 
+/// \tparam N capacidad o dimensión fija
 template <usize N>
 class StaticString {
 	static_assert(N >= 1u, "StaticString: N incluye el terminador, debe ser >= 1");

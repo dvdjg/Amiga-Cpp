@@ -204,6 +204,7 @@ namespace detail {
 /// pintar por el contorno (borde seguro de 1 px). El último píxel **incluido** sigue
 /// siendo `width-1` (el trazador lo dibuja en `width-2`, dentro del bitmap) y el borde
 /// inferior `height-1` (no escribe la fila `height`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S = eng::pix>
 [[nodiscard]] inline eng::u8 clip_face_to_rect(const S* xs, const S* ys, eng::u8 n, S min_x,
 					       S max_x, S min_y, S max_y, S* out_xs, S* out_ys) {
@@ -513,6 +514,7 @@ inline eng::u32 fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> faces,
 /// fb.fill_cpu(dest, row_bytes, plane_bytes, planes, width, height);  // EndFrame
 /// // o, en el backend: backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), ...);
 /// ```
+/// \tparam MaxFaces número máximo de caras
 template <eng::u16 MaxFaces>
 class PlaneFillBuilder {
 public:

@@ -45,6 +45,7 @@
 namespace eng {
 
 /// Ver doc del fichero.
+/// \tparam MaxActors capacidad máxima de actores
 template <eng::u16 MaxActors = 64u>
 class SpriteScene {
 public:
@@ -175,6 +176,7 @@ public:
 	/// hecho, los canales con cadena se arman **sin rearmes** (la cadena los sirve). Una
 	/// sola llamada por frame tras `emit`; el juego no toca placements, canales ni
 	/// `SpriteManager`.
+	/// \tparam Sched tipo de emisor de Copper/scheduler
 	template <class Sched>
 	void present(Sched& sched, eng::u16 arm_line = 32u) const noexcept {
 		eng::graphics::SpriteManager::emit_placements_into(sched, placements(), arm_line,

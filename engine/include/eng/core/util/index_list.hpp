@@ -34,6 +34,8 @@
 
 namespace eng::util {
 
+/// \tparam Index tipo entero usado para índices
+/// \tparam Null valor centinela que representa "sin índice"
 template <class Index, Index Null>
 class IndexList {
 public:

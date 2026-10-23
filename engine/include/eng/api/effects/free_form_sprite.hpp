@@ -64,12 +64,14 @@ public:
 
 	/// Monta la copperlist (con las `POS` fijas por línea) y **registra** las palabras `SPRxPOS`
 	/// para el scroll. Llamar **una vez** (setup).
+	/// \tparam Sched tipo de emisor de Copper/scheduler
 	template <class Sched>
 	void bind(Sched& sched) {
 		m_layer.bind(sched);
 	}
 
 	/// Emite sin registrar (para re-emitir la lista entera si hiciera falta).
+	/// \tparam Sched tipo de emisor de Copper/scheduler
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		m_layer.emit_into(sched);

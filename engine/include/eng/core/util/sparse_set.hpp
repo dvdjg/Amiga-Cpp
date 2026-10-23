@@ -23,6 +23,8 @@
 
 namespace eng::util {
 
+/// \tparam T tipo de elemento almacenado
+/// \tparam MaxElements capacidad máxima de elementos
 template <class T, eng::u16 MaxElements>
 class SparseSet {
 	static_assert(MaxElements > 0u, "SparseSet: MaxElements debe ser mayor que 0");

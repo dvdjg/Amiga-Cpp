@@ -103,6 +103,7 @@ public:
 	/// primera columna y no se dibuja. **No** se reescribe `SPRxCTL` ni se intercalan WAITs
 	/// (romperían la carrera). Ver `sprite-horizontal-multiplex.md` y la copperlist real de
 	/// Risky Woods (WAIT hpos 0x30, primera columna 0x48, paso 16 px).
+	/// \tparam Sched tipo de emisor de Copper/scheduler
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);

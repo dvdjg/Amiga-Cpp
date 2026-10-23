@@ -58,6 +58,7 @@ struct StaticDisplayLayout {
 };
 
 /// Lista de copper compilada: words + ranuras de parcheo de las palabras de DATO.
+/// \tparam MaxWords número máximo de palabras Copper
 template <eng::u16 MaxWords>
 struct StaticCopperList {
 	eng::util::Array<eng::u16, MaxWords> words {};
@@ -93,6 +94,7 @@ namespace static_detail {
 /// Acumulador de presupuesto por línea del compilador (constexpr; mismo criterio que
 /// `Timeline`: MOVEs entre WAITs, líneas visibles 0x2c-0xf0, presupuesto HBlank).
 /// Las funciones reciben la lista destino como parámetro (no se guarda puntero).
+/// \tparam MaxWords número máximo de palabras Copper
 template <eng::u16 MaxWords>
 struct LineBudget {
 	eng::u16 cur_line = 0xffffu; ///< línea del último WAIT (`0xffff` = aún sin WAIT)
@@ -136,6 +138,7 @@ struct LineBudget {
 /// Añade un WAIT de línea completo (0..311), con el mismo par de overflow que
 /// `CopperBuilder::wait_line_pal` (`0xffdf/0xfffe` la primera vez que se cruza la 255) y
 /// la misma máscara (`0xff00` dentro del campo, `0xfffe` al cruzar).
+/// \tparam MaxWords número máximo de palabras Copper
 template <eng::u16 MaxWords>
 constexpr void emit_wait_line(StaticCopperList<MaxWords>& out, eng::u16 vpos,
 			      bool& overflow_sent, LineBudget<MaxWords>& budget) {
@@ -159,6 +162,7 @@ constexpr void emit_wait_line(StaticCopperList<MaxWords>& out, eng::u16 vpos,
 /// \param reg         registro destino.
 /// \param value       palabra de dato.
 /// \param is_address  `true` si el valor es una dirección (lo marca para el reloc).
+/// \tparam MaxWords número máximo de palabras Copper
 template <eng::u16 MaxWords>
 constexpr void emit_move(StaticCopperList<MaxWords>& out, eng::u16 reg, eng::u16 value,
 			 bool is_address = false) {
@@ -174,6 +178,7 @@ constexpr void emit_move(StaticCopperList<MaxWords>& out, eng::u16 reg, eng::u16
 /// \param out      lista estática destino.
 /// \param plane    índice de plano base-cero.
 /// \param address  dirección Chip del plano.
+/// \tparam MaxWords número máximo de palabras Copper
 template <eng::u16 MaxWords>
 constexpr void emit_plane_pointer(StaticCopperList<MaxWords>& out, eng::u8 plane,
 				  eng::u32 address) {
@@ -192,6 +197,7 @@ constexpr void emit_plane_pointer(StaticCopperList<MaxWords>& out, eng::u8 plane
 /// recorte de `count` en las paletas) y calcula en compilación el presupuesto por línea
 /// (ver `StaticCopperList`). Las intenciones que el scheduler cuenta como `unhandled`
 /// (layout sin display o rearm sin puntero) se omiten igual.
+/// \tparam MaxWords número máximo de palabras Copper
 template <eng::u16 MaxWords, eng::u16 N>
 constexpr StaticCopperList<MaxWords> compile_intents(const graphics::CopperIntent (&intents)[N],
 						     StaticDisplayLayout layout) {

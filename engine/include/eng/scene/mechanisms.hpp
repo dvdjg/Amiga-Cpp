@@ -36,6 +36,7 @@ namespace eng::scene {
 
 /// **Muelle** (jump pad): platillo que se comprime con el peso y devuelve el impulso al
 /// soltarse, con retorno amortiguado a la posición de reposo.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct Spring {
 	eng::math::Vec<2, S> rest {}; ///< posición del platillo en reposo (x,y)
@@ -50,6 +51,7 @@ struct Spring {
 
 /// Contacto de los pies con el muelle + retorno. Actualiza `feet`/`feet_vy` (el pie se
 /// apoya en el platillo y sale con `boost`). `half_w` = media anchura de los pies.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void spring_update(Spring<S>& s, eng::math::Vec<2, S>& feet, S& feet_vy, S half_w) noexcept {
 	using eng::math::scalar_traits;
@@ -99,6 +101,7 @@ inline void spring_update(Spring<S>& s, eng::math::Vec<2, S>& feet, S& feet_vy, 
 /// **Catapulta** de brazo: pivote + longitud + ángulo (unidades de tabla) con estados de
 /// carga y disparo. El visual del brazo (y del proyectil en el extremo) lo materializa el
 /// juego; aquí vive la máquina de estado y el **extremo** analítico.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct Catapult {
 	eng::math::Vec<2, S> pivot {}; ///< pivote del brazo
@@ -113,6 +116,7 @@ struct Catapult {
 };
 
 /// Deja el brazo cargado (quieto en `load_angle`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void catapult_load(Catapult<S>& c) noexcept {
 	c.loaded = true;
@@ -121,6 +125,7 @@ inline void catapult_load(Catapult<S>& c) noexcept {
 }
 
 /// Dispara si estaba cargada (un solo disparo; `catapult_update` lo para en `max_angle`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void catapult_fire(Catapult<S>& c) noexcept {
 	if (!c.loaded) {
@@ -132,6 +137,7 @@ inline void catapult_fire(Catapult<S>& c) noexcept {
 }
 
 /// Avanza el brazo: disparo hacia `max_angle` o retorno suave a la carga/reposo.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void catapult_update(Catapult<S>& c) noexcept {
 	if (c.firing) {
@@ -154,6 +160,7 @@ inline void catapult_update(Catapult<S>& c) noexcept {
 
 /// Extremo del brazo (donde va el proyectil): `x = pivot.x + arm·cos(angle)`,
 /// `y = pivot.y - arm·sin(angle)` con la tabla de seno (0 = derecha, positivo = arriba).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void catapult_tip(const Catapult<S>& c, eng::math::Vec<2, S>& out) noexcept {
 	const eng::s32 arm = eng::math::scalar_traits<S>::to_int(c.arm_length);
@@ -165,6 +172,7 @@ inline void catapult_tip(const Catapult<S>& c, eng::math::Vec<2, S>& out) noexce
 /// **Caja sólida AABB** para plataformas, puertas y obstáculos. `pos` es la esquina
 /// superior izquierda; `size`, el tamaño. La colisión de un movimiento completo la resuelve
 /// `core/util/collision.hpp`/el juego; esta caja es el dato compartido con `Door`.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct SolidBox {
 	eng::math::Vec<2, S> pos {};
@@ -173,6 +181,7 @@ struct SolidBox {
 };
 
 /// ¿Se solapan dos cajas activas? (bordes que solo se tocan no cuentan).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] constexpr bool solid_overlap(const SolidBox<S>& a, const SolidBox<S>& b) noexcept {
 	if (!a.active || !b.active) {
@@ -189,6 +198,7 @@ enum class DoorState : eng::u8 { Closed, Opening, Open, Closing };
 
 /// **Puerta deslizante**: `closed` es la posición cerrada; `open_offset` el desplazamiento
 /// al abrir (vector, p. ej. `{0,-32}`); `open_ticks` la duración; `size` la caja sólida.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct Door {
 	eng::math::Vec<2, S> closed {};
@@ -200,6 +210,7 @@ struct Door {
 };
 
 /// Pide abrir (idempotente desde cerrada/cerrándose).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void door_request_open(Door<S>& d) noexcept {
 	if (d.state == DoorState::Closed || d.state == DoorState::Closing) {
@@ -208,6 +219,7 @@ inline void door_request_open(Door<S>& d) noexcept {
 }
 
 /// Pide cerrar (idempotente desde abierta/abriéndose).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void door_request_close(Door<S>& d) noexcept {
 	if (d.state == DoorState::Open || d.state == DoorState::Opening) {
@@ -216,6 +228,7 @@ inline void door_request_close(Door<S>& d) noexcept {
 }
 
 /// Avanza la puerta `ticks` ticks; al llegar a un extremo fija el estado final.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void door_update(Door<S>& d, eng::u16 ticks = 1u) noexcept {
 	if (d.state == DoorState::Opening) {
@@ -236,6 +249,7 @@ inline void door_update(Door<S>& d, eng::u16 ticks = 1u) noexcept {
 /// Posición actual de la puerta (interpolada linealmente entre cerrada y abierta). La
 /// multiplicación va **antes** de la división para que un escalar entero (`s16`) no
 /// pierda la fracción: `open_offset * pos / open_ticks`.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] inline eng::math::Vec<2, S> door_position(const Door<S>& d) noexcept {
 	if (d.open_ticks == 0u) {
@@ -248,6 +262,7 @@ template <typename S>
 }
 
 /// Caja sólida de la puerta en su posición actual (el juego decide si `Open` no bloquea).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] inline SolidBox<S> door_solid(const Door<S>& d) noexcept {
 	return SolidBox<S> {door_position(d), d.size, true};

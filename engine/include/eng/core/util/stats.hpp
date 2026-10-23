@@ -64,6 +64,7 @@ template <class S>
 
 /// Media aritmética. Con acumulador ancho suma en `wide_t` y divide con `wide_div`
 /// (en 68000, `divs.w` para `Fixed<s16>`), así la suma intermedia no satura.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S>
 [[nodiscard]] constexpr S mean(Span<const S> xs) {
 	if (xs.empty()) {
@@ -84,6 +85,7 @@ template <class S>
 /// recorrer los datos dos veces. Con `Fixed<s16>` acumula en el propio escalar (una
 /// varianza con acumulador ancho necesitaría productos de 64 bits — `__muldi3` —, que
 /// no se quieren en 68000): usar valores dentro del rango del fixed.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S>
 [[nodiscard]] constexpr S variance(Span<const S> xs) {
 	S mu = scalar_traits<S>::zero();
@@ -103,6 +105,7 @@ template <class S>
 
 /// Desviación típica (raíz de `variance`). Con `Fixed` requiere incluir
 /// `eng/core/math/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S>
 [[nodiscard]] constexpr S stddev(Span<const S> xs) {
 	return scalar_sqrt<S>::op(variance(xs));
@@ -110,6 +113,7 @@ template <class S>
 
 /// k-ésimo menor (0 = mínimo). Copia `items` en `scratch` y aplica `nth_element`; si
 /// `scratch` es menor, usa su tamaño. Precondición: `scratch` no vacío.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S>
 constexpr S kth_smallest(Span<const S> items, Span<S> scratch, usize k) {
 	const usize n = items.size() < scratch.size() ? items.size() : scratch.size();
@@ -126,6 +130,7 @@ constexpr S kth_smallest(Span<const S> items, Span<S> scratch, usize k) {
 
 /// Mediana (elemento central, ``n/2``; para `n` par devuelve el mayor de los dos
 /// centrales, sin dividir). Muta `scratch`.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S>
 constexpr S median(Span<const S> items, Span<S> scratch) {
 	const usize n = items.size() < scratch.size() ? items.size() : scratch.size();
@@ -138,6 +143,7 @@ constexpr S median(Span<const S> items, Span<S> scratch) {
 /// Histograma por ancho fijo: cuenta en `counts[i]` los valores en
 /// `[lo + i·width, lo + (i+1)·width)`. Devuelve cuántos quedaron fuera (por debajo de
 /// `lo` o más allá del último cubo). Requiere división.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S>
 constexpr u32 histogram(Span<const S> xs, Span<u32> counts, S lo, S width) {
 	if (!(scalar_traits<S>::zero() < width) || counts.empty()) {
@@ -162,12 +168,14 @@ constexpr u32 histogram(Span<const S> xs, Span<u32> counts, S lo, S width) {
 /// Media móvil exponencial: `prev + alpha·(x − prev)`. `alpha` en `[0,1]` (0 ignora la
 /// muestra, 1 la toma entera). No divide (el llamador fija `alpha`). Base del suavizado
 /// de fps/carga.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S>
 [[nodiscard]] constexpr S ema(S prev, S x, S alpha) {
 	return prev + mul_norm(alpha, x - prev);
 }
 
 /// Media aritmética de una **ventana** de las últimas `N` muestras (sin heap).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <class S, usize N>
 class RunningMean {
 	static_assert(N > 0u, "RunningMean: N debe ser mayor que 0");

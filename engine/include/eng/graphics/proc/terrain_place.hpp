@@ -93,6 +93,8 @@ namespace place_detail {
 /// (hierba, árboles, casa, lago…) sin romper ninguna casación.
 /// \tparam Set tipo del set. \param set set. \param l mapa en construcción.
 /// \param x,y celda a comprobar. \return true si puede alojar una pieza de bordes verdes.
+/// \tparam W anchura en celdas o píxeles
+/// \tparam H altura en celdas o píxeles
 template <class Set, eng::u16 W, eng::u16 H>
 [[nodiscard]] inline bool green_neighbors_ok(const Set& set, const TerrainLayout<W, H>& l,
 					     eng::u16 x, eng::u16 y) {

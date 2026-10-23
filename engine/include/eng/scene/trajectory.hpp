@@ -29,6 +29,7 @@ namespace eng::scene {
 
 /// Punto de una trayectoria: offset (relativo al origen si `Trajectory::relative`) y
 /// duración en ticks de juego hasta el siguiente punto.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct PathPoint {
 	eng::math::Vec<2, S> p {};
@@ -37,6 +38,7 @@ struct PathPoint {
 
 /// Trayectoria como tabla de puntos. `relative`: los puntos son offsets respecto al origen
 /// del seguidor; si no, son posiciones absolutas de mundo.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct Trajectory {
 	eng::Span<const PathPoint<S>> points {};
@@ -45,6 +47,7 @@ struct Trajectory {
 };
 
 /// Estado de un objeto que sigue una trayectoria.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct TrajectoryFollower {
 	u16 point_index = 0;
@@ -56,6 +59,7 @@ struct TrajectoryFollower {
 /// Avanza el seguidor `ticks` ticks y escribe la posición resultante en `out`. Con `ticks`
 /// 0 (p. ej. al spawnear) devuelve la posición actual sin consumir tiempo. Al terminar una
 /// trayectoria sin `loop`, queda `finished` en el último punto.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void trajectory_advance(const Trajectory<S>& traj, TrajectoryFollower<S>& f, u16 ticks,
 			       eng::math::Vec<2, S>& out) noexcept {
@@ -95,6 +99,7 @@ inline void trajectory_advance(const Trajectory<S>& traj, TrajectoryFollower<S>&
 /// (`p0, c0, c1, p3, c0, c1, p3, …`), el formato que consume `math::bezier3`. La vista es
 /// **no propietaria**: el llamador puede mover los puntos de control en runtime (la ruta
 /// cambia en marcha, p. ej. desde una pista de timeline).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct RouteSpline {
 	eng::Span<const eng::math::Vec<2, S>> controls {};
@@ -105,6 +110,7 @@ struct RouteSpline {
 
 /// Muestrea la ruta en `t` global (0..1). Si la ruta no tiene tramos, devuelve el primer
 /// punto (o cero si está vacía).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] inline eng::math::Vec<2, S> route_sample(const RouteSpline<S>& r, S t) noexcept {
 	using eng::math::Vec;
@@ -126,6 +132,7 @@ template <typename S>
 
 /// **Tangente** (derivada) de la ruta en `t`: dirección de avance, base para orientar
 /// naves/proyectiles. `B'(u) = 3(1−u)²(p1−p0) + 6(1−u)u(p2−p1) + 3u²(p3−p2)`.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] inline eng::math::Vec<2, S> route_tangent(const RouteSpline<S>& r, S t) noexcept {
 	using eng::math::mul_norm;

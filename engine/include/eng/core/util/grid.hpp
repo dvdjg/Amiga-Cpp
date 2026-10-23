@@ -56,6 +56,8 @@ template <u16 TileW, u16 TileH>
 
 /// Inversa de `iso_to_screen` para mitades potencia de dos (desplazamientos):
 /// `tx = (sx/half_w + sy/half_h)/2`, `ty = (sy/half_h − sx/half_w)/2`.
+/// \tparam HalfW semianchura de la rejilla en celdas
+/// \tparam HalfH semialtura de la rejilla en celdas
 template <u16 HalfW, u16 HalfH>
 [[nodiscard]] constexpr TileCoord screen_to_iso(s32 sx, s32 sy) noexcept {
 	static_assert(has_single_bit(HalfW) && has_single_bit(HalfH),

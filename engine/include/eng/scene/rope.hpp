@@ -25,6 +25,7 @@
 namespace eng::scene {
 
 /// Punto de la cuerda: posición, posición anterior (verlet) y anclaje.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct RopePoint {
 	eng::math::Vec<2, S> p {};
@@ -33,6 +34,7 @@ struct RopePoint {
 };
 
 /// Cuerda/puente: vista de puntos (del llamador) + parámetros de simulación.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct Rope {
 	eng::Span<RopePoint<S>> points {};
@@ -43,6 +45,7 @@ struct Rope {
 };
 
 /// **Paso completo por tick**: integración verlet + restricciones de distancia.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void rope_step(Rope<S>& rope) noexcept {
 	using eng::math::Vec;
@@ -101,6 +104,7 @@ inline void rope_step(Rope<S>& rope) noexcept {
 
 /// **Impulso verlet** en el punto `index`: desplaza su `prev` en sentido contrario, de modo
 /// que la velocidad resultante del siguiente paso es `impulse` (px/tick).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void rope_apply_impulse(Rope<S>& rope, u8 index, eng::math::Vec<2, S> impulse) noexcept {
 	if (index >= rope.points.size()) {
@@ -115,6 +119,7 @@ inline void rope_apply_impulse(Rope<S>& rope, u8 index, eng::math::Vec<2, S> imp
 }
 
 /// Contacto de los pies de un actor con la cuerda.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct RopeContactOf {
 	bool hit = false;
@@ -125,6 +130,7 @@ struct RopeContactOf {
 /// **Busca el segmento bajo los pies** (`feet`): proyecta la X sobre cada segmento y toma
 /// el más cercano desde arriba (distancia `<= max_snap`). Devuelve `hit = false` si no hay
 /// contacto.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 [[nodiscard]] inline RopeContactOf<S> rope_find_contact(const Rope<S>& rope,
 							eng::math::Vec<2, S> feet,
@@ -163,6 +169,7 @@ template <typename S>
 /// **Resuelve el contacto**: apoya los pies en la cuerda y, si el actor caía (`vy > 0`),
 /// reparte el impulso entre los dos puntos del segmento y rebota `vy` según `bounce`
 /// (0 = pegajoso; 256 = rebote total). Devuelve `vy`/`feet` actualizados por referencia.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline void rope_resolve_player(Rope<S>& rope, eng::math::Vec<2, S>& feet, S& vy,
 				const RopeContactOf<S>& c, u16 bounce = 0u) noexcept {

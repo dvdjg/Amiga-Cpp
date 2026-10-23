@@ -19,6 +19,7 @@ namespace eng::scene {
 
 /// Miembro de una formación: cuántos ticks espera antes de aparecer (`0` = en el primer
 /// update), dónde (offset respecto al origen de la formación) y qué trayectoria sigue.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct FormationMember {
 	u16 delay_ticks = 0;
@@ -27,6 +28,7 @@ struct FormationMember {
 };
 
 /// Descripción cocinada de una oleada.
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 struct Formation {
 	eng::Span<const FormationMember<S>> members {};
@@ -44,6 +46,8 @@ struct FormationState {
 /// **ticks de espera**; `0` sale en el primer update). Así ningún miembro se pierde aunque
 /// el marco pase de golpe (o llegue un pico de ticks), y las oleadas son deterministas.
 /// `spawn` decide qué entidad crear (pool del juego).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
+/// \tparam SpawnFn callable que crea una entidad
 template <typename S, class SpawnFn>
 inline void formation_update(const Formation<S>& form, FormationState& st, u16 ticks,
 			     SpawnFn&& spawn) noexcept {
@@ -71,6 +75,7 @@ inline void formation_update(const Formation<S>& form, FormationState& st, u16 t
 /// El offset X del miembro `i` es `(i - count/2) * spread_x` y su Y es proporcional a la
 /// distancia al centro (`dist * spread_x / 2`), con `dist = |i - count/2|`. Devuelve
 /// cuántos miembros escribió (tope por `out.size()`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline u16 gen_formation_v(eng::Span<FormationMember<S>> out, u8 count,
 			   eng::util::type_identity_t<S> spread_x, u16 delay_step, u8 trajectory,
@@ -99,6 +104,7 @@ inline u16 gen_formation_v(eng::Span<FormationMember<S>> out, u8 count,
 /// mitad usa su propia trayectoria (p. ej. la misma seno con fases 0 y 128): los brazos
 /// ondulan en espejo. El miembro central (y la mitad izquierda) usa `trajectory_left`.
 /// Devuelve cuántos miembros escribió (tope por `out.size()`).
+/// \tparam S escalar genérico (entero, `Fixed` o `float`)
 template <typename S>
 inline u16 gen_formation_v_sine(eng::Span<FormationMember<S>> out, u8 count,
 				eng::util::type_identity_t<S> spread_x, u16 delay_step,

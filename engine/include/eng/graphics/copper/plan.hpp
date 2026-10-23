@@ -379,6 +379,7 @@ public:
 	/// `custom.cpp:11237-11245`) y una escritura a caballo del borde del VBlank añade un
 	/// campo de latencia intermitente (ver `reference/emulators/winuae/copper.md` §3).
 	/// \param backend  el backend (instala la copperlist).
+	/// \tparam Backend backend de plataforma usado por la fachada
 	template <typename Backend>
 	void commit(Backend& backend) const {
 		m_copper->install(backend);
@@ -391,6 +392,7 @@ public:
 
 	/// Toma el control del display mostrando el buffer delantero (una vez).
 	/// \param backend  el backend (congela el SO y arranca la copperlist).
+	/// \tparam Backend backend de plataforma usado por la fachada
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		m_copper->takeover(backend);

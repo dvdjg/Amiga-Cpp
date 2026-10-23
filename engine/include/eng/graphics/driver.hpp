@@ -68,6 +68,7 @@ struct RenderContext {
 /// permitir que cada plataforma futura exponga sus metodos sin introducir una
 /// interfaz virtual en las rutas calientes. El concepto no fuerza firma concreta de
 /// backend, solo que existan ambos metodos invocables con el backend dado.
+/// \tparam Driver tipo de driver de vídeo
 template <typename Driver, typename Backend>
 concept DisplayDriver = requires(Driver driver, Backend& backend) {
 	driver.takeover(backend);
@@ -87,6 +88,7 @@ concept DisplayDriver = requires(Driver driver, Backend& backend) {
 /// Como `DisplayDriver`, exige `takeover`/`install`. El objetivo sigue siendo
 /// polimorfismo sin vtables en las rutas calientes: cada driver concreto es un
 /// tipo C++ con metodos conocidos en compilacion.
+/// \tparam Backend backend de plataforma usado por la fachada
 template <typename Driver, typename Backend>
 concept GraphicsDriver = DisplayDriver<Driver, Backend> &&
 	requires(Driver driver, RenderContext& context) {

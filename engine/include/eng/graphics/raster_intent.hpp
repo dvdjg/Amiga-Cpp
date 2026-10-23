@@ -276,6 +276,7 @@ namespace eng::graphics {
 /// `u16` (el indice de frame), para no acoplar este header a tipos concretos. Es el
 /// punto por el que `PaletteCycleEffect` y los futuros efectos pasan a ser ciudadanos
 /// de primer orden del engine.
+/// \tparam E tipo de elemento, evento o error según el contexto
 template <typename E, typename Plan, typename Tick = u16>
 concept Effect = requires(E e, Plan& plan, Tick tick) {
     e.update(tick);       // avanza el estado temporal con el tick (indice de frame)

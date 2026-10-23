@@ -23,6 +23,8 @@ using Ticket = eng::u32;
 
 /// Contrato de la **vía de ejecución**: dice si admite trabajo (`ready`) y ejecuta una petición
 /// (`run`). Es **el mismo** para blit, dibujo y audio — una sola forma de encolar en el engine.
+/// \tparam E tipo de elemento, evento o error según el contexto
+/// \tparam Item tipo de elemento encolado
 template <class E, class Item>
 concept QueueExecutor = requires(E& e, const Item& item) {
 	{ e.ready() }; // convertible a bool

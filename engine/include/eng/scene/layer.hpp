@@ -129,6 +129,7 @@ private:
 /// **Capa de dibujo**: objetos descritos **en el setup** (forma invariante) con una posición
 /// **dinámica** por frame. `emit` recorre y encola con el dato del frame — **solo lo dinámico**
 /// cambia (regla de coste): sin reconstruir, sin asignar.
+/// \tparam N capacidad o dimensión fija
 template <eng::u16 N>
 class DrawLayer {
 public:
@@ -154,6 +155,7 @@ public:
 	}
 
 	/// **Frame**: reproduce la capa en la cola con las posiciones actuales (recorrido mínimo).
+	/// \tparam Queue tipo de cola de trabajos
 	template <class Queue>
 	void emit(Queue& queue) const noexcept {
 		for (eng::u16 i = 0u; i < m_count; ++i) {
