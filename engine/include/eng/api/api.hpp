@@ -27,6 +27,7 @@
 #include <eng/core/util/sequence.hpp>
 #include <eng/scene/entity_pool.hpp>
 #include <eng/scene/formation.hpp>
+#include <eng/scene/mechanisms.hpp>
 #include <eng/scene/trajectory.hpp>
 #include <eng/api/scroll.hpp>
 #include <eng/api/world_render.hpp>

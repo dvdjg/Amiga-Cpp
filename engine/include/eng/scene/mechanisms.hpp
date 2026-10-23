@@ -2,16 +2,16 @@
 
 /// \file mechanisms.hpp
 /// **Mecanismos de escenario** (F6 de `ROADMAP_SPRITES_COMPLETO.md` §3.6): **muelle** de
-/// compresión con retorno amortiguado y **catapulta** de brazo con estados de carga y
-/// disparo (el extremo se calcula con la tabla de seno del engine; el visual del brazo lo
-/// resuelve el juego, p. ej. con secuencias de un `CompositeVisual`).
+/// compresión con retorno amortiguado, **catapulta** de brazo con estados de carga y
+/// disparo, **puerta** deslizante con estado y caja sólida, **destructible** con vida y
+/// **caja sólida** AABB para la colisión de plataformas/puertas.
 ///
 /// Genérico sobre el escalar `S` de las posiciones (patrón del repo: `Vec<2,S>`,
 /// `scalar_traits`, `div_norm`); el **ángulo** de la catapulta es `s16` en unidades de
 /// tabla (256 = vuelta; 0 = horizontal derecha, positivo = arriba).
 ///
-/// Puertas, destructibles y sólidos **no** se reimplementan: tienen diseño y primitivas en
-/// `PIXEL_ART_2D_ISOMETRIC.md` §7 y `core/util/collision.hpp`.
+/// El visual (platillo, brazo, puerta, escombros) lo materializa el juego con BOBs o
+/// `CompositeVisual`; aquí vive solo el estado y la geometría.
 ///
 /// Lógica pura (sin hardware, sin heap, sin STL): host-testable.
 
@@ -160,6 +160,119 @@ inline void catapult_tip(const Catapult<S>& c, eng::math::Vec<2, S>& out) noexce
 	const u8 a = static_cast<u8>(c.angle);
 	out.v[0] = static_cast<S>(c.pivot.v[0] + sine_scaled(static_cast<u8>(a + 64u), arm));
 	out.v[1] = static_cast<S>(c.pivot.v[1] - sine_scaled(a, arm));
+}
+
+/// **Caja sólida AABB** para plataformas, puertas y obstáculos. `pos` es la esquina
+/// superior izquierda; `size`, el tamaño. La colisión de un movimiento completo la resuelve
+/// `core/util/collision.hpp`/el juego; esta caja es el dato compartido con `Door`.
+template <typename S>
+struct SolidBox {
+	eng::math::Vec<2, S> pos {};
+	eng::math::Vec<2, S> size {};
+	bool active = true;
+};
+
+/// ¿Se solapan dos cajas activas? (bordes que solo se tocan no cuentan).
+template <typename S>
+[[nodiscard]] constexpr bool solid_overlap(const SolidBox<S>& a, const SolidBox<S>& b) noexcept {
+	if (!a.active || !b.active) {
+		return false;
+	}
+	return a.pos.v[0] < static_cast<S>(b.pos.v[0] + b.size.v[0]) &&
+	       static_cast<S>(a.pos.v[0] + a.size.v[0]) > b.pos.v[0] &&
+	       a.pos.v[1] < static_cast<S>(b.pos.v[1] + b.size.v[1]) &&
+	       static_cast<S>(a.pos.v[1] + a.size.v[1]) > b.pos.v[1];
+}
+
+/// Estado de una **puerta deslizante**.
+enum class DoorState : eng::u8 { Closed, Opening, Open, Closing };
+
+/// **Puerta deslizante**: `closed` es la posición cerrada; `open_offset` el desplazamiento
+/// al abrir (vector, p. ej. `{0,-32}`); `open_ticks` la duración; `size` la caja sólida.
+template <typename S>
+struct Door {
+	eng::math::Vec<2, S> closed {};
+	eng::math::Vec<2, S> open_offset {};
+	eng::math::Vec<2, S> size {};
+	eng::u16 open_ticks = 1u;
+	eng::u16 pos = 0u;
+	DoorState state = DoorState::Closed;
+};
+
+/// Pide abrir (idempotente desde cerrada/cerrándose).
+template <typename S>
+inline void door_request_open(Door<S>& d) noexcept {
+	if (d.state == DoorState::Closed || d.state == DoorState::Closing) {
+		d.state = DoorState::Opening;
+	}
+}
+
+/// Pide cerrar (idempotente desde abierta/abriéndose).
+template <typename S>
+inline void door_request_close(Door<S>& d) noexcept {
+	if (d.state == DoorState::Open || d.state == DoorState::Opening) {
+		d.state = DoorState::Closing;
+	}
+}
+
+/// Avanza la puerta `ticks` ticks; al llegar a un extremo fija el estado final.
+template <typename S>
+inline void door_update(Door<S>& d, eng::u16 ticks = 1u) noexcept {
+	if (d.state == DoorState::Opening) {
+		d.pos = static_cast<eng::u16>(d.pos + ticks);
+		if (d.pos >= d.open_ticks) {
+			d.pos = d.open_ticks;
+			d.state = DoorState::Open;
+		}
+	} else if (d.state == DoorState::Closing) {
+		const eng::u16 step = d.pos < ticks ? d.pos : ticks;
+		d.pos = static_cast<eng::u16>(d.pos - step);
+		if (d.pos == 0u) {
+			d.state = DoorState::Closed;
+		}
+	}
+}
+
+/// Posición actual de la puerta (interpolada linealmente entre cerrada y abierta). La
+/// multiplicación va **antes** de la división para que un escalar entero (`s16`) no
+/// pierda la fracción: `open_offset * pos / open_ticks`.
+template <typename S>
+[[nodiscard]] inline eng::math::Vec<2, S> door_position(const Door<S>& d) noexcept {
+	if (d.open_ticks == 0u) {
+		return d.closed + d.open_offset;
+	}
+	const eng::math::Vec<2, S> scaled = d.open_offset * static_cast<S>(d.pos);
+	const S den = static_cast<S>(d.open_ticks);
+	return d.closed + eng::math::Vec<2, S> {static_cast<S>(scaled.v[0] / den),
+					       static_cast<S>(scaled.v[1] / den)};
+}
+
+/// Caja sólida de la puerta en su posición actual (el juego decide si `Open` no bloquea).
+template <typename S>
+[[nodiscard]] inline SolidBox<S> door_solid(const Door<S>& d) noexcept {
+	return SolidBox<S> {door_position(d), d.size, true};
+}
+
+/// **Objeto destructible**: vida restante y estado. Los escombros/animaciones los decide
+/// el juego (p. ej. con `EntityPool` + trayectorias de caída); aquí solo lleva la vida.
+struct Destructible {
+	eng::u16 hp = 1u;
+	eng::u16 max_hp = 1u;
+	bool alive = true;
+};
+
+/// Aplica daño; devuelve `true` **solo** en el golpe que lo destruye.
+[[nodiscard]] inline bool destructible_hit(Destructible& d, eng::u16 damage) noexcept {
+	if (!d.alive) {
+		return false;
+	}
+	if (damage >= d.hp) {
+		d.hp = 0u;
+		d.alive = false;
+		return true;
+	}
+	d.hp = static_cast<eng::u16>(d.hp - damage);
+	return false;
 }
 
 } // namespace eng::scene

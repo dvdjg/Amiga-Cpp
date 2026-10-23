@@ -233,10 +233,64 @@ void test_catapult() {
 	CHECK(!c2.firing && !c2.loaded);
 }
 
+template <typename S>
+void test_door_destructible_solid() {
+	using eng::scene::Door;
+	using eng::scene::door_position;
+	using eng::scene::door_request_close;
+	using eng::scene::door_request_open;
+	using eng::scene::door_solid;
+	using eng::scene::door_update;
+	using eng::scene::Destructible;
+	using eng::scene::destructible_hit;
+	using eng::scene::DoorState;
+	using eng::scene::SolidBox;
+	using eng::scene::solid_overlap;
+
+	Door<S> door {};
+	door.closed = Vec<2, S> {static_cast<S>(10), static_cast<S>(20)};
+	door.open_offset = Vec<2, S> {static_cast<S>(0), static_cast<S>(-32)};
+	door.size = Vec<2, S> {static_cast<S>(16), static_cast<S>(16)};
+	door.open_ticks = 4u;
+	CHECK(door.state == DoorState::Closed);
+	CHECK(door_position(door).v[1] == static_cast<S>(20));
+
+	door_request_open(door);
+	door_update(door, 2u);
+	CHECK(door.state == DoorState::Opening);
+	CHECK(door_position(door).v[1] == static_cast<S>(4)); // 20 - 32·(2/4)
+	door_update(door, 2u);
+	CHECK(door.state == DoorState::Open);
+	CHECK(door_position(door).v[1] == static_cast<S>(-12));
+	CHECK(door_solid(door).pos.v[1] == static_cast<S>(-12));
+
+	door_request_close(door);
+	door_update(door, 10u);
+	CHECK(door.state == DoorState::Closed);
+	CHECK(door_position(door).v[1] == static_cast<S>(20));
+
+	Destructible crate {3u, 3u, true};
+	CHECK(!destructible_hit(crate, 1u));
+	CHECK(crate.hp == 2u && crate.alive);
+	CHECK(destructible_hit(crate, 2u));
+	CHECK(crate.hp == 0u && !crate.alive);
+	CHECK(!destructible_hit(crate, 1u)); // ya destruido
+
+	SolidBox<S> a {Vec<2, S> {static_cast<S>(0), static_cast<S>(0)},
+		       Vec<2, S> {static_cast<S>(16), static_cast<S>(16)}, true};
+	SolidBox<S> b {Vec<2, S> {static_cast<S>(8), static_cast<S>(8)},
+		       Vec<2, S> {static_cast<S>(16), static_cast<S>(16)}, true};
+	CHECK(solid_overlap(a, b));
+	b.pos = Vec<2, S> {static_cast<S>(16), static_cast<S>(0)};
+	CHECK(!solid_overlap(a, b)); // comparten borde, no solapan
+	b.active = false;
+	CHECK(!solid_overlap(a, b));
+}
+
 } // namespace
 
 int main() {
-	std::printf("Test HOST-438 rope_mechanisms (F6: cuerda, muelle, catapulta)\n");
+	std::printf("Test HOST-438 rope_mechanisms (F6: cuerda, muelle, catapulta, puerta, destructible, solido)\n");
 	std::printf("===============================================================\n");
 
 	std::printf("cuerda <s32>: determinismo, anclajes, restricciones, impulso y contacto\n");
@@ -250,6 +304,9 @@ int main() {
 	test_catapult<eng::s32>();
 	test_catapult<eng::s16>();
 	test_catapult<float>();
+	std::printf("puerta, destructible y solido <s16> y <float>\n");
+	test_door_destructible_solid<eng::s16>();
+	test_door_destructible_solid<float>();
 
 	if (g_failures == 0) {
 		std::printf("OK: cuerda y mecanismos validados (s32/s16/float).\n");
