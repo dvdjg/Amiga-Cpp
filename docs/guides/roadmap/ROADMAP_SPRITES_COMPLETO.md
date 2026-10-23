@@ -40,7 +40,7 @@ Resumen de veredictos: **cubierto** (existe y está verificado por test host y/o
 | 3. Multiplexado vertical (reuso del canal en líneas distintas) | **Cubierto** | `SpriteAllocator` (first-fit + bitfield) + `emit_placements_into`; gap de 1 línea = `kSpriteVerticalGapLines` |
 | 4. Multiplexado horizontal con Copper (media línea) | **Parcial** | `SpriteLineLayer` (HUD) y Risky Woods (208/211) hechos; Free Form → F4.1 |
 | 5. Fondo repetitivo Risky Woods | **Cubierto** | `effects::RiskyWoodsLayer` (HOST-417; demos 208/211) |
-| 6. Free Form Sprite Layer sin patrón | **Condicionado** | `effects::FreeFormSpriteLayer` (HOST-419; demo 213); cierre por la campaña 218 → F4.1 |
+| 6. Free Form Sprite Layer sin patrón | **Deprecado** | 212/`FreeFormSpriteLayer` deprecados (212 rota); 213 implementa la técnica sobre `Scheduler` y es la referencia |
 | 7. Combinación sprites + BOBs | **Cubierto** | Degradación `as_bob` + `emit_bob_fallbacks`; `FastBobLayer` en DPF (HOST-355; demo 213) |
 | 8. Colisiones (hardware `CLXCON`/`CLXDAT` y software) | **Cubierto** | `sprite_collision.hpp` (demo 206) + hitboxes por frame (`composite_hitboxes`, F1) |
 | 9. Efectos de Copper sobre `SPRxPOS` por fila (bending) | **Adaptar** → F4.2 | Driver de bending reutilizando `core/math/sinetable.hpp`; el pacing de Jim Power (215) es la misma familia de problema |
@@ -355,7 +355,7 @@ void emit_sprite_bend_into(Sched& sched, u8 channel, eng::ChipView<eng::SpriteTa
 
 **Ubicación:** el cálculo vive en el pipeline de cocina de sprites (host) con el helper del engine; el contrato del asset queda documentado (comentario en `Bob`/`FastBobLayer`). Ningún campo nuevo en `Visual`/`CompositePart` (frontera §2.4).
 
-**Tests/demo:** HOST del cálculo de márgenes (hecho, HOST-437); demo DPF con BOBs rápidos dibujados con `FastBobLayer` (HOST-355) y visión (sin rastros, sin huecos) — pendiente.
+**Tests/demo:** HOST del cálculo de márgenes (HOST-437); demo DPF **126_fast_bobs** con `FastBobLayer` validada (49,97 fps, visión sin rastros ni huecos).
 
 ### 3.5 F7 — Integración de la paleta de sprites y F4.3 (palette splitting)
 
@@ -422,9 +422,9 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 
 **Instrucciones:**
 
-1. La fachada (`effects::FreeFormSpriteLayer`, HOST-419) y el fondo por ventana (`SpriteChannelLedger`/`plan_sprite_windows`) son el camino del engine; la demo 212 rota se sustituye por lo que cierre la 218 (no se resucita el driver viejo sin motivo).
+1. **Cierre por deprecación:** `effects::FreeFormSpriteLayer` y la demo 212 quedan deprecados (212 rota); la referencia válida es **213_spr_layer**, que implementa la técnica sobre `Scheduler`. No se resucita el driver viejo.
 2. Variante «data-driven» de la consulta (4 copperlists, actualización repartida en frames, swap): **solo** como diseño de la 218 si la medida lo admite; la nota útil que se incorpora es organizar la copperlist **por columnas contiguas** (un blit = una columna completa de altura) para minimizar el trabajo del Blitter en cada actualización.
-3. Doble copperlist del Free Form (mejora apuntada en 213): siguiente paso natural tras el cierre de la 218.
+3. Doble copperlist del Free Form: mejora pendiente de 213; no bloquea la técnica actual.
 
 **Criterio de salida:** el definido por la campaña 218 (fps/cadencia medidos, visión OK, registro en su bitácora); este documento solo enlaza.
 
@@ -442,7 +442,7 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 
 ## 4. Orden de trabajo (por dependencia y valor)
 
-**Decisión de arranque (corte elegido): C1**, entrando por **F3.1** (builder + golden host, sin tocar `SpriteManager`), porque es lógica pura verificable y valida el formato de la cadena antes de ninguna emisión. Estado: **F3 cerrada** (HOST-434, `SpriteManager` integrado, demo 219 con A/B de copperlist) y **F3 integrada en la fachada** (`SpriteScene::set_chains`/`prepare_chains`, HOST-391). **C0 hecho**: F2.1 (HOST-435), orden Y incremental (HOST-391) y cálculo de márgenes FastCopy (HOST-437; cocina/demo DPF pendientes). **C2 hecho**: bending F4.2 (HOST-436, demo 220) y paleta F7/F4.3 (HOST-391/433, demo 221). El golden fijó la regla de gap como **exigencia del builder** y el armado por registro de la primera franja; el bending, la emisión **intercalada** por línea. Siguiente valor: **C3** (mecanismos: cuerdas/muelles/catapulta) o **C4** condicionado (Jim Power/Free Form).
+**Decisión de arranque (corte elegido): C1**, entrando por **F3.1** (builder + golden host, sin tocar `SpriteManager`), porque es lógica pura verificable y valida el formato de la cadena antes de ninguna emisión. Estado: **F3 cerrada** (HOST-434, `SpriteManager` integrado, demo 219 con A/B de copperlist) y **F3 integrada en la fachada** (`SpriteScene::set_chains`/`prepare_chains`, HOST-391). **C0 hecho**: F2.1 (HOST-435), orden Y incremental (HOST-391) y cálculo de márgenes FastCopy (HOST-437; cocina y demo DPF hechas (demo 126)). **C2 hecho**: bending F4.2 (HOST-436, demo 220) y paleta F7/F4.3 (HOST-391/433, demo 221). El golden fijó la regla de gap como **exigencia del builder** y el armado por registro de la primera franja; el bending, la emisión **intercalada** por línea. Siguiente valor: **C3** (mecanismos: cuerdas/muelles/catapulta) o **C4** condicionado (Jim Power/Free Form).
 
 | Corte | Trabajo | Valor | Prerrequisitos |
 |---|---|---|---|
@@ -450,7 +450,7 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 | **C1** (núcleo) | **F3** completo: builder + armado + selector + persistente + demo A/B (**hecho**); integración en la fachada (**hecha**) | Menos Copper y WAITs por objeto; base de las ristras | Fuente citada (§3.2, hecha); storage Chip del llamador |
 | **C2** (efectos) | F4.2 bending (**hecho**, HOST-436/demo 220); F7 integración + demo (**hecha**, HOST-391/demo 221) | Efectos de agua/ondas y color por zona | — |
 | **C3** (juego) | F6 cuerdas/muelles/catapulta | Mecanismos jugables reutilizando F1/F2 | F1/F2 (hechos) |
-| **C4** (condicionado) | F4.1 (cierre 218), F4.4 (pacing 215), demos de cierre F4.5, cocina F5/demo DPF | Cierre técnico | Medidas/campaña en curso |
+| **C4** (condicionado) | F4.4 (pacing 215), demos de cierre F4.5 y F7 (5+ planos/EHB) | Cierre técnico | Medidas/campaña en curso |
 
 F3 **no** bloquea a C2/C3: el rearme por Copper actual es correcto; la cadena es optimización y se adopta por canal solo cuando la medida la respalde.
 

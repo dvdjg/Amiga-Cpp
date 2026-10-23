@@ -53,6 +53,9 @@ public:
 	/// BOB): cuántos actores caben como sprite hardware antes de degradar a BOB. Llámalo **antes**
 	/// de `add` (el presupuesto se consume al dar de alta cada actor).
 	/// \param b  `{sprite_channels, bob_budget_words, layer_slots}`.
+	/// \deprecated Presupuesto grueso heredado (`RepresentationAllocator`), no ve attached/tiras/
+	///             scanline/Copper. En código nuevo usa `add_direct` + `SpriteDirector`/
+	///             `SpriteLoadReport`, que contabilizan con el `SpriteAllocator` real.
 	void set_budget(const eng::scene::RepresentationBudget& b) noexcept { m_alloc.reset(b); }
 
 	/// **Pool Chip para los pares *attached***: `emit` cocina sus estructuras DMA (dos por par).
