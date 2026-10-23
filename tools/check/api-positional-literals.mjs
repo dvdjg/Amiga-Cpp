@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SCAN = ['engine', 'tests', 'demos', 'games'];
-const CODE = /\b(?:SpriteBudget|PlanConfig|BlitBudgetLimits|SpriteHint)\s*\{\s*(?:[-+]?\d|0x[0-9a-fA-F])/g;
+const PATTERNS = [
+	/\b(?:SpriteBudget|PlanConfig|BlitBudgetLimits|SpriteHint)\s*\{\s*(?:[-+]?\d|0x[0-9a-fA-F])/,
+	/\bset_budget\s*\(\s*\{/,
+];
 
 function walk(dir, out) {
 	for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -32,10 +35,9 @@ for (const abs of files) {
 	const text = fs.readFileSync(abs, 'utf8');
 	const lines = text.split(/\r?\n/);
 	for (let i = 0; i < lines.length; ++i) {
-		if (CODE.test(lines[i])) {
+		if (PATTERNS.some((re) => re.test(lines[i]))) {
 			bad.push(`${path.relative(ROOT, abs).replace(/\\/g, '/')}:${i + 1}: ${lines[i].trim()}`);
 		}
-		CODE.lastIndex = 0;
 	}
 }
 if (bad.length) {

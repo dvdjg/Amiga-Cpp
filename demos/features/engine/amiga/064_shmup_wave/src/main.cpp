@@ -55,6 +55,7 @@ constexpr eng::u8  kPlanes = 4;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 constexpr eng::u16 kArmLine = 32u;
+constexpr eng::u16 kBulletBobBudgetWords = 2048u; // presupuesto BOB de las balas
 constexpr eng::u16 kDisplayTop = 0x2cu;
 
 // Enemigo: 16x16 planar a 2 planos + máscara (BOB). Fila = 1 base + 1 guarda.
@@ -312,7 +313,11 @@ private:
 		m_bullet_vis.w = 16u;
 		m_bullet_vis.h = 8u;
 		m_bullet_vis.bitplanes = 2u;
-		m_bullets.set_budget({8u, 2048u, 0u});
+		m_bullets.set_budget(eng::scene::RepresentationBudget{
+			.sprite_channels = eng::graphics::kSpriteChannels,
+			.bob_budget_words = kBulletBobBudgetWords,
+			.layer_slots = 0u,
+		});
 		// Pool FIJO de 8 balas (Sprite HW): se crean aquí y se reciclan por posición.
 		for (eng::u8 s = 0u; s < kBulletsMax; ++s) {
 			eng::scene::ActorDesc d {};
