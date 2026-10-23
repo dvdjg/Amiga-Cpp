@@ -14,7 +14,7 @@ Plan para una **librería de gráficos 3D** de dominio (`eng::graphics::render3d
 | Clipping 2D Sutherland–Hodgman con convención de bordes corregida | `eng/retro/lib2d.hpp` (HOST-479) + `Surface::fill_polygon` (ya recorta) | Hecho |
 | **Clipping de cámara (near + planos laterales) antes de dividir por z** | `graphics/render3d.hpp` (`clip_camera_polygon`, `Camera3D`) | **Hecho** (HOST-481; sondas L1-003/L1-005) |
 | Renderer por objeto: transform + cull + clip + proyección + fill, buffers del llamador | `graphics/render3d.hpp` (`render_solid`, `render_mesh`, `screen_area2`, `solid_depth_key`) | **Hecho** (HOST-481); es una primitiva, no una escena |
-| **Renderer de escena**: extracción de varios sólidos, painter entre objetos automático, presupuesto y contabilidad | — | **Falta** (capa de juego, [`ROADMAP_3D_GAME_API.md`](ROADMAP_3D_GAME_API.md) G2) |
+| **Renderer de escena**: extracción de varios sólidos, painter entre objetos automático, presupuesto y contabilidad | `eng/api/3d.hpp` (`Scene<MaxNodes, MaxVertices>`) | **Parcial** (G0/G2: pool, cámara, posición/visibilidad y painter por profundidad; faltan jerarquía, rotación y demo 091) |
 | **Material por cara** (color + patrón/entramado + flags) en la ruta de render | `fill_pattern.hpp`/`polygon_planes.hpp` ya tienen patrones; `render3d`/`Surface::fill_polygon` solo aceptan color | **Falta** (P7) |
 | **Wireframe robusto** (near clip, aristas únicas, sin depender de `mesh_renderer`) | `mesh_render_wire` existe sin near clip; `render3d` no tiene ruta de alambre | **Falta** (P7) |
 | **Cámara de juego** (vista mundo→cámara, far plane, controlador) y **proyección con `1/z`** | `Camera3D` vive en espacio de cámara; no hay view transform ni LUT de `1/z` | **Falta** (P7 y G8) |

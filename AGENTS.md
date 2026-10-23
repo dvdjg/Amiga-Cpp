@@ -339,6 +339,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Análisis de rendimiento de una demo** (medir SIEMPRE con el perfil `.amigaprofile` + IA local; hotspots por rutina y defectos de pantalla con visión) | `docs/tools/PROFILING_FROM_AGENT.md` |
 | **Copper y buffers de display** (`copper::Plan`, slots tipados `MoveSlot`/`WaitSlot`, doble buffer de copperlist, validadores `eng::setup::check_copper_list`) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
 | **Objetos: BOB ≠ polígono, transparencia, fondo, copper por objeto** | `docs/engine/architecture/OBJECT_SYSTEM.md` |
+| **Juegos 3D y modelos poligonales** (renderer, assets, escena retenida, materiales, animación, visibilidad, colisiones y física) | `docs/guides/roadmap/ROADMAP_3D_GAME_API.md` + `docs/guides/roadmap/ROADMAP_3D_BLITTER.md` + `docs/engine/architecture/3D_GAME_ARCHITECTURE.md` + `MODEL3D_ASSET_FORMAT.md` + `3D_PHYSICS.md` |
 | **Blitter / minterms / líneas y polígonos** | `docs/reference/amiga/techniques/README.md` y `blitter-line-subpixel-fill.md` |
 | **Runner/emulador** (warp, READY, canvas, secuencias) | `docs/build/BUILD_AND_RUN.md` |
 | **WinUAE: instancias múltiples y depuración avanzada (GDB/canal lateral/MCP)** | `docs/debugging/system/debug-winuae-v2-guide.md` |

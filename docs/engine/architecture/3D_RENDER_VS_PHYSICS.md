@@ -27,7 +27,7 @@ buffers del llamador. La arquitectura de juego 3D completa está en
 | Renderer de juego | `eng/graphics/render3d.hpp` | `Camera3D`, clip de cámara (near + laterales), proyección acotada, culling por área, `render_solid`/`render_mesh`; HOST-481 |
 | Escalares | `eng/core/math/fixed.hpp`, `fixed_math.hpp` | `Fixed`, `q12` (4.12), `q24`; sin `float`, con `muls.w`/`divs.w` |
 
-Evidencia: demos `077_math3d_cube` (alambre), `078_math3d_solid`, `079`, `087_blit3d_triangles`, `088_blit3d_planes`, `090_polyhedra_orbit` y `116_flatshade_convex`; tests HOST-011/013/014/047/050/051/053/055/481 y sondas L1-003/L1-005.
+Evidencia: demos `077_math3d_cube` (alambre), `078_math3d_solid`, `079`, `087_blit3d_triangles`, `088_blit3d_planes`, `090_polyhedra_orbit` y `116_flatshade_convex`; tests HOST-011/013/014/047/050/051/053/055/481/484 y sondas L1-003/L1-005.
 
 ### 1.3 Frontera del pipeline de cámara
 

@@ -21,6 +21,8 @@ docs/guides/
 │   ├── ROADMAP_TILED_WORLD_SUPPORT.md → Tiled: parser/cooker, tilesets, capas, orientación y streaming
 │   ├── ROADMAP_JUEGO_SPRITES_BOBS.md → adecuación de sprites HW/BOBs para juego: compuestos, trayectorias y mecanismos
 │   ├── ROADMAP_SPRITES_COMPLETO.md   → evaluación de la consulta y plan detallado de las fases abiertas de sprites
+│   ├── ROADMAP_3D_BLITTER.md          → renderer 3D de bajo nivel: clip, proyección, painter y rutas de relleno Amiga
+│   ├── ROADMAP_3D_GAME_API.md         → API de juego 3D: assets, escena retenida, materiales, animación, visibilidad, colisiones y física
 │   ├── PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md → enunciado de un problema conocido
 │   └── …
 ├── optimization/        → guías de optimización 68000/C++ y rendimiento
