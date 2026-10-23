@@ -11,7 +11,7 @@ header  { u32 magic="UAFR", u16 version, u16 chunk_count }
 chunk[] { u16 type, u16 count, u32 size, <size bytes>, pad a 4 }
 ```
 
-Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes=2`, `CopperTemplates=3`, `PatchTables=4`, `Sprites=5`, `Bobs=6`, `Tiles=7`, `Collision=8`, `Strings=9`, `Samples=10`, `Modules=11`, `Mesh=12`, `WorldMap=13` (mapa de tiles en chunks; ver `docs/engine/architecture/WORLD_FORMAT.md`) y `MeshPoly=14` (malla con caras n-gon convexas).
+Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes=2`, `CopperTemplates=3`, `PatchTables=4`, `Sprites=5`, `Bobs=6`, `Tiles=7`, `Collision=8`, `Strings=9`, `Samples=10`, `Modules=11`, `Mesh=12`, `WorldMap=13` (mapa de tiles en chunks; ver `docs/engine/architecture/WORLD_FORMAT.md`), `MeshPoly=14` (malla con caras n-gon convexas) y `Model3D=15` (malla estática + materiales, v1); `Material3D=16`, `RasterPattern=17`, `Animation3D=18` y `Collider3D=19` están reservados para el esquema completo.
 
 - **Palette**: N colores RGB444 en `u16` big-endian.
 - **Bitplanes**: cabecera de geometría (`u16 width, u16 height, u16 row_bytes, u8 planes, u8 layout, u8 flags, u8 resv`) seguida de los planos.
@@ -22,6 +22,7 @@ Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes
 - **CopperTemplates**: `count` palabras `u16` big-endian (`WAIT`/`MOVE`).
 - **Mesh (`obj2c`)**: cabecera `u16 vertex_count, u16 face_count` + vértices `s16 x,y,z` + caras `u16 a,b,c`, todo big-endian.
 - **MeshPoly**: cabecera `u16 vertex_count, u16 face_count, u16 index_count` + vértices `s16 x,y,z` + índices `u16` + caras `{u16 first, u16 count}`, todo big-endian; el consumidor actual es `PolyMeshAssetView` y solo contiene geometría.
+- **Model3D v1**: cabecera de 28 B (`u16 version=1, flags, vertex_count, face_count, index_count, material_count` + cuatro offsets `u32`) + vértices `s16 x,y,z` + índices `u16` + caras `{u16 first, u16 count, u16 material}` + materiales `{u8 color, u8 pattern, u16 flags}`, todo big-endian; el consumidor es `Model3DAssetView` y el registro runtime `ModelTable`.
 
 El formato completo de modelo 3D —materiales por cara, paleta/tramas, nodos, rigging, keyframes y
 proxies— se especifica en [`MODEL3D_ASSET_FORMAT.md`](../engine/architecture/MODEL3D_ASSET_FORMAT.md).
@@ -35,8 +36,8 @@ El módulo exporta funciones puras (host-testables) y una CLI:
 
 - `packUaf(chunks)` / `parseUaf(buf)` — empaqueta y valida (offset/size en rango).
 - `bitplanesFromIndexed(width, height, planes, pixels)` — **chunky indexado → bitplanes separados** (el paso "amiga convert" del core UAF), con `width` múltiplo de 8.
-- `paletteChunkData(colors)` / `bitplanesChunkData(...)` / `sampleChunkData(bytes)` / `stringsChunkData(strings)` / `tilesChunkData(tiles)` / `spritesChunkData(sprites)` / `copperChunkData(words)` / `meshChunkData(vertices, faces)` — datos de cada chunk. Los consumidores runtime equivalentes son `eng::assets::{PaletteView, BitplanesView, SampleView, StringsView, TilesView, SpritesView, CopperView, MeshAssetView}`; `MeshAssetView` entrega `math3d::Vec3`/`math3d::Face` para construir un `math3d::MeshView`. El cooker 3D ampliado queda especificado en `MODEL3D_ASSET_FORMAT.md` y todavía debe añadirse.
-- CLI: `node dist/tools/assets/uaf-pack.js <out.uafr>` genera un blob de demostración (paleta + bitplanes 16×16 + sample) y **auto-valida** la salida con `parseUaf`. Con `--mesh` genera un blob centrado en una **malla** (cubo `obj2c`) + sprites/copper/tiles/strings; es el que consume la demo `078_math3d_solid` (generado por su `src/prebuild.sh` e incbinado). Con `--world <world.bin>` empaqueta el payload de mundo generado por `tools/ehb/pack-world.mjs` como chunk `WorldMap` (ver `docs/engine/architecture/WORLD_FORMAT.md`).
+- `paletteChunkData(colors)` / `bitplanesChunkData(...)` / `sampleChunkData(bytes)` / `stringsChunkData(strings)` / `tilesChunkData(tiles)` / `spritesChunkData(sprites)` / `copperChunkData(words)` / `meshChunkData(vertices, faces)` — datos de cada chunk. Los consumidores runtime equivalentes son `eng::assets::{PaletteView, BitplanesView, SampleView, StringsView, TilesView, SpritesView, CopperView, MeshAssetView}`; `MeshAssetView` entrega `math3d::Vec3`/`math3d::Face` para construir un `math3d::MeshView`. El modelo estático con materiales se cocina con `cookModel3d(source)` de [`cook-model3d.ts`](../../tools/assets/cook-model3d.ts) y lo consume `eng::assets::Model3DAssetView`.
+- CLI: `node dist/tools/assets/uaf-pack.js <out.uafr>` genera un blob de demostración (paleta + bitplanes 16×16 + sample) y **auto-valida** la salida con `parseUaf`. Con `--mesh` genera un blob centrado en una **malla** (cubo `obj2c`) + sprites/copper/tiles/strings; es el que consume la demo `078_math3d_solid` (generado por su `src/prebuild.sh` e incbinado). Con `--world <world.bin>` empaqueta el payload de mundo generado por `tools/ehb/pack-world.mjs` como chunk `WorldMap` (ver `docs/engine/architecture/WORLD_FORMAT.md`). El cooker 3D se ejecuta aparte: `node dist/tools/assets/cook-model3d.js <model.json> <out.uafr>` (o `--self-test`).
 
 ## Ejecutar y probar
 
@@ -49,4 +50,4 @@ El test (`test-uaf-pack.ts`) valida el round-trip del contenedor (con padding), 
 
 ## Extensiones previstas
 
-El formato crecerá (más tipos de chunk, metadatos de escena, contratos runtime) manteniendo el contrato de contenedor: nuevos consumidores son nuevas vistas tipadas sobre `Blob::data(chunk)`, sin romper lo existente.
+El formato crecerá (más tipos de chunk, metadatos de escena, contratos runtime) manteniendo el contrato de contenedor: nuevos consumidores son nuevas vistas tipadas sobre `Blob::data(chunk)`, sin romper lo existente. El siguiente tramo de G1 son `Material3D`/`RasterPattern` compartidos, `Animation3D` (nodos/clips) y `Collider3D` (proxies), según `MODEL3D_ASSET_FORMAT.md`.

@@ -40,6 +40,11 @@ export var UafChunkType;
     UafChunkType[UafChunkType["Mesh"] = 12] = "Mesh";
     UafChunkType[UafChunkType["WorldMap"] = 13] = "WorldMap";
     UafChunkType[UafChunkType["MeshPoly"] = 14] = "MeshPoly";
+    UafChunkType[UafChunkType["Model3D"] = 15] = "Model3D";
+    UafChunkType[UafChunkType["Material3D"] = 16] = "Material3D";
+    UafChunkType[UafChunkType["RasterPattern"] = 17] = "RasterPattern";
+    UafChunkType[UafChunkType["Animation3D"] = 18] = "Animation3D";
+    UafChunkType[UafChunkType["Collider3D"] = 19] = "Collider3D";
 })(UafChunkType || (UafChunkType = {}));
 /** Cabecera de bitplanes (igual que `eng::assets::BitplanesView`). */
 export const BITPLANES_HEADER_BYTES = 10;

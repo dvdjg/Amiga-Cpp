@@ -36,6 +36,8 @@
 #include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/pool.hpp>
 #include <eng/graphics/render3d.hpp>
+#include <eng/scene3d/model_table.hpp>
+#include <eng/scene3d/types.hpp>
 
 namespace eng::scene3d {
 
@@ -43,28 +45,6 @@ namespace eng::scene3d {
 /// de cámara con `+x` derecha, `+y` abajo, `+z` delante y cámara en el origen).
 /// `focal`, `near_z` y `half_w/half_h` están en `eng::coord`; `cx/cy` en píxeles.
 using Camera = graphics::Camera3D<eng::coord>;
-
-/// Vista de malla que consume la escena: n-gon convexo, sin copia de vértices.
-using Mesh = math3d::PolyMeshViewT<eng::coord>;
-
-/// **Referencia a una malla de la tabla de modelos** que recibe `Scene::render`.
-///
-/// Es un índice compacto, no un puntero: el asset runtime (G1) resolverá el
-/// índice a una vista `Mesh` del blob UAF-R y añadirá la generación/registro
-/// correspondiente; hasta entonces el llamador aporta la tabla como
-/// `Span<const Mesh>` y el handle es un índice directo. `0xffff` significa «sin
-/// modelo».
-struct ModelHandle {
-	u16 index = 0xffffu; ///< índice en la tabla de modelos; `0xffff` = inválido.
-
-	[[nodiscard]] constexpr bool valid() const noexcept { return index != 0xffffu; }
-	[[nodiscard]] constexpr bool operator==(const ModelHandle& other) const noexcept {
-		return index == other.index;
-	}
-	[[nodiscard]] constexpr bool operator!=(const ModelHandle& other) const noexcept {
-		return !(*this == other);
-	}
-};
 
 /// Nodo vivo de la escena. `position` está en el escalar de cámara
 /// (`eng::coord`): la cámara ocupa el origen y mira hacia `+z`.
@@ -226,14 +206,55 @@ public:
 	/// \note No reentrante ni thread-safe: usa el scratch y el transform de la escena.
 	template <class ColorFn>
 	u32 render(eng::Span<const Mesh> models, playfield::Surface& target, ColorFn&& color_of) noexcept {
+		return render_with(
+			[&](ModelHandle handle) -> const Mesh* {
+				return (handle.valid() && handle.index < models.size())
+					       ? &models[handle.index]
+					       : nullptr;
+			},
+			target, color_of);
+	}
+
+	/// **Pinta la escena resolviendo las mallas contra una `ModelTable`** (G1): el
+	/// juego registra los modelos cocinados una vez y `Node3D::model` es el handle
+	/// devuelto por `ModelTable::add`. La tabla debe sobrevivir a la llamada.
+	///
+	/// \tparam MaxModels capacidad de modelos de la tabla (parámetro de `ModelTable`).
+	/// \tparam TableVertices vértices máximos por modelo de la tabla.
+	/// \tparam TableIndices índices máximos por modelo de la tabla.
+	/// \tparam TableFaces caras máximas por modelo de la tabla.
+	/// \tparam TableMaterials materiales máximos por modelo de la tabla.
+	/// \tparam ColorFn callable `u8(NodeId, u32 face_index)`.
+	/// \param models tabla de modelos no propietaria; debe sobrevivir a la llamada.
+	/// \param target superficie de destino (el llamador la limpia antes).
+	/// \param color_of color por cara; puede usar `models.color(node->model, face)`.
+	/// \return número total de caras rellenadas; 0 si no hay nada visible.
+	/// \note La tabla puede tener más capacidad que la escena; `Scene::MaxVertices`
+	///       sigue siendo el tope efectivo por malla.
+	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
+		  u16 TableMaterials, class ColorFn>
+	u32 render(const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
+		   playfield::Surface& target, ColorFn&& color_of) noexcept {
+		return render_with([&](ModelHandle handle) { return models.mesh(handle); }, target,
+				   color_of);
+	}
+
+private:
+	using ModelTransform = eng::math::Affine<3, eng::real, eng::coord>;
+
+	/// Implementación común de los dos `render`: `mesh_at` resuelve un `ModelHandle`
+	/// a una vista (o `nullptr`); el resto del pipeline es idéntico.
+	/// \tparam MeshAt callable `const Mesh*(ModelHandle)`.
+	/// \tparam ColorFn callable `u8(NodeId, u32)`.
+	template <class MeshAt, class ColorFn>
+	u32 render_with(MeshAt&& mesh_at, playfield::Surface& target, ColorFn&& color_of) noexcept {
 		u16 count = 0u;
 		m_nodes.for_each([&](Node3D& node, NodeId id) {
-			if (!node.visible || !node.model.valid() ||
-			    node.model.index >= models.size()) {
+			if (!node.visible) {
 				return;
 			}
-			const Mesh& mesh = models[node.model.index];
-			if (mesh.vertex_count() > MaxVertices) {
+			const Mesh* mesh = mesh_at(node.model);
+			if (mesh == nullptr || mesh->vertex_count() > MaxVertices) {
 				return;
 			}
 			const s32 depth = eng::math::scalar_traits<eng::coord>::to_int(node.position.v[2]);
@@ -255,18 +276,18 @@ public:
 			if (node == nullptr) {
 				continue;
 			}
-			const Mesh& mesh = models[node->model.index];
+			const Mesh* mesh = mesh_at(node->model);
+			if (mesh == nullptr) {
+				continue;
+			}
 			m_model.m = math::Mat<3, eng::real>::identity();
 			m_model.t = node->position;
-			faces += graphics::render_solid(mesh, m_model, m_camera, target,
+			faces += graphics::render_solid(*mesh, m_model, m_camera, target,
 							[&](u32 face) { return color_of(id, face); },
 							m_world, m_cam_scratch, m_xs, m_ys);
 		}
 		return faces;
 	}
-
-private:
-	using ModelTransform = eng::math::Affine<3, eng::real, eng::coord>;
 
 	util::Pool<Node3D, MaxNodes> m_nodes {}; ///< nodos vivos y generaciones.
 	Camera m_camera {}; ///< cámara única de la escena (por defecto 320x200, focal 340).

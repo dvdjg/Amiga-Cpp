@@ -26,7 +26,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Conversión de imágenes a Amiga (png2amiga) | `docs/tools/png2amiga-cli.md` | `../png2amiga/build-msvc/png2amiga.exe` (repo hermano; modos, paletas, sliced/strips, dither, métricas PSNR/S2, nombres auto-descriptivos) |
 | Conversión de aventuras clásicas (SCUMM) | `tools/adventure/README.md`, `docs/guides/roadmap/ROADMAP_ADVENTURE_IMPORT.md` | `tools/adventure/build-scummvm-tools.sh` (oráculo host: compila `descumm` en local); pipeline SIM/traducción/cocina (I0–I5, planificado) |
-| Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
+| Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts`; modelo estático `tools/assets/cook-model3d.ts` (`Model3D=15`) |
 | Márgenes del FastCopy (F5) | `docs/reference/amiga/techniques/dual-playfield-fastbobs.md`, `docs/guides/roadmap/ROADMAP_SPRITES_COMPLETO.md` §3.4 | `tools/assets/sprite-pad.ts` (+ `test-sprite-pad.ts`; paridad con `fast_bob_margins`/HOST-437) |
 | Manifiesto de assets | `docs/tools/ASSET_MANIFEST.md` | `tools/assets/gen-manifest.mjs`, `tools/check/asset-manifests.mjs` |
 | Atlas de iconos del HUD | `tools/assets/README.md`, `docs/engine/architecture/HUD_SYSTEM.md` §8.2 | `tools/assets/hud-atlas.mjs` (`--selftest` en la pasada completa de `run-host-tests.sh`) |

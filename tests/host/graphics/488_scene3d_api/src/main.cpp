@@ -216,6 +216,162 @@ void test_scene_lifecycle() {
 	check(scene.camera().near_z == TC::from_int(32), "camara actualizada");
 }
 
+/// Payload `Model3D` v1 de un cubo con 2 materiales (6 caras de 4 vértices).
+[[nodiscard]] std::vector<u8> build_box_model_payload() {
+	constexpr u16 nv = 8u;
+	constexpr u16 nf = 6u;
+	constexpr u16 ni = 24u;
+	constexpr u16 nm = 2u;
+	constexpr u32 header = assets::Model3DAssetView::kHeaderSize;
+	constexpr u32 v_off = header;
+	constexpr u32 i_off = v_off + nv * 6u;
+	constexpr u32 f_off = i_off + ni * 2u;
+	constexpr u32 m_off = f_off + nf * 6u;
+	constexpr u32 total = m_off + nm * 4u;
+
+	std::vector<u8> p(total, 0u);
+	write_be16(p.data(), assets::Model3DAssetView::kVersion);
+	write_be16(p.data() + 2u, 0u);
+	write_be16(p.data() + 4u, nv);
+	write_be16(p.data() + 6u, nf);
+	write_be16(p.data() + 8u, ni);
+	write_be16(p.data() + 10u, nm);
+	write_be32(p.data() + 12u, v_off);
+	write_be32(p.data() + 16u, i_off);
+	write_be32(p.data() + 20u, f_off);
+	write_be32(p.data() + 24u, m_off);
+
+	const s16 verts[nv][3] = {
+		{-20, -20, -20}, {20, -20, -20}, {20, 20, -20}, {-20, 20, -20},
+		{-20, -20, 20},  {20, -20, 20},  {20, 20, 20},  {-20, 20, 20},
+	};
+	for (u16 i = 0u; i < nv; ++i) {
+		write_be16(p.data() + v_off + i * 6u, static_cast<u16>(verts[i][0]));
+		write_be16(p.data() + v_off + i * 6u + 2u, static_cast<u16>(verts[i][1]));
+		write_be16(p.data() + v_off + i * 6u + 4u, static_cast<u16>(verts[i][2]));
+	}
+
+	const u16 faces[nf][4] = {
+		{4, 5, 6, 7}, {0, 3, 2, 1}, {7, 6, 2, 3},
+		{0, 1, 5, 4}, {1, 2, 6, 5}, {0, 4, 7, 3},
+	};
+	for (u16 f = 0u; f < nf; ++f) {
+		for (u16 k = 0u; k < 4u; ++k) {
+			write_be16(p.data() + i_off + (f * 4u + k) * 2u, faces[f][k]);
+		}
+		write_be16(p.data() + f_off + f * 6u, static_cast<u16>(f * 4u));
+		write_be16(p.data() + f_off + f * 6u + 2u, 4u);
+		write_be16(p.data() + f_off + f * 6u + 4u, static_cast<u16>(f < 3u ? 0u : 1u));
+	}
+
+	p.data()[m_off + 0u] = 3u; // color
+	p.data()[m_off + 1u] = 0u; // pattern
+	write_be16(p.data() + m_off + 2u, 0u); // flags
+	p.data()[m_off + 4u] = 5u; // color
+	p.data()[m_off + 5u] = 1u; // pattern
+	write_be16(p.data() + m_off + 6u, 0u); // flags
+	return p;
+}
+
+void test_model_asset() {
+	using SceneT = scene3d::Scene<4, 8>;
+	const std::vector<u8> payload = build_box_model_payload();
+
+	MockPlayfield pf;
+	pf.init(320, 200, 4);
+	Surface surf(pf, SurfaceRect {0, 0, 320, 200});
+
+	Camera cam {};
+	cam.focal = TC::from_int(340);
+	cam.cx = 160;
+	cam.cy = 100;
+	cam.near_z = TC::from_int(64);
+	cam.half_w = TC::from_int(160);
+	cam.half_h = TC::from_int(100);
+
+	const assets::Model3DAssetView asset {
+		UafPayload {payload.data(), static_cast<u32>(payload.size())}};
+	check(asset.valid(), "Model3D valido");
+	check(asset.vertex_count() == 8u && asset.face_count() == 6u, "conteos Model3D");
+	check(asset.material_count() == 2u, "materiales Model3D");
+	const assets::ModelBounds bounds = asset.bounds();
+	check(bounds.min.v[0] == -20 && bounds.max.v[0] == 20, "bounds X");
+	check(bounds.min.v[2] == -20 && bounds.max.v[2] == 20, "bounds Z");
+
+	// UAF-R real: BlobWriter + Model3D; el loader valida el chunk.
+	std::vector<u8> container(8u + 8u + payload.size() + 4u, 0u);
+	assets::BlobWriter writer {Span<u8>(container.data(), container.size())};
+	check(writer.begin(), "BlobWriter begin");
+	check(writer.add_chunk(assets::ChunkType::Model3D, 1u,
+			       UafPayload {payload.data(), static_cast<u32>(payload.size())}),
+	      "BlobWriter Model3D");
+	const UafPayload blob_bytes = writer.finish();
+	assets::Blob blob;
+	check(blob.bind(blob_bytes), "Blob bind");
+	const assets::ChunkRef* chunk = blob.find(assets::ChunkType::Model3D);
+	check(chunk != nullptr, "chunk Model3D encontrado");
+	check(chunk != nullptr && assets::Model3DAssetView {blob.data(*chunk)}.valid(),
+	      "chunk Model3D valido");
+
+	scene3d::ModelTable<2, 8, 24, 6, 2> table;
+	const scene3d::ModelHandle handle = table.add(asset);
+	check(handle.valid(), "ModelTable add");
+	check(table.size() == 1u, "ModelTable size");
+	check(table.mesh(handle) != nullptr && table.mesh(handle)->vertex_count() == 8u,
+	      "ModelTable malla");
+	check(table.mesh(handle) != nullptr && table.mesh(handle)->face_count() == 6u,
+	      "ModelTable caras");
+	check(table.color(handle, 0u) == 3u, "material color cara 0");
+	check(table.color(handle, 3u) == 5u, "material color cara 3");
+	check(table.pattern(handle, 3u) == 1u, "material patron cara 3");
+	check(table.material_index(handle, 3u) == 1u, "indice de material cara 3");
+	check(table.bounds(handle).max.v[1] == 20, "bounds del modelo en tabla");
+
+	scene3d::Scene<4, 8> scene;
+	check(scene.set_camera(cam), "camara de escena con modelo");
+	const auto node = scene.spawn({.model = handle, .position = math3d::vec3(0, 0, 120)});
+	check(node.valid(), "nodo con modelo de tabla");
+	const u32 faces = scene.render(table, surf, [&](SceneT::NodeId, u32 face) {
+		return table.color(handle, face);
+	});
+	check(faces > 0u, "render con ModelTable");
+	check(!pf.polys.empty(), "ModelTable llega a Surface");
+
+	// Rechazos: asset truncado, índice fuera de rango, cara no convexa por conteo,
+	// capacidad de tabla y desbordamiento de MaxVertices.
+	{
+		const assets::Model3DAssetView bad {
+			UafPayload {payload.data(), 10u}};
+		check(!bad.valid(), "payload truncado se rechaza");
+		check(!table.add(bad).valid(), "tabla rechaza payload truncado");
+	}
+	{
+		std::vector<u8> bad = payload;
+		const u32 i_off = assets::Model3DAssetView::kHeaderSize + 8u * 6u;
+		write_be16(bad.data() + i_off, 99u);
+		const assets::Model3DAssetView view {
+			UafPayload {bad.data(), static_cast<u32>(bad.size())}};
+		check(!view.valid(), "indice fuera de rango se rechaza");
+	}
+	{
+		std::vector<u8> bad = payload;
+		const u32 f_off = assets::Model3DAssetView::kHeaderSize + 8u * 6u + 24u * 2u;
+		write_be16(bad.data() + f_off + 2u, 2u);
+		const assets::Model3DAssetView view {
+			UafPayload {bad.data(), static_cast<u32>(bad.size())}};
+		check(!view.valid(), "cara de 2 vertices se rechaza");
+	}
+	{
+		scene3d::ModelTable<1, 8, 24, 6, 2> one;
+		check(one.add(asset).valid(), "tabla de 1 acepta el primero");
+		check(!one.add(asset).valid(), "tabla de 1 rechaza el segundo");
+	}
+	{
+		scene3d::ModelTable<1, 4, 24, 6, 2> small;
+		check(!small.add(asset).valid(), "tabla rechaza malla mayor que MaxVertices");
+	}
+}
+
 void test_scene_render() {
 	MockPlayfield pf;
 	pf.init(320, 200, 4);
@@ -325,10 +481,11 @@ void test_scene_render() {
 int main() {
 	test_numeric_policy();
 	test_scene_lifecycle();
+	test_model_asset();
 	test_scene_render();
 
 	if (g_fail == 0) {
-		std::printf("OK: HOST-488 fachada 3D (G0) validada.\n");
+		std::printf("OK: HOST-488 fachada 3D (G0) y modelo cocinado (G1) validados.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones.\n", g_fail);

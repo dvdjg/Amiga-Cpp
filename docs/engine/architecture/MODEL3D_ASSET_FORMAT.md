@@ -298,6 +298,22 @@ El patrón puede almacenarse comprimido como `width/height + rows u16`. El runti
 descriptor general de textura ni UVs RGB. Si después se añade textura indexada, debe ser otro codec
 optativo con presupuesto explícito de Chip RAM, no una propiedad implícita de todo material.
 
+## Model3D v1 implementado (G1)
+
+La primera implementación ([`model3d.hpp`](../../../engine/include/eng/assets/model3d.hpp), cooker [`cook-model3d.ts`](../../../tools/assets/cook-model3d.ts), HOST-488) cubre el caso que desbloquea contenido: **una malla estática, caras n-gon convexas y materiales planos embebidos**. El payload `Model3D=15` es big-endian y de capacidad fija:
+
+```text
+u16 version=1, u16 flags, u16 vertex_count, u16 face_count,
+u16 index_count, u16 material_count,
+u32 vertex_offset, u32 index_offset, u32 face_offset, u32 material_offset
+vertex[]   { s16 x, s16 y, s16 z }
+index[]    { u16 }
+face[]     { u16 first, u16 count, u16 material }
+material[] { u8 color, u8 pattern, u16 flags }
+```
+
+Los offsets son relativos al inicio del payload; el runtime valida la cabecera, los offsets, los índices, los rangos de cara (3–8 vértices) y los materiales antes de publicar la vista. El cooker valida además que cada cara sea convexa y no degenerada, y cuantiza los vértices a `s16`; el winding exterior sigue siendo responsabilidad de la autoría. Los chunks `Material3D=16`/`RasterPattern=17` quedan reservados para el esquema completo (materiales/patrones compartidos entre mallas), y `Animation3D=18`/`Collider3D=19` para nodos, clips y proxies. El subheader multi-malla/nodo descrito arriba es el objetivo de esa extensión; v1 no lo necesita.
+
 ## Pipeline host→Amiga
 
 ```text

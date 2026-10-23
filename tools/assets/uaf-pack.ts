@@ -41,6 +41,11 @@ export enum UafChunkType {
 	Mesh = 12,
 	WorldMap = 13,
 	MeshPoly = 14,
+	Model3D = 15,
+	Material3D = 16,
+	RasterPattern = 17,
+	Animation3D = 18,
+	Collider3D = 19,
 }
 
 /** Chunk lógico antes de empaquetar. */
