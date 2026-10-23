@@ -35,6 +35,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/util/expected.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/debug/hud.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -56,6 +57,7 @@
 #include <eng/res/budget.hpp>
 #include <eng/res/load.hpp>
 #include <eng/scene/actor.hpp>
+#include <eng/scene/sprite_director.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>

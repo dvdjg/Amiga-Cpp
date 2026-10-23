@@ -239,6 +239,27 @@ public:
 		return ActorId {handle.index, handle.generation};
 	}
 
+	/// Alta **sin presupuesto de representación**: la usa el `SpriteDirector`, que decide
+	/// con el `SpriteAllocator` real (canales/scanline/gap) en vez de con el contador
+	/// grueso de `RepresentationAllocator`. El actor queda marcado como sprite; la
+	/// composición lo degradará a BOB si no cabe.
+	ActorId add_unbudgeted(const ActorDesc& desc) {
+		if (m_pool.full() || desc.visual.pixels.empty() || desc.visual.w == 0u ||
+		    desc.visual.h == 0u) {
+			return {};
+		}
+		const auto handle = m_pool.add();
+		if (!handle.valid()) {
+			return {};
+		}
+		Actor& a = *m_pool.get(handle);
+		a.desc = desc;
+		a.bob = bob_from_visual(desc.visual, desc.layout, desc.transparency);
+		a.bob.sheet_row_bytes = desc.sheet_row_bytes;
+		a.actual = Representation::Sprite;
+		return ActorId {handle.index, handle.generation};
+	}
+
 	constexpr bool remove(ActorId id) { return m_pool.remove(to_handle(id)); }
 
 	constexpr eng::Ref<Actor> get(ActorId id) { return m_pool.get(to_handle(id)); }
@@ -410,7 +431,8 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 			// **Plantilla de franjas**: proyección a intents encadenados (mismo canal).
 			// `attach` (par de 15 colores) y `group` (corrida de canales) no están
 			// soportados en cadena: rechazo controlado.
-			if (tpl.attach || next_chain == 0u || a->desc.group != 0u) {
+			if (tpl.attach || next_chain == 0u || a->desc.group != 0u ||
+			    a->desc.strip_id != 0u) {
 				return 0u;
 			}
 			const eng::usize remaining = intents.size() - n;
@@ -440,7 +462,7 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		// vertical/posición, el segundo con `attach` (AHRM cap. 4, Table 4-5). Un par no
 		// puede ser miembro de un grupo (ocuparía dos canales de la corrida): rechazo.
 		const bool attached = eng::graphics::visual_is_attached_pair(a->desc.visual);
-		if (attached && a->desc.group != 0u) {
+		if (attached && (a->desc.group != 0u || a->desc.strip_id != 0u)) {
 			return 0u;
 		}
 		const eng::u16 need = attached ? 2u : 1u;
@@ -456,6 +478,9 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		intents[n].group_id = a->desc.group;
 		intents[n].group_index = a->desc.group_index;
 		intents[n].group_span = a->desc.group_span;
+		intents[n].strip_id = a->desc.strip_id;
+		intents[n].strip_index = a->desc.strip_index;
+		intents[n].strip_span = a->desc.strip_span;
 		intent_actor[n] = order[i].index;
 		++n;
 		if (need == 2u) {

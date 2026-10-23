@@ -5,6 +5,12 @@
 /// a partir de su descripción y de un presupuesto de recursos. La aplicación declara
 /// QUÉ es un actor; el engine decide CÓMO se materializa y puede reasignarlo.
 ///
+/// **Modo avanzado/heredado.** La contabilidad es deliberadamente gruesa (un canal por
+/// actor, sin attached/tiras/grupos/scanline/Copper/Blitter y sin gap vertical) y puede
+/// sobrevender. La fachada nueva `SpriteDirector` + `SpriteLoadReport` usa el
+/// `SpriteAllocator` real; `RepresentationAllocator` se conserva para los caminos
+/// históricos y para estimaciones rápidas.
+///
 /// Lógica pura y determinista (host-testable). Ver
 /// `docs/engine/architecture/SCENE_AND_RESOURCES.md` §2.
 

@@ -171,6 +171,14 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		s.prev_count = pc;
 	}
 	SpriteAllocator{}.assign(s.intents.first(n), s.slots, ledger);
+	// La fachada por intención puede pedir BOB explícitamente (`force_bob`): se marca
+	// después del reparto para que no consuma un canal ni participe en el arbitraje de
+	// paleta. `emit_bob_fallbacks` lo dibuja una sola vez por actor.
+	for (eng::u16 i = 0u; i < n; ++i) {
+		if (store.at(s.intent_actor[i]).desc.force_bob) {
+			s.slots[i].as_bob = true;
+		}
+	}
 
 	// **F7: arbitraje de paleta de los sprites** (opt-in por actor, `sprite_palette`). Con
 	// las necesidades derivadas del canal asignado (par `16+4·(c/2)`; *attached* `17..31`),

@@ -18,6 +18,11 @@
 /// Los pares *attached* (parte de 4 planos y 16 px) se cocinan en el pool Chip que dé
 /// `set_cooked_pool` (como en `SpriteScene`); sin pool, esa parte se materializa como BOB.
 ///
+/// **Modo avanzado.** `eng::scene::SpriteDirector` es la fachada única nueva: acepta
+/// `VisualId`/`CompositeId`, comparte el reparto de canales con los sprites simples y
+/// devuelve `SpriteLoadReport`. `CompositeScene` queda como implementación/camino directo
+/// para código que ya gestiona sus propias partes.
+///
 /// ```cpp
 /// eng::CompositeScene<4> sprites;
 /// const auto id = sprites.add(hero, 100, 120, /*sequence*/ 0);
@@ -174,12 +179,19 @@ public:
 		return eng::scene::composite_hitboxes(*m_entries[id].visual, m_entries[id].state, out);
 	}
 
+	/// Colocaciones de Sprite HW del **último** `emit` (en el orden en que se publicaron).
+	/// El `SpriteDirector` las combina con las de la escena simple antes de presentar.
+	[[nodiscard]] eng::Span<const eng::graphics::HwSpritePlacement> placements() const noexcept {
+		return eng::Span<const eng::graphics::HwSpritePlacement> {m_placements, m_place_count};
+	}
+
 	/// **Emite el frame**: las partes BOB van al `plan`; las de Sprite HW quedan preparadas
 	/// para `present`. `transparency`/`layout` describen el contenido de las partes BOB.
 	EmitResult emit(eng::graphics::FramePlan& plan, const eng::graphics::BobTarget& target,
 			eng::graphics::BobLayout layout = eng::graphics::BobLayout::Planar,
 			eng::scene::TransparencyMode transparency =
-				eng::scene::TransparencyMode::Mask1Bit) noexcept {
+				eng::scene::TransparencyMode::Mask1Bit,
+			eng::Ref<const eng::graphics::SpriteChannelLedger> ledger = {}) noexcept {
 		EmitResult r {};
 		m_intent_count = 0u;
 		m_place_count = 0u;
@@ -225,7 +237,7 @@ public:
 		// Reparto de canales y materialización de los Sprite HW.
 		(void)eng::graphics::SpriteAllocator {}.assign(
 			eng::Span<const eng::graphics::SpriteIntent> {m_intents, m_intent_count},
-			eng::Span<eng::graphics::SpriteSlot> {m_slots, m_intent_count});
+			eng::Span<eng::graphics::SpriteSlot> {m_slots, m_intent_count}, ledger);
 		for (eng::u16 k = 0u; k < m_intent_count; ++k) {
 			const eng::u16 a = m_intent_actor[k];
 			Entry& e = m_entries[a];

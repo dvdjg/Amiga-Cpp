@@ -10,6 +10,11 @@
 /// como sprite hardware se **degradan a BOB** (`result.degraded`), dibujados por Blitter en el plan
 /// del frame. El juego **no ve** canales, registros ni `BPLxPT`.
 ///
+/// **Modo avanzado.** La fachada por intención con `VisualId`/`CompositeId`, presupuesto real y
+/// `SpriteLoadReport` es `eng::scene::SpriteDirector` (`scene/sprite_director.hpp`, incluida en
+/// `eng/api/api.hpp`). `SpriteScene` sigue siendo la implementación directa de actores y el camino
+/// para código que ya declara `ActorDesc`.
+///
 /// Un actor cuyo **contenido** es de 4 planos y 16 px (par *attached* derivado del arte)
 /// consume **dos canales contiguos** y se publica como dos placements de 15 colores; el engine
 /// cocina sus dos estructuras DMA en el pool Chip que da `set_cooked_pool`
@@ -98,6 +103,14 @@ public:
 		invalidate_cooked_cache();
 		return m_store.add(desc, m_alloc);
 	}
+	/// Alta **sin presupuesto** para el `SpriteDirector`: la decisión real la toma
+	/// `SpriteAllocator` al componer (canales, gap, scanline), no el contador grueso de
+	/// `RepresentationAllocator`. El actor se marca como sprite y degrada a BOB si no cabe.
+	[[nodiscard]] eng::scene::ActorId add_direct(const eng::scene::ActorDesc& desc) noexcept {
+		invalidate_cooked_cache();
+		return m_store.add_unbudgeted(desc);
+	}
+
 	/// \param id  id devuelto por `add`.
 	/// \return `true` si se quitó el actor.
 	[[nodiscard]] bool remove(eng::scene::ActorId id) noexcept {
@@ -125,7 +138,8 @@ public:
 	/// \return resumen: `sprites` (HW), `degraded` (no cupieron), `bobs`, `copper`, `ok`.
 	[[nodiscard]] eng::scene::SpriteComposeResult
 	emit(eng::graphics::FramePlan& plan, const eng::scene::ActorEmitContext& ctx,
-	     eng::Ref<eng::copper::Plan> copper = {}) noexcept {
+	     eng::Ref<eng::copper::Plan> copper = {},
+	     eng::Ref<const eng::graphics::SpriteChannelLedger> ledger = {}) noexcept {
 		eng::scene::SpriteComposeScratch sc {
 			eng::Span<eng::scene::ActorId> {m_order, MaxActors},
 			eng::Span<eng::scene::SpriteIntent> {m_intents, kMaxIntents},
@@ -142,7 +156,8 @@ public:
 		sc.sort_actor = eng::Span<eng::u16> {m_sort_actor, kMaxIntents};
 		sc.y_offsets = eng::Span<eng::u16> {m_y_offsets, kRasterLines};
 		sc.cooked_pairs = eng::Span<eng::scene::AttachedCookedCache> {m_cooked_pairs, MaxActors};
-		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper);
+		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper,
+						       ledger);
 		m_prev_count = sc.prev_count; // la secuencia de este frame queda para el siguiente
 		m_cooked_used = sc.cooked_used;
 		return m_result;

@@ -214,7 +214,20 @@ struct ActorDesc {
 	eng::u8 group = 0;
 	eng::u8 group_index = 0;
 	eng::u8 group_span = 1;
+	/// **Tira horizontal** (objeto más ancho que un sprite): los actores de la misma tira
+	/// comparten `strip_id`, declaran el mismo `strip_span` y llegan ordenados con el líder
+	/// (`strip_index == 0`, el tramo izquierdo) primero. El `SpriteAllocator` reserva una
+	/// corrida de canales contiguos; si no cabe, la tira entera va a BOB. No combinable con
+	/// *attached* ni con `sprite_template`.
+	eng::u8 strip_id = 0;
+	eng::u8 strip_index = 0;
+	eng::u8 strip_span = 1;
 	Representation preferred = Representation::Sprite;
+	/// **Petición explícita de BOB** para la fachada por intención (`SpritePolicy::Bob`,
+	/// `Reuse::None`, `Attach::Off` sobre contenido de 4 planos). No consume sprite HW;
+	/// el compositor lo marca `as_bob` sin pasar por el reparto de canales. No cambia el
+	/// significado histórico de `preferred`.
+	bool force_bob = false;
 	TransparencyMode transparency = TransparencyMode::ColorKey0;
 	BackgroundPolicy background = BackgroundPolicy::ClearRect;
 	Anchor anchor {};
