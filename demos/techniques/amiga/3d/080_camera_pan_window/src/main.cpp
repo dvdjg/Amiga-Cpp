@@ -22,8 +22,10 @@
 
 #include <eng/api/api.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
+#include <eng/field/canvas_playfield.hpp>
 #include <eng/field/contiguous_playfield.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/surface.hpp>
@@ -91,7 +93,7 @@ constexpr u16 kDiwstop = 0x2cc1u;
 // --- HUD (franja inferior, 1 bitplane) ----------------------------------------------
 constexpr u16 kHudLines = 48u;
 constexpr u16 kHudLine = 44u + kViewportH;        // 252; el HUD no se desplaza con la escena
-constexpr u16 kHudBytes = kRowBytes * kHudLines;
+// La franja se reserva con CanvasPlayfield y nace limpia.
 constexpr u16 kHudColor0 = 0x000u;
 constexpr u16 kHudColor1 = 0xfffu;
 
@@ -446,15 +448,10 @@ struct PanWindowDemo {
 
 		// La tira del HUD se reserva ANTES de componer: la etapa de display la
 		// referencia (con una palabra de guarda delante, que el fetch puede leer).
-		m_hud = backend.memory_manager().chip().reserve<eng::PlaneTag>(kHudBytes + 2u, 16);
-		if (!m_hud.valid()) {
+		if (!m_hud_pf.begin(backend.memory_manager(), {kFbW, kHudLines, 1u, kRowBytes, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008002u);
 			return;
 		}
-		(void)backend.blitter_clear(m_hud.view.subspan(2u, kHudBytes), 1u, kRowBytes,
-					    kHudBytes, kFbW, kHudLines);
-		(void)m_hud_pf.bind_raw(m_hud.view.data() + 2u, kHudBytes, kFbW, kHudLines, 1u,
-					kHudBytes);
 
 		// Planos de patrón de la sala (1 bit): el damero de mezcla A/B de cada plano ocupa
 		// 2 filas (periodo 2) — 88 B por plano, 4 filas en total; los lee el Blitter por el
@@ -496,8 +493,6 @@ struct PanWindowDemo {
 			(void)backend.blitter_clear(m_scene.buffer(b), kPlanes, kRowBytes, kSceneBytes,
 						    kFbW, kFbH, true);
 		}
-		draw_hud_static();
-
 		m_scene.takeover(backend); // muestra el buffer 0; el primer Full dibuja el 1
 		m_show_buf = 0u;
 		m_draw_buf = 1u;
@@ -647,15 +642,19 @@ struct PanWindowDemo {
 		if (m_stage != Stage::None) {
 			run_stage(backend); // Clip en el mismo update en que se pidió; luego una etapa
 		}
-		// El HUD se repinta cada 32 frames (~0,6 s con el bucle rebanado): suficiente para
-		// telemetria y deja el camino del frame en 1 campo (una linea de texto por
-		// palabras cuesta ~190k ciclos medidos con el display activo).
+		// Identidad/frame/fps y telemetría de pacing en el overlay del host; el viewport
+		// queda sin texto de depuración.
 #if !defined(K080_SKIP_HUD)
-		if ((f & 31u) == 0u) {
-			ENG_PROF_BEGIN(kProfHud);
-			draw_hud_dynamic(f, pstep);
-			ENG_PROF_END(kProfHud);
-		}
+		ENG_PROF_BEGIN(kProfHud);
+		eng::util::TextLine<96> stats;
+		stats << "FULL " << eng::u16(m_fulls) << " FAKE " << eng::u16(m_fakes)
+		      << " MODE " << motion_mode_name(m_motion_mode)
+		      << " Y " << eng::s16(pan_degrees(m_yaw_pan))
+		      << " F " << eng::u16(m_present.pacing().full_fields())
+		      << " K " << eng::u16(m_present.max_consecutive_fakes());
+		m_host_hud.draw(backend.debug(), "080 CAMERA PAN WINDOW", kVersion, f,
+				eng::debug::prof_clock(), stats.c_str());
+		ENG_PROF_END(kProfHud);
 #endif
 		ENG_PROF_BEGIN(kProfPatch);
 #if !defined(K080_SKIP_PATCH)
@@ -799,7 +798,7 @@ private:
 		s.move(eng::copper::Register::BPLCON1, 0x0000u);
 		s.move(eng::copper::color_register(0u), kHudColor0);
 		s.move(eng::copper::color_register(1u), kHudColor1);
-		s.move_bitplane_pointer(0u, m_hud.mem_view().address(2));
+		s.move_bitplane_pointer(0u, m_hud_pf.hardware_view().real_base);
 	}
 
 	// --- Parcheo de la ventana (por frame) -------------------------------------------
@@ -1409,64 +1408,6 @@ private:
 #endif
 	}
 
-	// --- HUD --------------------------------------------------------------------------
-	void draw_hud_static() {
-		playfield::Surface hud {m_hud_pf,
-					playfield::SurfaceRect {0, 0, kFbW, kHudLines}};
-		(void)hud.draw_text_words(16, 2, "080 CAMERA PAN WINDOW", 1u);
-		// Suelos de la fase F1: base (Full) >= 12.5 Hz con display interpolado >= 25 Hz;
-		// el numero de fakes por Full lo decide el coste medido (render_pacing.hpp).
-		(void)hud.draw_text_words(16, 12, "FULL 12.5 + FAKE 25", 1u);
-	}
-
-	void draw_hud_dynamic(u32 f, const eng::graphics::PresentStep& step) {
-		ENG_PROF_BEGIN(kProfHudCtor);
-		playfield::Surface hud {m_hud_pf,
-					playfield::SurfaceRect {0, 0, kFbW, kHudLines}};
-		// Sin `fill_rect` por frame: el relleno de la Surface es CPU-pixel a pixel (caro
-		// en Chip bajo DMA) y no hace falta: `draw_text_words` compone glifo + FONDO de
-		// golpe (palabra a palabra), asi que repintar la MISMA extension con la cadena
-		// rellena a espacios fijos reescribe y limpia la linea anterior.
-		char buf[8] {};
-		char text[64] {};
-		u8 m = 0u;
-		m = str_cat(text, m, "FRAME ");
-		(void)u16_to_str(static_cast<u16>(f), buf);
-		m = str_cat(text, m, buf);
-		m = str_cat(text, m, " FULL ");
-		(void)u16_to_str(static_cast<u16>(m_fulls), buf);
-		m = str_cat(text, m, buf);
-		m = str_cat(text, m, " FAKE ");
-		(void)u16_to_str(static_cast<u16>(m_fakes), buf);
-		m = str_cat(text, m, buf);
-		pad_to(text, m, kHudLineChars);
-		// Línea 4: modo de cámara y ángulos yaw/pitch reales del recorrido.
-		char text2[64] {};
-		u8 n = 0u;
-		n = str_cat(text2, n, "MODE ");
-		n = str_cat(text2, n, motion_mode_name(m_motion_mode));
-		n = str_cat(text2, n, " Y ");
-		(void)i16_to_str(pan_degrees(m_yaw_pan), buf);
-		n = str_cat(text2, n, buf);
-		n = str_cat(text2, n, " P ");
-		(void)i16_to_str(pan_degrees(m_pitch_pan), buf);
-		n = str_cat(text2, n, buf);
-		n = str_cat(text2, n, " F ");
-		(void)u16_to_str(m_present.pacing().full_fields(), buf);
-		n = str_cat(text2, n, buf);
-		n = str_cat(text2, n, " K ");
-		(void)u16_to_str(static_cast<u16>(m_present.max_consecutive_fakes()), buf);
-		n = str_cat(text2, n, buf);
-		pad_to(text2, n, kHudLineChars);
-		ENG_PROF_END(kProfHudCtor);
-		ENG_PROF_BEGIN(kProfHudLine1);
-		(void)hud.draw_text_words(16, 22, text, 1u);
-		ENG_PROF_END(kProfHudLine1);
-		ENG_PROF_BEGIN(kProfHudLine2);
-		(void)hud.draw_text_words(16, 32, text2, 1u);
-		ENG_PROF_END(kProfHudLine2);
-	}
-
 	static const char* motion_mode_name(MotionMode mode) {
 		switch (mode) {
 		case MotionMode::YawSweep: return "YAW";
@@ -1483,13 +1424,13 @@ private:
 private:
 	bool m_ready = false;
 	scene::Scene m_scene {};
-	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_hud {};
 	eng::Block<eng::MaskTag, eng::MemoryKind::Chip> m_pattern {}; ///< patrón 1-bit de la sala
-	playfield::ContiguousPlayfield m_hud_pf {};
+	playfield::CanvasPlayfield m_hud_pf {};
 	eng::copper::MoveSlot m_bplcon1_slot {};
 	eng::copper::MoveSlot m_plane_hi[kPlanes] {};
 	eng::copper::MoveSlot m_plane_lo[kPlanes] {};
 	eng::graphics::PresentController m_present {};
+	eng::debug::HostHud m_host_hud {}; ///< identidad/frame/fps en el overlay del host
 	CubeScreenFace m_cube_faces[kCubeFaceSlots] {};
 	MotionMode m_motion_mode = kForcePitch ? MotionMode::PitchSweep
 				      : (kForceLissajous ? MotionMode::Lissajous

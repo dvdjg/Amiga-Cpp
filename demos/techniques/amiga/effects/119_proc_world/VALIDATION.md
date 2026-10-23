@@ -11,6 +11,10 @@ durante la validación se reconfirmó el fallo **`a5=0`** del 212 para el bucle 
 bajo SO vivo (evidencia en §Latido: el 212 y el modo de sondeo). **SIN VERIFICAR**: la
 generación runtime del mundo en el 68000 (ya no se usa) y el display de 6 planos.
 
+## HUD de host
+
+La identidad/frame/fps y la telemetría `LOAD ... KC / PIECES` viven en el overlay del host (`HostHud`). La franja inferior de 16 px queda negra para conservar la geometría; la demo no parchea texto en bitplanes.
+
 Intención esperada: pantalla 320×256 con un mundo cenital 10×7 de piezas de 32 px y **32
 colores** (5 planos) — río continuo de norte a sur con 2 meandros y puente donde lo cruza el
 camino horizontal; **afluente** por la fila superior que desemboca en el cauce con una unión
@@ -70,7 +74,7 @@ para el bucle por IRQ+`Wait` bajo SO vivo; el doc 212 lista las vías abiertas.
 
 | Medida | Comando | Resultado | Lectura |
 |---|---|---|---|
-| fps (debug, sondeo) | `node tools/debug/measure-fps.mjs 119_proc_world A500_debug --json` | `49.85 fps`, `1.003 campos/frame`, `142291 ciclos/frame` | estable con `run_frames_polling` (ver §Latido) |
+| fps (debug, sondeo, HUD de host) | `node tools/debug/measure-fps.mjs 119_proc_world A500_debug --json` | **49.88 fps**, **1.002 campos/frame**, 142211 ciclos/frame | estable con `run_frames_polling`; sin texto de HUD en bitplanes |
 | fps (grabado) | `node tools/debug/record-fps.mjs 119_proc_world A500_debug --samples 1` | `49.84 fps` (detail `0x119`) | fila registrada en `BITACORA_SCROLL_TILES.md` |
 | Carga (debug) | franja de versión de la captura | `LOAD 7921KC` (≈7,9 M ciclos) | solo composición + C2P + verificación (el mundo viene del compilador) |
 | Regresión + parpadeo | `tools/test-regression.sh --flicker --require-flicker-ok --demo … --warp` | **Regression OK** | gate de captura propio y `flicker` sin candidatos |

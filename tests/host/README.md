@@ -59,4 +59,4 @@ dependen de hardware y no necesitan WinUAE.
 | `sim` | 34 | [sim/README.md](sim/README.md) |
 | `ui` | 30 | [ui/README.md](ui/README.md) |
 
-Total: 454 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).
+Total: 455 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).

@@ -2,10 +2,14 @@
 
 Informe de validación (F3/F4) de la demo del **mundo procedural cocido a tileset** y el **motor de tiles X-Limited**: estructuras multi-tile (río por esquinas, caminos con puente, castillo, casas 2×2 A/B, árboles 2×2), fondo pintado por el Blitter desde el banco de tiles y un **actor de 16×16** (Blitter, cookie-cut) que pasa por debajo de las copas. Todo lo medido es sobre `A500_debug` (warp); el alcance de cada afirmación está acotado en §5.
 
+## HUD de host y medida pendiente
+
+El HUD de depuración vive en el overlay del host (`HostHud`) y la franja de 48 px queda negra. En esta campaña `measure-fps` agotó el READY (detail `0xff6141`) en dos pasadas, aunque `run-demo` arranca y renderiza; no se declara una cifra nueva. La medida histórica de 47,67 fps del HUD en viewport se conserva como referencia, no como validación vigente.
+
 ## 1. Intención (F0)
 
-Mundo de 320×208 (20×13 tiles de 16 px, 32 colores del atlas procedural) + HUD de 1 bitplane (48 px). Contenido del mundo: río N→S con lago e isla (transiciones de esquinas), caminos (rectas/codos/curvas) con **puente** sobre el cauce, **castillo 3×3** (muralla por casación:
-esquinas, torre, puerta sur), **dos casas grandes 2×2** (variantes A/B con la puerta espejada), **árboles grandes 2×2** (copa continua), arbolitos, flores (decal) y **copas (overhead)** sobre el carril. El fondo se **pinta una vez con el motor de tiles** (sin C2P ni composición por píxel); por frame solo hay Blitter para el actor (restaurador de ventana + dibujo enmascarado) y el HUD cuando cambia el contador. Criterio de éxito visual: estructuras que casan (caminos encadenados, muralla cerrada, casas/troncos continuos), río y copas íntegros, y el bicho blanco (color 31 exclusivo) caminando el carril a 1 px/frame, **oculto bajo las copas**.
+Mundo de 320×208 (20×13 tiles de 16 px, 32 colores del atlas procedural) + HUD de depuración en el overlay del host (HostHud) y franja de 48 px negra reservada para la geometría. Contenido del mundo: río N→S con lago e isla (transiciones de esquinas), caminos (rectas/codos/curvas) con **puente** sobre el cauce, **castillo 3×3** (muralla por casación:
+esquinas, torre, puerta sur), **dos casas grandes 2×2** (variantes A/B con la puerta espejada), **árboles grandes 2×2** (copa continua), arbolitos, flores (decal) y **copas (overhead)** sobre el carril. El fondo se **pinta una vez con el motor de tiles** (sin C2P ni composición por píxel); por frame solo hay Blitter para el actor (restaurador de ventana + dibujo enmascarado) (el HUD ya no se pinta en el viewport). Criterio de éxito visual: estructuras que casan (caminos encadenados, muralla cerrada, casas/troncos continuos), río y copas íntegros, y el bicho blanco (color 31 exclusivo) caminando el carril a 1 px/frame, **oculto bajo las copas**.
 
 ## 2. Gates técnicos (F3)
 

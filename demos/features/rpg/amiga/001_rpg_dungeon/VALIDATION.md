@@ -2,11 +2,15 @@
 
 Informe de validación de la demo: medidas reproducibles, evaluación de visión con el prompt canónico y **alcance declarado** (qué queda sin verificar). Fecha de la campaña: 2026-10-17 (A500_debug, WinUAE-DBG del repo).
 
+## HUD de host
+
+`HostHud` muestra nombre + número + versión + frame + fps en el overlay. El HUD de juego de la banda inferior se reduce a dos líneas (inventario/ataque/hambre y objetivo); ya no duplica la identidad ni el contador de frames. El bucle usa `app.run_polling()` para evitar el guard `0xE212` bajo SO vivo.
+
 ## Medidas
 
 | Medida | Valor | Método |
 |---|---|---|
-| fps (motor, 20 s) | **48,17 fps** (host 48,11) | `node tools/debug/measure-fps.mjs rpg_amiga_001_rpg_dungeon A500_debug --json` → `emulatedFps 48.17`, `cyclesPerFrame 147256`, `fieldsPerFrame 1.04` |
+| fps (motor, 20 s, HUD de host) | **48,39 fps** (host 48,35) | `node tools/debug/measure-fps.mjs rpg_amiga_001_rpg_dungeon A500_debug --json` → `emulatedFps 48.39`, `cyclesPerFrame 146588`, `fieldsPerFrame 1.033` |
 | fps (secuencia completa) | ~48 fps estables de F28 a F1083 | 10 capturas por intervalo (2,5 s) del `run-report.json`: deltas 112–122 frames por intervalo, sin caídas ni atascos |
 | Presupuesto | 147,6k ciclos/frame vs 141,9k de un campo PAL | medida con contador de ciclos del periférico de depuración |
 | Cadencia | uniforme (sin frame de 2 campos en régimen) | deltas de la secuencia; los frames de **recomposición del HUD** (~8 en el guion) cuestan ~5 campos aislados |

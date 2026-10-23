@@ -2,13 +2,7 @@
 
 Informe de validación (F4/F5 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`).
 
-**Estado: VERIFICADA EN EL ALCANCE PROBADO.** Contrato de cadencia: 48,5–49,2 fps
-(1,019–1,032 campos/frame; rango de pasadas del medidor) en debug y release — dentro de la
-liga de la referencia estática 119 (49,85 fps), con cero candidatos de flicker. El cuello que impedía el
-presupuesto era **el repintado completo del HUD cada 64 frames** (~3,2 M ciclos ≈ 22 campos
-por refresco, ≈26 % del presupuesto), no el camino de plan/composición del engine
-(ablacionado: coste por debajo del ruido del medidor); se resolvió con el HUD de
-depuración **más sencillo posible**: un bitplane y texto por palabras.
+**Estado: VERIFICADA EN EL ALCANCE PROBADO.** Contrato de cadencia: **49,91 fps** (1,002 campos/frame, 142142 ciclos/frame; debug, 2026-10) con cero candidatos de flicker. El HUD de depuración vive en el overlay del host (`HostHud`); la franja de 48 px se conserva negra para la geometría del corkscrew. La medida anterior con HUD de 1 bpp en viewport era 48,5–49,2 fps.
 
 Intención esperada: pantalla 320×256 (208 de campo + 48 de HUD) con el mundo cenital
 desplazándose horizontalmente 1 px/frame de forma continua (sin costuras ni medio-frame),
@@ -22,19 +16,15 @@ banco de ~160 tiles de 16×16 en 5 planos (32 colores), y la franja con la ident
   histórica `planes==6`, que era del pipeline EHB; ver `xlimited_scene.hpp`).
 - Scroll por `XlimitedScene`+`TileLayerMap` toroidal (semántica probada en `HOST-447`) con
   sub-pasos atómicos de 1 px.
-- **HUD de 1 bitplane con texto por palabras** (`Surface::draw_text_words` +
-  `Playfield::store_plane_word`, **genéricos en planos y color**; la demo usa 1 plano y
-  tinta 1): la franja tiene su propio plano (paleta de 2 colores vía la ModeSwitchZone del
-  driver) y el texto se imprime componiendo dos glifos de Font8 por palabra de 16 px — ocho
-  escrituras de palabra por par, patrón y fondo de golpe — sin bucle por píxel ni por bit.
-  El lienzo se limpia una sola vez, en el primer pintado. Test: `HOST-449`.
+- **HUD de host** (`HostHud`): nombre + número + versión + frame + fps en el overlay; la franja de 48 px queda negra y conserva la geometría del corkscrew. El lienzo lo limpia el engine (`XlimitedScene::begin`). Test: `HOST-486` (HUD) y `HOST-487` (limpieza de lienzos).
 - Bucle por **sondeo** (`run_frames_polling`, modo estable del doc 212).
 
 ## Mediciones
 
 | Medida | Comando | Resultado | Lectura |
 |---|---|---|---|
-| fps (debug, HUD 1bpp genérico por palabras) | `record-fps 120_proc_world_scroll A500_debug` | `48,51–49,17 fps`, `1,019–1,032 campos/frame` | presupuesto cumplido en el alcance del medidor (referencia 119: 49,85) |
+| **fps vigente (debug, HUD de host)** | `measure-fps 120_proc_world_scroll A500_debug --json` | **49,91 fps**, **1,002 campos/frame**, 142142 ciclos/frame | **49,9 fps estables** (min 49,53 / max 50,31); el HUD ya no trabaja en viewport |
+| fps (debug, HUD 1bpp genérico por palabras) | `record-fps 120_proc_world_scroll A500_debug` | `48,51–49,17 fps`, `1,019–1,032 campos/frame` | referencia histórica del HUD en viewport |
 | fps (release, HUD 1bpp genérico) | idem `A500_release` | `49,17 fps` | release y debug equivalentes |
 | HUD intermedio (parcheo incremental por celdas) | idem | `48,67/48,59 fps` | arreglaba el cuello pero dejaba la maquinaria de diff en la demo; sustituido por el HUD 1bpp |
 | Antes del cambio (debug) | `measure-fps … A500_debug` | `37,05 fps`, `1,350 campos/frame`, `191487 ciclos/frame` | el HUD completo (5 planos) costaba ~3,2 M ciclos/refresco (~26 % del presupuesto) |

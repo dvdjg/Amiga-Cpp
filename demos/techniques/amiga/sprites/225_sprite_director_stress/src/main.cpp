@@ -26,7 +26,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/core/util/text_line.hpp>
-#include <eng/debug/hud.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
@@ -128,11 +128,8 @@ struct DirectorStressDemo {
 			backend.commit_copper(m_copper_view);
 			++m_frame_counter; // frames RENDERIZADOS (no VBlanks del bucle)
 		}
-		eng::u32 fps10 = 0u;
-		if (m_fps_win.update(m_frame_counter, eng::debug::prof_clock(), fps10)) {
-			m_fps10 = fps10;
-		}
-		eng::debug::DebugPeripheral::counter_value(0u, m_fps10);
+		eng::u32 fps10 = m_host_hud.fps10();
+		eng::debug::DebugPeripheral::counter_value(0u, fps10);
 		if ((t & 31u) == 0u) {
 			eng::debug::DebugPeripheral::counter_value(1u, m_report.hw);
 			eng::debug::DebugPeripheral::counter_value(2u, m_report.bob);
@@ -141,33 +138,17 @@ struct DirectorStressDemo {
 			m_hud_stats << "HW" << m_report.hw << " BOB" << m_report.bob
 				    << " BAND" << m_report.band_lines;
 		}
-		// **HUD de depuración del host**: nombre + número de demo, contador de frames y fps.
-		// El overlay lo compone WinUAE en el lado host (no consume bitplanes/DMA) y se
-		// limpia antes de escribir para que los dígitos no se superpongan.
-		char version[16] {};
-		const eng::u8 vlen = eng::debug::version_label(eng::debug::Version {1u, 0u}, version,
-							   static_cast<eng::u8>(sizeof(version)));
-		m_hud_name.clear();
-		m_hud_name << "225 SPRITE DIRECTOR "
-			   << eng::util::StringView(version, vlen);
-		m_hud_state.clear();
-		m_hud_state << "F" << m_frame_counter << " "
-			    << eng::util::scaled(m_fps10, 1u) << "FPS";
-		app.debug().clear();
-		app.debug().text(4, 4, m_hud_name.c_str(), 0xffffffu);
-		app.debug().text(4, 12, m_hud_state.c_str(), 0xffffffu);
-		app.debug().text(4, 20, m_hud_stats.c_str(), 0xffffffu);
+		m_host_hud.draw(app.debug(), "225 SPRITE DIRECTOR",
+				eng::debug::Version {1u, 0u}, m_frame_counter,
+				eng::debug::prof_clock(), m_hud_stats.c_str());
 	}
 
 	void render(auto& app) { (void)app; }
 
 private:
 	static constexpr eng::SineTable<64, 64> m_sin {};
-	eng::util::TextLine<32> m_hud_name {};
-	eng::util::TextLine<32> m_hud_state {};
-	eng::util::TextLine<32> m_hud_stats {};
-	eng::debug::HudFpsWindow m_fps_win {};
-	eng::u32 m_fps10 = 0u;
+	eng::util::TextLine<64> m_hud_stats {};
+	eng::debug::HostHud m_host_hud {};
 	eng::u32 m_frame_counter = 0u;
 
 	static void fill_sprite(eng::u16* dst, eng::u16 h, eng::u8 planes, eng::u16 phase,

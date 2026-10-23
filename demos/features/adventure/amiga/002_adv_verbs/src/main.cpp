@@ -34,9 +34,10 @@
 #include <eng/api/api.hpp>
 #include <eng/core/math/fixed.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
-#include <eng/field/contiguous_playfield.hpp>
+#include <eng/field/canvas_playfield.hpp>
 #include <eng/field/diff_text.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/blit_job.hpp>
@@ -85,7 +86,7 @@ constexpr u16 kDiwstop = 0x2cc1u;
 // Franja HUD: 48 lineas (208..255), 1 plano, 352 px (fetch $30..$d8).
 constexpr u16 kHudLines = 48u;
 constexpr u16 kHudLine = 44u + kFbH;
-constexpr u16 kHudBytes = 44u * kHudLines;
+constexpr u16 kHudRowBytes = 44u;
 constexpr u16 kHudColor0 = 0x011u;
 constexpr u16 kHudColor1 = 0xfffu;
 constexpr u16 kHudW = 352u;
@@ -484,14 +485,10 @@ struct AdvVerbsDemo {
 			return;
 		}
 		build_content();
-		m_hud = backend.memory_manager().chip().reserve<eng::PlaneTag>(kHudBytes + 2u, 16);
-		if (!m_hud.valid()) {
+		if (!m_hud_pf.begin(backend.memory_manager(), {352u, kHudLines, 1u, kHudRowBytes, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, kBootHud);
 			return;
 		}
-		(void)backend.blitter_clear(m_hud.view.subspan(2u, kHudBytes), 1u, 44u, kHudBytes, 352u,
-					    kHudLines);
-		(void)m_hud_pf.bind_raw(m_hud.view.data() + 2u, kHudBytes, 352u, kHudLines, 1u, kHudBytes);
 
 		m_art_idle = backend.memory_manager().chip().reserve<eng::MaskTag>(
 			static_cast<u32>(kActorW / 16u) * 2u * kActorH * kPlanes, 16);
@@ -782,7 +779,9 @@ struct AdvVerbsDemo {
 		// --- HUD: frase, replica, barra de verbos e inventario ---
 		ENG_PROF_BEGIN(kProfHud);
 		m_say.tick();
-		draw_hud_dynamic(frame);
+		draw_hud_dynamic();
+		m_host_hud.draw(backend.debug(), "002 ADV VERBS", kVersion, frame,
+				eng::debug::prof_clock());
 		ENG_PROF_END(kProfHud);
 		ENG_PROF_END(kProfFrame);
 
@@ -859,7 +858,7 @@ private:
 		s.move(eng::copper::Register::BPLCON0, scene::bplcon0_for(scene::SceneMode::Standard, 1u));
 		s.move(eng::copper::color_register(0u), kHudColor0);
 		s.move(eng::copper::color_register(1u), kHudColor1);
-		s.move_bitplane_pointer(0u, m_hud.mem_view().address(2));
+		s.move_bitplane_pointer(0u, m_hud_pf.hardware_view().real_base);
 	}
 
 	void patch_window(u16 s) {
@@ -1367,15 +1366,6 @@ private:
 		}
 	}
 
-	/// Cabecera de la franja (nombre + versión): se pinta en el camino dinámico con `DiffText`
-	/// (una vez; después solo si cambia).
-	void draw_hud_header(playfield::Surface& hud) {
-		(void)m_title_diff.paint(hud, 272, 27, "002VERBS", 1u);
-		char label[40] {};
-		(void)eng::debug::version_label(kVersion, label, sizeof(label));
-		(void)m_build_diff.paint(hud, 272, 38, label, 1u);
-	}
-
 	void paint_verb_cell(playfield::Surface& hud, u8 slot) {
 		const u8 t = verb_for_slot(slot);
 		if (t == eng::adv::kInvalidVerb) return;
@@ -1401,7 +1391,7 @@ private:
 		return 0u;
 	}
 
-	void draw_hud_dynamic(u32 frame) {
+	void draw_hud_dynamic() {
 		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, kHudW, kHudLines}};
 		// Frase: VERBO [SUJETO] [CON] [OBJETIVO bajo el puntero].
 		char line[64] {};
@@ -1469,23 +1459,6 @@ private:
 			(void)m_inv_diffs[i].paint(hud, static_cast<s16>(kInvAreaX + i * kInvPitchX), kInvAreaY,
 						   cell, 1u);
 		}
-
-		// Contador de frames (depuracion): "F<num>" en la celda libre de la barra.
-		char f[8] {};
-		u8 q = 1u;
-		f[0] = 'F';
-		u32 v = frame;
-		char tmp[5] {};
-		u8 d = 0u;
-		do { tmp[d++] = static_cast<char>('0' + (v % 10u)); v /= 10u; } while (v != 0u && d < 5u);
-		for (u8 k = 0u; k < d; ++k) f[q++] = tmp[d - 1u - k];
-		f[q] = '\0';
-		(void)m_frame_diff.paint(hud, 208, 38, f, 1u);
-
-		// Cabecera (nombre + version) AL FINAL: el `DiffText` del contador de frames cubre
-		// 8 celdas y, en su primera pintura, escribe espacios hasta x=336; si la version se
-		// pintara antes, quedaria borrada por esos espacios de esa primera pasada.
-		draw_hud_header(hud);
 	}
 
 	[[nodiscard]] static const char* item_label(eng::rpg::ItemTypeId t) {
@@ -1545,8 +1518,7 @@ private:
 	static constexpr eng::u8 kAttractSteps = 11u;
 	bool m_ready = false;
 	scene::Scene m_scene {};
-	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_hud {};
-	playfield::ContiguousPlayfield m_hud_pf {};
+	playfield::CanvasPlayfield m_hud_pf {};
 	eng::copper::MoveSlot m_bplcon1_slot {};
 	eng::copper::MoveSlot m_plane_hi[kPlanes] {};
 	eng::copper::MoveSlot m_plane_lo[kPlanes] {};
@@ -1614,10 +1586,9 @@ private:
 	playfield::DiffText<48> m_verb_diff[kVerbCapacity] {};
 	playfield::DiffText<48> m_sentence_diff {};
 	playfield::DiffText<48> m_say_diff {};
-	playfield::DiffText<16> m_title_diff {};
-	playfield::DiffText<16> m_build_diff {};
-	playfield::DiffText<16> m_frame_diff {};
 	playfield::DiffText<16> m_inv_diffs[kInvCols] {};
+
+	eng::debug::HostHud m_host_hud {}; ///< identidad/frame/fps en el overlay del host
 
 	// --- HUD (modelo + slots) ---
 	eng::hud::Hud<1u, 8u, 8u, 8u, 8u> m_hud_model {};

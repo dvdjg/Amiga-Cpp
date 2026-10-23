@@ -20,8 +20,9 @@
 // Dibujo: el fondo se pinta UNA vez (CPU, init) en un bitmap 4bpp interleaved por planos;
 // el actor y el puntero son **bobs enmascarados** (cookie-cut `$CA`) con save-under en
 // scratch (restore + stash + draw por plano): 8 blits pequenos por frame como mucho, y
-// los planos nunca se repintan. HUD 1bpp en la franja inferior (wait del Copper a la
-// linea 252 + BPLCON0 de 1 plano), texto por palabras (`Surface::draw_text_words`).
+// los planos nunca se repintan. El HUD de juego usa una franja inferior de 1 bpp; la
+// identidad/frame/fps los muestra `HostHud` en el overlay del host (sin texto de
+// depuración duplicado en el viewport).
 //
 //   bash ./tools/build/build-demo.sh demos/features/adventure/amiga/001_adv_walk --debug
 //   bash ./tools/run/run-demo.sh demos/features/adventure/amiga/001_adv_walk
@@ -33,9 +34,10 @@
 #include <eng/api/api.hpp>
 #include <eng/core/math/fixed.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
-#include <eng/field/contiguous_playfield.hpp>
+#include <eng/field/canvas_playfield.hpp>
 #include <eng/field/diff_text.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/blit_job.hpp>
@@ -77,7 +79,7 @@ constexpr u16 kDiwstop = 0x2cc1u;
 // HUD: franja de 48 lineas a partir de la 252 (44 + 208), 1 plano.
 constexpr u16 kHudLines = 48u;
 constexpr u16 kHudLine = 44u + kFbH;
-constexpr u16 kHudBytes = 44u * kHudLines; // 352 px: filas de 44 B (fetch $30..$d8, como la 080)
+constexpr u16 kHudRowBytes = 44u; // 352 px: filas de 44 B (fetch $30..$d8, como la 080)
 constexpr u16 kHudColor0 = 0x011u;
 constexpr u16 kHudColor1 = 0xfffu;
 constexpr u8 kHudCols = 38u; // ancho fijo repintado (38x8 = 304 px desde x=16)
@@ -263,19 +265,7 @@ constexpr auto kPtrMask = make_mask<kPtrW, kPtrH>([](u16 y, u16 x) {
 	return ptr_pixel(y, x);
 });
 
-/// Decimal `v` en `out` (NUL incluido); devuelve caracteres escritos.
-u8 u16_to_str(u16 v, char* out) {
-	char tmp[6] {};
-	u8 n = 0u;
-	do {
-		tmp[n++] = static_cast<char>('0' + static_cast<u8>(v % 10u));
-		v = static_cast<u16>(v / 10u);
-	} while (v != 0u && n < 5u);
-	for (u8 i = 0u; i < n; ++i) out[i] = tmp[n - 1u - i];
-	out[n] = '\0';
-	return n;
-}
-
+/// Concatena `src` en `dst` sin pasar de 60 caracteres; devuelve la longitud.
 u8 str_cat(char* dst, u8 len, const char* src) {
 	for (u8 i = 0u; src[i] != '\0' && len < 60u; ++i) dst[len++] = src[i];
 	dst[len] = '\0';
@@ -340,14 +330,10 @@ struct AdvWalkDemo {
 			eng::debug::mark_failed(g_eng_run_status, kBootMemory);
 			return;
 		}
-		m_hud = backend.memory_manager().chip().reserve<eng::PlaneTag>(kHudBytes + 2u, 16);
-		if (!m_hud.valid()) {
+		if (!m_hud_pf.begin(backend.memory_manager(), {352u, kHudLines, 1u, kHudRowBytes, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, kBootHud);
 			return;
 		}
-		(void)backend.blitter_clear(m_hud.view.subspan(2u, kHudBytes), 1u, 44u, kHudBytes, 352u,
-					    kHudLines);
-		(void)m_hud_pf.bind_raw(m_hud.view.data() + 2u, kHudBytes, 352u, kHudLines, 1u, kHudBytes);
 
 		// El arte de los bobs vive en ROM (constexpr) pero el Blitter lo lee por el canal A/B:
 		// hay que copiarlo a Chip (mismo motivo que la demo 050).
@@ -410,7 +396,6 @@ struct AdvWalkDemo {
 			return;
 		}
 		paint_backdrop();
-		draw_hud_static();
 		m_scene.takeover(backend);
 		m_cam.set_bounds({0, 0}, {kCamMaxX, 0});
 		m_cam.place({0, 0});
@@ -513,8 +498,10 @@ struct AdvWalkDemo {
 
 		ENG_PROF_BEGIN(kProfHud);
 #if !defined(ADVWALK_NO_HUD)
-		draw_hud_dynamic(frame);
+		draw_hud_dynamic();
 #endif
+		m_host_hud.draw(backend.debug(), "001 ADV WALK", kVersion, frame,
+				eng::debug::prof_clock());
 		ENG_PROF_END(kProfHud);
 		ENG_PROF_END(kProfFrame);
 
@@ -576,7 +563,7 @@ private:
 		s.move(eng::copper::Register::BPLCON1, 0x0000u);
 		s.move(eng::copper::color_register(0u), kHudColor0);
 		s.move(eng::copper::color_register(1u), kHudColor1);
-		s.move_bitplane_pointer(0u, m_hud.mem_view().address(2));
+		s.move_bitplane_pointer(0u, m_hud_pf.hardware_view().real_base);
 #endif
 	}
 
@@ -761,44 +748,10 @@ private:
 	// --- HUD ---
 	// El repintado por diferencias (solo las palabras que cambian) es lo que mantiene el frame
 	// en un campo de VBlank: lo aporta `eng::playfield::DiffText` (header documentado, coste
-	// de la palabra medido en HOST-449). Con el bucle robusto (espera activa, sin la carrera de
-	// despertar del VBlank) el coste por frame es el de 1-2 palabras (FRM), no el de la línea
-	// completa.
+	// de la palabra medido en HOST-449). La identidad/frame/fps va en el overlay del host.
 
-	void draw_hud_static() {
+	void draw_hud_dynamic() {
 		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, 320u, kHudLines}};
-		char label[40] {};
-		(void)eng::debug::version_label(kVersion, label, sizeof(label));
-		(void)hud.draw_text_words(16, 2, "001 ADV WALK", 1u);
-		(void)hud.draw_text_words(16, 12, label, 1u);
-	}
-
-	void draw_hud_dynamic(u32 frame) {
-		playfield::Surface hud {m_hud_pf, playfield::SurfaceRect {0, 0, 320u, kHudLines}};
-		char buf[8] {};
-		char text[64] {};
-		u8 m = 0u;
-		m = str_cat(text, m, "FRM ");
-		(void)u16_to_str(static_cast<u16>(frame), buf);
-		m = str_cat(text, m, buf);
-		m = str_cat(text, m, " CAM ");
-		(void)u16_to_str(static_cast<u16>(m_cam_int), buf);
-		m = str_cat(text, m, buf);
-		m = str_cat(text, m, " WP ");
-		(void)u16_to_str(static_cast<u16>(m_wp), buf);
-		m = str_cat(text, m, buf);
-		m = str_cat(text, m, "/");
-		(void)u16_to_str(static_cast<u16>(m_wp_count), buf);
-		m = str_cat(text, m, buf);
-		m = str_cat(text, m, " BF ");
-		(void)u16_to_str(static_cast<u16>(m_blit_fail), buf);
-		m = str_cat(text, m, buf);
-		pad_to(text, m, kHudCols);
-#if defined(ADVWALK_HUD_1WORD)
-		(void)hud.draw_text_words(16, 22, "XY", 1u);
-#else
-		(void)m_hud_line1.paint(hud, 16, 22, text, 1u);
-#endif
 
 		// Etiqueta del hotspot bajo el puntero (o el estado del paseo).
 		char text2[64] {};
@@ -822,17 +775,14 @@ private:
 			}
 		}
 		pad_to(text2, n, kHudCols);
-#if !defined(ADVWALK_HUD_1WORD)
-		(void)m_hud_line2.paint(hud, 16, 32, text2, 1u);
-#endif
+		(void)m_hud_line2.paint(hud, 16, 22, text2, 1u);
 	}
 
 	// --- Estado ---
 	static constexpr eng::u8 kMaxWaypoints = 24u;
 	bool m_ready = false;
 	scene::Scene m_scene {};
-	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_hud {};
-	playfield::ContiguousPlayfield m_hud_pf {};
+	playfield::CanvasPlayfield m_hud_pf {};
 	eng::copper::MoveSlot m_bplcon1_slot {};
 	eng::copper::MoveSlot m_plane_hi[kPlanes] {};
 	eng::copper::MoveSlot m_plane_lo[kPlanes] {};
@@ -862,7 +812,7 @@ private:
 	s16 m_err_y = 0;
 	u32 m_walk_timer = 0u;
 	u32 m_blit_fail = 0u;
-	playfield::DiffText<64> m_hud_line1 {}; // fila FRM/CAM/WP/BF (repinta solo lo cambiado)
+	eng::debug::HostHud m_host_hud {}; ///< identidad/frame/fps en el overlay del host
 	playfield::DiffText<64> m_hud_line2 {}; // fila de estado/hotspot (repinta solo lo cambiado)
 
 	// Router: buffers de trabajo (sin heap).
