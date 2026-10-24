@@ -3,6 +3,7 @@
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf --keep-running
 
 #include <eng/api/api.hpp>
+#include <eng/audio/game_audio.hpp>
 #include <eng/debug/host_hud.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/core/math/sinetable.hpp>
@@ -113,6 +114,7 @@ constexpr eng::u32 kDisplayH = 288;       // ANILLO = 256 + 2·16 (invariante §
 #endif
 #if K_202_GAME_LOAD
 constexpr eng::u32 kFailGameLoadSprite = 0x00020212u;
+constexpr eng::u32 kFailGameLoadAudio = 0x00020213u;
 #endif
 constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/       kTileW,
@@ -186,6 +188,8 @@ struct DemoGame {
 	eng::Block<eng::SpriteTag> m_loadSprite {};
 	eng::ChipView<eng::SpriteTag> m_loadSpriteView {};
 	eng::graphics::HwSpritePlacement m_loadPlacement {};
+	eng::Block<eng::AudioTag> m_loadAudioSample {};
+	eng::audio::GameAudio m_loadAudio {};
 #endif
 
 	static constexpr eng::SineTable<255, 256> kSin {};
@@ -307,6 +311,24 @@ struct DemoGame {
 		m_loadPlacement.data = m_loadSpriteView;
 		scene.set_sprite_placements(eng::Span<const eng::graphics::HwSpritePlacement> {
 			&m_loadPlacement, 1u});
+		m_loadAudioSample = backend.memory_manager().chip().reserve<eng::AudioTag>(128u, 2u);
+		if (!m_loadAudioSample.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, kFailGameLoadAudio);
+			return;
+		}
+		for (eng::usize i = 0; i < m_loadAudioSample.view.size(); ++i) {
+			m_loadAudioSample.view[i] = static_cast<eng::u8>((i & 16u) ? 0x20u : 0xE0u);
+		}
+		m_loadAudio.attach(backend.audio());
+		if (!m_loadAudio.init(backend.memory_manager())) {
+			eng::debug::mark_failed(g_eng_run_status, kFailGameLoadAudio);
+			return;
+		}
+		const eng::Span<const eng::u8> sample_span {
+			m_loadAudioSample.view.data(), m_loadAudioSample.view.size()};
+		m_loadAudio.bank().add(0u, eng::audio::SfxDef {
+			sample_span, 1u, 1u, 0u, false, 0u, true});
+		(void)m_loadAudio.play(0u, 0u);
 #endif
 		scene.fg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 1);
 		scene.bg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 1);
@@ -346,6 +368,7 @@ struct DemoGame {
 			sum += static_cast<eng::u32>((dx * dx + dy * dy) >> 6);
 		}
 		m_loadSink = sum;
+		m_loadAudio.update(0u);
 #endif
 	}
 

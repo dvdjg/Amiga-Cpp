@@ -17,7 +17,7 @@ Ventana larga de 12 s (`A500_release`, árbol actual): **49,92–50,00 fps**, 14
 
 ## Sonda de carga de juego
 
-La compilación opcional `EXTRA_DEFINES="-DK_202_GAME_LOAD=1"` añade 24 actores de lógica con movimiento, rebote y comprobación de pares, más un sprite DMA transparente de 16 líneas. No añade audio todavía. La sonda mantiene el DPF 3+3 y mide **49,79 fps** en ventana de 12 s (142471 ciclos/frame, 1,00419 campos/frame, `stable=true`); sirve para comprobar que el margen de CPU no se agota con una carga de juego mínima. El perfil entregado sigue siendo `A500_release` sin la macro.
+La compilación opcional `EXTRA_DEFINES="-DK_202_GAME_LOAD=1"` añade 24 actores de lógica con movimiento, rebote y comprobación de pares, un sprite DMA transparente de 16 líneas y un canal de audio con una muestra de 128 B. La sonda mantiene el DPF 3+3 y mide **49,84 fps** en ventana de 12 s (142335 ciclos/frame, 1,00324 campos/frame, `stable=true`); sirve para comprobar que el margen de CPU no se agota con una carga de juego mínima. El perfil entregado sigue siendo `A500_release` sin la macro.
 
 ## Diagnóstico y cambios
 
