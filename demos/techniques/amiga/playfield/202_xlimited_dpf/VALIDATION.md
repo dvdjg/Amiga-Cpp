@@ -7,13 +7,17 @@ El objetivo «50 fps PAL» es **una iteración por campo PAL nominal** (~49,9–
 ## Medición entregada
 
 ```text
-202_xlimited_dpf/A500_release | emulado=49,92?49,96 fps | 141988?142102 ciclos/frame | 1,00079?1,00159 campos/frame
+202_xlimited_dpf/A500_release | emulado=49,92–49,96 fps | 141988–142102 ciclos/frame | 1,00079–1,00159 campos/frame
 202_xlimited_dpf/A500_debug   | emulado=49,9 fps (ventana corta) | HUD a 1/8 de refresco
 ```
 
 La captura final muestra el mapa, las plaquettes y la franja inferior completos; el HUD de una línea aparece en el margen seguro.
 
-Ventana larga de 12 s (`A500_release`, árbol actual): **49,92 fps**, 142102 ciclos/frame y 1,00159 campos/frame. La cadencia queda dentro del ruido de la ventana de 1 s (49,3–50,6 fps), no en la meseta de 46–47 fps anterior. El 3+3 se mantiene a 320×208.
+Ventana larga de 12 s (`A500_release`, árbol actual): **49,92–49,96 fps**, 141988–142102 ciclos/frame y 1,00079–1,00159 campos/frame. La cadencia queda dentro del ruido de la ventana de 1 s (49,3–50,6 fps), no en la meseta de 46–47 fps anterior. El 3+3 se mantiene a 320×208.
+
+## Sonda de carga de juego
+
+La compilación opcional `EXTRA_DEFINES="-DK_202_GAME_LOAD=1"` añade 24 actores de lógica con movimiento, rebote y comprobación de pares, más un sprite DMA transparente de 16 líneas. No añade audio todavía. La sonda mantiene el DPF 3+3 y mide **49,79 fps** en ventana de 12 s (142471 ciclos/frame, 1,00419 campos/frame, `stable=true`); sirve para comprobar que el margen de CPU no se agota con una carga de juego mínima. El perfil entregado sigue siendo `A500_release` sin la macro.
 
 ## Diagnóstico y cambios
 

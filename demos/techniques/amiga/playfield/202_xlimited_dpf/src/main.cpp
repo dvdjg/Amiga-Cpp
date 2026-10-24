@@ -108,6 +108,12 @@ constexpr eng::u8  kPlanes = 3;           // planos POR playfield (DPF 3+3 = 6 H
 constexpr eng::u32 kDisplayH = 288;       // ANILLO = 256 + 2·16 (invariante §7 201): el
                                           // anillo NO se reduce con el visible.
 
+#ifndef K_202_GAME_LOAD
+#define K_202_GAME_LOAD 0
+#endif
+#if K_202_GAME_LOAD
+constexpr eng::u32 kFailGameLoadSprite = 0x00020212u;
+#endif
 constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/       kTileW,
 	/*tile_height=*/      kTileH,
@@ -172,6 +178,15 @@ struct DemoGame {
 	eng::u32 m_maxYDelta = 0;          // máx. |fgY - bgY| observado (regresión Y)
 	bool ready = false;
 	eng::debug::HostHud m_host_hud {};
+#if K_202_GAME_LOAD
+	struct LoadActor { eng::s16 x, y, vx, vy; };
+	static constexpr eng::u16 kLoadActors = 24u;
+	LoadActor m_loadActors[kLoadActors] {};
+	volatile eng::u32 m_loadSink = 0u;
+	eng::Block<eng::SpriteTag> m_loadSprite {};
+	eng::ChipView<eng::SpriteTag> m_loadSpriteView {};
+	eng::graphics::HwSpritePlacement m_loadPlacement {};
+#endif
 
 	static constexpr eng::SineTable<255, 256> kSin {};
 
@@ -186,6 +201,14 @@ struct DemoGame {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		eng::debug::reset(g_eng_frame_telemetry);
+#if K_202_GAME_LOAD
+		for (eng::u16 i = 0u; i < kLoadActors; ++i) {
+			m_loadActors[i].x = static_cast<eng::s16>(16u + i * 12u);
+			m_loadActors[i].y = static_cast<eng::s16>(32u + (i & 3u) * 16u);
+			m_loadActors[i].vx = static_cast<eng::s16>((i & 1u) ? 1 : -1);
+			m_loadActors[i].vy = static_cast<eng::s16>((i & 2u) ? 1 : -1);
+		}
+#endif
 		if (!backend.configure_memory({200u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020201u);
 			return;
@@ -263,6 +286,28 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020202u);
 			return;
 		}
+#if K_202_GAME_LOAD
+		// Sprite DMA probe: data transparente, 16 lineas, un canal.
+		m_loadSprite = backend.memory_manager().chip().reserve<eng::SpriteTag>(64u, 16u);
+		if (!m_loadSprite.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, kFailGameLoadSprite);
+			return;
+		}
+		m_loadSprite.view.as_words().fill(0u);
+		m_loadSpriteView = eng::ChipView<eng::SpriteTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(m_loadSprite.view.data()),
+			m_loadSprite.view.size()};
+		m_loadPlacement.channel = 0u;
+		m_loadPlacement.priority = 0u;
+		m_loadPlacement.hpos = 0x81u + 32u;
+		m_loadPlacement.vstart = 32u;
+		m_loadPlacement.height = 16u;
+		m_loadPlacement.width_words = 1u;
+		m_loadPlacement.attach = false;
+		m_loadPlacement.data = m_loadSpriteView;
+		scene.set_sprite_placements(eng::Span<const eng::graphics::HwSpritePlacement> {
+			&m_loadPlacement, 1u});
+#endif
 		scene.fg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 1);
 		scene.bg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 1);
 
@@ -280,9 +325,34 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x00020200u);
 	}
 
+	void game_load_update() {
+#if K_202_GAME_LOAD
+		eng::u32 sum = 0u;
+		for (eng::u16 i = 0u; i < kLoadActors; ++i) {
+			LoadActor& a = m_loadActors[i];
+			a.x = static_cast<eng::s16>(a.x + a.vx);
+			a.y = static_cast<eng::s16>(a.y + a.vy);
+			if (a.x < 8) { a.x = 8; a.vx = static_cast<eng::s16>(-a.vx); }
+			if (a.x > 312) { a.x = 312; a.vx = static_cast<eng::s16>(-a.vx); }
+			if (a.y < 16) { a.y = 16; a.vy = static_cast<eng::s16>(-a.vy); }
+			if (a.y > 192) { a.y = 192; a.vy = static_cast<eng::s16>(-a.vy); }
+			sum += static_cast<eng::u32>(a.x) + static_cast<eng::u32>(a.y) * 3u;
+		}
+		for (eng::u16 i = 0u; i < kLoadActors; i += 2u) {
+			const eng::s32 dx = static_cast<eng::s32>(m_loadActors[i].x) -
+			                    static_cast<eng::s32>(m_loadActors[(i + 1u) % kLoadActors].x);
+			const eng::s32 dy = static_cast<eng::s32>(m_loadActors[i].y) -
+			                    static_cast<eng::s32>(m_loadActors[(i + 1u) % kLoadActors].y);
+			sum += static_cast<eng::u32>((dx * dx + dy * dy) >> 6);
+		}
+		m_loadSink = sum;
+#endif
+	}
+
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!ready) return;
 
+		game_load_update();
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
