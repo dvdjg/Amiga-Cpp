@@ -21,7 +21,17 @@ Prompt: "Describe si esta captura Amiga contiene seis barras de colores multiple
 
 Respuesta: se ven seis bloques/barras de colores en columna (gris oscuro, rojo, verde, azul, amarillo y cian); no esta negra ni corrupta. La animacion horizontal se comprobo en capturas sucesivas de la demo.
 
+## Rendimiento (2026-10-24)
+
+La lista se compone una vez y se publica una copia parcheada (3 slots Chip: maestro + 2 buffers), evitando reconstruir la copperlist y recomponer el director cada frame. Medición real con `tools/debug/measure-fps.mjs`:
+
+```text
+053_sprite_multiplex/A500_release | emulado=49.87 fps | host=49.78 fps | 142254 ciclos/frame | 1 campo/frame
+```
+
+Captura posterior: seis barras visibles, sin corrupción. La ruta debug queda por debajo (trabajo de depuración); el objetivo de 50 fps se valida en release.
+
 ## Notas
 
-- La demo no expone aun un contador `fps10`; la validacion es READY + reporte de composicion + vision. Anadir el contador queda pendiente si se quiere comparar con las demas demos.
+- La demo publica el HUD de host de una linea (`053 SPRITE MULTIPLEX`), con margen seguro y la validacion por READY + reporte de composicion + vision.
 - El cambio de rango horizontal a 40..166 px de pantalla mantiene el bloque visible durante todo el rebote; antes el rango heredado lo sacaba por la izquierda.

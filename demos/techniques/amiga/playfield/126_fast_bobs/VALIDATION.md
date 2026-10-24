@@ -14,6 +14,7 @@ no un número cableado.
 | Configuración | fps (measure-fps) | ciclos/frame | Notas |
 |---|---|---|---|
 | **Entregado** | **49.97** | **141 960 (1 campo)** | DPF 3+3 por bandas + 2 actores fastcopy |
+| **Revalidado (HUD)** | **49.92** | **142 101 (1 campo)** | HUD de host de una linea; 2 actores |
 
 ## Márgenes (contrato F5)
 

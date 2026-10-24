@@ -1,25 +1,27 @@
-# 225 — SpriteDirector stress
+# 225 — SpriteDirector 50 Hz (CPU)
 
-Demo técnica de la fachada por intención `eng::scene::SpriteDirector`: contenido simple y compuesto, par *attached*, tira horizontal, política BOB, gap de 1 línea y `BandPalette` con `top + scroll_y`.
+Demo de la fachada por intención `eng::scene::SpriteDirector` en su variante **CPU a 50 Hz PAL**. La escena completa de estrés no cabe en un campo; esta entrega conserva el camino CPU y reduce el resto de la carga, documentado en `VALIDATION.md`.
 
 ## Qué enseña
 
-- `VisualStore`/`CompositeStore` y `SceneAssets` con handles generacionales (sin `const Visual*`).
-- `SpriteDesc` + `SpriteHint`: posición de pantalla, política de materialización, reutilización, canal, rango y tira.
-- Composición combinada: `CompositeScene` primero, `SpriteScene` después con un `SpriteChannelLedger` compartido.
-- `SpriteAllocator` con gap de 1 línea; par *attached* cocinado en Chip; tira de dos tramos; BOB forzado con hoja planar.
-- `BandPalette` en la franja baja (playfield rojo/amarillo) y `SpritePaletteEvent` de sprites.
-- HUD de depuración del host (`app.debug().text`) con nombre + número de demo, frame renderizado y fps; el viewport no lleva HUD.
+- `VisualStore`/`SceneAssets` con handles generacionales y `SpriteDesc` + `SpriteHint`.
+- Materialización **CPU** (`SpritePolicy::Cpu`): copia planar 16-bit en el playfield, sin canal HW ni Blitter.
+- HUD de host de una línea con nombre, frame y fps; margen seguro 24/8.
+- La reducción de carga respecto a la escena de estrés completa y el motivo de cada recorte.
 
-## Búsqueda previa
+## Qué se ha reducido para llegar a 50 Hz
 
-Se revisó el arte previo antes de escribir la demo: `engine/include/eng/scene/sprite_director.hpp` (`SpriteDirector`, `SpriteDesc`, `SpriteHint`, `SpriteLoadReport`), `engine/include/eng/api/sprites.hpp` (`SpriteScene`), `engine/include/eng/api/objects.hpp` (`CompositeScene`), `engine/include/eng/graphics/sprite_manager.hpp` (`SpriteManager::emit_placements_into`), `engine/include/eng/graphics/sprite_allocator.hpp` (`SpriteAllocator`) y `engine/include/eng/graphics/sprite_line_layer.hpp` (modo `PerLine` avanzado). La demo usa la fachada nueva; no reimplementa el reparto ni el emisor.
+- Se conserva **una entidad CPU**; se retiran de la variante entregada la tira horizontal, el compuesto, el par *attached* y el BOB forzado.
+- Se retira la `BandPalette` de la franja baja.
+- La escena completa se midió a **26,46 fps** (268 129 ciclos/frame); no se publica como demo válida porque incumple el criterio de 50 fps.
+
+La ruta BOB se valida en **126_fast_bobs** (49,92 fps) y la contabilidad de CPU en **HOST-491**.
 
 ## Ejecución
 
 ```bash
-bash tools/build/build-demo.sh demos/techniques/amiga/sprites/225_sprite_director_stress --debug
-bash tools/run/run-demo.sh demos/techniques/amiga/sprites/225_sprite_director_stress
+bash tools/build/build-demo.sh demos/techniques/amiga/sprites/225_sprite_director_stress --release
+bash tools/run/run-demo.sh demos/techniques/amiga/sprites/225_sprite_director_stress --config A500_release
 ```
 
-La evaluación visual está en [`src/VISION.md`](src/VISION.md), la intención en [`src/INTENT.md`](src/INTENT.md) y las medidas en [`VALIDATION.md`](VALIDATION.md).
+La evaluación visual está en `VALIDATION.md`; la contabilidad exacta, en HOST-491.

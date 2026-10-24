@@ -8,8 +8,9 @@ con su propio color (`HwSpritePaletteSwitch` cambia `COLORxx` por franja).
 Qué muestra: seis barras de 16 px (anchura decreciente, a modo de pirámide), cada
 una de un tono saturado distinto (rojo, verde, azul, amarillo, cian, magenta),
 apiladas verticalmente y servidas por el canal 0. En `update()` el bloque entero
-**rebota horizontalmente** (onda triangular, 40..166 px de pantalla) reconstruyendo la
-copperlist por frame, para mostrar el reposicionado por Copper en movimiento. La demo ya no llama a `SpriteManager` directamente.
+**rebota horizontalmente** (onda triangular, 40..166 px de pantalla). La copperlist se construye una vez y se publica una copia con `SPR0POS` parcheado en un buffer inactivo, para mostrar el reposicionado por Copper sin reconstruir 246 palabras por frame. La demo ya no llama a `SpriteManager` directamente.
+
+- HUD de host de una línea (`053 SPRITE MULTIPLEX`) con margen seguro; no consume DMA.
 
 ## Lo que esta demo destapó y corrigió
 

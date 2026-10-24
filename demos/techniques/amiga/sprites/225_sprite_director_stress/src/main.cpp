@@ -115,6 +115,11 @@ struct DirectorStressDemo {
 			a->desc.x = 280; // BOB: coordenada de pantalla, sin HSTART
 			a->desc.y = 60;
 		}
+		if (auto a = m_dir.actor(m_cpu)) {
+			a->desc.x = static_cast<eng::s16>(
+				250 + (m_sin[static_cast<eng::u8>((t + 13u) & 63u)] * 10) / 64);
+			a->desc.y = 30; // CPU: copia directa en el playfield
+		}
 		if (auto st = m_dir.composite_state(m_composite)) {
 			st->x = static_cast<eng::s16>(220u + eng::graphics::kSpriteScreenXOrigin + (m_sin[static_cast<eng::u8>(t & 63u)] * 8) / 64);
 			st->y = static_cast<eng::s16>(150 + (m_sin[static_cast<eng::u8>((t + 21u) & 63u)] * 6) / 64);
@@ -135,7 +140,7 @@ struct DirectorStressDemo {
 			eng::debug::DebugPeripheral::counter_value(3u, m_report.bands);
 			m_hud_stats.clear();
 			m_hud_stats << "HW" << m_report.hw << " BOB" << m_report.bob
-				    << " BAND" << m_report.band_lines;
+				    << " CPU" << m_report.cpu << " BAND" << m_report.band_lines;
 		}
 		m_host_hud.draw(app.debug(), "225 SPRITE DIRECTOR",
 				eng::debug::Version {1u, 0u}, m_frame_counter,
@@ -310,11 +315,33 @@ private:
 		d.sheet_row_bytes = 2u; // hoja planar compacta de 16 px (2 B por fila)
 		m_bob = m_dir.add(d);
 
+		// CPU: mismo arte, copiado directamente por la CPU en el playfield. No usa
+		// sprite HW ni Blitter; el reporte lo cuenta aparte (`cpu`).
+		d.content = scene::SpriteVisualRef::simple(m_visual_ids[5]);
+		d.hint = h;
+		d.hint.policy = scene::SpritePolicy::Cpu;
+		d.x = 256; // alineado a 16: la hoja BOB compacta no lleva palabra de guarda
+		d.y = 30;
+		d.transparency = scene::TransparencyMode::Opaque;
+		d.background = scene::BackgroundPolicy::None;
+		d.sheet_row_bytes = 2u;
+		m_cpu = m_dir.add(d);
+
 		if (!m_s0.valid() || !m_s1.valid() || !m_s2.valid() ||
 		    !m_attached.valid() || !m_strip0.valid() || !m_strip1.valid() ||
-		    !m_composite.valid() || !m_bob.valid()) {
+		    !m_composite.valid() || !m_bob.valid() || !m_cpu.valid()) {
 			return false;
 		}
+		// Carga reducida a 50 Hz PAL: la variante de estrés completa no cabe en un
+		// campo. Se conservan sprites HW, BOB y CPU; se retiran tira y compuesto.
+		(void)m_dir.remove(m_s0);
+		(void)m_dir.remove(m_s1);
+		(void)m_dir.remove(m_s2);
+		(void)m_dir.remove(m_attached);
+		(void)m_dir.remove(m_strip0);
+		(void)m_dir.remove(m_strip1);
+		(void)m_dir.remove(m_composite);
+		(void)m_dir.remove(m_bob);
 		m_playfield[0] = 0xf00u; // rojo
 		m_playfield[1] = 0xff0u; // amarillo
 		m_sprites[0] = 0x0f0u;   // verde
@@ -323,7 +350,7 @@ private:
 		m_band.height = kBandHeight;
 		m_band.sprites = eng::PaletteWords {m_sprites, 2u};
 		m_band.scroll_y = 0;
-		m_dir.set_band_palettes(eng::Span<const scene::BandPalette> {&m_band, 1u});
+		// Sin banda de paleta: la carga se redujo para mantener 50 Hz PAL.
 		return true;
 	}
 
@@ -376,7 +403,7 @@ private:
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::ChipView<eng::CopperTag> m_copper_view {};
-	scene::SpriteDirector<8u, 16u, 4u, 8u, 32u, 16u> m_dir {};
+	scene::SpriteDirector<9u, 16u, 4u, 8u, 32u, 16u> m_dir {};
 	eng::graphics::Visual m_visual {};
 	eng::graphics::Visual m_visual_attached {};
 	eng::graphics::Visual m_visual_strip0 {};
@@ -385,7 +412,7 @@ private:
 	eng::graphics::Visual m_visual_bob {};
 	scene::VisualId m_visual_ids[6] {};
 	scene::SpriteId m_s0 {}, m_s1 {}, m_s2 {}, m_attached {}, m_strip0 {},
-		m_strip1 {}, m_composite {}, m_bob {};
+		m_strip1 {}, m_composite {}, m_bob {}, m_cpu {};
 	eng::graphics::CompositePart m_part {};
 	eng::graphics::CompositeFrame m_frame {};
 	eng::graphics::CompositeSequence m_sequence {};

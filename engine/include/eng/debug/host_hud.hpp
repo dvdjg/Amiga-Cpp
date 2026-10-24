@@ -60,7 +60,7 @@ public:
 	[[nodiscard]] constexpr eng::u32 fps10() const noexcept { return m_fps10; }
 
 	/// Margen seguro del HUD de una línea.
-	static constexpr eng::s16 kMarginX = 8;
+	static constexpr eng::s16 kMarginX = 24;
 	static constexpr eng::s16 kMarginY = 8;
 
 private:

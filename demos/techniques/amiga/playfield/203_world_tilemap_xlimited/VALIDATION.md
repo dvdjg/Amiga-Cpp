@@ -23,3 +23,7 @@ Fps/visión de 203 (pendiente, no bloqueante).
 `--pixel-assert` verde: `shift-left-1px-per-frame` dx=−1, 8 frames, 0 pares duplicados, 7 pares
 desplazados (MeanDiffAvg 18,2; informe `out/regression/20261016-133928`). Sin cambios de código en
 esta pasada: la publicación la conduce el `App` (la demo no instala `COP1LC`).
+
+## Medición 2026-10-24 (HUD y cadencia)
+
+`measure-fps` con `A500_debug`: **49.92 fps**, **142102 ciclos/frame**, 1.00 campo/frame; HUD de host de una línea. La cadencia sigue uniforme.

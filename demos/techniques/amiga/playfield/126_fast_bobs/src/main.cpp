@@ -36,6 +36,7 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/graphics/fast_bob_margins.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/setup/coherence.hpp>
@@ -231,8 +232,10 @@ struct FastBobsDemo {
 		(void)backend.execute_frame_plan(m_plan);
 	}
 
-	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+		m_host_hud.draw(backend.debug(), "126 FAST BOBS", eng::debug::Version {1u, 0u},
+				context.frame.frame_index, eng::debug::prof_clock());
 	}
 
 private:
@@ -337,6 +340,7 @@ private:
 	eng::graphics::Sprite m_sprite {};
 	eng::graphics::Sprite m_slow {};
 	eng::scene::FastBobLayer m_bobs {};
+	eng::debug::HostHud m_host_hud {};
 	eng::graphics::FramePlan m_plan {};
 	eng::ChipView<eng::CopperTag> m_display_view {};
 };
@@ -348,6 +352,7 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
+	backend.set_vblank_sleep(false);
 	FastBobsDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames(0xffffu);

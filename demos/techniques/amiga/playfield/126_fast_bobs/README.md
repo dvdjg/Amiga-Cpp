@@ -15,6 +15,7 @@ enseña el camino correcto (bandas + capa de BOBs) sin nombrar registros ni `Bli
   juego solo mueve actores (`BobActor`).
 - El asset del BOB (cuadrado 16×16 con padding) se genera en **runtime** en Chip (planar 3
   planos), sin pipeline de assets.
+- HUD de host de una línea (`126 FAST BOBS`) con margen seguro; no consume DMA.
 - **Márgenes F5** (`graphics::fast_bob_margins`): el asset declara el desplazamiento máximo
   por eje (pasos **reales** 3, 2 px/frame) y el helper da el padding y el tamaño de la hoja
   (**22×20**) con el ancla en `(kBobPadX, kBobPadY)`. La geometría no está cableada: sale del

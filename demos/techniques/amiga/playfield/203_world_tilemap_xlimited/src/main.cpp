@@ -10,6 +10,7 @@
 // (aquí la técnica del corcóscru); un nivel distinto puede declarar otro motor conocido a priori.
 
 #include <eng/api/api.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/xlimited_scroll_layer.hpp>
@@ -214,7 +215,11 @@ struct DemoGame {
 	/// El `App` materializa el mundo y conduce el motor; el juego solo publica telemetría.
 	void render(auto& app) {
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		m_host_hud.draw(app.debug(), "203 WORLDTILE XLIMITED", eng::debug::Version {1u, 0u},
+				app.frame(), eng::debug::prof_clock());
 	}
+
+	eng::debug::HostHud m_host_hud {};
 };
 
 } // namespace
@@ -224,6 +229,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 	eng::amiga::AmigaBackend backend {};
+	backend.set_vblank_sleep(false);
 	if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
 		eng::debug::mark_failed(g_eng_run_status, 0x00020301u);
 		return 0;

@@ -20,6 +20,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/sprite_manager.hpp>
@@ -51,6 +52,8 @@ constexpr eng::u16 kBytesPerRow = 40;
 constexpr eng::u8  kPlanes = 6;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u; // 10240
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;                    // 61440
+constexpr eng::u16 kCopperWords = 1024u;
+constexpr eng::u8 kCopperSlots = 3u; // maestro + 2 buffers de publicacion
 
 // Sprites: 6 instancias de 16x24 (1 word de ancho, DAT+DATB intercalados).
 constexpr eng::u8  kInstances = 6;
@@ -91,7 +94,7 @@ struct SpriteMultiplexDemo {
 		}
 
 		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(1024, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(kCopperWords * kCopperSlots, 16);
 		m_sprite_block = backend.memory_manager().chip().reserve<eng::SpriteTag>(static_cast<eng::u32>(kSpriteWords) * 2u, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sprite_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005302u);
@@ -126,13 +129,16 @@ struct SpriteMultiplexDemo {
 		if (m_dir.actor(m_id).valid()) {
 			m_dir.actor(m_id)->desc.x = static_cast<eng::s16>(m_hpos + eng::graphics::kSpriteScreenXOrigin);
 		}
-		if (build_copper()) {
-			backend.install_copper_list(m_copper_view);
-		}
+		// La copperlist es estática salvo la X de los seis segmentos: parchear
+		// `SPR0POS` evita reconstruirla entera cada frame y mantiene el bucle a 50 Hz.
+		publish_patched_copper(backend);
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+		m_host_hud.draw(backend.debug(), "053 SPRITE MULTIPLEX",
+				eng::debug::Version {1u, 0u}, context.frame.frame_index,
+				eng::debug::prof_clock());
 	}
 
 private:
@@ -195,6 +201,30 @@ private:
 		return m_id.valid();
 	}
 
+	/// Publica una copia parcheada de la lista maestra en el buffer inactivo.
+	/// La escritura nunca pisa la lista que el Copper está ejecutando.
+	void publish_patched_copper(eng::amiga::AmigaBackend& backend) {
+		eng::u16* const base = m_copper_block.view.as_words().data();
+		const eng::u16 slot = (m_active_slot == 1u) ? 2u : 1u;
+		eng::u16* const target = base + static_cast<eng::u32>(slot) * kCopperWords;
+		for (eng::u16 i = 0u; i < m_copper_words; ++i) {
+			target[i] = base[i];
+		}
+		const eng::u16 reg = static_cast<eng::u16>(eng::copper::sprite_pos_register(0u));
+		const eng::s16 delta = static_cast<eng::s16>(m_hpos - kSpriteHpos);
+		for (eng::u16 i = 0u; i + 1u < m_copper_words; i += 2u) {
+			// No tocar el reset inicial `SPR0POS=0`; solo los rearmes de los segmentos.
+			if (target[i] == reg && target[i + 1u] != 0u) {
+				target[i + 1u] = static_cast<eng::u16>(target[i + 1u] + delta);
+			}
+		}
+		m_copper_view = eng::ChipView<eng::CopperTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(target),
+			static_cast<eng::usize>(m_copper_words) * 2u};
+		m_active_slot = slot;
+		backend.install_copper_list(m_copper_view);
+	}
+
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(
@@ -230,13 +260,23 @@ private:
 
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_view = sched.chip_view();
+		// Slot 0 = maestro inmutable; slots 1/2 = publicaciones parcheadas.
+		eng::u16* const base = m_copper_block.view.as_words().data();
+		eng::u16* const first = base + kCopperWords;
+		for (eng::u16 i = 0u; i < m_copper_words; ++i) {
+			first[i] = base[i];
+		}
+		m_active_slot = 1u;
+		m_copper_view = eng::ChipView<eng::CopperTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(first),
+			static_cast<eng::usize>(m_copper_words) * 2u};
 		return m_copper_ok;
 	}
 
 	bool m_memory_ok = false;
 	bool m_copper_ok = false;
 	eng::u16 m_copper_words = 0;
+	eng::u8 m_active_slot = 1u;
 	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
@@ -247,6 +287,7 @@ private:
 	scene::SpriteLoadReport m_report {};
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::u16 m_hpos = kSpriteHpos;   // posición horizontal animada en update()
+	eng::debug::HostHud m_host_hud {};
 };
 
 } // namespace
@@ -256,9 +297,10 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
+	backend.set_vblank_sleep(false);
 	SpriteMultiplexDemo game {};
 	eng::Engine engine { backend, game };
-	engine.run_frames_polling(0xffff);
+	engine.run_frames(0xffff);
 
 	return 0;
 }
