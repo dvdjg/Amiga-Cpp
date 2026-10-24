@@ -9,10 +9,12 @@
 #      out/fps-gate/<timestamp>/report.txt.
 #
 # Uso: bash ./tools/run-fps-gate.sh [--samples N] [--threshold X] [--warn-only] [--no-prepare]
+#       [--with-headroom]
 #   --samples N   mediciones por demo (def. 2; la mejor se compara con el baseline)
 #   --threshold X fraccion minima respecto al baseline (def. 0.9 = -10 %)
 #   --warn-only   no falla aunque haya deriva (util para observacion programada)
 #   --no-prepare  no compila ni prepara runner.uae (asume el entorno listo)
+#   --with-headroom  ejecuta ademas la sonda K_202_GAME_LOAD=1 de la 202
 #
 # Programacion (Windows): schtasks /create /tn "AmigaCppFpsGate" /sc daily /st 03:00 \
 #   /tr "bash C:\ruta\Amiga-Cpp\tools\run-fps-gate.sh --warn-only"
@@ -35,12 +37,14 @@ SAMPLES=2
 THRESHOLD=""
 WARN_ONLY=0
 PREPARE=1
+HEADROOM=0
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 		--samples) SAMPLES="$2"; shift 2 ;;
 		--threshold) THRESHOLD="$2"; shift 2 ;;
 		--warn-only) WARN_ONLY=1; shift ;;
 		--no-prepare) PREPARE=0; shift ;;
+		--with-headroom) HEADROOM=1; shift ;;
 		-h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
 		*) echo "Argumento desconocido: $1" >&2; exit 2 ;;
 	esac
@@ -92,5 +96,13 @@ ARGS+=(--report "$OUTDIR/report.json")
 echo "== fps gate =="
 node "$CHECK" ${ARGS[@]+"${ARGS[@]}"} 2>&1 | tee "$OUTDIR/report.txt"
 status="${PIPESTATUS[0]}"
+if [ "$HEADROOM" -eq 1 ]; then
+	echo "== headroom 202 =="
+	HEADROOM_ARGS=(--threshold 49.5)
+	[ "$WARN_ONLY" -eq 1 ] && HEADROOM_ARGS+=(--warn-only)
+	bash "$ROOT/tools/run-headroom-gate.sh" "${HEADROOM_ARGS[@]}"
+	headroom_status="$?"
+	if [ "$headroom_status" -ne 0 ]; then status="$headroom_status"; fi
+fi
 echo "[fps-gate] informes: out/fps-gate/$TS/report.txt y out/fps-gate/$TS/report.json"
 exit "$status"
