@@ -45,6 +45,7 @@
 /// no conoce paletas ni sombreado (la demo decide el sombreado plano por cara).
 
 #include <eng/core/data/mesh3d.hpp>
+#include <eng/core/data/wire_edge.hpp>
 #include <eng/core/math/arith.hpp>
 #include <eng/core/math/scalar.hpp>
 #include <eng/core/types/span.hpp>
@@ -597,11 +598,6 @@ inline u32 render_solid(const math3d::PolyMeshViewT<S>& mesh, const Model& model
 		world, cam_scratch, xs, ys, double_sided);
 }
 
-/// Arista única de una malla para la ruta de alambre: índice menor primero.
-struct WireEdge {
-	u16 a = 0;
-	u16 b = 0;
-};
 
 /// **Recorta un segmento en espacio de cámara** contra near + los cuatro laterales.
 /// Devuelve `false` si queda completamente fuera. Misma convención de planos y ajuste
@@ -676,6 +672,7 @@ template <class S>
 ///        vez de rasterizarlas por CPU; vacío = ruta CPU (`Surface::draw_line`).
 /// \param op operación de rasterizado (`Copy` por defecto; `Xor` usa la racha EOR
 ///        del Blitter, útil para alambre).
+/// \param out_edges si no está vacío, no pinta en `target`; escribe aristas de pantalla.
 /// \return número de aristas dibujadas.
 /// \pre La malla y los buffers no son nulos; `edge_cap > 0`.
 template <class S, class Model>
@@ -685,7 +682,8 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 		       CamVertex<S>* cam_scratch, s16* xs, s16* ys,
 		       eng::Ref<graphics::FramePlan> plan = {},
 		       playfield::RasterOp op = playfield::RasterOp::Copy,
-		       bool cull_backfaces = false, bool silhouette_only = false) noexcept {
+		       bool cull_backfaces = false, bool silhouette_only = false,
+		       eng::Span<WireScreenEdge> out_edges = {}) noexcept {
 	const u32 nv = mesh.vertex_count();
 	const u32 nf = mesh.face_count();
 	if (world == nullptr || edges == nullptr || cam_scratch == nullptr || xs == nullptr ||
@@ -783,7 +781,12 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 		if (!all_inside && !clip_camera_segment<S>(cam, a, b, a, b)) continue;
 		if (!project_camera_vertex<S>(a, cam, xs[0], ys[0])) continue;
 		if (!project_camera_vertex<S>(b, cam, xs[1], ys[1])) continue;
-		if (target.draw_line(xs[0], ys[0], xs[1], ys[1], color, plan, op)) {
+		if (!out_edges.empty()) {
+			if (drawn < out_edges.size()) {
+				out_edges[drawn] = WireScreenEdge {xs[0], ys[0], xs[1], ys[1], color};
+			}
+			++drawn;
+		} else if (target.draw_line(xs[0], ys[0], xs[1], ys[1], color, plan, op)) {
 			++drawn;
 		}
 	}

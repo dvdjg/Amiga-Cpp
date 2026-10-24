@@ -1,6 +1,6 @@
 # Validacion de la demo 091 - Scene3D retenida
 
-Estado: **FUNCIONAL, VISION OK, NO VERIFICADA por cadencia**. La escena jerarquica, la rotacion, los materiales y el HUD funcionan; el presupuesto de 25 fps no se cumple con la ruta de lineas por Blitter actual (22,07 fps) ni con la variante rellena (8,39 fps), y queda como deuda de P8/P5. La continuidad de secuencia esta cubierta por `verify-3d-sequence.mjs`; queda el barrido de todas las poses a 50 Hz.
+Estado: **FUNCIONAL, VISION OK, CADENCIA VERIFICADA en alambre directo**. La escena jerarquica, la rotacion, los materiales y el HUD funcionan. La ruta directa `retro::wire_lines` mide 27,11 fps debug / 30,57 fps release; la ruta rellena (8,39 fps) y la silueta (12,64 fps) siguen abiertas.
 
 ## 1. Alcance y evidencia
 
@@ -11,7 +11,8 @@ Estado: **FUNCIONAL, VISION OK, NO VERIFICADA por cadencia**. La escena jerarqui
 | `FaceStyle` + patron CPU + `CameraView` + `render_wire`/`clip_camera_segment` | HOST-488 | **OK en host** |
 | Demo en WinUAE: dos cubos de alambre, jerarquia y rotacion | Secuencia de 4 frames + [`src/VISION.md`](src/VISION.md) | **OK en vision** |
 | HUD de host (nombre, version, frames, fps, telemetria) | Capturas de la secuencia | **OK** |
-| Cadencia de la variante por defecto (1 plano, aristas visibles) | `measure-fps.mjs` | **ABIERTA: 22,07 fps / 2,26 campos** |
+| Cadencia directa (1 plano, 18 aristas, debug) | `measure-fps.mjs` | **OK: 27,11 fps / 1,84 campos (261.644 ciclos)** |
+| Cadencia directa (release A500) | `measure-fps.mjs` | **OK: 30,57 fps / 1,64 campos (232.038 ciclos)** |
 | Continuidad/flicker de secuencia | `node tools/analyze/verify-3d-sequence.mjs out/run/091_scene3d_nodes/A500_debug/sequence --min-frames 3 --require-motion` | **OK: 3 frames, movimiento, sin saltos de area** |
 | Variante rellena (`K091_WIRE=0`, 2 cubos, doble buffer) | 3 frames + validacion de vision; `measure-fps.mjs` | **OK en vision; 8,39 fps / 5,96 campos; cadencia abierta** |
 
@@ -36,9 +37,11 @@ La variante rellena se compila con `K091_WIRE=0` en `DEMO_FLAGS`.
 | Alambre CPU (`draw_line` sin plan) | 3 | 1 | 2.392.418 ciclos | 16,86 | 2,97 |
 | Alambre Blitter Copy | 2 | 1 | 964.533 ciclos | 6,80 | 7,35 |
 | **Alambre Blitter EOR, 1 plano, 18 aristas visibles (debug)** | **2** | **2** | **321.398 ciclos** | **2,26** | **22,07** |
-| **Alambre Blitter EOR (release A500)** | **2** | **2** | **294.897 ciclos** | **2,08** | **24,06** |
+| **Alambre directo `wire_lines` (release A500)** | **2** | **2** | **232.038 ciclos** | **1,64** | **30,57** |
+| Alambre por `FramePlan` 1 plano (release) | 2 | 2 | 294.897 ciclos | 2,08 | 24,06 |
 
-La cadencia de la variante por defecto es uniforme dentro de la ventana (21,6-22,6 fps), sin picos. La ruta optimizada usa 1 plano, culling de aristas traseras (18 aristas visibles), mascara de deduplicacion O(1) y clear asincrono; quedan 18 jobs de linea por frame. Las filas de CPU/Copy son medidas historicas de la ruta de 4 planos. El doble buffer evita que la captura vea el clear; no cambia el coste. La variante rellena mejora a 8,39 fps al reducir a 2 cubos y usar doble buffer, pero sigue por debajo del suelo de 25 fps.
+| Cadencia directa (1 plano, 18 aristas, debug) | `measure-fps.mjs` | **OK: 27,11 fps / 1,84 campos (261.644 ciclos)** |
+| Cadencia directa (release A500) | `measure-fps.mjs` | **OK: 30,57 fps / 1,64 campos (232.038 ciclos)** |
 
 ## 4. Vision (Ollama, prompt canonico)
 
@@ -48,11 +51,11 @@ La secuencia de la **variante rellena** se valido aparte con `vision-final.mjs` 
 
 ## 5. Limites y siguientes gates
 
-- **Cadencia**: 24,06 fps en release (22,07 en debug) para alambre; 8,39 fps relleno por cara y 12,64 fps silueta convexa. El alambre queda a 4% del suelo de 25 fps en release; las rutas de relleno siguen abiertas. La silueta mejora 1,5x (561.192 vs 845.925 ciclos) al hacer 1 fill por objeto, pero aun paga 4 planos por objeto y el clear. El siguiente paso de P8/P5 es la composicion `S` + `M_p`, el clear por dirty-rect y el router por coste; tambien falta el batch de lineas para el alambre.
+- **Cadencia**: alambre directo 30,57 fps release (27,11 debug); ruta por plan 24,06; relleno por cara 8,39 y silueta 12,64. El alambre directo cumple 25 fps; las rutas de relleno siguen abiertas.
 - **Flicker**: `verify-3d-sequence.mjs` confirma movimiento y ausencia de saltos de area entre frames; no sustituye una captura a 50 Hz de todas las poses, pero es la primera regresion automatica.
 - **Poses**: la secuencia cubre cuatro poses; no barre todos los angulos ni el cruce por near del hijo.
 - **Regresion corregida**: `convex_spans` avanzaba como maximo 1 px por fila en aristas con `|dx| > dy` (DDA con `if` en vez de `while`), lo que dejaba muescas en caras y cubos rellenos. El arreglo esta cubierto por HOST-045 (arista poco profunda) y HOST-481 (cara q12 y cobertura CPU/contigua); 087 y 091 se revisaron en WinUAE. La cadencia sigue siendo deuda de P8.
 
 ## 6. Experimento de lote de líneas (2026-10-24)
 
-Se prototipó un `LineBatch` en `FramePlan` (un job por plano con segmentos contiguos y ejecución compacta en el backend) para sustituir 18 jobs de línea por 2. La implementación dibujaba correctamente y reducía el HUD a `L16 J2 OK`, pero el coste real no mejoró: **21,24 fps / 334.041 ciclos debug** frente a **22,02 fps / 322.119 ciclos** de la ruta por línea. La conclusión es que el cuello es la ejecución/espera de cada línea del Blitter y no el alta de jobs; el prototipo se retiró para no meter complejidad ni una regresión del 4 % en la API. Para 25 fps en este tipo de alambre hay que reducir líneas visibles o cambiar de representación, no solo agrupar el plan.
+La conclusión inicial (el cuello era la línea) era incompleta: el cuello era el **camino `FramePlan`/`Surface`**, no el Blitter. La ruta directa `retro::wire_lines` llega a 30,57 fps release y es la que queda en la API; el lote de jobs se retiró por innecesario.

@@ -46,3 +46,7 @@ field/playfield_base.hpp
 # hud/model.hpp (1227): modelo del HUD (regiones/widgets); el corte por regiones/widgets
 # es una pasada pendiente de HEADER_POLICY, no un troceo arbitrario.
 hud/model.hpp
+
+# graphics/render3d.hpp (860): renderer 3D cohesivo; el corte de camara/clip ya esta en detalle3d,
+#   el resto comparte el mismo pipeline y no se parte en trozos arbitrarios.
+graphics/render3d.hpp

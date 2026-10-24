@@ -316,7 +316,7 @@
   0     1  engine/include/eng/scene/banded_target.hpp
   0    18  engine/include/eng/scene/composite_actor.hpp
   0    19  engine/include/eng/scene/composite_scene.hpp
-  0    35  engine/include/eng/scene/display.hpp
+  0    41  engine/include/eng/scene/display.hpp
   0    23  engine/include/eng/scene/formation.hpp
   0     7  engine/include/eng/scene/layer.hpp
   0    32  engine/include/eng/scene/mechanisms.hpp

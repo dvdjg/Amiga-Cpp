@@ -179,13 +179,8 @@ struct ArticulatedDemo {
 					       eng::playfield::SurfaceRect {0, 0, kWidth, kWorldH}};
 #ifndef K092_NORENDER
 #if K092_WIRE
-		m_plan.clear();
-		const u32 edges = m_world.render_wire(
-			m_models, world, 1u, eng::Ref<eng::graphics::FramePlan> {m_plan},
-			eng::playfield::RasterOp::Xor, true, true);
-		const bool plan_ok = backend.execute_frame_plan(m_plan);
-		const u32 silhouettes = edges;
-		(void)plan_ok;
+		const u32 silhouettes = m_world.render_wire_direct(
+			m_models, backend, planes, kRowBytes, kPlaneBytes, kWorldPlanes, 1u, true, true);
 #else
 #if K092_FACE
 		const u32 silhouettes = m_world.render(m_models, world);

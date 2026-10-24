@@ -139,6 +139,10 @@ Presupuesto orientativo de un frame 3D en A500:
 
 Reglas: medir en **release**; no dibujar planos que no aportan color; no usar el raster CPU en gameplay; no poner 50 fps como objetivo.
 
+## 5.1 Alambre rápido sin FramePlan
+
+Para alambre de juego, `Scene::collect_wire_edges(...)` proyecta las aristas a `WireScreenEdge` y `retro::wire_lines(...)` las traza; evita el `FramePlan`/`Surface::draw_line` y fue la diferencia entre 24 y 30,6 fps release en 091. Úsalo cuando el color sea uniforme; si necesitas varias capas o mezclar con otros blits, usa `FramePlan` y mide. Un `LineBatch` de jobs no mejora el trazado: el coste está en cada línea del Blitter, no en el alta del job.
+
 ## 6. Errores que ya estan resueltos (y que no hay que reintroducir)
 
 - El relleno `convex_spans` necesita avanzar varias filas/pixeles en aristas poco profundas; el bug de muescas esta cubierto por HOST-045/HOST-481.
