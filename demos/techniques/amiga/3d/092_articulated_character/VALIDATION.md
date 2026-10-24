@@ -26,3 +26,6 @@ node ./tools/debug/measure-fps.mjs 092_articulated_character A500_release --json
 ```
 
 Limite: el solver no resuelve contactos angulares ni motores de joint; la inercia se usa para impulsos/velocidad angular, no para un solver de cuerpo rigido completo. P8 sigue abierto: 090 y 092 no alcanzan 25 fps release.
+## 7. Límite de fill/clear (2026-10-24)
+
+Se probaron tres optimizaciones de relleno: clear por cada parte (6 blits), clear único más pequeño (160×156) y un solo plano de color. Resultados release: **12,75 fps** con clear por parte, **12,78** con clear pequeño y **12,91** con un plano, frente a **12,93** con el clear de 208×156 y 2 planos. Ninguna mejora: el coste restante no es el clear. Sin física se llega a **15,36 fps**, así que el relleno/clear por sí solo ya está por debajo de 25. La conclusión es que 092 es un banco de pruebas del solver y de la silueta; para 25 fps de juego habría que reducir el número/tamaño de partes o usar sprites, no seguir tocando el clear.
