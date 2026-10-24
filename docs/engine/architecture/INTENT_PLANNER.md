@@ -164,8 +164,7 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
   `AudioPlan`; su materialización en código: **`SoundQueue`** (cola de `SampleEvent`), **`SoundPlanner`**
   (intención → plan → `Msg IntentDone`/`AudioUnderrun`, una llamada por frame) y **`AudioFeeder`**
   (avanza el DMA en la IRQ de nivel 4). HOST-371/372/373 los fijan.
-- **Hecho**: el `BlitQueue` **es** una `IntentQueue` con `Item = BlitOp` — el mismo `concept` de
-  ejecutor (`ready`/`run`) y el mismo mecanismo (ticket + completación) que el resto de colas.
+- **Hecho**: el `BlitQueue` **es** una `IntentQueue` con `Item = BlitOp` — el mismo `concept` de ejecutor (`ready`/`run`) y el mismo mecanismo (ticket + completación) que el resto de colas. El contrato compartido está congelado por **HOST-495**: `DrawQueue` y `SoundQueue` son instancias de la misma `IntentQueue` y sus sumideros (`FramePlan`/`AudioPlan`) siguen separados por subsistema.
 
 ## 8. Qué **no** es
 

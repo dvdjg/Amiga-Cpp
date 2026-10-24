@@ -7,6 +7,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | Documento | Estado | Qué cubre |
 |---|---|---|
 | [ROADMAP_UNIFICADO.md](ROADMAP_UNIFICADO.md) | **ACTIVO** | Estado real del engine y las demos y próximas direcciones; inventario de roadmaps. Fuente única del rumbo. |
+| [ROADMAP_VERTICAL_SLICE_2D.md](ROADMAP_VERTICAL_SLICE_2D.md) | **ACTIVO** | Primera slice de juego 2D («Caverna»): DPF 3+3, mapa fijo 256×20, jugador/enemigos, audio y HUD; presupuesto y fases V0-V5. |
 | [ROADMAP_DEUDA_TECNICA.md](ROADMAP_DEUDA_TECNICA.md) | **ACTIVO** | Registro transversal de deuda (DT-NNN) con síntoma, evidencia, impacto y plan; incluye demos NO VERIFICADAS. |
 | [DEMOS_A_ELIMINAR_O_MEJORAR.md](DEMOS_A_ELIMINAR_O_MEJORAR.md) | **ACTIVO** | Auditoría viva de demos que no pasan el umbral de calidad, con criterios y regeneración. |
 | [ROADMAP_GAME_API.md](ROADMAP_GAME_API.md) | **ACTIVO** | Fachada de juego limpio: pila de escenas, manifiesto de assets, estados; fases abiertas. |
