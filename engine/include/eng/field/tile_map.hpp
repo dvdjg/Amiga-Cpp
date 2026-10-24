@@ -10,16 +10,34 @@
 /// Se separó de `tile_field.hpp` al retirar el modelo circular
 /// `TileFieldController` (sustituido por XYLimited, ver
 /// `docs/engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md`).
+///
+/// `TileLayerMapT<Width>` permite fijar el número de tiles en X en tiempo de
+/// compilación. Es opcional: `TileLayerMap` equivale a `TileLayerMapT<0>`. Para
+/// mapas generados se recomienda un ancho potencia de dos (64, 128, 256...):
+/// el compilador puede plegar el índice y, si el wrap coincide con el ancho, no
+/// se paga un módulo runtime en el camino caliente.
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/field/tile_access.hpp>
 #include <eng/field/tile_source.hpp>
 
 namespace eng::playfield {
 
-struct TileLayerMap {
+/// Mapa denso de tiles con ancho opcionalmente fijo.
+///
+/// \tparam FixedWidth ancho en tiles conocido en compilación; `0` conserva el
+///         ancho runtime clásico. Cuando es distinto de cero, `tile_at` indexa
+///         con esa constante (el campo `width` debe valer lo mismo).
+template <eng::u16 FixedWidth = 0u>
+struct TileLayerMapT {
+	/// Ancho fijo de la variante; `0` = se usa `width` en runtime.
+	static constexpr eng::u16 fixed_width = FixedWidth;
+
 	eng::Span<const eng::u16> cells {};
-	eng::u16 width = 0, height = 0, wrap_x = 0, wrap_y = 0, edge_tile = 0;
+	/// En la variante fija nace con `FixedWidth`; si se cambia, debe seguir
+	/// coincidiendo con el parámetro de plantilla para no desincronizar el índice.
+	eng::u16 width = FixedWidth, height = 0, wrap_x = 0, wrap_y = 0, edge_tile = 0;
 	/// Tile valor `empty_tile` (0xFFFF = desactivado) = "no se pinta".
 	eng::u16 empty_tile = 0xFFFF;
 	/// Modo DISPERSO opcional: si `use_sparse`, los tiles se leen por chunks
@@ -50,20 +68,25 @@ struct TileLayerMap {
 		if (cells.empty() || width == 0 || height == 0) return edge_tile;
 		// Camino caliente: la mayoría de lecturas caen dentro del mapa. Evita
 		// `%` de 32 bits (libcall) en `wrap_coordinate` para cada celda.
-		const eng::s32 w = width;
+		const eng::s32 w = FixedWidth != 0u ? FixedWidth : width;
 		const eng::s32 h = height;
-		const bool plain_x = wrap_x == 0 || wrap_x == width;
-		const bool plain_y = wrap_y == 0 || wrap_y == height;
+		const bool plain_x = wrap_x == 0 || wrap_x == w;
+		const bool plain_y = wrap_y == 0 || wrap_y == h;
 		if (plain_x && plain_y && tx >= 0 && tx < w && ty >= 0 && ty < h) {
 			return cells.at(static_cast<eng::u32>(tx + ty * w));
 		}
 		eng::s32 x = tx, y = ty;
-		if (wrap_x) x = wrap_coordinate(x, wrap_x);
-		else if (x < 0 || x >= width) return edge_tile;
-		if (wrap_y) y = wrap_coordinate(y, wrap_y);
-		else if (y < 0 || y >= height) return edge_tile;
-		return cells.at(static_cast<eng::u32>(x + y * width));
+		if (!resolve_tile_coord(x, y, w, h, wrap_x, wrap_y)) return edge_tile;
+		return cells.at(static_cast<eng::u32>(x + y * w));
 	}
 };
+
+/// Mapa denso clásico con ancho runtime.
+using TileLayerMap = TileLayerMapT<0u>;
+
+/// Atajo para mapas generados con un ancho fijo. Se recomienda que `Width` sea
+/// potencia de dos para que el índice sea un desplazamiento.
+template <eng::u16 Width>
+using FixedTileLayerMap = TileLayerMapT<Width>;
 
 } // namespace eng::playfield

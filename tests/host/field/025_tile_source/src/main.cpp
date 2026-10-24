@@ -61,6 +61,33 @@ int main() {
 		check(eng::wrap_period(-1, 40) == 39, "wrap_period negativo");
 	}
 
+	// Pol?tica com?n de coordenadas: wrap y borde acotado.
+	{
+		s32 x = 4, y = 0;
+		check(eng::playfield::resolve_tile_coord(x, y, 4, 4, 4, 4) && x == 0 && y == 0,
+		      "resolve coord: wrap");
+		x = 4; y = 0;
+		check(!eng::playfield::resolve_tile_coord(x, y, 4, 4, 0, 0),
+		      "resolve coord: borde acotado");
+	}
+
+	// Ancho fijo en compilaci?n: 64 tiles de ancho (potencia de dos).
+	{
+		using Fixed = eng::playfield::FixedTileLayerMap<64>;
+		static_assert(Fixed::fixed_width == 64u);
+		u16 fixed_cells[64u * 3u];
+		for (u16 i = 0; i < 64u * 3u; ++i) fixed_cells[i] = static_cast<u16>(i + 1u);
+		Fixed m {};
+		m.cells = eng::Span<const u16>(fixed_cells, 64u * 3u);
+		m.height = 3;
+		m.wrap_x = 64;
+		m.wrap_y = 3;
+		check(m.width == 64u, "fixed 64: ancho por defecto");
+		check(m.tile_at(63, 2) == fixed_cells[2u * 64u + 63u], "fixed 64: ?ndice directo");
+		check(m.tile_at(64, 0) == fixed_cells[0], "fixed 64: wrap x");
+		check(m.tile_at(-1, 0) == fixed_cells[63], "fixed 64: wrap negativo");
+	}
+
 	// Disperso: chunk 4x4 en (0,0) y (2,-1).
 	{
 		u16 c0[16], c1[16];

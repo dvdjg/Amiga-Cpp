@@ -11,6 +11,7 @@
 /// `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.
 
 #include <eng/core/math/fast_div.hpp>
+#include <eng/field/tile_access.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
@@ -58,10 +59,7 @@ struct TileMapView {
 	constexpr bool is_empty(eng::u16 g) const { return src != nullptr && src->is_empty(g); }
 	eng::u16 tile_at(eng::s32 x, eng::s32 y) const {
 		if (src == nullptr) return edge_tile;
-		if (wrap_x) x = wrap_period(x, wrap_x);
-		else if (width != 0 && (x < 0 || x >= static_cast<eng::s32>(width))) return edge_tile;
-		if (wrap_y) y = wrap_period(y, wrap_y);
-		else if (height != 0 && (y < 0 || y >= static_cast<eng::s32>(height))) return edge_tile;
+		if (!resolve_tile_coord(x, y, width, height, wrap_x, wrap_y)) return edge_tile;
 		return src->tile_at(x, y);
 	}
 };

@@ -24,6 +24,8 @@ TileSource     ACCESOR de tiles: `tile_at(x, y)` + `empty_tile`. El scroll consu
 - Implementación: `engine/include/eng/field/tile_source.hpp` (concepto + `SparseTileMap`) y
   `tile_map.hpp` (`TileLayerMap`). Test: `tests/host/field/025_tile_source`.
 
+- `TileLayerMapT<Width>` permite fijar el número de tiles en X en tiempo de compilación; `Width == 0` conserva el ancho runtime y `TileLayerMap` es el alias clásico. Para mapas generados se recomienda un ancho potencia de dos (64, 128, 256...): el índice es un desplazamiento y, si el wrap coincide con el ancho, el camino caliente no paga módulo runtime. La variante fija mantiene `width` por compatibilidad con `TileMap`, pero debe valer `Width`. Test: `tests/host/field/025_tile_source`.
+
 ## 2. Mundo disperso
 
 El mundo **no** es una matriz densa `ancho×alto`: la acción recorre unos pocos caminos y la mayoría

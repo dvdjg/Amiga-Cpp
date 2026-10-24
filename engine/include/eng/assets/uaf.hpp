@@ -22,6 +22,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/math/fast_div.hpp>
 #include <eng/core/data/mesh3d.hpp>
+#include <eng/field/tile_access.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/types/types.hpp>
@@ -675,10 +676,8 @@ public:
 	u16 tile_at(u32 i, s32 x, s32 y) const {
 		if (i >= m_layers) return 0xFFFFu;
 		const Layer& L = m_layer[i];
-		if (L.wrap_x != 0u) x = eng::wrap_period(x, L.wrap_x);
-		else if (L.width != 0u && (x < 0 || x >= static_cast<s32>(L.width))) return L.empty_tile;
-		if (L.wrap_y != 0u) y = eng::wrap_period(y, L.wrap_y);
-		else if (L.height != 0u && (y < 0 || y >= static_cast<s32>(L.height))) return L.empty_tile;
+		if (!eng::playfield::resolve_tile_coord(x, y, L.width, L.height, L.wrap_x, L.wrap_y))
+			return L.empty_tile;
 		const s32 cx = x >> m_chunk_log2;
 		const s32 cy = y >> m_chunk_log2;
 		const s32 idx = find_chunk(i, cx, cy);

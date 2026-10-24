@@ -34,10 +34,7 @@ public:
 	[[nodiscard]] constexpr bool is_empty(u16 tile) const noexcept { return tile == empty_tile; }
 	[[nodiscard]] u16 tile_at(s32 x, s32 y) const noexcept {
 		if (!has_data()) return edge_tile;
-		if (wrap_x != 0u) x = playfield::wrap_period(x, wrap_x);
-		else if (x < 0 || x >= width) return edge_tile;
-		if (wrap_y != 0u) y = playfield::wrap_period(y, wrap_y);
-		else if (y < 0 || y >= height) return edge_tile;
+		if (!playfield::resolve_tile_coord(x, y, width, height, wrap_x, wrap_y)) return edge_tile;
 		return m_layer->tilemap().map->cell(static_cast<u16>(x), static_cast<u16>(y)).tile_index();
 	}
 
