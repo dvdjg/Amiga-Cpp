@@ -4,15 +4,15 @@ Estado: **FUNCIONAL, VISION OK; objetivo 25 fps alcanzado en release**. La escen
 
 | Elemento | Evidencia | Veredicto |
 |---|---|---|
-| Ruta de silueta, 2 props dinámicos | `measure-fps` release | **26,93 fps / 1,86 campos (263.407 ciclos)** |
-| Peor muestra de la ventana | `measure-fps` | **25,67 fps** |
+| Ruta de silueta, 2 props dinámicos | `measure-fps` release | **26,93 fps / 1,86 campos (263.345 ciclos)** |
+| Peor muestra de la ventana | `measure-fps` | **25,31 fps** |
 | Ruta por cara (`K096_FACE=1`) | `measure-fps` release | **17,69 fps / 2,83 campos (400.973 ciclos)** |
 | Ventaja de silueta | 26,93 vs 17,69 | **1,52x** |
 | Props estáticos | 8 siluetas dibujadas en init | **sin coste por frame** |
 | Contornos/movimiento | secuencia de 4 frames + `src/VISION.md` | **OK: nave azul en movimiento, rocas estáticas, sin artefactos** |
 | Gate de secuencia | `verify-3d-sequence --require-motion` | **OK** |
 
-La cadencia es estable en 2 campos la mayor parte de la ventana, con una muestra en 25,67 por el borde de campo; el objetivo de 25 fps se cumple pero con poco margen. La variante por cara queda muy por debajo, que es justo lo que la demo quiere mostrar.
+La cadencia es estable en 2 campos la mayor parte de la ventana, con una muestra en 25,31 por el borde de campo; el objetivo de 25 fps se cumple pero con poco margen. La variante por cara queda muy por debajo, que es justo lo que la demo quiere mostrar.
 
 ```bash
 bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/096_silhouette_swarm --release

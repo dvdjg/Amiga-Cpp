@@ -9,4 +9,4 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/096_silhouette_swarm --co
 
 Ruta por cara para comparar: `EXTRA_DEFINES=-DK096_FACE=1` (misma escena, 2 naves dinámicas). La silueta es la ruta por defecto porque el contenido es de un color plano; no se usa para caras con material ni patrones.
 
-Estado release: **26,9 fps / 1,86 campos** (263.407 ciclos; mínimo 25,67). Ruta por cara: 17,7 fps. La diferencia demuestra la ventaja de la silueta en este tipo de juego.
+Estado release: **26,9 fps / 1,86 campos** (263.345 ciclos; mínimo 25,31). Ruta por cara: 17,7 fps. La diferencia demuestra la ventaja de la silueta en este tipo de juego.
