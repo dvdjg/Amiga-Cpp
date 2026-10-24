@@ -15,6 +15,7 @@ La especificación completa está en `docs/STRUCTURE.md` (§9).
 | [`101_go`](101_go/README.md) | build → run → analyze OK; pulido y pase/superko pendientes | `eng::board::go`: reglas (grupos/captura/ko), evaluación de territorio y `GoSearcher` |
 | [`200_holdem`](200_holdem/README.md) | build → run → analyze OK; pulido visual pendiente | `eng::cards`: reglas Texas Hold'em No-Limit, side pots, showdown y bots (`decide_with_plan`, perfil N20) |
 | [`300_sim_world`](300_sim_world/README.md) | build → run → analyze OK; pulido pendiente | `eng::sim`: ecosistema vivo con **LOD real (cámara)** y **planificación GOAP integrada** (`plan_tick`, caché + sufijo); overlay con nombre + versión + frames y sincronización por señal de VBlank (`os::init` + `run_frames`) |
+| [`500_caverna`](500_caverna/README.md) | esqueleto V0/V1: build/run OK; 50,0 fps | Slice 2D: `FixedTileLayerMap<256>`, cámara, jugador, `App`/`Screen`; DPF 3+3/colisión/audio pendientes |
 
 ## Estructura
 

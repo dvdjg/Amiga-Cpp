@@ -1,6 +1,6 @@
 # Vertical slice 2D: «Caverna» (A500)
 
-Estado: **decisión tomada**, pendiente de implementación. Este documento fija el primer juego que debe cerrar la API de alto nivel y el presupuesto contra el que se medirá. No es una demo de técnica: es el consumidor real que obliga a que la fachada, el planner, los assets y el presupuesto funcionen juntos.
+Estado: **V0 hecho y V1 parcial** en `games/500_caverna`: mapa fijo `FixedTileLayerMap<256>`, cámara y jugador por la fachada, 50,0 fps; faltan DPF 3+3, colisión, enemigos, audio y la medición automática de latencia. Este documento fija el primer juego que debe cerrar la API de alto nivel y el presupuesto contra el que se medirá. No es una demo de técnica: es el consumidor real que obliga a que la fachada, el planner, los assets y el presupuesto funcionen juntos.
 
 ## 1. Qué se construye
 
@@ -39,7 +39,7 @@ La base de la 202 ya mide **≈32,6k ciclos** de CPU activa con DPF 3+3 y scroll
 | Fase | Entregable | Gate |
 |---|---|---|
 | **V0 - contrato** | `MiniGame` de alto nivel con `App`/`Screen`/`input`/`present`; sin plomería | HOST-494 compila; revisión de imports |
-| **V1 - mundo** | cámara, mapa fijo 256×20, scroll DPF y colisión de cajas | 12 s, DPF 3+3, sin costura |
+| **V1 - mundo** | cámara, mapa fijo 256×20, scroll DPF y colisión de cajas | V1 parcial: cámara/mapa/jugador a 50 fps; faltan DPF 3+3 y colisión |
 | **V2 - jugador** | movimiento, salto, gravedad, suelo/plataformas, cámara dead-zone | prueba de entrada y vídeo de secuencia |
 | **V3 - enemigos y sprites** | ocho actores, animación, prioridad y reacción; cuatro canales | presupuesto de sprites y 12 s |
 | **V4 - audio y HUD** | música + cuatro SFX, HUD 1 línea, eventos de sonido | sin underrun; HUD legible |
