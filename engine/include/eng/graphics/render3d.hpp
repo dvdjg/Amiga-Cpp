@@ -404,8 +404,8 @@ template <class S>
 	return true;
 }
 
-/// Área firmada ×2 del polígono de pantalla (positiva = CCW = cara visible con el winding
-/// del engine). Coordenadas de pantalla (píxeles): productos ≤ 320·256, suma segura en `s32`.
+/// Area firmada x2 del poligono de pantalla (y hacia abajo): negativa = CCW desde fuera = visible;
+/// positiva = trasera. Coordenadas de pantalla (pixeles): suma segura en `s32`.
 [[nodiscard]] inline s32 screen_area2(const s16* xs, const s16* ys, u8 n) noexcept {
 	s32 area = 0;
 	for (u8 i = 0u; i < n; ++i) {
@@ -482,7 +482,7 @@ inline u32 render_solid_styled(const math3d::PolyMeshViewT<S>& mesh, const Model
 		if (!ok) continue;
 		const s32 area = screen_area2(xs, ys, m);
 		if (area == 0) continue; // degenerada (canto de perfil)
-		if (!double_sided && area < 0) continue; // back-face
+		if (!double_sided && area > 0) continue; // back-face (area positiva = CW en pantalla)
 		if (target.fill_polygon(xs, ys, m, style_of(fi))) {
 			++drawn;
 		}
@@ -490,6 +490,90 @@ inline u32 render_solid_styled(const math3d::PolyMeshViewT<S>& mesh, const Model
 	return drawn;
 }
 
+/// **Silueta de un solido convexo** (ruta P8): proyecta todos los vertices, calcula
+/// la envolvente convexa 2D y rellena UNA sola vez con `color`. Es la ruta barata
+/// para un solido opaco de material plano: 1 fill por objeto en vez de 1 por cara.
+/// Requiere que todos los vertices esten delante del near (si no, devuelve 0 y el
+/// llamador debe caer a `render_solid_styled`). No usa painter entre caras: el
+/// objeto se pinta completo con `color` (silueta opaca).
+/// \param hull buffer de indices de capacidad >= nv (maximo 16).
+/// \return 1 si pinto la silueta; 0 si no se pudo (near/capacidad/vacio).
+template <class S, class Model>
+inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
+				    const Camera3D<S>& cam, playfield::Surface& target, u8 color,
+				    math3d::Vec3t<S>* world, CamVertex<S>* cam_scratch, s16* xs,
+				    s16* ys, u16* hull, u16 hull_capacity) noexcept {
+	const u32 nv = mesh.vertex_count();
+	if (world == nullptr || cam_scratch == nullptr || xs == nullptr || ys == nullptr ||
+	    hull == nullptr || nv < 3u || nv > 16u || hull_capacity < nv) {
+		return 0u;
+	}
+	math3d::mesh_transform(mesh.vertices, model,
+			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+	for (u32 i = 0u; i < nv; ++i) {
+		cam_scratch[i].x = detail3d::saturate_coord(world[i].v[0]);
+		cam_scratch[i].y = detail3d::saturate_coord(world[i].v[1]);
+		cam_scratch[i].z = detail3d::saturate_coord(world[i].v[2]);
+		if (!(cam_scratch[i].z > cam.near_z)) {
+			return 0u;
+		}
+		if (!project_camera_vertex<S>(cam_scratch[i], cam, xs[i], ys[i])) {
+			return 0u;
+		}
+	}
+	u16 order[16] {};
+	for (u16 i = 0u; i < nv; ++i) {
+		order[i] = i;
+	}
+	for (u16 i = 1u; i < nv; ++i) {
+		const u16 key = order[i];
+		u16 j = i;
+		while (j > 0u) {
+			const u16 prev = order[j - 1u];
+			const bool after = xs[prev] > xs[key] ||
+					   (xs[prev] == xs[key] && ys[prev] > ys[key]);
+			if (!after) {
+				break;
+			}
+			order[j] = prev;
+			--j;
+		}
+		order[j] = key;
+	}
+	const auto cross = [&](u16 o, u16 a, u16 b) -> s32 {
+		return static_cast<s32>(xs[a] - xs[o]) * static_cast<s32>(ys[b] - ys[o]) -
+		       static_cast<s32>(ys[a] - ys[o]) * static_cast<s32>(xs[b] - xs[o]);
+	};
+	u16 h[16] {};
+	u16 k = 0u;
+	for (u16 i = 0u; i < nv; ++i) {
+		while (k >= 2u && cross(h[k - 2u], h[k - 1u], order[i]) <= 0) {
+			--k;
+		}
+		h[k++] = order[i];
+	}
+	const u16 lower = k + 1u;
+	for (u16 i = nv - 1u; i > 0u; --i) {
+		const u16 p = order[i - 1u];
+		while (k >= lower && cross(h[k - 2u], h[k - 1u], p) <= 0) {
+			--k;
+		}
+		h[k++] = p;
+	}
+	if (k > 1u) {
+		--k; // el primer punto se repite al cerrar
+	}
+	if (k < 3u) {
+		return 0u;
+	}
+	s16 hx[16] {};
+	s16 hy[16] {};
+	for (u16 i = 0u; i < k; ++i) {
+		hx[i] = xs[h[i]];
+		hy[i] = ys[h[i]];
+	}
+	return target.fill_polygon(hx, hy, static_cast<u8>(k), color) ? 1u : 0u;
+}
 /// **Pinta un sólido n-gon con color plano** (sin patrón). Envoltorio de
 /// `render_solid_styled` que conserva la firma histórica: `color_of(face_index)`
 /// devuelve el índice de paleta.
@@ -691,7 +775,7 @@ inline u32 render_mesh(const math3d::MeshViewT<S>& mesh, const Model& model, con
 		if (!ok) continue;
 		const s32 area = screen_area2(xs, ys, m);
 		if (area == 0) continue;
-		if (!double_sided && area < 0) continue;
+		if (!double_sided && area > 0) continue;
 		if (target.fill_polygon(xs, ys, m, static_cast<u8>(color_of(fi)))) {
 			++drawn;
 		}

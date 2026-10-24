@@ -355,6 +355,38 @@ public:
 			});
 	}
 
+	/// **Pinta la escena por silueta convexa** (P8): un solo fill por objeto y color
+	/// plano. Para modelos con caras de colores distintos, el llamador debe usar
+	/// `render`; esta ruta usa `color_of(id, 0)`. Si un objeto cruza el near, cae
+	/// automaticamente a la ruta por cara.
+	template <class ColorFn>
+	u32 render_silhouette(eng::Span<const Mesh> models, playfield::Surface& target,
+			      ColorFn&& color_of) noexcept {
+		return render_silhouette_with(
+			[&](ModelHandle handle) -> eng::Ref<const Mesh> {
+				return (handle.valid() && handle.index < models.size())
+					       ? &models[handle.index]
+					       : nullptr;
+			},
+			target,
+			[&](NodeId id) -> u8 { return static_cast<u8>(color_of(id, 0u)); });
+	}
+
+	/// Variante de silueta contra una `ModelTable` y el color del material de la
+	/// cara 0 de cada modelo.
+	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
+		  u16 TableMaterials>
+	u32 render_silhouette(
+		const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
+		playfield::Surface& target) noexcept {
+		return render_silhouette_with(
+			[&](ModelHandle handle) { return models.mesh(handle); }, target,
+			[&](NodeId id) -> u8 {
+				const eng::Ref<Node3D> node = this->node(id);
+				return node.valid() ? models.color(node->model, 0u) : 0u;
+			});
+	}
+
 	/// **Pinta la escena en alambre** con la `ModelTable`: resuelve la jerarquía,
 	/// proyecta cada arista única y la dibuja con `color` sobre `target`. Es la ruta
 	/// barata para depurar escena/rotación sin depender del relleno de caras.
@@ -549,6 +581,63 @@ private:
 		return faces;
 	}
 
+	/// Implementacion comun de las rutas de silueta: mismo orden painter que
+	/// `render_with`; si un modelo no cabe en el hull (near o >16 vertices), cae a
+	/// `render_solid_styled` para no perder la cara.
+	template <class MeshAt, class ColorAt>
+	u32 render_silhouette_with(MeshAt&& mesh_at, playfield::Surface& target,
+				   ColorAt&& color_at) noexcept {
+		update_transforms();
+		u16 count = 0u;
+		m_nodes.for_each([&](Node3D& node, PoolHandle handle) {
+			if (!node.visible) {
+				return;
+			}
+			eng::Ref<const Mesh> mesh = mesh_at(node.model);
+			if (!mesh.valid() || mesh->vertex_count() > MaxVertices) {
+				return;
+			}
+			const s32 depth =
+				eng::math::scalar_traits<eng::coord>::to_int(node.world_position.v[2]);
+			u16 insert = count;
+			while (insert > 0u && m_depth[insert - 1u] < depth) {
+				m_depth[insert] = m_depth[insert - 1u];
+				m_order[insert] = m_order[insert - 1u];
+				--insert;
+			}
+			m_depth[insert] = depth;
+			m_order[insert] = to_node_id(handle);
+			++count;
+		});
+
+		u32 drawn = 0u;
+		for (u16 i = 0u; i < count; ++i) {
+			const NodeId id = m_order[i];
+			eng::Ref<Node3D> node = m_nodes.get(to_pool_handle(id));
+			if (!node.valid()) {
+				continue;
+			}
+			eng::Ref<const Mesh> mesh = mesh_at(node->model);
+			if (!mesh.valid()) {
+				continue;
+			}
+			m_model.m = node->world_rotation;
+			m_model.t = node->world_position;
+			const u8 color = color_at(id);
+			const u32 one = graphics::render_convex_silhouette(
+				*mesh, m_model, m_camera, target, color, m_world, m_cam_scratch,
+				m_xs, m_ys, m_hull, 16u);
+			if (one != 0u) {
+				drawn += one;
+				continue;
+			}
+			drawn += graphics::render_solid_styled(
+				*mesh, m_model, m_camera, target,
+				[&](u32) { return graphics::FaceStyle {color, 0u, 0u}; }, m_world,
+				m_cam_scratch, m_xs, m_ys);
+		}
+		return drawn;
+	}
 	util::Pool<Node3D, MaxNodes> m_nodes {}; ///< nodos vivos y generaciones.
 	Camera m_camera {}; ///< cámara única de la escena (por defecto 320x200, focal 340).
 	ModelTransform m_model {}; ///< transform temporal reutilizado por nodo.
@@ -556,6 +645,7 @@ private:
 	graphics::CamVertex<eng::coord> m_cam_scratch[16] {}; ///< scratch de clip de una cara.
 	s16 m_xs[16] {}; ///< coordenadas X de pantalla de una cara recortada.
 	s16 m_ys[16] {}; ///< coordenadas Y de pantalla de una cara recortada.
+	u16 m_hull[16] {}; ///< scratch de la envolvente convexa (P8).
 	NodeId m_order[MaxNodes] {}; ///< nodos visibles ordenados de lejos a cerca.
 	s32 m_depth[MaxNodes] {}; ///< clave de profundidad de `m_order` (z de la posición).
 	graphics::WireEdge m_edges[MaxEdges] {}; ///< scratch de aristas únicas de `render_wire`.

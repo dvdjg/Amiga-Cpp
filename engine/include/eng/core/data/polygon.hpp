@@ -76,7 +76,7 @@ inline u32 convex_spans(Span<const T> xs, Span<const T> ys, Emit&& emit) {
 	};
 	auto step = [&](Dda& d) {
 		d.rem += d.adx;
-		if (d.rem >= d.dy) {
+		while (d.rem >= d.dy) {
 			d.rem -= d.dy;
 			d.x += d.sx;
 		}

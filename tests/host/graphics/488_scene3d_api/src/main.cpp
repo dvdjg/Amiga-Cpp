@@ -19,6 +19,7 @@
 #include <eng/api/3d.hpp>
 #include <eng/core/math/fixed.hpp>
 #include <eng/memory/mem_bank.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/mesh_primitives.hpp>
 
 #include <cstdio>
@@ -362,11 +363,19 @@ void test_model_asset() {
 	check(scene.set_camera(cam), "camara de escena con modelo");
 	const auto node = scene.spawn({.model = handle, .position = math3d::vec3(0, 0, 120)});
 	check(node.valid(), "nodo con modelo de tabla");
+	math3d::Mat3<> material_rot {};
+	using TurnAngle = math::Angle<eng::real, math::angle::turns>;
+	math3d::load_rotate(material_rot, TurnAngle {0.0833333f}, TurnAngle {0.5f},
+			    TurnAngle {0.0f});
+	check(scene.set_rotation(node, material_rot), "rotacion para materiales");
 	const u32 faces = scene.render(table, surf, [&](SceneT::NodeId, u32 face) {
 		return table.color(handle, face);
 	});
 	check(faces > 0u, "render con ModelTable");
 	check(!pf.polys.empty(), "ModelTable llega a Surface");
+	pf.polys.clear();
+	const u32 silhouettes = scene.render_silhouette(table, surf);
+	check(silhouettes == 1u && !pf.polys.empty(), "render_silhouette de ModelTable");
 
 	pf.polys.clear();
 	const u32 material_faces = scene.render(table, surf);

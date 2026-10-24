@@ -189,7 +189,6 @@ struct Scene3dDemo {
 				    retro::turns(static_cast<u16>((m_phase * 7u) & 4095u)),
 				    retro::turns(0u));
 		(void)m_world.set_rotation(m_child_a, child_a_rot);
-
 		eng::playfield::Surface world {m_canvas,
 					       eng::playfield::SurfaceRect {0, 0, kWidth, kWorldH}};
 		eng::util::TextLine<40> stats {};
@@ -202,7 +201,11 @@ struct Scene3dDemo {
 		stats << 'E' << edges << " J" << m_plan.blit_job_count()
 		      << (plan_ok ? " OK" : " ERR") << (m_plan.ok() ? " ok" : " bad");
 #else
+#if K091_SILHOUETTE
+		const u32 faces = m_world.render_silhouette(m_models, world);
+#else
 		const u32 faces = m_world.render(m_models, world);
+#endif
 		stats << 'F' << faces;
 #endif
 

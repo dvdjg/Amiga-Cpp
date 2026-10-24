@@ -258,9 +258,9 @@ private:
 			verts[k] = math3d::vec3<eng::coord>(screen_to_cam_x(sx, t.z, m_cam),
 							    screen_to_cam_y(sy, t.z, m_cam), t.z);
 		}
-		// Winding CCW en pantalla (y hacia abajo): con la tabla de angulos 0/120/240 el orden
-		// natural sale CW y el culling por area lo descartaria.
-		const u16 ids[3] = {0u, 2u, 1u};
+		// Winding CCW desde fuera: con la tabla de angulos 0/120/240 el orden natural
+		// proyecta area negativa en pantalla (y hacia abajo) y el renderer lo acepta.
+		const u16 ids[3] = {0u, 1u, 2u};
 		const math3d::FaceSpan span {0u, 3u};
 		const math3d::PolyMeshViewT<eng::coord> mesh {
 			eng::Span<const math3d::Vec3t<eng::coord>>(verts, 3u),

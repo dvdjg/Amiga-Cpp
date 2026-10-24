@@ -20,6 +20,7 @@
 #include <eng/memory/mem_bank.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/fixed_trig.hpp>
+#include <eng/retro/mesh_primitives.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -93,6 +94,9 @@ struct RecordingPlayfield : Playfield {
 	bool add_world_bitmap_masked(graphics::FramePlan&, Span<const u16>, Span<const u16>, s32,
 				     s32, u16, u16, u16, u32, u8, u8) override {
 		return false;
+	}
+	bool fill_cpu(const s16* xs, const s16* ys, u8 n, u8 color) {
+		return Playfield::fill_polygon(Span<const s16>(xs, n), Span<const s16>(ys, n), color);
 	}
 	bool fill_polygon(Span<const s16> xs, Span<const s16> ys, u8 color) override {
 		Poly p {};
@@ -223,7 +227,143 @@ int main() {
 		      "near: conjunto vacío no habilita proyección directa");
 	}
 
-	// 5aa) Regresión aislada de winding/culling para el mismo cubo usado por la demo 080.
+	// 5ab) Winding del render: fill_box publica caras CCW desde fuera.
+	//      Con la camara en -Z, la cara cercana -Z (indice 1) es la unica visible en
+	//      identidad; la lejana +Z (indice 0) no debe emitirse. Regresion de la inversion
+	//      de signo del area de pantalla (y hacia abajo) que dejaba huecos en los cubos.
+	{
+		retro::MeshData<MF, 8, 24, 6> cube;
+		check(retro::fill_box(cube, math3d::vec3<MF>(20, 20, 20)), "cubo fill_box");
+		RecordingPlayfield pf;
+		pf.init(320, 200, 4);
+		Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
+		math3d::Vec3t<MF> world[8] {};
+		CamVertex<MF> scratch[16] {};
+		s16 xs[16] {};
+		s16 ys[16] {};
+		using Aff = math::Affine<3, MF, MF>;
+		Aff model = Aff::identity();
+		model.t = math3d::vec3<MF>(0, 0, 1000);
+		const u32 drawn = render_solid(
+			cube.view(), model, kCamF, surf,
+			[](u32 face) { return static_cast<u8>(face + 1u); }, world, scratch, xs, ys);
+		check(drawn == 1u && pf.polys.size() == 1u, "cubo: una cara visible en identidad");
+		check(!pf.polys.empty() && pf.polys[0].color == 2u,
+		      "cubo: se emite la cara -Z cercana (no la +Z lejana)");
+	}
+	// 5ac) La misma cara q12 de la demo 091 (fase 120): el poligono proyectado
+	//      debe ser convexo. Si no lo es, `convex_spans` deja huecos en el relleno.
+	{
+		using RS = math::Fixed<s16, 12>;
+		using Aff = math::Affine<3, RS, MF>;
+		retro::MeshData<MF, 8, 24, 6> cube;
+		check(retro::fill_box(cube, math3d::vec3<MF>(28, 28, 28)), "cubo q12");
+		math3d::Mat3<RS> rot {};
+		math3d::load_rotate(rot, retro::turns(120u), retro::turns(240u), retro::turns(360u));
+		Aff model {};
+		model.m = rot;
+		model.t = math3d::vec3<MF>(0, 0, 320);
+		const u16 ids[4] = {1u, 0u, 3u, 2u};
+		const math3d::FaceSpan span {0u, 4u};
+		const math3d::PolyMeshViewT<MF> face {
+			cube.view().vertices, Span<const u16>(ids, 4u),
+			Span<const math3d::FaceSpan>(&span, 1u)};
+		RecordingPlayfield pf;
+		pf.init(320, 200, 4);
+		Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
+		math3d::Vec3t<MF> world[8] {};
+		CamVertex<MF> scratch[16] {};
+		s16 xs[16] {};
+		s16 ys[16] {};
+		const Camera3D<MF> cam340 {CTF::from_int(340), 160, 104, CTF::from_int(64),
+					  CTF::from_int(160), CTF::from_int(104)};
+		const u32 drawn = render_solid_styled(
+			face, model, cam340, surf,
+			[](u32) { return FaceStyle {2u, 0u, 0u}; }, world, scratch, xs, ys, true);
+		check(drawn == 1u && pf.polys.size() == 1u, "cara q12: emitida");
+		bool convex = pf.polys.size() == 1u && pf.polys[0].n == 4u;
+		if (convex) {
+			const auto& p = pf.polys[0];
+			s32 sign = 0;
+			for (u8 i = 0u; i < p.n; ++i) {
+				const u8 j = static_cast<u8>((i + 1u) % p.n);
+				const u8 k = static_cast<u8>((i + 2u) % p.n);
+				const s32 cr = eng::math::mul_wide(p.xs[j] - p.xs[i], p.ys[k] - p.ys[j]) -
+					       eng::math::mul_wide(p.ys[j] - p.ys[i], p.xs[k] - p.xs[j]);
+				if (cr != 0) {
+					if (sign == 0) sign = cr > 0 ? 1 : -1;
+					else if ((cr > 0 ? 1 : -1) != sign) convex = false;
+				}
+			}
+		}
+		check(convex, "cara q12: poligono convexo");
+		const std::vector<u8> pixels = rasterize_recorded(pf, 320u, 200u, 4u);
+		const u32 covered = count_set_pixels(pixels);
+		s32 area2 = 0;
+		if (pf.polys.size() == 1u) {
+			const auto& p = pf.polys[0];
+			for (u8 i = 0u; i < p.n; ++i) {
+				const u8 j = static_cast<u8>((i + 1u) % p.n);
+				area2 += eng::math::mul_wide(p.xs[i], p.ys[j]) -
+					 eng::math::mul_wide(p.xs[j], p.ys[i]);
+			}
+			if (area2 < 0) area2 = -area2;
+		}
+		const u32 expected = static_cast<u32>(area2 / 2);
+		check(expected > 0u && covered * 4u >= expected * 3u,
+		      "cara q12: cobertura CPU sin huecos");
+		RecordingPlayfield cpu_pf;
+		cpu_pf.init(320, 200, 4);
+		if (pf.polys.size() == 1u) {
+			(void)cpu_pf.fill_cpu(pf.polys[0].xs.data(), pf.polys[0].ys.data(),
+					      pf.polys[0].n, 2u);
+		}
+		const u32 base_covered = count_set_pixels(cpu_pf.mem);
+		ContiguousPlayfield contig;
+		std::vector<u8> contig_mem(40u * 200u * 4u, 0u);
+		check(contig.bind_raw(contig_mem.data(), static_cast<u32>(contig_mem.size()),
+				      320u, 200u, 4u),
+		      "contiguo bind");
+		if (pf.polys.size() == 1u) {
+			(void)contig.fill_polygon(Span<const s16>(pf.polys[0].xs.data(),
+								  pf.polys[0].n),
+						  Span<const s16>(pf.polys[0].ys.data(),
+								  pf.polys[0].n),
+						  2u);
+		}
+		const u32 contig_covered = count_set_pixels(contig_mem);
+		check(expected > 0u && contig_covered * 4u >= expected * 3u,
+		      "cara q12: ContiguousPlayfield sin huecos");
+		check(expected > 0u && base_covered * 4u >= expected * 3u,
+		      "cara q12: Playfield::fill_polygon sin huecos");
+	}
+	// 5ad) Silueta convexa (P8): un fill por objeto, hull de los 8 vertices.
+	{
+		retro::MeshData<MF, 8, 24, 6> cube;
+		check(retro::fill_box(cube, math3d::vec3<MF>(20, 20, 20)), "cubo silueta");
+		using Aff = math::Affine<3, MF, MF>;
+		Aff model = Aff::identity();
+		model.t = math3d::vec3<MF>(0, 0, 1000);
+		RecordingPlayfield pf;
+		pf.init(320, 200, 4);
+		Surface surf {pf, SurfaceRect {0, 0, 320, 200}};
+		math3d::Vec3t<MF> world[8] {};
+		CamVertex<MF> scratch[16] {};
+		s16 xs[16] {};
+		s16 ys[16] {};
+		u16 hull[16] {};
+		const u32 drawn = render_convex_silhouette(
+			cube.view(), model, kCamF, surf, 3u, world, scratch, xs, ys, hull, 16u);
+		check(drawn == 1u && pf.polys.size() == 1u, "silueta: un poligono");
+		check(pf.polys.size() == 1u && pf.polys[0].n == 4u,
+		      "silueta identidad: hull de 4 vertices");
+		const std::vector<u8> pixels = rasterize_recorded(pf, 320u, 200u, 4u);
+		check(count_set_pixels(pixels) != 0u, "silueta: cobertura CPU");
+		model.t = math3d::vec3<MF>(0, 0, 20);
+		check(render_convex_silhouette(cube.view(), model, kCamF, surf, 3u, world,
+					       scratch, xs, ys, hull, 16u) == 0u,
+		      "silueta: near devuelve 0 para fallback");
+	}	// 5aa) Regresión aislada de winding/culling para el mismo cubo usado por la demo 080.
 	//      Compara el producto s32 barato (válido en 68000) contra face_visible del engine en
 	//      yaw simétrico y giro compuesto: ambos deben seleccionar las mismas caras exteriores.
 	{
@@ -541,7 +681,7 @@ int main() {
 		verts[0] = math3d::vec3<MF>(-20, -20, 800);
 		verts[1] = math3d::vec3<MF>(20, -20, 800);
 		verts[2] = math3d::vec3<MF>(0, 20, 800);
-		math3d::Face faces[1] = {{0u, 1u, 2u}};
+		math3d::Face faces[1] = {{0u, 2u, 1u}};
 		math3d::MeshViewT<MF> mesh {
 			Span<const math3d::Vec3t<MF>>(verts.data(), 3u),
 			Span<const math3d::Face>(faces, 1u)};
@@ -567,7 +707,7 @@ int main() {
 		check(inside, "render: coordenadas de pantalla dentro del viewport");
 
 		// Winding invertido = trasera -> culled por defecto; con doble cara se pinta.
-		math3d::Face rev[1] = {{0u, 2u, 1u}};
+		math3d::Face rev[1] = {{0u, 1u, 2u}};
 		math3d::MeshViewT<MF> mesh_rev {
 			Span<const math3d::Vec3t<MF>>(verts.data(), 3u),
 			Span<const math3d::Face>(rev, 1u)};
@@ -615,7 +755,7 @@ int main() {
 		for (u8 i = 0u; i < 5u; ++i) {
 			verts[i] = math3d::vec3<MF>(kPX[i], kPY[i], 1000);
 		}
-		const u16 idx[5] = {0u, 1u, 2u, 3u, 4u};
+		const u16 idx[5] = {0u, 4u, 3u, 2u, 1u};
 		const math3d::FaceSpan span {0u, 5u};
 		math3d::PolyMeshViewT<MF> mesh {
 			Span<const math3d::Vec3t<MF>>(verts.data(), 5u),

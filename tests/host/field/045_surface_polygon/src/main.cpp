@@ -76,6 +76,18 @@ int main() {
 		check(!pf.px(55, 12), "exterior a la derecha");
 	}
 
+	// Arista poco profunda (|dx| > dy): el DDA debe avanzar varios px por fila.
+	{
+		MockPlayfield pf4;
+		pf4.init(64, 64, 4);
+		Surface s4(pf4, SurfaceRect {0, 0, 64, 64});
+		const s16 xs[3] = {10, 60, 10};
+		const s16 ys[3] = {10, 20, 40};
+		check(s4.fill_polygon(xs, ys, 3, 1), "triangulo con arista poco profunda");
+		check(pf4.px(30, 15), "interior junto a la arista poco profunda");
+		check(!pf4.px(55, 15), "exterior a la derecha de la arista");
+	}
+
 	// Cuadrado centrado: interior/exterior.
 	{
 		MockPlayfield pf2;
