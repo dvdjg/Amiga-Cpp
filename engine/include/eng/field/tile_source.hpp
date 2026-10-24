@@ -44,6 +44,27 @@ constexpr eng::s32 floor_div(eng::s32 a, eng::s32 b) {
 	return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b);
 }
 
+/// Coordenada de chunk y offset local para un tama?o potencia de dos o no.
+/// Comparte la geometr?a entre `SparseTileMap` y `StreamingWorldMap`.
+struct TileChunkPosition {
+	eng::s32 cx = 0;
+	eng::s32 cy = 0;
+	eng::u32 lx = 0;
+	eng::u32 ly = 0;
+};
+
+/// Calcula el chunk y el offset local de una celda.
+/// \param x     coordenada X de la celda (admite negativos).
+/// \param y     coordenada Y de la celda (admite negativos).
+/// \param size  lado del chunk en celdas; debe ser distinto de cero.
+/// \return chunk `(cx, cy)` y offset `(lx, ly)` dentro de ?l.
+constexpr TileChunkPosition tile_chunk_position(eng::s32 x, eng::s32 y, eng::s32 size) {
+	const eng::s32 cx = floor_div(x, size);
+	const eng::s32 cy = floor_div(y, size);
+	return {cx, cy, static_cast<eng::u32>(x - cx * size),
+		static_cast<eng::u32>(y - cy * size)};
+}
+
 /// Vista de un mundo disperso/streaming con los límites que necesita el scroll.
 /// El almacén (`Src`, p. ej. `SparseTileMap` o `StreamingWorldMap`) lo posee el
 /// llamador y aquí se referencia: así el `prefetch` se hace sobre ESA instancia
@@ -84,13 +105,10 @@ struct SparseTileMap {
 	eng::u16 tile_at(eng::s32 x, eng::s32 y) const {
 		if (chunks.empty()) return empty_tile;
 		const eng::s32 size = static_cast<eng::s32>(ChunkSize);
-		const eng::s32 cx = floor_div(x, size);
-		const eng::s32 cy = floor_div(y, size);
-		const eng::u32 lx = static_cast<eng::u32>(x - cx * size);
-		const eng::u32 ly = static_cast<eng::u32>(y - cy * size);
+		const TileChunkPosition p = tile_chunk_position(x, y, size);
 		for (eng::u32 i = 0; i < chunks.size(); ++i) {
-			if (chunks[i].cx == cx && chunks[i].cy == cy) {
-				return chunks[i].cells.at(ly * static_cast<eng::u32>(ChunkSize) + lx);
+			if (chunks[i].cx == p.cx && chunks[i].cy == p.cy) {
+				return chunks[i].cells.at(p.ly * static_cast<eng::u32>(ChunkSize) + p.lx);
 			}
 		}
 		return empty_tile;

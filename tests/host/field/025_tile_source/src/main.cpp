@@ -12,6 +12,7 @@
 
 #include <eng/field/tile_map.hpp>
 #include <eng/field/tile_source.hpp>
+#include <eng/field/tilemap_view.hpp>
 
 namespace {
 
@@ -59,6 +60,26 @@ int main() {
 		check(eng::wrap_period(3, 40) == 3, "wrap_period in-range");
 		check(eng::wrap_period(43, 40) == 3, "wrap_period fuera de rango");
 		check(eng::wrap_period(-1, 40) == 39, "wrap_period negativo");
+	}
+
+	// Geometr?a com?n de chunk: floor y offset local.
+	{
+		const auto p = eng::playfield::tile_chunk_position(5, -1, 16);
+		check(p.cx == 0 && p.cy == -1 && p.lx == 5u && p.ly == 15u,
+		      "tile_chunk_position: floor y offset local");
+	}
+
+	// Vista de tilemap por punteros: wrap com?n, sin `%` espec?fico.
+	{
+		u16 tile_ids[4] = {10u, 11u, 12u, 13u};
+		eng::playfield::TilemapView v {};
+		v.bank = tile_ids;
+		v.bank_stride_words = 1u;
+		v.tiles = tile_ids;
+		v.cols = 2u;
+		v.rows = 2u;
+		check(v.tile_at(2u, 0u) == 10u, "TilemapView wrap x");
+		check(v.tile_at(1u, 2u) == 11u, "TilemapView wrap y");
 	}
 
 	// Pol?tica com?n de coordenadas: wrap y borde acotado.

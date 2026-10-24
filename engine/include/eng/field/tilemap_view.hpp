@@ -11,6 +11,7 @@
 /// de tiles (§4 de `ROADMAP_GAME_API`); aquí solo se describe.
 
 #include <eng/core/types/types.hpp>
+#include <eng/field/tile_access.hpp>
 #include <eng/graphics/palette.hpp>
 
 namespace eng::playfield {
@@ -32,7 +33,11 @@ struct TilemapView {
 
 	/// Id del tile del banco en la celda `(col, row)`, con **wrap toroidal**.
 	[[nodiscard]] constexpr eng::u16 tile_at(eng::u16 col, eng::u16 row) const noexcept {
-		return tiles[(row % rows) * cols + (col % cols)];
+		if (cols == 0u || rows == 0u) return 0u;
+		eng::s32 x = col;
+		eng::s32 y = row;
+		if (!resolve_tile_coord(x, y, 0, 0, cols, rows)) return 0u;
+		return tiles[y * cols + x];
 	}
 };
 

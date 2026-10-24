@@ -76,13 +76,10 @@ public:
 
 	eng::u16 tile_at(eng::s32 x, eng::s32 y) const {
 		const eng::s32 size = static_cast<eng::s32>(ChunkSize);
-		const eng::s32 cx = floor_div(x, size);
-		const eng::s32 cy = floor_div(y, size);
-		const eng::u16* c = m_cache.find(cx, cy);
+		const TileChunkPosition p = tile_chunk_position(x, y, size);
+		const eng::u16* c = m_cache.find(p.cx, p.cy);
 		if (c == nullptr) return m_empty;
-		const eng::u32 lx = static_cast<eng::u32>(x - cx * size);
-		const eng::u32 ly = static_cast<eng::u32>(y - cy * size);
-		return c[ly * static_cast<eng::u32>(ChunkSize) + lx];
+		return c[p.ly * static_cast<eng::u32>(ChunkSize) + p.lx];
 	}
 	constexpr bool is_empty(eng::u16 g) const { return g == m_empty; }
 
