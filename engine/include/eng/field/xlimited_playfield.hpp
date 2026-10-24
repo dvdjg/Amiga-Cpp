@@ -55,7 +55,6 @@ public:
     /// \return `false` si la capa no se inicializó o un borde bloqueó el avance.
     bool update_scroll(graphics::FramePlan& plan, s32 dx, s32 dy) override {
         if (!this->m_initialized) return false;
-        m_dbg_ink_visible = false; // DEBUG: reinicio el flag del frame (hipótesis offset)
         // Perfil con `prefill`: la cámara avanza por TILES completos. Garantiza
         // que el cambio de dirección caiga en frontera de tile (`direction_latched`)
         // y que la franja entre alineada (plane-shift 0 al terminar). El perfil
@@ -81,7 +80,9 @@ public:
                 // Sub-tile: un px-burst (geometría del cruce calculada una vez por tile).
                 if (!m_scroll.burst_right_px(plan, *this, static_cast<u16>(dx))) return false;
             } else {
-                for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
+                // Aun en el perfil progresivo, la geometría del cruce se calcula
+                // una vez por ráfaga (equivalente a N pasos, HOST-034).
+                if (!m_scroll.burst_right_px(plan, *this, static_cast<u16>(dx))) return false;
             }
         } else if (dx < 0) for (s32 i = 0; i < -dx; ++i) { if (!m_scroll.scroll_left(plan, *this)) return false; }
         if (dy > 0) for (s32 i = 0; i < dy; ++i) { if (!m_scroll.scroll_down(plan, *this)) return false; }
@@ -99,11 +100,6 @@ public:
     static constexpr u8 profile_guard_tiles() { return Profile::guard_tiles; }
     static constexpr bool profile_prefill() { return Profile::prefill; }
     static constexpr bool profile_direction_latched() { return Profile::direction_latched; }
-
-    /// DEBUG: ¿el frame pintó algún bloque de relleno dentro de la zona visible?
-    constexpr bool dbg_ink_visible() const { return m_dbg_ink_visible; }
-    /// DEBUG: fila del bucle (0..display_height) del último ink visible.
-    constexpr u8 dbg_ink_visible_row() const { return m_dbg_ink_visible_row; }
 
 
     /// Reserva el bitmap interleaved y prepara el estado inicial.
@@ -467,22 +463,6 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         }
         // Tile 'vacío' (empty_tile): NO se pinta (no consume slot de Blitter).
         if (this->m_cfg.map.is_empty(this->map_tile_at(mapx, mapy))) return true;
-        // DEBUG (hipótesis viewport-offset): ¿este bloque de relleno cae en las
-        // filas del bucle que el display está mostrando AHORA mismo? Si sí, el
-        // indice del viewport respecto al framebuffer hace visibles los tiles.
-        {
-            const s32 vps = m_scroll.state().videoposy;
-            const u32 d = static_cast<u32>(this->dmod1(static_cast<u32>(vps) + this->cth()));
-            const u32 row = static_cast<u32>(y) / this->cplanes(); // fila real del bucle
-            const u32 rel = this->dmod1(row + this->m_display_height - this->dmod1(d));
-            // Horiz. visible en el framebuffer (ventana que lee el chip a partir de
-            // ROUND2(videoposx)): ignorar la columna derecha (x ≈ x0+bitmap_width).
-            const u32 x0v = static_cast<u32>(m_scroll.state().videoposx & ~(this->ctw() - 1)) % this->m_bitmap_width;
-            const u32 xb = static_cast<u32>(x) % this->m_bitmap_width;
-            const bool xvis = (xb < x0v + this->m_cfg.viewport_w) && (xb + this->ctw() > x0v) ||
-                              (x0v + this->m_cfg.viewport_w > this->m_bitmap_width && xb < (x0v + this->m_cfg.viewport_w) % this->m_bitmap_width);
-            if (rel < this->m_cfg.viewport_h && xvis) { m_dbg_ink_visible = true; m_dbg_ink_visible_row = static_cast<u8>(row); }
-        }
         if (!plan.add_tile_block_copy(draw_block_job(x, y, mapx, mapy))) return false;
         if (this->m_linear_display) {
             // Espejo: mismo bloque en planelínea y + this->m_mirror_planelines (copia del bucle).
@@ -862,8 +842,6 @@ private:
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
-    bool m_dbg_ink_visible = false;               // DEBUG: ink dentro de la zona visible
-    u8 m_dbg_ink_visible_row = 0;                 // DEBUG: fila del bucle donde cayó el ink
 };
 
 } // namespace eng::playfield

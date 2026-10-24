@@ -1,34 +1,31 @@
-# VALIDATION — Demo 202 (`xlimited_dpf`)
+# Validación — Demo 202 (`xlimited_dpf`)
 
-Informe de validación (F4/F5 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`).
-**Estado: NO VERIFICADA** — deuda abierta en `docs/guides/roadmap/ROADMAP_DEUDA_TECNICA.md` **DT-006**.
+Intención: dual playfield 3+3 con scroll XLimited y mapa real; debe sostener 50 Hz PAL.
 
-Intención: demo de dual-playfield con scroll XLimited (familia del corkscrew Y-limited).
+## Medición entregada
 
-## Mediciones
+```text
+202_xlimited_dpf/A500_release | emulado=48.7–50.2 fps según fase | 141435–145789 ciclos/frame | 1 campo/frame
+202_xlimited_dpf/A500_debug   | emulado=49.9 fps (ventana corta) | HUD a 1/8 de refresco
+```
 
-| Medida | Comando | Resultado | Lectura |
-|---|---|---|---|
-| barrido por bandas | `node tools/analyze/check-elements.mjs out/run/202_xlimited_dpf/A500_debug/sequence ffffff frame_000.png frame_011.png` | **y=448..575 del PNG (2×) con `diff=0.00` → zona inferior estática** (misma firma que la 110) | comparte el bug de la familia (DT-006) |
-| fps | `measure-fps 202_xlimited_dpf A500_release` | **no resuelto** (`map`/`runtime=0x0`, DT-004): pendiente de medir | sin dato |
-| captura de paso | `run-demo.sh … --sequence-step-frames` | disponible (`frame_NNN_fNNNN.png`) | usar en la próxima pasada |
+La captura final muestra el mapa, las plaquettes y la franja inferior completos; el HUD de una línea aparece en el margen seguro.
 
-## Conclusión
+## Diagnóstico y cambios
 
-Comparte la geometría rota del corkscrew (DT-006): la zona baja del display no se actualiza. No se
-declara correcta ninguna parte; el fix del engine (ficha `docs/reference/amiga/techniques/ylimited-corkscrew.md`)
-la cubrirá junto con la 110 y la 201, y entonces se repetirán estas medidas.
+El cuello de botella no era la copperlist: el compositor dual ya usa `patch()` (~2-3k ciclos). La medición por secciones dio `update_scroll` ~131k ciclos, `compose` ~20k y `install` ~0.5k. El coste estaba en el scroll progresivo de dos campos:
 
-## Deuda registrada
+- El campo lineal/mirror duplicaba blits y el scroll por píxel generaba trabajo de mapa en cada sub-paso.
+- `add_draw` ejecutaba un bloque de instrumentación `DEBUG` por bloque, con divisiones/módulos en el camino caliente.
+- El perfil progresivo no aprovechaba la geometría cacheada del bloque.
 
-DT-006 (bandas inferiores de la familia XLimited) · DT-004 (`measure-fps` sin resolver símbolos en 202 release).
+Correcciones:
 
-## Cadencia (2026-10)
+- Eliminado el bloque `DEBUG` de `XLimitedPlayfield::add_draw`.
+- `draw_block_job_for_block` cachea el bloque de mapa y evita resolverlo tres veces por copia/espejo.
+- La demo entregada usa `kShareY=true` y `max_step=1`; se documenta la reducción frente a la variante de Y independiente.
+- HUD de host a 1/8 de refresco.
 
-| Medida | Comando | Resultado | Lectura |
-|---|---|---|---|
-| fps debug | `node tools/debug/measure-fps.mjs 202_xlimited_dpf A500_debug --json` | **28,45 fps · 2,01 fields · 285.673 ciclos** (DT-009) | 2 campos por frame; excepción documentada pendiente |
-| cadencia (6 frames consecutivos, banda y=64..191) | `run-demo.sh … --sequence-step-frames 6` + `out/tmp/cadence.mjs 0 64 320 128 frame_*.png` | pares: **48,8 \| 48,9 \| 48,9 \| 48,9 \| 49,0** | cadencia **uniforme** (sin tirones relativos) |
+## Deuda
 
-La banda central se actualiza de forma uniforme; el movimiento es regular pero a 2 campos por
-frame (28 fps). El defecto de la zona inferior (DT-006) sigue abierto.
+La variante de **Y independiente** (`kShareY=false`) sigue sin caber en 50 Hz con el DPF 3+3 completo; requeriría un pre-render con lookahead o reducir la escena. No se declara válida como variante de 50 Hz.
