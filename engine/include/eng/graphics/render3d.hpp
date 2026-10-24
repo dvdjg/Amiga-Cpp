@@ -445,7 +445,7 @@ inline u32 render_solid_styled(const math3d::PolyMeshViewT<S>& mesh, const Model
 	if (world == nullptr || cam_scratch == nullptr || xs == nullptr || ys == nullptr) return 0u;
 	if (nv == 0u || nf == 0u) return 0u;
 	math3d::mesh_transform(mesh.vertices, model,
-			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+			       eng::Span<math3d::Vec3t<S>>(world, nv));
 	// Fast path: si el objeto entero está dentro del frustum, ninguna cara necesita clip.
 	const bool all_inside = camera_contains_vertices<S>(cam, world, nv);
 	u32 drawn = 0;
@@ -509,7 +509,7 @@ inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const 
 		return 0u;
 	}
 	math3d::mesh_transform(mesh.vertices, model,
-			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+			       eng::Span<math3d::Vec3t<S>>(world, nv));
 	for (u32 i = 0u; i < nv; ++i) {
 		cam_scratch[i].x = detail3d::saturate_coord(world[i].v[0]);
 		cam_scratch[i].y = detail3d::saturate_coord(world[i].v[1]);
@@ -541,8 +541,11 @@ inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const 
 		order[j] = key;
 	}
 	const auto cross = [&](u16 o, u16 a, u16 b) -> s32 {
-		return static_cast<s32>(xs[a] - xs[o]) * static_cast<s32>(ys[b] - ys[o]) -
-		       static_cast<s32>(ys[a] - ys[o]) * static_cast<s32>(xs[b] - xs[o]);
+		const s32 ax = xs[a] - xs[o];
+		const s32 ay = ys[a] - ys[o];
+		const s32 bx = xs[b] - xs[o];
+		const s32 by = ys[b] - ys[o];
+		return ax * by - ay * bx;
 	};
 	u16 h[32] {};
 	u16 k = 0u;
@@ -572,7 +575,7 @@ inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const 
 		hx[i] = xs[h[i]];
 		hy[i] = ys[h[i]];
 	}
-	return target.fill_polygon(hx, hy, static_cast<u8>(k), color) ? 1u : 0u;
+	return target.fill_polygon(hx, hy, k, color) ? 1u : 0u;
 }
 /// **Pinta un sólido n-gon con color plano** (sin patrón). Envoltorio de
 /// `render_solid_styled` que conserva la firma histórica: `color_of(face_index)`
@@ -686,7 +689,7 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 		return 0u;
 	}
 	math3d::mesh_transform(mesh.vertices, model,
-			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+			       eng::Span<math3d::Vec3t<S>>(world, nv));
 	u16 edge_count = 0u;
 	for (u32 fi = 0u; fi < nf; ++fi) {
 		const eng::Span<const u16> idx = mesh.face_indices(fi);
@@ -740,7 +743,7 @@ inline u32 render_mesh(const math3d::MeshViewT<S>& mesh, const Model& model, con
 	if (world == nullptr || cam_scratch == nullptr || xs == nullptr || ys == nullptr) return 0u;
 	if (nv == 0u || nf == 0u) return 0u;
 	math3d::mesh_transform(mesh.vertices, model,
-			       eng::Span<math3d::Vec3t<S>>(world, static_cast<eng::usize>(nv)));
+			       eng::Span<math3d::Vec3t<S>>(world, nv));
 	const bool all_inside = camera_contains_vertices<S>(cam, world, nv);
 	u32 drawn = 0;
 	for (u32 fi = 0u; fi < nf; ++fi) {

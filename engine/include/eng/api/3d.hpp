@@ -369,7 +369,7 @@ public:
 					       : nullptr;
 			},
 			target,
-			[&](NodeId id) -> u8 { return static_cast<u8>(color_of(id, 0u)); });
+			[&](NodeId id) -> u8 { return color_of(id, 0u); });
 	}
 
 	/// Variante de silueta contra una `ModelTable` y el color del material de la

@@ -31,7 +31,7 @@ La variante rellena se compila con `K091_WIRE=0` en `DEMO_FLAGS`.
 | Ruta | Cubos | Buffer | Update/frame | Campos/frame | fps |
 |---|---:|---|---:|---:|---:|
 | **Relleno por cara (`K091_WIRE=0`, actual)** | **2** | **2** | **845.925 ciclos** | **5,96** | **8,39** |
-| **Silueta convexa (`K091_WIRE=0 K091_SILHOUETTE=1`, P8 A/B)** | **2** | **2** | **557.902 ciclos** | **3,93** | **12,72** |
+| **Silueta convexa (`K091_WIRE=0 K091_SILHOUETTE=1`, P8 A/B)** | **2** | **2** | **561.192 ciclos** | **3,96** | **12,64** |
 | Relleno por cara (historica, 3 cubos) | 3 | 1 | 1.128.714 ciclos | 7,96 | 6,28 |
 | Alambre CPU (`draw_line` sin plan) | 3 | 1 | 2.392.418 ciclos | 16,86 | 2,97 |
 | Alambre Blitter Copy | 2 | 1 | 964.533 ciclos | 6,80 | 7,35 |
@@ -47,7 +47,7 @@ La secuencia de la **variante rellena** se valido aparte con `vision-final.mjs` 
 
 ## 5. Limites y siguientes gates
 
-- **Cadencia**: 7,85 fps (alambre), 8,39 fps (relleno por cara) y 12,72 fps (silueta convexa) no cumplen el suelo de 25 fps; la demo queda abierta. La silueta mejora 1,5x (557.902 vs 845.925 ciclos) al hacer 1 fill por objeto, pero aun paga 4 planos por objeto y el clear. El siguiente paso de P8/P5 es la composicion `S` + `M_p`, el clear por dirty-rect y el router por coste; tambien falta el batch de lineas para el alambre.
+- **Cadencia**: 7,85 fps (alambre), 8,39 fps (relleno por cara) y 12,64 fps (silueta convexa) no cumplen el suelo de 25 fps; la demo queda abierta. La silueta mejora 1,5x (561.192 vs 845.925 ciclos) al hacer 1 fill por objeto, pero aun paga 4 planos por objeto y el clear. El siguiente paso de P8/P5 es la composicion `S` + `M_p`, el clear por dirty-rect y el router por coste; tambien falta el batch de lineas para el alambre.
 - **Flicker**: no se ha ejecutado `--flicker --require-flicker-ok`; el doble buffer reduce el riesgo, pero no hay declaracion.
 - **Poses**: la secuencia cubre cuatro poses; no barre todos los angulos ni el cruce por near del hijo.
 - **Regresion corregida**: `convex_spans` avanzaba como maximo 1 px por fila en aristas con `|dx| > dy` (DDA con `if` en vez de `while`), lo que dejaba muescas en caras y cubos rellenos. El arreglo esta cubierto por HOST-045 (arista poco profunda) y HOST-481 (cara q12 y cobertura CPU/contigua); 087 y 091 se revisaron en WinUAE. La cadencia sigue siendo deuda de P8.

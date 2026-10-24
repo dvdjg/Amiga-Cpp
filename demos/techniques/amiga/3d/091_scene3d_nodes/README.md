@@ -35,4 +35,4 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/091_scene3d_nodes \
 
 Actualizacion: la variante rellena (K091_WIRE=0) ya renderiza cubos solidos tras corregir el DDA de convex_spans (avance de varios px por fila en aristas poco profundas); HOST-045/HOST-481 cubren la regresion. La medida actual es 8,39 fps / 5,96 campos con 2 cubos y doble buffer, aun por debajo del suelo de 25 fps de P8.
 
-A/B de P8: con K091_SILHOUETTE=1 la escena rellena usa una silueta convexa por objeto (1 fill por objeto, 4 planos) y mide 12,72 fps / 3,93 campos (557.902 ciclos), frente a 8,39 fps del relleno por cara. Sigue por debajo de 25 fps; falta la composicion S + M_p y el router de coste.
+A/B de P8: con K091_SILHOUETTE=1 la escena rellena usa una silueta convexa por objeto (1 fill por objeto, 4 planos) y mide 12,64 fps / 3,96 campos (561.192 ciclos), frente a 8,39 fps del relleno por cara. Sigue por debajo de 25 fps; falta la composicion S + M_p y el router de coste.

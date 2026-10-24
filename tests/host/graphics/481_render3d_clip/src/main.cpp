@@ -359,7 +359,27 @@ int main() {
 		      "silueta identidad: hull de 4 vertices");
 		const std::vector<u8> pixels = rasterize_recorded(pf, 320u, 200u, 4u);
 		check(count_set_pixels(pixels) != 0u, "silueta: cobertura CPU");
-		model.t = math3d::vec3<MF>(0, 0, 20);
+		{
+			using RS = math::Fixed<s16, 12>;
+			using AQ = math::Affine<3, RS, MF>;
+			math3d::Mat3<RS> rot {};
+			math3d::load_rotate(rot, retro::turns(120u), retro::turns(240u),
+					    retro::turns(360u));
+			AQ qmodel {};
+			qmodel.m = rot;
+			qmodel.t = math3d::vec3<MF>(0, 0, 320);
+			const Camera3D<MF> cam340 {CTF::from_int(340), 160, 104, CTF::from_int(64),
+						  CTF::from_int(160), CTF::from_int(104)};
+			RecordingPlayfield qpf;
+			qpf.init(320, 200, 4);
+			Surface qsurf {qpf, SurfaceRect {0, 0, 320, 200}};
+			const u32 qdrawn = render_convex_silhouette(
+				cube.view(), qmodel, cam340, qsurf, 3u, world, scratch, xs, ys, hull,
+				16u);
+			check(qdrawn == 1u && qpf.polys.size() == 1u, "silueta q12: emitida");
+			check(qpf.polys.size() == 1u && qpf.polys[0].n == 6u,
+			      "silueta q12: hull hexagonal");
+		}		model.t = math3d::vec3<MF>(0, 0, 20);
 		check(render_convex_silhouette(cube.view(), model, kCamF, surf, 3u, world,
 					       scratch, xs, ys, hull, 16u) == 0u,
 		      "silueta: near devuelve 0 para fallback");
