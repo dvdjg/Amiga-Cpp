@@ -544,7 +544,7 @@ inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const 
 		return static_cast<s32>(xs[a] - xs[o]) * static_cast<s32>(ys[b] - ys[o]) -
 		       static_cast<s32>(ys[a] - ys[o]) * static_cast<s32>(xs[b] - xs[o]);
 	};
-	u16 h[16] {};
+	u16 h[32] {};
 	u16 k = 0u;
 	for (u16 i = 0u; i < nv; ++i) {
 		while (k >= 2u && cross(h[k - 2u], h[k - 1u], order[i]) <= 0) {
@@ -563,7 +563,7 @@ inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const 
 	if (k > 1u) {
 		--k; // el primer punto se repite al cerrar
 	}
-	if (k < 3u) {
+	if (k < 3u || k > 16u) {
 		return 0u;
 	}
 	s16 hx[16] {};
