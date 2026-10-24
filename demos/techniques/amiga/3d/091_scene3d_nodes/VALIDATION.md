@@ -37,7 +37,7 @@ La variante rellena se compila con `K091_WIRE=0` en `DEMO_FLAGS`.
 | Alambre Blitter Copy | 2 | 1 | 964.533 ciclos | 6,80 | 7,35 |
 | **Alambre Blitter EOR, 1 plano, 18 aristas visibles (por defecto)** | **2** | **2** | **321.398 ciclos** | **2,26** | **22,07** |
 
-La cadencia de la variante por defecto es uniforme dentro de la ventana (21,6-22,6 fps), sin picos. La ruta optimizada usa 1 plano, culling de aristas traseras (18 aristas visibles), mascara de deduplicacion O(1) y clear asincrono; quedan 18 jobs de linea por frame. La ruta EOR es ligeramente mas barata que Copy (903k vs 964k) pero no cambia el orden de magnitud. El doble buffer evita que la captura vea el clear; no cambia el coste. La variante rellena mejora a 8,39 fps al reducir a 2 cubos y usar doble buffer, pero sigue por debajo del suelo de 25 fps.
+La cadencia de la variante por defecto es uniforme dentro de la ventana (21,6-22,6 fps), sin picos. La ruta optimizada usa 1 plano, culling de aristas traseras (18 aristas visibles), mascara de deduplicacion O(1) y clear asincrono; quedan 18 jobs de linea por frame. Las filas de CPU/Copy son medidas historicas de la ruta de 4 planos. El doble buffer evita que la captura vea el clear; no cambia el coste. La variante rellena mejora a 8,39 fps al reducir a 2 cubos y usar doble buffer, pero sigue por debajo del suelo de 25 fps.
 
 ## 4. Vision (Ollama, prompt canonico)
 
