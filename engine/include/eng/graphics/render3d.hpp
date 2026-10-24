@@ -639,7 +639,7 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 		if (!clip_camera_segment<S>(cam, a, b, a, b)) continue;
 		if (!project_camera_vertex<S>(a, cam, xs[0], ys[0])) continue;
 		if (!project_camera_vertex<S>(b, cam, xs[1], ys[1])) continue;
-		if (target.draw_line(xs[0], ys[0], xs[1], ys[1], color, plan)) {
+		if (target.draw_line(xs[0], ys[0], xs[1], ys[1], color, plan, op)) {
 			++drawn;
 		}
 	}

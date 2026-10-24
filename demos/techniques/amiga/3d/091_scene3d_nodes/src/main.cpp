@@ -48,11 +48,11 @@ constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
 constexpr u16 kWorldH = 208u;
 constexpr u16 kRowBytes = kWidth / 8u; // 40
-constexpr u8 kPlanes = 1u; // alambre 1 bpp: 1 job de línea por arista (presupuesto)
+constexpr u8 kPlanes = 4u;
 constexpr u32 kPlaneBytes = static_cast<u32>(kRowBytes) * kHeight;
 constexpr u16 kBandY = kWorldH;
 constexpr u16 kBandH = kHeight - kWorldH;
-constexpr u8 kBuffers = 1u;
+constexpr u8 kBuffers = 2u;
 
 // --- Cámara ------------------------------------------------------------------
 constexpr s16 kFocal = 340;
@@ -63,10 +63,10 @@ constexpr s16 kHalfW = 160;
 constexpr s16 kHalfH = 104;
 
 constexpr eng::Palette32 kPalette {{
-	0x013, 0xf80, 0x0df, 0x7ef, 0xff0, 0x6f6, 0xf9c, 0xf24,
+	0x000, 0xf80, 0x0df, 0x7ef, 0xff0, 0x6f6, 0xf9c, 0xf24,
 	0x333, 0x888, 0xccc, 0x05f, 0x444, 0x0a3, 0xa07, 0xfff,
 }};
-constexpr u8 kHudColor = 1u; // blanco (COLOR01; display de 1 plano)
+constexpr u8 kHudColor = 15u;
 constexpr eng::debug::Version kVersion {1u, 0u};
 constexpr u16 kPhaseStep = 12u;
 
@@ -96,15 +96,15 @@ constexpr Camera kCamera {
 	CameraT::from_int(kHalfW), CameraT::from_int(kHalfH)};
 
 struct Scene3dDemo {
-	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
-		if (!backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u})) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		if (!backend.configure_memory({256u * 1024u, 8u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, kBootMemory);
 			return;
 		}
 		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
 		res.buffers = kBuffers;
 		if (!comp::compose(m_display, backend.memory_manager(), res, comp::ocs_a500,
-				   comp::display(res), comp::palette(kPalette, 0u, 2u))) {
+				   comp::display(res), comp::palette(kPalette, 0u, 16u))) {
 			eng::debug::mark_failed(
 				g_eng_run_status,
 				kBootCompose + static_cast<u32>(m_display.config_error().code));
@@ -118,18 +118,20 @@ struct Scene3dDemo {
 			eng::debug::mark_failed(g_eng_run_status, kBootMask);
 			return;
 		}
-		const eng::PlaneBytes planes = m_display.buffer(0u);
-		(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(kPlaneBytes) * kPlanes,
-					kWidth, kHeight, kPlanes, kPlaneBytes);
 		m_fill.backend = &backend;
 		m_fill.mask = m_mask.view;
 		m_canvas.set_polygon_fill_sink(m_fill.sink());
 		// El alambre encola líneas por Blitter en el `FramePlan` (la ruta CPU de
 		// `draw_line` cuesta ~1500 ciclos/píxel y no cabe en el presupuesto).
 		m_canvas.set_rasterizer(&eng::playfield::kBlitterRaster);
-
-		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kHeight);
-		draw_band();
+		for (u8 b = 0u; b < m_display.buffer_count(); ++b) {
+			const eng::PlaneBytes planes = m_display.buffer(b);
+			(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(planes.size()), kWidth,
+						kHeight, kPlanes, kPlaneBytes);
+			(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth,
+						    kHeight);
+			draw_band();
+		}
 
 		// Modelos: cubo raíz (28), cubo pequeño (14) y cubo pequeño (10) con
 		// materiales distintos. Todos son primitivas `constexpr` en rodata.
@@ -157,6 +159,10 @@ struct Scene3dDemo {
 			return;
 		}
 		m_ready = true;
+		// Completar las dos páginas antes de READY: el primer flip publica una página
+		// ya dibujada (el display muestra la anterior mientras se pinta la trasera).
+		update(backend, context);
+		update(backend, context);
 		eng::amiga::mark_ready();
 	}
 
@@ -164,7 +170,11 @@ struct Scene3dDemo {
 		if (!m_ready) {
 			return;
 		}
-		const eng::PlaneBytes planes = m_display.buffer(0u);
+		// Publicación diferida: el raster muestra la página completa anterior.
+		m_display.commit();
+		const eng::PlaneBytes planes = m_display.back();
+		(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(planes.size()), kWidth,
+					kHeight, kPlanes, kPlaneBytes);
 		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kWorldH);
 
 		m_phase = static_cast<u16>((m_phase + kPhaseStep) & 4095u);
@@ -186,7 +196,8 @@ struct Scene3dDemo {
 #if K091_WIRE
 		m_plan.clear();
 		const u32 edges = m_world.render_wire(
-			m_models, world, kHudColor, eng::Ref<eng::graphics::FramePlan> {m_plan});
+			m_models, world, kHudColor, eng::Ref<eng::graphics::FramePlan> {m_plan},
+			eng::playfield::RasterOp::Xor);
 		const bool plan_ok = backend.execute_frame_plan(m_plan);
 		stats << 'E' << edges << " J" << m_plan.blit_job_count()
 		      << (plan_ok ? " OK" : " ERR") << (m_plan.ok() ? " ok" : " bad");
@@ -197,7 +208,6 @@ struct Scene3dDemo {
 
 		m_host_hud.draw(backend.debug(), "091 SCENE3D NODES", kVersion,
 				context.frame.frame_index, eng::debug::prof_clock(), stats.c_str());
-		m_display.commit();
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 

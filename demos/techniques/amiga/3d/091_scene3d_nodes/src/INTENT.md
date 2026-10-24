@@ -1,20 +1,23 @@
-# INTENT - 091_scene3d_nodes
+# Intención de la demo 091 — Scene3D retenida con jerarquía
 
 ## Qué hace
 
-Demo de la fachada 3D de juego (`eng::scene3d::Scene` + `ModelTable`): dos cubos viven en una `Scene<8, 8>` con handles generacionales. El cubo raíz gira en Y/Z; el cubo hijo cuelga de él con `set_parent` y gira sobre sí mismo con otro multiplicador, de modo que hereda la rotación del padre. El render es en alambre sobre un display de 1 plano; la ruta usa el rasterizador Blitter y ejecuta un `FramePlan` por frame para medir el coste real.
+Demuestra la **fachada de juego 3D** (`eng::scene3d`, G0–G3 de `ROADMAP_3D_GAME_API.md`) con una escena mínima pero real: un cubo raíz grande en el centro y un cubo hijo pequeño que cuelga de él. El cubo raíz gira en Y/Z; el hijo gira sobre sí mismo y **hereda** la transformación del padre. La demo es el tutorial de cómo un juego describe nodos, transformaciones y materiales sin tocar bitplanes, Blitter, máscaras ni registros. La variante por defecto es **alambre** (`K091_WIRE=1`) para aislar la escena/jerarquía del coste del relleno de caras; `K091_WIRE=0` usa `Scene::render` con materiales de `ModelTable` y el mismo `PolygonFillService` por cara.
 
 ## Qué pretende demostrar
 
-Que el juego describe nodos, transforms, jerarquía y modelos cocinados sin tocar planos ni Copper; que los handles invalidan correctamente al borrar/reutilizar; y que el render 3D usa la misma infraestructura de playfield y HUD que las demás demos. La variante `K091_WIRE=0` sirve como referencia de caras rellenas cuando el presupuesto lo permita.
+Que la fachada `Scene<MaxNodes, MaxVertices>` resuelve el ciclo de vida y la jerarquía de una escena 3D de juego: handles generacionales (`spawn`/`remove`), transform local con rotación Q4.12, composición padre→hijo con `set_parent`, `update_transforms` que solo recompone nodos sucios, cámara `Camera3D<eng::coord>` y render por `render_wire` o por materiales de `ModelTable`. El display y el relleno reutilizan la infraestructura ya validada de las demos 3D (`composition::Scene` + `PolygonFillService`); la lógica de la demo no programa registros ni toca planos.
 
 ## Elementos en pantalla
 
-- Fondo de 320x256 en 1 plano; la franja inferior (208..255) contiene el rótulo "091 SCENE3D NODES".
-- Dos cubos de distinto tamaño (28 y 16 unidades) dibujados como wireframe blanco en el área 3D.
-- HUD de host con título, versión, frame, FPS y estadísticas de aristas/jobs del plan.
-- Sin playfield de juego ni sprites hardware: la demo mide la escena 3D retenida.
+| Elemento | Color | Papel |
+|---|---|---|
+| Fondo | negro (COLOR00 = 0x000) | lienzo uniforme; el alambre blanco se lee sin halos |
+| Cubo raíz | blanco (COLOR15) | sólido de 28 unidades; gira en Y/Z y define la transformación de la rama |
+| Cubo hijo | blanco (COLOR15) | sólido de 16 unidades ligado al raíz; gira sobre sí mismo y orbita con el padre |
+| HUD de host | blanco sobre negro | nombre + número + versión + frames + fps + telemetría `E24 J96 OK` |
+| Rótulo de franja | blanco | nombre de la demo en la franja inferior del bitmap (refuerzo) |
 
 ## Evolución temporal
 
-Cada frame incrementa `m_phase`; el raíz aplica una rotación Y/Z dependiente de la fase y el hijo rota con multiplicadores distintos conservando la herencia del padre. El área 3D se limpia por Blitter antes de dibujar, el wireframe se encola en `m_plan` y se ejecuta, y el HUD actualiza frame/FPS y el número de aristas/jobs. El estado es determinista y no usa heap.
+Ambos cubos rotan de forma continua: la fase avanza 12 unidades por frame (módulo 4096) y alimenta `math3d::load_rotate` con ángulos distintos para el raíz y para el hijo. La posición del hijo en pantalla cambia porque la rotación del padre arrastra su transform local; en algunas poses se solapa parcialmente con el raíz. El doble buffer publica al inicio de cada `update` la página completa anterior, de modo que el raster nunca ve el clear ni la página a medio pintar. La secuencia de validación (4 frames separados) muestra poses distintas y el contador de frames del HUD.

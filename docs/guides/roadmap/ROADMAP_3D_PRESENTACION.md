@@ -68,7 +68,7 @@ Con la ruta `fill_polygons_by_plane` (contorno XOR + area fill) el destino debe 
 
 ## Demos y numeración
 
-- Ámbito `demos/techniques/amiga/3d` (077/078/079/084/087/088/089/090 en uso; consultar `node tools/check/next-number.mjs demos/techniques/amiga/3d`): candidatas `080_camera_pan_window` (F1, existente), `097_horizon_dpf` (F4) y `098_superhot_room` (F5). Los números 091–096 quedan reservados para las demos de la capa de juego en [`ROADMAP_3D_GAME_API.md`](ROADMAP_3D_GAME_API.md) §10; no se solapan.
+- Ámbito `demos/techniques/amiga/3d` (077/078/079/084/087/088/089/090/091 en uso; consultar `node tools/check/next-number.mjs demos/techniques/amiga/3d`): candidatas `080_camera_pan_window` (F1, existente), `097_horizon_dpf` (F4) y `098_superhot_room` (F5). Los números 092–096 quedan reservados para las demos de la capa de juego en [`ROADMAP_3D_GAME_API.md`](ROADMAP_3D_GAME_API.md) §10; no se solapan.
 - Tests host del mapeo de ventana y de la tabla (k, S) del horizonte: reservar IDs en [`TAXONOMY.md`](../../testing/TAXONOMY.md) al crearlos.
 
 - `090_polyhedra_orbit` (técnica): silueta XOR + un fill por plano acotado por sólido y damero 2×2 en el plano de entramado; **15,3–16,2 fps** (3 campos), abierta por cadencia. El A/B de 2 colores sin damero se queda en 16,3 fps: el techo son los ~80 blits de línea y el transform del 68000, no la variedad de color. Medidas y deuda en `demos/techniques/amiga/3d/090_polyhedra_orbit/VALIDATION.md`.

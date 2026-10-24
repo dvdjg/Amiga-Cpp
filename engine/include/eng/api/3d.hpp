@@ -375,9 +375,10 @@ public:
 	u32 render_wire(
 		const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
 		playfield::Surface& target, u8 color,
-		eng::Ref<graphics::FramePlan> plan = {}) noexcept {
+		eng::Ref<graphics::FramePlan> plan = {},
+		playfield::RasterOp op = playfield::RasterOp::Copy) noexcept {
 		return render_wire_with([&](ModelHandle handle) { return models.mesh(handle); }, target,
-					color, plan);
+					color, plan, op);
 	}
 
 	/// Igual que el anterior, resolviendo contra una tabla de vistas `Mesh`.
@@ -386,14 +387,15 @@ public:
 	/// \param color índice de paleta de las líneas.
 	/// \return número de aristas dibujadas.
 	u32 render_wire(eng::Span<const Mesh> models, playfield::Surface& target, u8 color,
-			eng::Ref<graphics::FramePlan> plan = {}) noexcept {
+			eng::Ref<graphics::FramePlan> plan = {},
+			playfield::RasterOp op = playfield::RasterOp::Copy) noexcept {
 		return render_wire_with(
 			[&](ModelHandle handle) -> eng::Ref<const Mesh> {
 				return (handle.valid() && handle.index < models.size())
 					       ? &models[handle.index]
 					       : nullptr;
 			},
-			target, color, plan);
+			target, color, plan, op);
 	}
 
 private:
@@ -405,7 +407,8 @@ private:
 	/// \tparam MeshAt callable `eng::Ref<const Mesh>(ModelHandle)`.
 	template <class MeshAt>
 	u32 render_wire_with(MeshAt&& mesh_at, playfield::Surface& target, u8 color,
-			      eng::Ref<graphics::FramePlan> plan = {}) noexcept {
+			      eng::Ref<graphics::FramePlan> plan,
+			      playfield::RasterOp op) noexcept {
 		update_transforms();
 		u32 edges = 0u;
 		m_nodes.for_each([&](Node3D& node, PoolHandle handle) {
@@ -421,7 +424,7 @@ private:
 			m_model.t = node.world_position;
 			edges += graphics::render_wire(*mesh, m_model, m_camera, target, color,
 						       m_world, m_edges, MaxEdges, m_cam_scratch,
-						       m_xs, m_ys, plan);
+						       m_xs, m_ys, plan, op);
 		});
 		return edges;
 	}

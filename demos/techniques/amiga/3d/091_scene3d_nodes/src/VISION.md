@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-23T23:23:33.381Z
+- Fecha: 2026-10-23T23:45:46.113Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png (4)
 - Secuencia: `out/run/091_scene3d_nodes/A500_debug/sequence`
@@ -16,28 +16,26 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 ## Respuesta (cruda)
 
 **Imagen 1:**
-- **Fondo:** Pantalla de color azul oscuro uniforme.
-- **Elementos gráficos:** Ninguno. La pantalla está completamente vacía.
+- **Fondo:** Negro uniforme.
+- **Objetos:** Dos cubos tridimensionales representados con líneas blancas discontinuas (punteadas). El cubo superior es más grande y está inclinado hacia la derecha. El cubo inferior es más pequeño y está posicionado debajo del superior, también inclinado.
 - **Texto en la esquina superior izquierda:**
-  - `091 SCENE3D NODE5 v1.0.6232`
-  - `F2 3000FPS` (nota: el valor "3000FPS" es inusual y probablemente un error de visualización o un valor de prueba).
-  - `E24 J24 OK OK`
+  - `091 SCENE3D NODE5 v1.0.6237`
+  - `F15 7.9FPS`
+  - `E24 J96 OK OK`
+- **Estado del contorno:** Los bordes de los cubos son limpios, sin halos ni artefactos. No hay píxeles cortados.
+- **Estado del fondo:** El fondo negro permanece uniforme y no muestra restos de la posición anterior de los objetos.
 
 **Imagen 2:**
-- **Fondo:** Igual que en la imagen 1, azul oscuro uniforme.
-- **Elementos gráficos:**
-  - **Objeto principal (superior):** Un rectángulo de contorno naranja, ligeramente inclinado, que parece representar una caja o un objeto tridimensional. Sus bordes son limpios, sin halos ni píxeles cortados.
-  - **Objeto secundario (inferior):** Un pequeño rectángulo de contorno naranja, también inclinado, con una línea que se extiende desde su lado derecho hacia arriba y a la derecha, como si fuera una antena o un soporte. Sus bordes también son limpios.
+- **Fondo:** Negro uniforme.
+- **Objetos:** Los dos cubos están en una nueva configuración. El cubo superior ahora está más centrado y orientado hacia arriba. El cubo inferior está más cerca del centro y parece estar girando hacia la izquierda.
 - **Texto en la esquina superior izquierda:**
-  - `091 SCENE3D NODE5 v1.0.6232`
-  - `F2 13.6FPS` (el valor de FPS ha cambiado de 3000 a 13.6, lo que sugiere que el sistema está renderizando gráficos).
-  - `E24 J24 OK OK`
+  - `091 SCENE3D NODE5 v1.0.6237`
+  - `F24 7.0FPS` (cambio de `F15` a `F24`)
+  - `E24 J96 OK OK`
+- **Estado del contorno:** Los bordes de los cubos son limpios, sin halos ni artefactos. No hay píxeles cortados.
+- **Estado del fondo:** El fondo negro permanece uniforme y no muestra restos de la posición anterior de los objetos.
 
 **Cambios entre imágenes:**
-- Se ha añadido un objeto gráfico compuesto por dos formas geométricas (un rectángulo grande y uno pequeño con una línea) en la imagen 2.
-- El valor de FPS en el texto ha cambiado de "3000FPS" a "13.6FPS".
-
-**Observaciones:**
-- Los objetos gráficos tienen contornos limpios y no presentan artefactos visibles.
-- El fondo permanece uniforme y no se observan restos de la posición anterior de los objetos.
-- No hay elementos superpuestos ni recortes visibles.
+- La posición y orientación de los dos cubos han cambiado.
+- El texto `F15` ha cambiado a `F24` en la segunda imagen.
+- El valor de FPS ha disminuido de 7.9 a 7.0.
