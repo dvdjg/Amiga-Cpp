@@ -358,6 +358,7 @@
   0     5  engine/include/eng/sim/pack.hpp
   0     2  engine/include/eng/sim/persona.hpp
   0     2  engine/include/eng/sim/personality.hpp
+  0     1  engine/include/eng/sim/physics3d.hpp
   0     4  engine/include/eng/sim/planner.hpp
   0     5  engine/include/eng/sim/psyche_traits.hpp
   0     9  engine/include/eng/sim/psyche.hpp
