@@ -1,5 +1,7 @@
 # Demo 053: sprites hardware — multiplexado y color multiplexing
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 Valida el camino de sprites de alto nivel: `scene::SpriteDirector` recibe una entidad con `HwSpriteTemplate`
 (plantilla portable con segmentos y cambios de paleta) y `present` reusa UN canal de sprite hardware para dibujar SEIS
 objetos distintos en franjas verticales distintas ("chasing the raster"), cada uno

@@ -1,5 +1,7 @@
 # Demo 064 — shmup mínimo: formaciones, rutas y timeline (F2 + F8)
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 Tutorial de la capa de dinámica de juego:
 
 - **Formación** (`scene::Formation` + `formation_update`): 5 naves entran en **V**

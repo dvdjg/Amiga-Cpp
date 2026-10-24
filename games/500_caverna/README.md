@@ -4,6 +4,10 @@ Primer consumidor de la fachada de juego para la slice «Caverna»: mapa de tile
 
 Estado actual: **esqueleto jugable V0/V1/V2/V3**. El fondo es un `FixedTileLayerMap<256>` con scroll XLimited y **DPF 3+3** (320×208); el jugador y los cuatro enemigos son sprites hardware (5 canales). El jugador colisiona con el tilemap y salta; los enemigos patrullan y animan. El HUD muestra `CAVERNA DEMO 500`. No hay audio ni pitidos. Siguen pendientes las plataformas de tilemap más ricas, el manifiesto de assets, ocho actores y la prueba automática de latencia.
 
+## Deuda de sprites
+
+Caverna conserva temporalmente el camino directo de `XlimitedScene`/`SpriteManager`: la migraci?n a `SpriteDirector` est? preparada en la escena (`emit_sprite_director`) pero el cambio de placements obliga a reemitir la copperlist completa y baja a ~44 fps con varios actores. La migraci?n definitiva requiere el parcheo de sprites en la copperlist (o F3); hasta entonces este juego **no es el patr?n** para sprites. La fachada p?blica es `SpriteDirector`.
+
 ## Controles
 
 - **Ratón**: el movimiento horizontal desplaza al jugador y la cámara; el botón izquierdo salta. Se procesa por mensajes `MouseMove`/`MouseButton` del mini-OS (`eng::os`), no por sondeo directo de `JOY0DAT`.
@@ -17,4 +21,4 @@ bash tools/build/build-demo.sh games/500_caverna --release
 bash tools/run/run-demo.sh games/500_caverna --config A500_release
 ```
 
-Medición: `2026-10-24`, A500_release, ventana de 12 s: **49,92 fps** emulados (media), 142102 ciclos/frame, 1,00159 campos/frame, `stable=true`.
+Medición: `2026-10-24`, A500_release, ventana de 12 s: **50,00 fps** emulados (media), 141869 ciclos/frame, 0,99996 campos/frame, `stable=true`.

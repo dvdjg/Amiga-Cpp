@@ -1,5 +1,7 @@
 # 224_sprite_reuse_carousel — carrusel de reuso vertical (S1.1)
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 Sonda de estrés S1.1 para [stress-sprites-bobs-roadmap.md](../../../../../docs/guides/roadmap/STRESS_SPRITES_BOBS.md). Ocho canales Sprite HW sirven **40 placements** repartidos en cinco bandas raster: dos pares *attached* (canales 0/1 y 2/3, 7 colores + transparencia) y cuatro canales libres (4–7, 3 colores + transparencia). Cada canal se reutiliza cinco veces por frame y muestra un objeto distinto en cada banda. Cada placement tiene su propia X animada por todo el ancho (16..301 px) y su propia oscilación vertical dentro de la banda.
 
 ## Diseño: estructura estática + parcheo

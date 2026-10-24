@@ -1,5 +1,7 @@
 # Sistema de sprites HW: evaluación de la consulta y plan de implementación detallado
 
+> **Fachada vigente:** código nuevo usa `eng::scene::SpriteDirector` (demo 225/HOST-485). `SpriteScene`/`CompositeScene` son implementación legacy; `SpriteAllocator` es interno (no deprecado) y lo usa el director. Ver `docs/engine/architecture/SPRITE_DIRECTOR.md`.
+
 Este documento evalúa **punto por punto** la consulta externa sobre el sistema de sprites (inventario de técnicas, Free Form, organización de memoria, Jim Power, bending por tabla de seno, reparto sprite-vs-BOB con ocupación por línea y DMA encadenado, sprites compuestos y materializadores, FastCopy de dual playfield, trayectorias/formaciones/pool de shmup, cuerdas/muelles/catapultas/puertas/destructibles) y fija las **instrucciones precisas para cerrar lo que falta**, con los contratos extraídos adaptados a las reglas del engine.
 
 Relación con los documentos vigentes (fuente única por tema, sin repetir su contenido aquí):
@@ -35,7 +37,7 @@ Resumen de veredictos: **cubierto** (existe y está verificado por test host y/o
 
 | Técnica de la consulta | Veredicto | Pieza / fase del engine |
 |---|---|---|
-| 1. Sprites como objetos de juego (jugador, enemigos, balas, HUD) | **Cubierto** | `SpriteScene` / `compose_sprites`; demos 216/217 |
+| 1. Sprites como objetos de juego (jugador, enemigos, balas, HUD) | **Cubierto** | `SpriteDirector` (fachada), que usa `SpriteScene`/`compose_sprites` por dentro; demos 225/216/217 |
 | 2. Attached (15 colores) | **Cubierto, con ajuste** | `cook_attached_pair` + allocator de pares (HOST-427/428; demos 214/216). El par **se deriva** del contenido (4 planos y `w <= 16`, `visual_is_attached_pair`): no se añade flag `wantsAttached` (ver §2.8) |
 | 3. Multiplexado vertical (reuso del canal en líneas distintas) | **Cubierto** | `SpriteAllocator` (first-fit + bitfield) + `emit_placements_into`; gap de 1 línea = `kSpriteVerticalGapLines` |
 | 4. Multiplexado horizontal con Copper (media línea) | **Parcial** | `SpriteLineLayer` (HUD) y Risky Woods (208/211) hechos; Free Form → F4.1 |

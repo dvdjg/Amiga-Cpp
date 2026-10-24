@@ -11,6 +11,10 @@ Demos del engine, en dos raíces **hermanas**:
 La **variante de build** (`A500`/`A1200`/`ST`/`STE`) es un eje de `TARGET_MACHINE`, no un
 directorio; el `CONFIG_ID` del binario y el nombre de los assets llevan el perfil para no machacarse.
 
+## Sprites: fachada vigente y demos legacy
+
+La fachada pública de sprites es **`eng::scene::SpriteDirector`** (incluida en `eng/api/api.hpp`; demo canónica `techniques/amiga/sprites/225_sprite_director_stress`). `SpriteScene` y `CompositeScene` son **implementación interna/legacy**: se conservan en demos históricas para documentar el camino anterior, pero no son la API para código nuevo. `SpriteAllocator` es el motor interno que usa `SpriteDirector` y **no está deprecado**. Si una demo usa `SpriteScene`/`CompositeScene`, su README debe indicarlo como legacy y no debe tomarse como patrón de integración. Ver `docs/engine/architecture/SPRITE_DIRECTOR.md`.
+
 - Estructura canónica: [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md) §4.
 - Plan y decisiones: [`../docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md`](../docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md).
 - Numeración: [`../docs/ai-dev-environment/NUMBERING.md`](../docs/ai-dev-environment/NUMBERING.md).

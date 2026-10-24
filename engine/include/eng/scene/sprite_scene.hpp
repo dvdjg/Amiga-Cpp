@@ -10,6 +10,10 @@
 /// como sprite hardware se **degradan a BOB** (`report.degraded`), dibujados por Blitter en el plan
 /// del frame. El juego **no ve** canales, registros ni `BPLxPT`.
 ///
+/// \deprecated **No usar en código nuevo.** Es la implementación interna/legacy de actores;
+/// la fachada pública vigente es `eng::scene::SpriteDirector` (demo 225, HOST-485). Se retirará
+/// de la fachada pública cuando las demos históricas migren.
+///
 /// **Modo avanzado.** La fachada por intención con `VisualId`/`CompositeId`, presupuesto real y
 /// `SpriteLoadReport` es `eng::scene::SpriteDirector` (`scene/sprite_director.hpp`, incluida en
 /// `eng/api/api.hpp`; `SpriteScene` ya no se exporta desde esa fachada). `SpriteScene` sigue siendo la implementación directa de actores, pero

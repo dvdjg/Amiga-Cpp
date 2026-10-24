@@ -1,5 +1,7 @@
 # Sprites HW y BOBs para videojuegos: análisis de adecuación y roadmap
 
+> **Fachada vigente (leer antes de usar este documento):** el código nuevo usa **`eng::scene::SpriteDirector`** (`engine/include/eng/scene/sprite_director.hpp`, incluida en `eng/api/api.hpp`; demo 225/HOST-485). `SpriteScene` y `CompositeScene` son **implementación interna/legacy**, no API de juego nueva. `SpriteAllocator` es interno y **no está deprecado**: es el motor de reparto que usa `SpriteDirector`. Las menciones a `SpriteScene`/`SpriteAllocator` como fachada de juego en secciones históricas de este documento están superadas por `SPRITE_DIRECTOR.md`.
+
 Este documento responde a una pregunta concreta: **¿el soporte de sprites hardware y BOBs del engine es adecuado para desarrollar videojuegos, o puede simplificarse?** Contrasta el inventario de técnicas históricas (la consulta externa sobre sprites, con Free Form, Risky Woods, Jim Power, multiplexado, compuestos y trayectorias) con las piezas que el engine ya tiene, separa lo que existe de lo que es propuesta y fija el **roadmap de implementación** de lo que falta con los algoritmos y clases extraídos.
 
 La **lista viva y priorizada de pendientes de sprites** sigue en `ROADMAP_UNIFICADO.md` §«Sprites hardware — estado»; este documento añade la lectura **orientada a juego** (objetos compuestos, trayectorias, mecanismos, emisión) y las simplificaciones apropiadas. Los contratos de representación, transparencia, fondos y Copper por objeto no se repiten aquí: viven en `OBJECT_SYSTEM.md`; el reparto de canales por intervalo, en `SPRITE_CHANNEL_WINDOWS.md`; el inventario de técnicas y sus costes, en `sprite-techniques-catalog.md` y `sprite-tricks-games.md`.
@@ -119,7 +121,7 @@ La tabla mapea cada técnica de la consulta al estado real del engine. «Cubiert
 | `emit_template_into` | Plantilla de franjas sobre UN canal con `WAIT` por segmento (demo 053) | Driver de bajo nivel (demos) |
 | `emit_into` | Un `WAIT` por `VSTART`; usado por dk_port | **Legado**: retirar cuando esas demos migren a `emit_armed_into`/`emit_placements_into` |
 
-La retirada de `emit_into` no se aplica todavía (rompería demos antiguas aún no migradas); lo que sí se ha aplicado es **dejar el contrato escrito** en la cabecera para que la migración sea mecánica y nadie añada rutas nuevas al mismo tiempo. Regla para código nuevo: la lógica de juego **no llama a `SpriteManager` directamente** — usa `SpriteScene::emit` + `emit_placements_into` (o `Screen`/API de nivel A cuando exista el equivalente).
+La retirada de `emit_into` no se aplica todavía (rompería demos antiguas aún no migradas); lo que sí se ha aplicado es **dejar el contrato escrito** en la cabecera para que la migración sea mecánica y nadie añada rutas nuevas al mismo tiempo. Regla para código nuevo: la lógica de juego **no llama a `SpriteManager` directamente** — declara `SpriteHint`/`SpriteDesc` y usa **`SpriteDirector::emit` + `present`** (que por dentro usa `SpriteScene`/`SpriteAllocator` y `emit_placements_into`).
 
 ### 4.2 Campos muertos (aplicado)
 
