@@ -91,7 +91,7 @@ Para un juego, el lienzo debe tener un `PolygonFillService` instalado y el raste
 | `build_compound_from_model(view, body)` | `eng/sim/model_body3d.hpp` | Asset v2 -> cuerpo compuesto. |
 | `build_articulated_from_model(view, body)` | `eng/sim/model_body3d.hpp` | Asset v2 -> cuerpo articulado. |
 | `collision3d::Sphere3/Aabb3/Obb3/Ray3` | `core/util/collision3d.hpp` | Primitivas y tests. |
-| `sphere_overlap`, `sphere_aabb`, `aabb_overlap`, `obb_overlap`, `ray_aabb`, `ray_sphere`, `sweep_sphere_aabb` | | Consultas sin heap. |
+| `sphere_overlap`, `sphere_aabb`, `aabb_overlap`, `obb_overlap`, `ray_aabb`, `ray_sphere`, `sweep_sphere_aabb`, `Heightfield3D`/`sphere_heightfield` | | Consultas sin heap. |
 | `SweepBroadphase3D<S, N>` | | Pares de AABB por sweep-and-prune en X. |
 
 El solver angular completo (velocidad/inercia angular por parte y joints con limites) es la siguiente fase; el PBD actual resuelve posiciones y conserva pivotes.

@@ -91,7 +91,18 @@ void test_scalar(const char* label) {
 				Aabb3<S> {v3<S>(-1, -1, -1), v3<S>(1, 1, 1)}, sweep),
 	      label);
 	check(sweep.hit && sweep.t > zero && sweep.t < one, label);
-	(void)four;
+	const s16 heights[4] = {10, 20, 30, 40};
+	Heightfield3D<S> hf {Span<const s16>(heights, 4u), 2u, 2u, zero, zero, T::from_int(10)};
+	S gh = zero;
+	check(heightfield_at(hf, T::from_int(5), T::from_int(5), gh) &&
+		      T::to_int(gh) == 10,
+	      label);
+	check(heightfield_at(hf, T::from_int(15), T::from_int(5), gh) &&
+		      T::to_int(gh) == 20,
+	      label);
+	check(!heightfield_at(hf, T::from_int(50), zero, gh), label);
+	check(sphere_heightfield(Sphere3<S> {v3<S>(5, 12, 5), T::from_int(5)}, hf, gh), label);
+	check(!sphere_heightfield(Sphere3<S> {v3<S>(5, 30, 5), T::from_int(5)}, hf, gh), label);	(void)four;
 	(void)zero;
 }
 
@@ -102,7 +113,7 @@ int main() {
 	using Q4 = eng::math::Fixed<eng::s16, 4>;
 	test_scalar<Q4>("Fixed<s16,4>");
 	if (g_fail == 0) {
-		std::printf("OK: HOST-489 colision 3D (esfera/AABB/rayo/OBB/broadphase/sweep) validada.\n");
+		std::printf("OK: HOST-489 colision 3D (esfera/AABB/rayo/OBB/broadphase/sweep/heightfield) validada.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones.\n", g_fail);

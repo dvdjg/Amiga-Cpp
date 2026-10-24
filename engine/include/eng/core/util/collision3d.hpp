@@ -174,6 +174,54 @@ template <class S>
 	return true;
 }
 
+/// **Heightfield** de alturas enteras en una rejilla regular (XZ). `heights` se
+/// indexa como `z * width + x`; la altura se devuelve en unidades del escalar.
+/// \tparam S escalar de la operacion.
+template <class S>
+struct Heightfield3D {
+	eng::Span<const s16> heights {}; ///< alturas por celda.
+	u16 width = 0u; ///< celdas en X.
+	u16 depth = 0u; ///< celdas en Z.
+	S origin_x {}; ///< X de la celda (0,0).
+	S origin_z {}; ///< Z de la celda (0,0).
+	S cell {}; ///< lado de celda.
+	[[nodiscard]] bool valid() const noexcept {
+		return heights.data() != nullptr && width != 0u && depth != 0u &&
+		       heights.size() >= static_cast<eng::usize>(width) * depth &&
+		       cell > eng::math::scalar_traits<S>::zero();
+	}
+};
+
+/// \return true si `(x,z)` cae dentro y deja la altura de la celda en `h`.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] bool heightfield_at(const Heightfield3D<S>& field, S x, S z, S& h) {
+	if (!field.valid()) return false;
+	using T = eng::math::scalar_traits<S>;
+	const S fx = eng::math::div_norm(x - field.origin_x, field.cell);
+	const S fz = eng::math::div_norm(z - field.origin_z, field.cell);
+	const s32 ix = T::to_int(fx);
+	const s32 iz = T::to_int(fz);
+	if (ix < 0 || iz < 0 || ix >= static_cast<s32>(field.width) ||
+	    iz >= static_cast<s32>(field.depth)) {
+		return false;
+	}
+	h = T::from_int(field.heights[static_cast<eng::u32>(iz) * field.width +
+					 static_cast<eng::u32>(ix)]);
+	return true;
+}
+
+/// \return true si la esfera toca la altura del heightfield en su celda.
+/// \param ground salida con la altura de la celda.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] bool sphere_heightfield(const Sphere3<S>& sphere, const Heightfield3D<S>& field,
+				      S& ground) {
+	if (!heightfield_at(field, sphere.center.v[0], sphere.center.v[2], ground)) {
+		return false;
+	}
+	return sphere.center.v[1] - sphere.radius <= ground;
+}
 /// **Sweep de una esfera contra una AABB** (un paso, sin tunneling): expande la
 /// caja por el radio y lanza un rayo desde el centro con `delta` como direccion;
 /// `hit.t` en [0,1] es la fraccion del desplazamiento hasta el contacto.
