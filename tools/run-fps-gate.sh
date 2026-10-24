@@ -17,7 +17,7 @@
 #   --with-headroom  ejecuta ademas la sonda K_202_GAME_LOAD=1 de la 202
 #
 # Programacion (Windows): schtasks /create /tn "AmigaCppFpsGate" /sc daily /st 03:00 \
-#   /tr "bash C:\ruta\Amiga-Cpp\tools\run-fps-gate.sh --warn-only"
+#   /tr "bash C:\ruta\Amiga-Cpp\tools\run-fps-gate.sh --warn-only --with-headroom"
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
