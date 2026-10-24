@@ -57,6 +57,11 @@ HUD
 - HUD de host fuera de los bitplanes; el HUD de juego en una franja separada.
 - Mantener el Blitter ocupado con rellenos/fills y solapar CPU de física mientras tanto.
 
+## 4.1 Perfil real de 092
+
+Perfil release por secciones de 092: **Render 421.365 ciclos (76,7 %)**, **Physics 76.422 (13,9 %)**, **Hud 21.403 (3,9 %)**, **Clear 13.751 (2,5 %)** y espera casi nula. El clear no es el cuello: probar clear por parte, un rectángulo más pequeño o un solo plano no mejoró (12,75 / 12,78 / 12,91 frente a 12,93 fps). El cuello es el relleno de tres siluetas grandes y el coste de generar sus spans/máscaras.
+
+La ruta alternativa de contorno+area fill XOR tampoco mejoró en esta escena (12,81 fps). La conclusión: para 25 fps hay que reducir tamaño/número de partes o pasar a bitmaps/sprites pre-renderizados; no hay una optimización de clear que lo arregle.
 ## 4.1 Fill, clear y lo que no optimiza
 
 En 092 se probaron clear por parte, clear único más pequeño y 1 plano frente a 2: 12,75 / 12,78 / 12,91 frente a 12,93 fps. El clear no era el cuello; el coste restante es el relleno/silueta de tres piezas grandes más la física. Sin física se queda en 15,36 fps, así que el contenido ya no cabe en 2 campos. Reducir planos o rectángulos no arregla un personaje sobredimensionado; hay que reducir partes o usar sprites/bitmaps.
