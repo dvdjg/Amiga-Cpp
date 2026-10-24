@@ -18,6 +18,8 @@ const args = process.argv.slice(2);
 const seqDir = args[0];
 let minFrames = 3;
 let requireMotion = false;
+let requireDistinct = false;
+let maxStatic = 0;
 let minDiff = 24;
 let bg = [0, 0, 0];
 let top = 24;
@@ -26,13 +28,15 @@ for (let i = 1; i < args.length; ++i) {
 	const a = args[i];
 	if (a === '--min-frames') minFrames = Math.max(1, parseInt(args[++i], 10));
 	else if (a === '--require-motion') requireMotion = true;
+	else if (a === '--require-distinct') requireDistinct = true;
+	else if (a === '--max-static') maxStatic = Math.max(0, parseInt(args[++i], 10));
 	else if (a === '--min-diff') minDiff = Math.max(1, parseInt(args[++i], 10));
 	else if (a === '--bg') bg = args[++i].split(',').map((v) => parseInt(v, 10));
 	else if (a === '--top') top = parseInt(args[++i], 10);
 	else if (a === '--bottom') bottom = parseInt(args[++i], 10);
 }
 if (!seqDir || !fs.existsSync(seqDir)) {
-	console.error('Uso: verify-3d-sequence.mjs <dir-secuencia> [--min-frames N] [--require-motion]');
+	console.error('Uso: verify-3d-sequence.mjs <dir-secuencia> [--min-frames N] [--require-motion] [--require-distinct] [--max-static N]');
 	process.exit(2);
 }
 
@@ -48,6 +52,31 @@ const frames = files.map((name) => {
 });
 const { width, height } = frames[0].png;
 if (bottom <= 0 || bottom > height) bottom = height - 24;
+const worldHashes = frames.map((f) => {
+	const p = f.png.data;
+	let hash = 0x811c9dc5;
+	for (let y = top; y < Math.min(bottom, height); ++y) {
+		for (let x = 0; x < width; ++x) {
+			const i = (y * width + x) * 4;
+			hash = Math.imul(hash, 0x01000193) ^ p[i];
+			hash = Math.imul(hash, 0x01000193) ^ p[i + 1];
+			hash = Math.imul(hash, 0x01000193) ^ p[i + 2];
+		}
+	}
+	return hash >>> 0;
+});
+let distinctChanges = 0;
+let maxStaticRun = 0;
+let staticRun = 0;
+for (let i = 1; i < worldHashes.length; ++i) {
+	if (worldHashes[i] === worldHashes[i - 1]) {
+		++staticRun;
+		if (staticRun > maxStaticRun) maxStaticRun = staticRun;
+	} else {
+		++distinctChanges;
+		staticRun = 0;
+	}
+}
 let failures = 0;
 const fail = (msg) => {
 	console.error(`[3d-seq] FAIL: ${msg}`);
@@ -121,5 +150,11 @@ if (requireMotion) {
 		fail(`sin movimiento entre primero y ultimo frame (diff ${changed})`);
 	}
 }
+if (requireDistinct && maxStaticRun > maxStatic) {
+	fail(`racha de ${maxStaticRun} pares de frames identicos (max ${maxStatic}); ` +
+	     `solo ${distinctChanges} cambios visuales en ${frames.length} frames`);
+}
 if (failures) process.exit(1);
-console.log(`[3d-seq] OK: ${frames.length} frames ${width}x${height}; areas=${boxes.map((b) => b.area).join(',')}`);
+console.log(`[3d-seq] OK: ${frames.length} frames ${width}x${height}; ` +
+	    `visual=${distinctChanges}/${frames.length - 1} cambios; ` +
+	    `maxEstatico=${maxStaticRun}; areas=${boxes.map((b) => b.area).join(',')}`);

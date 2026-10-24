@@ -695,7 +695,8 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 	const bool all_inside = camera_contains_vertices<S>(cam, world, nv);
 	u32 seen[8] {};
 	const bool use_mask = nv <= 16u;
-	u8 front_counts[256] {};
+	// Solo se necesita para silueta; no se limpia en la ruta normal (256 B por malla).
+	u8 front_counts[256];
 	const auto front_face = [&](const eng::Span<const u16>& idx) -> bool {
 		const math3d::Vec3t<S>& a = world[idx[0u]];
 		const math3d::Vec3t<S>& b = world[idx[1u]];
@@ -724,6 +725,9 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 		return ia * 16u + ib;
 	};
 	if (silhouette_only && use_mask) {
+		for (u32 i = 0u; i < 256u; ++i) {
+			front_counts[i] = 0u;
+		}
 		for (u32 fi = 0u; fi < nf; ++fi) {
 			const eng::Span<const u16> idx = mesh.face_indices(fi);
 			const u8 n = idx.size();
@@ -772,15 +776,38 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 				edges[edge_count++] = WireEdge {ia, ib};
 			}
 		}
-	}	u32 drawn = 0u;
+	}
+	// Si todos los vértices están dentro, proyectar cada vértice UNA vez y reutilizar
+	// por arista: un cubo pasa de 24 proyecciones (2 por arista) a 8. Es la ruta
+	// habitual de objetos cercanos; con clipping se conserva el camino por arista.
+	s16 vx[16] {};
+	s16 vy[16] {};
+	bool vok[16];
+	if (all_inside && use_mask) {
+		for (u16 i = 0u; i < nv; ++i) {
+			const CamVertex<S> v {world[i].v[0], world[i].v[1], world[i].v[2]};
+			vok[i] = project_camera_vertex<S>(v, cam, vx[i], vy[i]);
+		}
+	}
+	u32 drawn = 0u;
 	for (u16 e = 0u; e < edge_count; ++e) {
-		const math3d::Vec3t<S>& wa = world[edges[e].a];
-		const math3d::Vec3t<S>& wb = world[edges[e].b];
-		CamVertex<S> a {wa.v[0], wa.v[1], wa.v[2]};
-		CamVertex<S> b {wb.v[0], wb.v[1], wb.v[2]};
-		if (!all_inside && !clip_camera_segment<S>(cam, a, b, a, b)) continue;
-		if (!project_camera_vertex<S>(a, cam, xs[0], ys[0])) continue;
-		if (!project_camera_vertex<S>(b, cam, xs[1], ys[1])) continue;
+		const u16 ea = edges[e].a;
+		const u16 eb = edges[e].b;
+		if (all_inside && use_mask) {
+			if (!vok[ea] || !vok[eb]) continue;
+			xs[0] = vx[ea];
+			ys[0] = vy[ea];
+			xs[1] = vx[eb];
+			ys[1] = vy[eb];
+		} else {
+			const math3d::Vec3t<S>& wa = world[ea];
+			const math3d::Vec3t<S>& wb = world[eb];
+			CamVertex<S> a {wa.v[0], wa.v[1], wa.v[2]};
+			CamVertex<S> b {wb.v[0], wb.v[1], wb.v[2]};
+			if (!clip_camera_segment<S>(cam, a, b, a, b)) continue;
+			if (!project_camera_vertex<S>(a, cam, xs[0], ys[0])) continue;
+			if (!project_camera_vertex<S>(b, cam, xs[1], ys[1])) continue;
+		}
 		if (!out_edges.empty()) {
 			if (drawn < out_edges.size()) {
 				out_edges[drawn] = WireScreenEdge {xs[0], ys[0], xs[1], ys[1], color};

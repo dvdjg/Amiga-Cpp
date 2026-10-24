@@ -1,0 +1,20 @@
+{
+  "#": "Puntos de verificación visual de 093 (animación rígida).",
+  "points": [
+    {
+      "name": "esqueleto blanco estático",
+      "last": true,
+      "expect": "Cuerpo blanco con cabeza, piernas, brazo izquierdo y suelo, estable entre frames; sin huecos ni aristas rotas."
+    },
+    {
+      "name": "brazo azul en movimiento",
+      "last": true,
+      "expect": "Brazo/antebrazo cian moviéndose junto al cuerpo; contorno limpio y sin restos de la pose anterior."
+    },
+    {
+      "name": "mayor cambio entre frames",
+      "max_diff": true,
+      "expect": "El mayor cambio es una rotación coherente del brazo; sin parpadeos, recortes ni bandas."
+    }
+  ]
+}

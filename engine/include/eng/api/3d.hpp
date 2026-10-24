@@ -37,6 +37,7 @@
 #include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/pool.hpp>
 #include <eng/graphics/render3d.hpp>
+#include <eng/scene3d/animation3d.hpp>
 #include <eng/scene3d/model_table.hpp>
 #include <eng/scene3d/types.hpp>
 
@@ -421,6 +422,9 @@ public:
 	/// \param color máscara de planos de las aristas.
 	/// \param cull_backfaces descarta aristas de caras traseras.
 	/// \param silhouette_only emite solo las aristas de silueta.
+	/// \param model_color usa el color del material 0 de cada modelo en vez de `color`.
+	/// \note Descarta por bounds locales los nodos cuyo extremo trasero no alcanza
+	///       `near_z`; es un culling conservador de coste O(3) por nodo.
 	/// \return número de aristas escritas (o contadas si `out == nullptr`).
 	/// \tparam MaxModels modelos máximos de la tabla.
 	/// \tparam TableVertices vértices máximos por modelo.
@@ -432,7 +436,8 @@ public:
 	u32 collect_wire_edges(
 		const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
 		eng::Span<graphics::WireScreenEdge> out, u8 color,
-		bool cull_backfaces = false, bool silhouette_only = false) noexcept {
+		bool cull_backfaces = false, bool silhouette_only = false,
+		bool model_color = false) noexcept {
 		update_transforms();
 		playfield::Surface dummy {};
 		u32 total = 0u;
@@ -441,13 +446,30 @@ public:
 			if (!node.visible || total >= out.size()) return;
 			eng::Ref<const Mesh> mesh = models.mesh(node.model);
 			if (!mesh.valid() || mesh->vertex_count() > MaxVertices) return;
+			const auto bounds = models.bounds(node.model);
+			s32 extent = 0;
+			for (u8 k = 0u; k < 3u; ++k) {
+				const s32 lo = eng::math::scalar_traits<eng::coord>::to_int(bounds.min.v[k]);
+				const s32 hi = eng::math::scalar_traits<eng::coord>::to_int(bounds.max.v[k]);
+				const s32 a = lo < 0 ? -lo : lo;
+				const s32 b = hi < 0 ? -hi : hi;
+				const s32 m = a > b ? a : b;
+				if (m > extent) extent = m;
+			}
+			const s32 z = eng::math::scalar_traits<eng::coord>::to_int(node.world_position.v[2]);
+			if (z + extent <=
+			    eng::math::scalar_traits<eng::coord>::to_int(m_camera.near_z)) {
+				return;
+			}
 			m_model.m = node.world_rotation;
 			m_model.t = node.world_position;
 			const u32 room = out.size() - total;
+			const u8 edge_color = model_color ? models.color(node.model, 0u) : color;
 			const u32 got = graphics::render_wire(
-				*mesh, m_model, m_camera, dummy, color, m_world, m_edges, MaxEdges,
-				m_cam_scratch, m_xs, m_ys, {}, playfield::RasterOp::Copy,
-				cull_backfaces, silhouette_only, out.subspan(total));
+				*mesh, m_model, m_camera, dummy, edge_color, m_world, m_edges,
+				MaxEdges, m_cam_scratch, m_xs, m_ys, {},
+				playfield::RasterOp::Copy, cull_backfaces, silhouette_only,
+				out.subspan(total));
 			total += got < room ? got : room;
 		});
 		return total;

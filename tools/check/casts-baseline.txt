@@ -399,3 +399,4 @@
   4    15  engine/src/platform/amiga/amiga_hw.cpp
   2    16  engine/src/platform/amiga/amiga_os.cpp
   4     7  engine/src/platform/amiga/amiga_trackdisk.cpp
+0    12  engine/include/eng/scene3d/animation3d.hpp

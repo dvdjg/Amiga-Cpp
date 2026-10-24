@@ -17,7 +17,8 @@ const root = path.resolve(here, '..', '..');
 const verify = path.join(root, 'tools', 'analyze', 'verify-3d-sequence.mjs');
 const strict = process.argv.includes('--strict');
 const explicit = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-const demos = ['090_polyhedra_orbit', '091_scene3d_nodes', '092_articulated_character', '095_collision3d', '096_silhouette_swarm'];
+const demos = ['090_polyhedra_orbit', '091_scene3d_nodes', '092_articulated_character',
+	'093_rigid_anim', '095_collision3d', '096_silhouette_swarm'];
 const configs = ['A500_release', 'A500_debug'];
 let checked = 0;
 let failed = 0;
@@ -32,7 +33,7 @@ for (const demo of explicit.length ? explicit : demos) {
 		continue;
 	}
 	++checked;
-	const r = spawnSync(process.execPath, [verify, dir, '--min-frames', '3', '--require-motion'], {
+	const r = spawnSync(process.execPath, [verify, dir, '--min-frames', '3', '--require-motion', '--require-distinct', '--max-static', '1'], {
 		encoding: 'utf8',
 	});
 	const ok = r.status === 0;

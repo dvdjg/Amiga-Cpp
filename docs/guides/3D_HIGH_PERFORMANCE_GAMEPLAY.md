@@ -80,3 +80,8 @@ En 092 se probaron clear por parte, clear único más pequeño y 1 plano frente 
 3. ¿La física se puede ejecutar en el hueco del Blitter y a >=5 Hz?
 4. ¿Los tipos fixed están en el rango correcto y el overflow se rechaza/escala?
 5. ¿La función tiene una demo o test que la mida, y no solo compila?
+## Capas estáticas y frames visualmente distintos (093)
+
+Cuando el cuerpo y la cámara son fijos, la capa estática se puede **hornear una vez** en el plano 0 de cada buffer y no volver a limpiarse ni proyectarse. La capa dinámica ocupa el plano 1 y es lo único que se limpia y dibuja por frame. En 093 esto separa el torso del brazo y permite 28,9 fps release / 26,5 debug con un contador que solo cuenta frames cuya firma de aristas proyectadas cambia.
+
+Regla de medida: no confundir frames del bucle con imágenes distintas. El HUD debe contar cambios visuales (en 093, firma de aristas); el gate verify-3d-sequence.mjs --require-distinct cuenta hashes exactos del área 3D y falla rachas de frames idénticos (--max-static). Un frame idéntico no es un frame de animación aunque el reloj de simulación avance.

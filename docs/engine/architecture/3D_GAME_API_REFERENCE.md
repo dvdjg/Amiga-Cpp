@@ -114,3 +114,7 @@ El solver angular completo (velocidad/inercia angular por parte y joints con lim
 - [`MODEL3D_ASSET_FORMAT.md`](MODEL3D_ASSET_FORMAT.md)
 - [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md)
 - Tutorial practico: [`3D_GAME_TUTORIAL.md`](../../guides/3D_GAME_TUTORIAL.md)
+
+## Animación rígida y alambre por color
+
+`eng::anim3d::Player<MaxTracks, MaxEvents>` reproduce un `Clip` no propietario de ticks con tracks de traslación q0 y rotación Q4.12, interpolación shortest-turns, loop/one-shot y eventos. `Scene::collect_wire_edges(..., model_color=true)` usa el color del material 0 de cada modelo para distinguir capas en el mismo buffer; la demo 093 integra ambos con HOST-493.
