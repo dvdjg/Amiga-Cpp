@@ -48,7 +48,7 @@ struct ArticulatedBody3D {
 		eng::math::Vec<3, S> velocity {}; ///< velocidad lineal world.
 		S inv_mass = T::zero(); ///< 1/masa; 0 = estatico.
 		S mass = T::zero(); ///< masa de la parte.
-		VecR inertia {}; ///< inercia diagonal local (unidades de juego).
+		eng::math::Vec<3, S> inertia {}; ///< inercia diagonal local (unidades de juego).
 		VecR inv_inertia {}; ///< 1/inercia por eje.
 		VecR angles {}; ///< orientacion local en turns (fraccion 0..1).
 		VecR angular_velocity {}; ///< velocidad angular local (turns/s).
@@ -115,25 +115,22 @@ struct ArticulatedBody3D {
 		local[sphere_count].center = center;
 		local[sphere_count].radius = radius;
 		const S m = mass > T::zero() ? mass : parts[part].mass;
-		const eng::real mr = to_real(m);
-		const eng::real x = to_real(center.v[0]);
-		const eng::real y = to_real(center.v[1]);
-		const eng::real z = to_real(center.v[2]);
-		const eng::real r = to_real(radius);
-		const eng::real r2 = eng::math::mul_norm(r, r);
-		const eng::real self = eng::math::mul_norm(
-			eng::math::div_norm(R::from_int(2), R::from_int(5)),
-			eng::math::mul_norm(mr, r2));
+		const S x = center.v[0];
+		const S y = center.v[1];
+		const S z = center.v[2];
+		const S r2 = eng::math::mul_norm(radius, radius);
+		const S self = eng::math::div_norm(
+			eng::math::mul_norm(T::from_int(2), eng::math::mul_norm(m, r2)), T::from_int(5));
 		parts[part].inertia.v[0] = parts[part].inertia.v[0] +
-			eng::math::mul_norm(mr, eng::math::mul_norm(y, y) + eng::math::mul_norm(z, z)) + self;
+			eng::math::mul_norm(m, eng::math::mul_norm(y, y) + eng::math::mul_norm(z, z)) + self;
 		parts[part].inertia.v[1] = parts[part].inertia.v[1] +
-			eng::math::mul_norm(mr, eng::math::mul_norm(x, x) + eng::math::mul_norm(z, z)) + self;
+			eng::math::mul_norm(m, eng::math::mul_norm(x, x) + eng::math::mul_norm(z, z)) + self;
 		parts[part].inertia.v[2] = parts[part].inertia.v[2] +
-			eng::math::mul_norm(mr, eng::math::mul_norm(x, x) + eng::math::mul_norm(y, y)) + self;
+			eng::math::mul_norm(m, eng::math::mul_norm(x, x) + eng::math::mul_norm(y, y)) + self;
 		for (u8 k = 0u; k < 3u; ++k) {
 			parts[part].inv_inertia.v[k] =
-				parts[part].inertia.v[k] > R::zero()
-					? eng::math::div_norm(R::one(), parts[part].inertia.v[k])
+				parts[part].inertia.v[k] > T::zero()
+					? eng::math::div_norm(R::one(), to_real(parts[part].inertia.v[k]))
 					: R::zero();
 		}
 		parts[part].sphere_count = parts[part].sphere_count + 1u;

@@ -193,6 +193,8 @@ entre formulaciones).
   inversa** (0 = estático) es un buen candidato a MF16 por su rango.
 - **Tiempo**: `dt` fijo por frame (1/50 s) evita dividir; los integradores usan `dt` constante.
 
+En `ArticulatedBody3D`, la inercia diagonal se guarda en el escalar de posición (`S`, q0 en 68000) y su inversa en q12; así `m·r²` de las esferas no desborda el q12 de 8 unidades. Para masas/inercia de más rango, usa `MiniFloat16` o una escala fija fuera del bucle de posiciones, no un q12 mayor.
+
 ## 7. Joints con límites y encaje del fixed
 
 Un joint telescópico es una restricción de distancia a lo largo de un eje local: `d = dot(child.position - parent.position, axis)`, `d = clamp(d, min, max)` y corrección PBD de la posición. Cabe en fixed de posición (q0/q4) porque no divide, no usa trigonometría y el rango útil es pequeño; conviene guardar `min/max` en el mismo escalar que la longitud y limitar el número de iteraciones. Un joint angular es otra restricción, pero sobre orientación; aquí el estado útil son turns q12 y una tabla de seno/coseno, no una matriz de fuerzas.
