@@ -57,7 +57,15 @@ constexpr RingDisplayMapping map_ring_scroll(
     RingDisplayMapping m;
     const s32 I = static_cast<s32>(fetch_pixels);
     const s32 xpos = videoposx + I - 1;
-    m.planeaddx = static_cast<u32>(xpos / I) * static_cast<u32>(I / 8);
+    // Fetch modes son 16/32/64: el cociente coarse se resuelve por shift en el
+    // camino positivo. Para valores negativos se conserva la divisi?n firmada.
+    if (xpos >= 0 && (I == 16 || I == 32 || I == 64)) {
+        const u32 shift = (I == 16) ? 4u : (I == 32 ? 5u : 6u);
+        const u32 coarse = static_cast<u32>(xpos) >> shift;
+        m.planeaddx = coarse << (shift - 3u);
+    } else {
+        m.planeaddx = static_cast<u32>(xpos / I) * static_cast<u32>(I / 8);
+    }
     const s32 fine = (I - 1) - (xpos & (I - 1));
     u16 scroll = static_cast<u16>((fine & 15) * 0x11);
     if (fine & 16) scroll |= 0x4400;
@@ -67,13 +75,15 @@ constexpr RingDisplayMapping map_ring_scroll(
     u16 display_offset = 0;
     if (scroll_y) {
         const s32 dh = static_cast<s32>(DisplayHeight != 0u ? DisplayHeight : display_h);
-        const s32 vy = (videoposy % dh + dh) % dh; // dmod2 (robusto a negativos)
+        // `(vy + tile_h) % dh` es equivalente a normalizar `vy` y volver a modular;
+        // el camino positivo evita dos `%` de 32 bits en cada hardware_view.
+        const s32 y = videoposy + static_cast<s32>(tile_h);
+        const u32 uy = (y >= 0) ? static_cast<u32>(y)
+                                : static_cast<u32>(y % dh + dh);
         if constexpr (DisplayHeight != 0u) {
-            display_offset = static_cast<u16>(
-                eng::fast_div<DisplayHeight>::r(static_cast<u32>(vy + static_cast<s32>(tile_h))));
+            display_offset = static_cast<u16>(eng::fast_div<DisplayHeight>::r(uy));
         } else {
-            display_offset = static_cast<u16>(
-                (static_cast<u32>(vy + static_cast<s32>(tile_h))) % static_cast<u32>(dh));
+            display_offset = static_cast<u16>(uy % static_cast<u32>(dh));
         }
     }
     m.display_offset = display_offset;

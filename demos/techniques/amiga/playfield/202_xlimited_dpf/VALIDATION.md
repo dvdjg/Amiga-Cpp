@@ -5,28 +5,27 @@ Intención: dual playfield 3+3 con scroll XLimited y mapa real; debe sostener 50
 ## Medición entregada
 
 ```text
-202_xlimited_dpf/A500_release | emulado=48.7–50.2 fps según fase | 141435–145789 ciclos/frame | 1 campo/frame
-202_xlimited_dpf/A500_debug   | emulado=49.9 fps (ventana corta) | HUD a 1/8 de refresco
+202_xlimited_dpf/A500_release | emulado=49,96 fps | 141988 ciclos/frame | 1,00079 campos/frame
+202_xlimited_dpf/A500_debug   | emulado=49,9 fps (ventana corta) | HUD a 1/8 de refresco
 ```
 
 La captura final muestra el mapa, las plaquettes y la franja inferior completos; el HUD de una línea aparece en el margen seguro.
 
-Ventana larga de 12 s (`A500_release`, commit `2a760c23`): **48,37 fps**, 146663 ciclos/frame y 1,034 campos/frame. Las cuatro primeras ventanas de 1 s dan 49,3–50,6 fps; la cadencia cae a 46–47 fps en las cuatro siguientes. En la fase lineal horizontal el desglose medido es `update` BG 22,9k + `update` FG 29,0k + `compose` 21,6k + resto ≈14k = **87,4k ciclos de CPU activos** de los 141876 disponibles por campo: quedan ~55k ciclos libres, por lo que la caída **no es falta de CPU del bucle**; el límite está en el tiempo de pared (DMA/Blitter/VBlank), que el contador de CPU no desglosa.
+Ventana larga de 12 s (`A500_release`, árbol actual): **49,92 fps**, 142102 ciclos/frame y 1,00159 campos/frame. La cadencia queda dentro del ruido de la ventana de 1 s (49,3–50,6 fps), no en la meseta de 46–47 fps anterior. El 3+3 se mantiene a 320×208.
 
 ## Diagnóstico y cambios
 
-El cuello de botella no era la copperlist: el compositor dual ya usa `patch()` (~2-3k ciclos). La medición por secciones dio `update_scroll` ~131k ciclos, `compose` ~20k y `install` ~0.5k. El coste estaba en el scroll progresivo de dos campos:
-
-- El campo lineal/mirror duplicaba blits y el scroll por píxel generaba trabajo de mapa en cada sub-paso.
-- `add_draw` ejecutaba un bloque de instrumentación `DEBUG` por bloque, con divisiones/módulos en el camino caliente.
-- El perfil progresivo no aprovechaba la geometría cacheada del bloque.
+El coste estaba en dos consultas del camino caliente que pagaban módulos de 32 bits (`__modsi3`) aunque el dato estuviera dentro de rango. En `TileLayerMap::tile_at()` el mapa toroidal de 40×40 consultaba `wrap_coordinate` para cada celda; en `map_ring_scroll()` el offset vertical normalizaba `videoposy` con dos `%` antes de aplicar el `fast_div`. La instrumentación por secciones midió ~7,5k ciclos en la resolución de celda de un solo bloque y ~7,8k por `hardware_view`; tras los fast paths bajan a ~0,7k y ~5,0k respectivamente. La suma de los dos `update_scroll` pasó de ~52k a ~15k ciclos, y `compose` a ~17k (incluye las dos vistas y el `patch`).
 
 Correcciones:
 
-- Eliminado el bloque `DEBUG` de `XLimitedPlayfield::add_draw`.
-- `draw_block_job_for_block` cachea el bloque de mapa y evita resolverlo tres veces por copia/espejo.
+- `TileLayerMap::tile_at()` resuelve directamente las coordenadas dentro del mapa cuando `wrap_x == 0 || wrap_x == width` y `wrap_y == 0 || wrap_y == height`; conserva el camino general para wrap con periodo distinto del tamaño.
+- `map_ring_scroll()` calcula `(videoposy + tile_h) mod display_h` directamente, sin normalizar `videoposy` dos veces; mantiene el camino negativo (un solo módulo) y el resultado validado por `HOST-063`.
+- Test de equivalencia de `TileLayerMap` en `tests/host/field/025_tile_source`: wrap con periodo igual y distinto del ancho, y coordenadas negativas.
+- Test existente de `map_ring_scroll` (`tests/host/field/063_ring_mapper`) cubre el camino compile-time, runtime y valores negativos.
 - La demo entregada usa `kShareY=true` y `max_step=1`; se documenta la reducción frente a la variante de Y independiente.
 - HUD de host a 1/8 de refresco.
+- La instrumentación confirmó que el compositor dual usa `patch()` en el camino caliente y no reemite la copperlist cada frame. `ScrollFast1` no se usa porque su prefill avanza por tiles de 16 px; la demo conserva el paso de 1 px y el camino de ráfaga existente (`burst_right_px`).
 
 ## Deuda
 

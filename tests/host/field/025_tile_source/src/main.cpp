@@ -43,6 +43,21 @@ int main() {
 		check(m.tile_at(-1, 0) == 0u, "denso fuera -> edge_tile");
 	}
 
+	// Denso 4x4 toroidal: el camino rápido no debe saltarse el wrap. El mapa 4x4
+	// y el periodo de wrap coinciden; el caso wrap != width usa el camino general.
+	{
+		u16 cells[16];
+		for (u16 i = 0; i < 16u; ++i) cells[i] = static_cast<u16>(i + 1u);
+		eng::playfield::TileLayerMap m {};
+		m.cells = eng::Span<const u16>(cells, 16);
+		m.width = 4; m.height = 4; m.wrap_x = 4; m.wrap_y = 4;
+		check(m.tile_at(4, 0) == m.tile_at(0, 0), "wrap x periodo=ancho");
+		check(m.tile_at(-1, 0) == m.tile_at(3, 0), "wrap x negativo");
+		check(m.tile_at(0, 4) == m.tile_at(0, 0), "wrap y periodo=alto");
+		m.wrap_x = 2;
+		check(m.tile_at(2, 0) == m.tile_at(0, 0), "wrap x periodo<ancho");
+	}
+
 	// Disperso: chunk 4x4 en (0,0) y (2,-1).
 	{
 		u16 c0[16], c1[16];

@@ -62,6 +62,10 @@ int main() {
 		check(a.planeaddx == 4u, "I=32 vx=1 planeaddx=4");
 		check(a.bplcon1 == 0x44ffu, "I=32 vx=1 bplcon1=0x44FF (fine&16)");
 	}
+	{
+		const auto a = ring(1, 0, true, false, 64);
+		check(a.planeaddx == 8u, "I=64 vx=1 planeaddx=8");
+	}
 
 	// --- Vertical (anillo 288, tile 16) ---
 	{

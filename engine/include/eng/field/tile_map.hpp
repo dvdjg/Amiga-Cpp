@@ -48,12 +48,21 @@ struct TileLayerMap {
 	eng::u16 tile_at(eng::s32 tx, eng::s32 ty) const {
 		if (use_sparse) return sparse.tile_at(tx, ty);
 		if (cells.empty() || width == 0 || height == 0) return edge_tile;
+		// Camino caliente: la mayoría de lecturas caen dentro del mapa. Evita
+		// `%` de 32 bits (libcall) en `wrap_coordinate` para cada celda.
+		const eng::s32 w = width;
+		const eng::s32 h = height;
+		const bool plain_x = wrap_x == 0 || wrap_x == width;
+		const bool plain_y = wrap_y == 0 || wrap_y == height;
+		if (plain_x && plain_y && tx >= 0 && tx < w && ty >= 0 && ty < h) {
+			return cells.at(static_cast<eng::u32>(tx + ty * w));
+		}
 		eng::s32 x = tx, y = ty;
 		if (wrap_x) x = wrap_coordinate(x, wrap_x);
 		else if (x < 0 || x >= width) return edge_tile;
 		if (wrap_y) y = wrap_coordinate(y, wrap_y);
 		else if (y < 0 || y >= height) return edge_tile;
-		return cells.at(static_cast<eng::u32>(x) + static_cast<eng::u32>(y) * width);
+		return cells.at(static_cast<eng::u32>(x + y * width));
 	}
 };
 
