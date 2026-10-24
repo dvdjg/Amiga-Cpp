@@ -39,11 +39,14 @@ constexpr u8 kPlanes = 4u;
 #ifndef K092_WIRE
 #define K092_WIRE 0
 #endif
+#ifndef K092_FACE
+#define K092_FACE 0 ///< 1 = A/B de relleno por cara (referencia de coste).
+#endif
 constexpr u8 kWorldPlanes = K092_WIRE ? 1u : 2u; ///< siluetas con 2 planos (colores 1..3).
 constexpr u32 kPlaneBytes = static_cast<u32>(kRowBytes) * kHeight;
 constexpr u16 kBandY = kWorldH;
 constexpr u16 kBandH = kHeight - kWorldH;
-constexpr u8 kBuffers = 2u;
+constexpr u8 kBuffers = 3u;
 
 constexpr s16 kFocal = 340;
 constexpr s16 kCx = 160;
@@ -184,7 +187,11 @@ struct ArticulatedDemo {
 		const u32 silhouettes = edges;
 		(void)plan_ok;
 #else
+#if K092_FACE
+		const u32 silhouettes = m_world.render(m_models, world);
+#else
 		const u32 silhouettes = m_world.render_silhouette(m_models, world);
+#endif
 		(void)backend.wait_blitter();
 #endif
 #else

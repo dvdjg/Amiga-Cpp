@@ -12,6 +12,8 @@ Estado: **FUNCIONAL, VISION OK, cadencia abierta**. Tres partes con masa, pivote
 | Render por silueta con Blitter | Captura + `PolygonFillService` | **OK** |
 | Continuidad de secuencia | `verify-3d-sequence ... --require-motion` | **OK: 4 frames, movimiento** |
 | Cadencia silhouette release | `measure-fps.mjs` | **ABIERTA: 12,6 fps / 3,97 campos** |
+| A/B relleno por cara (referencia) | `K092_FACE=1`, release | **8,30 fps / 855.150 ciclos** |
+| Aceleración de silueta | 12,6 vs 8,30 fps | **1,52x frente a cara** |
 | Cadencia wire release (ablacion) | `K092_WIRE=1` | **ABIERTA: 13,3 fps debug** |
 
 Comandos:

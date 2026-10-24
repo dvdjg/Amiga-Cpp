@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-24T09:09:55.355Z
+- Fecha: 2026-10-24T11:31:40.552Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png (4)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png (5)
 - Secuencia: `out/run/092_articulated_character/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,23 +15,35 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
+**Descripción de las imágenes en orden temporal:**
+
 **Imagen 1:**
-- **Fondo:** Negro uniforme.
-- **Elementos gráficos:**
-  - Un rectángulo naranja, posicionado en la parte inferior central de la imagen.
-  - Sobre el rectángulo naranja, hay un objeto compuesto de dos partes:
-    - Un rectángulo azul claro, orientado horizontalmente, situado en la parte superior del objeto.
-    - Un cuadrado azul más oscuro, situado debajo del rectángulo azul claro y ligeramente a su derecha, con una leve inclinación hacia la derecha.
-- **Texto en la parte superior:** "692 ARTICULATED CHARACTER v1.0.6337 | F20 18.8FPS | P3 53 F3 A841".
+- **Elementos gráficos:** Un conjunto de tres formas geométricas sobre fondo negro.
+  - Una forma rectangular naranja, en la parte inferior.
+  - Una forma rectangular azul claro, encima de la naranja, ligeramente inclinada hacia la derecha.
+  - Una forma rectangular azul claro más grande, encima de la anterior, también inclinada hacia la derecha.
+- **Posición:** Todas las formas están centradas horizontalmente en la imagen.
+- **Estado:** Las formas están en una posición estable, sin movimiento aparente.
+- **Fondo:** Negro uniforme, sin artefactos.
 
 **Imagen 2:**
-- **Fondo:** Negro uniforme.
-- **Elementos gráficos:**
-  - El rectángulo naranja y el cuadrado azul oscuro permanecen en la misma posición que en la imagen 1.
-  - El rectángulo azul claro ha cambiado de posición: ahora está inclinado hacia la izquierda y se ha desplazado ligeramente hacia arriba y a la izquierda, manteniendo su orientación horizontal.
-- **Texto en la parte superior:** "692 ARTICULATED CHARACTER v1.0.6337 | F20 12.5FPS | P3 53 F3 A870".
+- **Elementos gráficos:** Las mismas tres formas geométricas.
+- **Cambio observable:**
+  - La forma rectangular azul claro superior ha girado ligeramente hacia la izquierda, mostrando un ángulo diferente respecto a la imagen 1.
+  - La forma azul más pequeña permanece en la misma posición relativa.
+- **Estado:** El conjunto parece estar en movimiento, con una rotación en curso.
+- **Fondo:** Negro uniforme, sin artefactos.
 
-**Cambios observables:**
-- El rectángulo azul claro se ha movido y rotado ligeramente.
-- El texto en la parte superior cambia el valor de "FPS" de 18.8 a 12.5 y el valor de "A" de 841 a 870.
-- No hay artefactos visibles como bandas, halos, píxeles cortados o restos de posiciones anteriores. Los contornos de los objetos son limpios y el fondo negro permanece uniforme alrededor de ellos.
+**Imagen 3:**
+- **Elementos gráficos:** Las mismas tres formas geométricas.
+- **Cambio observable:**
+  - La forma rectangular azul claro superior ha girado ligeramente hacia la derecha, regresando a una posición similar a la de la imagen 1, pero no exactamente igual.
+  - La forma azul más pequeña permanece en la misma posición relativa.
+- **Estado:** El conjunto parece estar en movimiento, con una rotación en curso.
+- **Fondo:** Negro uniforme, sin artefactos.
+
+**Observaciones:**
+- **Contornos:** Los contornos de las formas son limpios, sin halos, bandas ni píxeles cortados. No hay restos de posiciones anteriores.
+- **Fondo:** El fondo negro permanece uniforme y sin artefactos en todas las imágenes.
+- **Coherencia:** Las formas se mueven de forma coherente, manteniendo su relación espacial entre sí.
+- **Elementos extraños:** No se observan elementos superpuestos, recortes, artefactos o partes incompletas. Las formas parecen completas y bien definidas en cada imagen.

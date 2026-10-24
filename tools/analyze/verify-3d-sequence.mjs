@@ -103,15 +103,19 @@ if (requireMotion) {
 		      first.y1 !== last.y1 || first.area !== last.area;
 	let changed = 0;
 	const p0 = frames[0].png.data;
-	const p1 = frames[frames.length - 1].png.data;
-	for (let y = top; y < Math.min(bottom, height); ++y) {
-		for (let x = 0; x < width; ++x) {
-			const i = (y * width + x) * 4;
-			if (Math.abs(p0[i] - p1[i]) + Math.abs(p0[i + 1] - p1[i + 1]) +
-			    Math.abs(p0[i + 2] - p1[i + 2]) > 24) {
-				++changed;
+	for (let f = 1; f < frames.length; ++f) {
+		let pair = 0;
+		const pf = frames[f].png.data;
+		for (let y = top; y < Math.min(bottom, height); ++y) {
+			for (let x = 0; x < width; ++x) {
+				const i = (y * width + x) * 4;
+				if (Math.abs(p0[i] - pf[i]) + Math.abs(p0[i + 1] - pf[i + 1]) +
+				    Math.abs(p0[i + 2] - pf[i + 2]) > 24) {
+					++pair;
+				}
 			}
 		}
+		if (pair > changed) changed = pair;
 	}
 	if (!moved && changed < minDiff) {
 		fail(`sin movimiento entre primero y ultimo frame (diff ${changed})`);
