@@ -187,7 +187,7 @@ struct Heightfield3D {
 	S cell {}; ///< lado de celda.
 	[[nodiscard]] bool valid() const noexcept {
 		return heights.data() != nullptr && width != 0u && depth != 0u &&
-		       heights.size() >= static_cast<eng::usize>(width) * depth &&
+		       heights.size() >= width * depth &&
 		       cell > eng::math::scalar_traits<S>::zero();
 	}
 };
@@ -202,12 +202,10 @@ template <class S>
 	const S fz = eng::math::div_norm(z - field.origin_z, field.cell);
 	const s32 ix = T::to_int(fx);
 	const s32 iz = T::to_int(fz);
-	if (ix < 0 || iz < 0 || ix >= static_cast<s32>(field.width) ||
-	    iz >= static_cast<s32>(field.depth)) {
+	if (ix < 0 || iz < 0 || ix >= field.width || iz >= field.depth) {
 		return false;
 	}
-	h = T::from_int(field.heights[static_cast<eng::u32>(iz) * field.width +
-					 static_cast<eng::u32>(ix)]);
+	h = T::from_int(field.heights[iz * field.width + ix]);
 	return true;
 }
 
