@@ -99,15 +99,13 @@ internas. Para evitarlo:
 
 ## 2. Lo que NO hay (colisión/física 3D)
 
-- **Colisión 3D**: no hay broadphase 3D (el `SpatialHash` de `eng/core/util/broadphase.hpp` es
-  2D), ni narrow phase de sólidos convexos, ni detección de contacto/penetración.
+- **Colisión 3D completa**: `eng/core/util/collision3d.hpp` cubre el primer corte (esfera-esfera, esfera-AABB, AABB-AABB, rayo-AABB y rayo-esfera; HOST-489); faltan **OBB/SAT 3D, broadphase 3D, sweep de cápsula/heightfield, capas/máscaras y triggers**. El `SpatialHash` de `eng/core/util/broadphase.hpp` sigue siendo 2D.
+- **Física 3D completa**: `eng/sim/physics3d.hpp` cubre esferas, gravedad, suelo, un impulso por contacto, corrección posicional, `sleep` y `time_scale` (HOST-490); faltan broadphase, OBB, triggers, masa/inercia cocinada, CCD y pilas estables.
 - **Volumen/propiedades de masa**: no hay integración de volumen ni centro de masas.
-- **Mallas convexas / hull / BVH**: no existen utilidades de convex hull ni jerarquías de
-  volúmenes envolventes.
-- **Jerarquía de escena**: `Affine` compone (`compose`), pero no hay grafo de nodos
-  padre/hijo con transformaciones en cascada; cada `Object3D` lleva su propia `objectToWorld`.
+- **Mallas convexas / hull / BVH**: no existen utilidades de convex hull ni jerarquías de volúmenes envolventes.
+- **Jerarquía de escena 3D**: `scene3d::Scene` ya compone padre/hijo con transforms sucios (G2, demo 091); `Object3D`/`lib3d` sigue llevando su propia `objectToWorld`.
 
-La colisión que sí existe es **2D**: `eng/core/util/collision.hpp` (AABB, segmentos, triángulo, círculo y, desde HOST-125, **SAT 2D** de polígonos convexos). El plan para cubrir colisión 3D, masa/inercia, broadphase y jerarquía de escena está en [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G2/G6/G7; los costes de los kernels y la opción preferida, en [`3D_PHYSICS.md`](3D_PHYSICS.md).
+La colisión **2D** sigue en `eng/core/util/collision.hpp` (AABB, segmentos, triángulo, círculo y, desde HOST-125, **SAT 2D** de polígonos convexos). El plan para completar colisión 3D, masa/inercia, broadphase y jerarquía de escena está en [`ROADMAP_3D_GAME_API.md`](../../guides/roadmap/ROADMAP_3D_GAME_API.md) G2/G6/G7; los costes de los kernels y la opción preferida, en [`3D_PHYSICS.md`](3D_PHYSICS.md).
 
 ## 3. GJK/EPA y por qué no están
 
@@ -124,12 +122,9 @@ engine porque **no hay consumidor 3D físico**.
 - Las diferencias de coordenadas que entran en productos cruzados deben caber en `s16`
   (~±16000); los productos usan `mul_wide` (`muls.w`) para no caer en `__mulsi3`.
 
-## 5. Si algún día se aborda física 3D (fuera de alcance hoy)
+## 5. Física 3D: primer corte y camino pendiente
 
-Camino mínimo, reutilizando lo existente: **spatial hash 3D** sobre `Vec<3,s16>` + **SAT 3D**
-(para cajas/convexos) o **GJK+EPA** (convexos arbitrarios) + integración de volumen si hiciera
-falta; y una **jerarquía de transforms** (`compose` en cascada) para la composición de objetos.
-No es prioritario en A500 por presupuesto de RAM/ciclos.
+El primer corte ya existe: [`eng/sim/physics3d.hpp`](../../../engine/include/eng/sim/physics3d.hpp) (esferas, gravedad, suelo, un impulso por contacto, `sleep` y `time_scale`; HOST-490) y [`eng/core/util/collision3d.hpp`](../../../engine/include/eng/core/util/collision3d.hpp) (esfera/AABB/rayo; HOST-489). El camino para completar el perfil B+C+D de [`3D_PHYSICS.md`](3D_PHYSICS.md) es: **spatial hash 3D** sobre `Vec<3,s16>`, **SAT 3D** para OBB, heightfield para el jugador y masa/inercia cocinadas en host; GJK+EPA queda condicionado a un consumidor de convexos generales. No es prioritario en A500 por presupuesto de RAM/ciclos.
 
 El estudio de qué opciones caben de verdad en el A500, con costes medidos por kernel y la opción
 preferida por hitos, vive en [3D_PHYSICS.md](3D_PHYSICS.md).
