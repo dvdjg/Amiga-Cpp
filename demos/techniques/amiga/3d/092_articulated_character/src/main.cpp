@@ -193,6 +193,7 @@ struct ArticulatedDemo {
 		(void)plan_ok;
 #else
 		const u32 silhouettes = m_world.render_silhouette(m_models, world);
+		(void)backend.wait_blitter();
 #endif
 #else
 		const u32 silhouettes = 0u;
