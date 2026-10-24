@@ -40,6 +40,8 @@ Prompt: `out/run/vision_prompt_126.txt` (movimiento + rastros + huecos).
 
 ## Alcance
 
+La capa PF se dibuja una vez en PF2 con PlayfieldLayer; no consume Blitter por frame. Se redujo de 2 BOBs a 1 para mantener el presupuesto de un campo.
+
 Verificado: copia rápida con padding **mínimo** sin rastros ni huecos, cadencia 1 campo,
 márgenes derivados del asset en A500_debug. **Sin verificar**: release `-O2`.
 

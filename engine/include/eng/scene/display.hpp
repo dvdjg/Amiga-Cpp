@@ -90,6 +90,33 @@ struct Band {
 	/// Desplazamiento de la base por el scroll actual (bytes): alinea los BOB con la posición de
 	/// pantalla. Lo fija `update_from_view` (`planeaddx + planeaddy`).
 	eng::s32 scroll_off = 0;
+	/// Destino de BOBs **PF2** en un DPF de dos bitmaps (misma geometría que PF1).
+	/// No usa `bob_target()` porque ese devuelve PF1; útil para capas PF grandes.
+	[[nodiscard]] eng::graphics::BobTarget bob_target_b() const noexcept {
+		if (planes < 2u || (planes % 2u) != 0u) {
+			return {};
+		}
+		const eng::u16 h = height != 0u ? height : static_cast<eng::u16>(208u);
+		if (!planes_view_b.empty()) {
+			return eng::graphics::make_bob_target(
+				planes_view_b, bytes_per_row, h,
+				static_cast<eng::u8>(planes / 2u),
+				eng::graphics::BobLayout::Interleaved);
+		}
+		if (dual_playfield && !bob_base.empty()) {
+			const eng::u32 offset = static_cast<eng::u32>(scroll_off) + bytes_per_row;
+			if (offset >= bob_base.size()) return {};
+			const eng::ChipView<eng::PlaneTag> mem {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(bob_base.data() + offset),
+				bob_base.size() - offset};
+			return eng::graphics::make_bob_target(
+				mem, static_cast<eng::u16>(bytes_per_row * planes), h,
+				static_cast<eng::u8>(planes / 2u),
+				eng::graphics::BobLayout::Planar,
+				static_cast<eng::u32>(bytes_per_row) * 2u);
+		}
+		return {};
+	}
 	/// Vista **mutable** de los planos (Chip) para dibujar BOBs en esta banda: la misma memoria
 	/// que `planes_view`, pero escribible. Vacía = la banda no dibuja BOBs.
 	eng::Bytes<eng::PlaneTag> bob_base {};

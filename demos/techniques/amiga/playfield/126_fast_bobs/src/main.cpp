@@ -44,6 +44,7 @@
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/bobs.hpp>
 #include <eng/scene/display.hpp>
+#include <eng/scene/playfield_layer.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -183,11 +184,29 @@ struct FastBobsDemo {
 			kSlowMaskBytes};
 		m_slow = eng::graphics::Sprite {slow_bob};
 		m_bobs.set_slow_sheet(m_slow);
-		m_bobs.resize(2u);
+		m_bobs.resize(1u); // 1 BOB + capa PF: presupuesto de 1 campo
 
 		if (!build_display()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012603u);
 			return;
+		}
+		build_giant();
+		{
+			eng::scene::PlayfieldLayerCaps caps {};
+			caps.dpf_enabled = true;
+			caps.pf2_free = true;
+			caps.max_planes = kBobPlanes;
+			eng::scene::PlayfieldLayerRequest req {};
+			req.prefer = eng::scene::LayerPlayfield::Pf2;
+			req.planes = kBobPlanes;
+			req.full_height = true;
+			if (eng::scene::plan_playfield_layer(req, caps).accepted) {
+				m_giant.field = eng::scene::LayerPlayfield::Pf2;
+				if (!m_giant.draw_cpu(m_band.bob_target_b())) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00012604u);
+					return;
+				}
+			}
 		}
 		// **Coherencia de setup** (capa 2, `COHERENCIA_DE_SETUP.md`): el formato de cada hoja
 		// debe casar con el del target de la banda — un desajuste se lee mal **en silencio**
@@ -252,6 +271,22 @@ private:
 				row[b] = ((b + (y >> 2u)) & 1u) ? 0x55u : 0xaau;
 			}
 		}
+	}
+
+	void build_giant() {
+		for (eng::u16 row = 0u; row < 32u; ++row) {
+			for (eng::u8 p = 0u; p < 3u; ++p) {
+				m_giant_pixels[p * 96u + row * 3u] = 0xffffu;
+				m_giant_pixels[p * 96u + row * 3u + 1u] = 0xffffu;
+				m_giant_pixels[p * 96u + row * 3u + 2u] = 0u;
+			}
+		}
+		m_giant.visual.pixels = eng::Span<const eng::u16> {m_giant_pixels, 288u};
+		m_giant.visual.w = 32u;
+		m_giant.visual.h = 32u;
+		m_giant.visual.bitplanes = 3u;
+		m_giant.x = 48;
+		m_giant.y = 72;
 	}
 
 	void build_sheet() {
@@ -340,6 +375,8 @@ private:
 	eng::graphics::Sprite m_sprite {};
 	eng::graphics::Sprite m_slow {};
 	eng::scene::FastBobLayer m_bobs {};
+	eng::scene::PlayfieldLayer m_giant {};
+	eng::u16 m_giant_pixels[288] {};
 	eng::debug::HostHud m_host_hud {};
 	eng::graphics::FramePlan m_plan {};
 	eng::ChipView<eng::CopperTag> m_display_view {};
