@@ -1,6 +1,6 @@
 # Roadmap: API de juego 3D para A500 (escena, assets, materiales, animación, física y math)
 
-> **Objetivo de cadencia: 25 fps** para las demos/juegos 3D. 50 fps no es objetivo en A500; medir en release y usar debug solo para depurar.
+> **Cadencia de referencia: 25 fps**, no un gate universal. 50 fps no es objetivo en A500; cada demo declara su cadencia medida y sus excepciones (090/092). Medir en release y usar debug solo para depurar.
 
 
 ## Estado 2026-10-24 (corte G6/G7/P8)

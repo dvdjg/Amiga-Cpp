@@ -1,6 +1,6 @@
 # Estrategias para juegos 3D de alto rendimiento en A500
 
-Objetivo de referencia: **25 fps** (2 campos PAL). El presupuesto útil es de unos **283.000 ciclos/frame**; por encima se cae a 3 o más campos. Estas estrategias están medidas en las demos 079, 090, 091, 092, 095 y 096.
+Objetivo de **referencia**: **25 fps** (2 campos PAL), **no un gate universal**. Cada demo puede declarar una excepción medida; 090 y 092 lo hacen. El presupuesto útil es de unos **283.000 ciclos/frame**; por encima se cae a 3 o más campos. Estas estrategias están medidas en las demos 079, 090, 091, 092, 095 y 096.
 
 ## 1. Elegir la ruta de render por contenido
 

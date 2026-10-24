@@ -1,6 +1,6 @@
 # Tutorial: hacer un juego 3D en A500 con este engine
 
-Objetivo de cadencia: **25 fps**. El engine no persigue 50 fps en 3D; el presupuesto se mide en release y las demos usan Blitter para relleno y lineas.
+Cadencia de referencia: **25 fps**, no un mínimo universal. El engine no persigue 50 fps en 3D; el presupuesto se mide en release y cada demo documenta su excepción si no llega.
 
 Este tutorial tiene dos caminos:
 
