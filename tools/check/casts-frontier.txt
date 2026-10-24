@@ -29,3 +29,5 @@ engine/src/platform/amiga/amiga_internal.hpp  # registros custom (custom_base $d
 engine/include/eng/graphics/copper/scheduler.hpp # emisor Copper: Address<Chip> de los bloques del plan
 engine/include/eng/graphics/copper/copper.hpp    # ListBuilder: palabras de la copperlist (Address<Chip>)
 engine/include/eng/graphics/sprite_attached.hpp  # cocina de estructuras DMA del par attached: Address<Chip> -> words
+engine/include/eng/assets/model3d.hpp   # parser big-endian del chunk Model3D (frontera de formato)
+engine/include/eng/sim/model_body3d.hpp   # conversion asset Q8.8/enteros -> escalar de fisica

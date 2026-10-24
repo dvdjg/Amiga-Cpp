@@ -29,7 +29,7 @@ Antes de escribir la demo se comprobó qué existe ya en el engine para no dupli
 
 Desglose del perfil (build con damero): `Project` 132 k (transform 66 k + culling/ensamblado 61 k), `Fill` 278 k (clear 28 k, contorno ≈143 k, area fill ≈30 k, damero 16 k, espera 11 k), `HUD` 6,8 k (media con refresco cada 32 frames). El contorno son ~80 operaciones de línea; el A/B sin damero baja a 184 k de contorno y aun así se queda en ~16,3 fps: el techo está en los blits de línea y en el transform del 68000, no en los colores.
 
-**Estado**: la demo se queda en **3 campos (16,7 fps nominales, 15,3–16,2 medidos)**. El usuario acepta esta cadencia; 20 fps exigiría bajar de ~355 k totales (el bucle añade ~67 k de espera de VBlank) y el suelo de 25 fps del repo queda fuera de alcance con dos sólidos y este número de colores. La deuda y las opciones están en `VALIDATION.md`.
+**Estado**: la demo se queda en **3 campos (16,7 fps nominales, 15,3-16,2 medidos)**. El objetivo de **25 fps** sigue abierto: exigiria bajar de ~283 k totales (el bucle anade ~67 k de espera de VBlank) y no se alcanza con dos solidos y este numero de colores; la via probada de 3 planos no cambio el coste.
 
 ## Flags de compilación
 

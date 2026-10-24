@@ -18,6 +18,7 @@
 #include <eng/core/math/geometry.hpp>
 #include <eng/core/math/linalg.hpp>
 #include <eng/core/math/scalar_math.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::collision3d {
@@ -173,4 +174,254 @@ template <class S>
 	return true;
 }
 
+/// **Heightfield** de alturas enteras en una rejilla regular (XZ). `heights` se
+/// indexa como `z * width + x`; la altura se devuelve en unidades del escalar.
+/// \tparam S escalar de la operacion.
+template <class S>
+struct Heightfield3D {
+	eng::Span<const s16> heights {}; ///< alturas por celda.
+	u16 width = 0u; ///< celdas en X.
+	u16 depth = 0u; ///< celdas en Z.
+	S origin_x {}; ///< X de la celda (0,0).
+	S origin_z {}; ///< Z de la celda (0,0).
+	S cell {}; ///< lado de celda.
+	[[nodiscard]] bool valid() const noexcept {
+		return heights.data() != nullptr && width != 0u && depth != 0u &&
+		       heights.size() >= width * depth &&
+		       cell > eng::math::scalar_traits<S>::zero();
+	}
+};
+
+/// \return true si `(x,z)` cae dentro y deja la altura de la celda en `h`.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] bool heightfield_at(const Heightfield3D<S>& field, S x, S z, S& h) {
+	if (!field.valid()) return false;
+	using T = eng::math::scalar_traits<S>;
+	const S fx = eng::math::div_norm(x - field.origin_x, field.cell);
+	const S fz = eng::math::div_norm(z - field.origin_z, field.cell);
+	const s32 ix = T::to_int(fx);
+	const s32 iz = T::to_int(fz);
+	if (ix < 0 || iz < 0 || ix >= field.width || iz >= field.depth) {
+		return false;
+	}
+	h = T::from_int(field.heights[iz * field.width + ix]);
+	return true;
+}
+
+/// \return true si la esfera toca la altura del heightfield en su celda.
+/// \param ground salida con la altura de la celda.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] bool sphere_heightfield(const Sphere3<S>& sphere, const Heightfield3D<S>& field,
+				      S& ground) {
+	if (!heightfield_at(field, sphere.center.v[0], sphere.center.v[2], ground)) {
+		return false;
+	}
+	return sphere.center.v[1] - sphere.radius <= ground;
+}
+/// **Sweep de una esfera contra una AABB** (un paso, sin tunneling): expande la
+/// caja por el radio y lanza un rayo desde el centro con `delta` como direccion;
+/// `hit.t` en [0,1] es la fraccion del desplazamiento hasta el contacto.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] bool sweep_sphere_aabb(const Sphere3<S>& sphere, const eng::math::Vec<3, S>& delta,
+				     const Aabb3<S>& box, RayHit3<S>& out) {
+	Aabb3<S> expanded = box;
+	for (int axis = 0; axis < 3; ++axis) {
+		expanded.min.v[axis] = box.min.v[axis] - sphere.radius;
+		expanded.max.v[axis] = box.max.v[axis] + sphere.radius;
+	}
+	const Ray3<S> ray {sphere.center, delta, eng::math::scalar_traits<S>::one()};
+	return ray_aabb(ray, expanded, out);
+}
+/// Caja orientada: centro, tres ejes unitarios y semiejes.
+/// \tparam S escalar de la operacion.
+/// \tparam S escalar de la operacion.
+template <class S>
+struct Obb3 {
+	eng::math::Vec<3, S> center {}; ///< centro world.
+	eng::math::Vec<3, S> axis[3] {}; ///< ejes unitarios (columnas de la rotacion).
+	eng::math::Vec<3, S> half {}; ///< semiejes a lo largo de axis[0..2].
+};
+
+/// \return radio de la OBB proyectado sobre `axis` (no normalizado).
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr S obb_radius(const Obb3<S>& o, const eng::math::Vec<3, S>& axis) {
+	const S ax = eng::math::dot(axis, o.axis[0]);
+	const S ay = eng::math::dot(axis, o.axis[1]);
+	const S az = eng::math::dot(axis, o.axis[2]);
+	const S rx = ax < eng::math::scalar_traits<S>::zero() ? -ax : ax;
+	const S ry = ay < eng::math::scalar_traits<S>::zero() ? -ay : ay;
+	const S rz = az < eng::math::scalar_traits<S>::zero() ? -az : az;
+	return eng::math::mul_norm(rx, o.half.v[0]) + eng::math::mul_norm(ry, o.half.v[1]) +
+	       eng::math::mul_norm(rz, o.half.v[2]);
+}
+
+/// \return true si dos OBB se solapan (SAT de 15 ejes: 3+3+9 cruces).
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool obb_overlap(const Obb3<S>& a, const Obb3<S>& b) {
+	const eng::math::Vec<3, S> t = b.center - a.center;
+	const auto separated = [&](const eng::math::Vec<3, S>& axis) -> bool {
+		const S l2 = eng::math::dot(axis, axis);
+		if (l2 == eng::math::scalar_traits<S>::zero()) return false;
+		const S d = eng::math::dot(t, axis);
+		const S ad = d < eng::math::scalar_traits<S>::zero() ? -d : d;
+		return ad > obb_radius(a, axis) + obb_radius(b, axis);
+	};
+	for (u8 i = 0; i < 3u; ++i) {
+		if (separated(a.axis[i]) || separated(b.axis[i])) return false;
+	}
+	for (u8 i = 0; i < 3u; ++i) {
+		for (u8 j = 0; j < 3u; ++j) {
+			const S c0 = eng::math::mul_norm(a.axis[i].v[1], b.axis[j].v[2]) -
+				     eng::math::mul_norm(a.axis[i].v[2], b.axis[j].v[1]);
+			const S c1 = eng::math::mul_norm(a.axis[i].v[2], b.axis[j].v[0]) -
+				     eng::math::mul_norm(a.axis[i].v[0], b.axis[j].v[2]);
+			const S c2 = eng::math::mul_norm(a.axis[i].v[0], b.axis[j].v[1]) -
+				     eng::math::mul_norm(a.axis[i].v[1], b.axis[j].v[0]);
+			const eng::math::Vec<3, S> cross {{c0, c1, c2}};
+			if (separated(cross)) return false;
+		}
+	}
+	return true;
+}
+
+/// Filtro de capas/mascaras (16 capas). Un trigger/collider A acepta a B si
+/// `(a.mask & b.layer) != 0` y `(b.mask & a.layer) != 0` (regla simetrica).
+struct CollisionFilter {
+	u16 layer = 1u; ///< bit de capa de este objeto.
+	u16 mask = 0xffffu; ///< capas con las que interactua.
+};
+
+/// \return true si dos filtros se aceptan mutuamente.
+[[nodiscard]] constexpr bool filter_accepts(const CollisionFilter& a,
+					    const CollisionFilter& b) noexcept {
+	return (a.mask & b.layer) != 0u && (b.mask & a.layer) != 0u;
+}
+
+/// Trigger volumetrico OBB + filtro de capas. No resuelve respuesta fisica.
+/// \tparam S escalar de la operacion.
+template <class S>
+struct Trigger3D {
+	Obb3<S> volume {}; ///< volumen del trigger.
+	CollisionFilter filter {}; ///< capa/mascara.
+	bool active = true; ///< los inactivos no disparan.
+};
+
+/// \return true si un cuerpo con `other` capa entra en el trigger.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool trigger_obb(const Trigger3D<S>& trigger, const Obb3<S>& other,
+					 const CollisionFilter& other_filter) noexcept {
+	return trigger.active && filter_accepts(trigger.filter, other_filter) &&
+	       obb_overlap(trigger.volume, other);
+}
+
+/// \return true si una esfera toca el OBB del trigger y pasa el filtro.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool sphere_obb(const Sphere3<S>& sphere, const Obb3<S>& box) noexcept {
+	using T = eng::math::scalar_traits<S>;
+	eng::math::Vec<3, S> d = sphere.center - box.center;
+	S d2 = T::zero();
+	for (int i = 0; i < 3; ++i) {
+		S q = eng::math::dot(d, box.axis[i]);
+		if (q < -box.half.v[i]) q = -box.half.v[i];
+		if (q > box.half.v[i]) q = box.half.v[i];
+		const S e = eng::math::dot(d, box.axis[i]) - q;
+		d2 = d2 + eng::math::mul_norm(e, e);
+	}
+	return d2 <= eng::math::mul_norm(sphere.radius, sphere.radius);
+}
+
+/// \return true si una esfera toca el trigger y pasa el filtro.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool trigger_sphere(const Trigger3D<S>& trigger, const Sphere3<S>& sphere,
+					    const CollisionFilter& other_filter) noexcept {
+	return trigger.active && filter_accepts(trigger.filter, other_filter) &&
+	       sphere_obb(sphere, trigger.volume);
+}
+
+/// Par de indices de una broadphase.
+struct BroadphasePair {
+	u16 a = 0u;
+	u16 b = 0u;
+};
+
+/// **Sweep-and-prune 3D** sobre el eje X, capacidad fija. Pensado para AABBs
+/// pequenos y N bajo (A500); evita el producto cartesiano completo.
+/// \tparam S escalar de la operacion.
+/// \tparam N numero maximo de cajas (>0).
+template <class S, u16 N>
+class SweepBroadphase3D {
+	static_assert(N > 0u, "SweepBroadphase3D: N > 0");
+	struct Entry {
+		S min_x {};
+		S max_x {};
+		Aabb3<S> box {};
+		u16 id = 0u;
+		CollisionFilter filter {};
+	};
+public:
+	/// Anade una caja con identificador; false si no cabe.
+	bool add(const Aabb3<S>& box, u16 id) noexcept {
+		if (m_count >= N) return false;
+		Entry& e = m_entry[m_count++];
+		e.min_x = box.min.v[0];
+		e.max_x = box.max.v[0];
+		e.box = box;
+		e.id = id;
+		e.filter = {};
+		return true;
+	}
+	/// Anade una caja con filtro de capas; false si no cabe.
+	bool add(const Aabb3<S>& box, u16 id, const CollisionFilter& filter) noexcept {
+		if (m_count >= N) return false;
+		Entry& e = m_entry[m_count++];
+		e.min_x = box.min.v[0];
+		e.max_x = box.max.v[0];
+		e.box = box;
+		e.id = id;
+		e.filter = filter;
+		return true;
+	}
+	/// \return numero de pares solapados (se escriben hasta `out.size()`).
+	u16 pairs(eng::Span<BroadphasePair> out) const noexcept {
+		if (out.empty()) return 0u;
+		Entry sorted[N];
+		for (u16 i = 0u; i < m_count; ++i) sorted[i] = m_entry[i];
+		for (u16 i = 1u; i < m_count; ++i) {
+			const Entry key = sorted[i];
+			u16 j = i;
+			while (j > 0u && sorted[j - 1u].min_x > key.min_x) {
+				sorted[j] = sorted[j - 1u];
+				--j;
+			}
+			sorted[j] = key;
+		}
+		u16 count = 0u;
+		for (u16 i = 0u; i < m_count; ++i) {
+			for (u16 j = i + 1u; j < m_count; ++j) {
+				if (sorted[j].min_x > sorted[i].max_x) break;
+				if (aabb_overlap(sorted[i].box, sorted[j].box) &&
+				    filter_accepts(sorted[i].filter, sorted[j].filter)) {
+					if (count < out.size()) {
+						out[count] = BroadphasePair {sorted[i].id, sorted[j].id};
+					}
+					++count;
+				}
+			}
+		}
+		return count;
+	}
+	void clear() noexcept { m_count = 0u; }
+
+private:
+	Entry m_entry[N] {};
+	u16 m_count = 0u;
+};
 } // namespace eng::collision3d

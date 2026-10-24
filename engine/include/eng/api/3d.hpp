@@ -359,7 +359,7 @@ public:
 	/// plano. Para modelos con caras de colores distintos, el llamador debe usar
 	/// `render`; esta ruta usa `color_of(id, 0)`. Si un objeto cruza el near, cae
 	/// automaticamente a la ruta por cara.
-	/// \tparam ColorFn invocable `(NodeId, face) -> u8` que devuelve el índice de paleta.
+	/// \tparam ColorFn callable convertible a `u8`; recibe `(NodeId, 0)`.
 	template <class ColorFn>
 	u32 render_silhouette(eng::Span<const Mesh> models, playfield::Surface& target,
 			      ColorFn&& color_of) noexcept {
@@ -376,10 +376,10 @@ public:
 	/// Variante de silueta contra una `ModelTable` y el color del material de la
 	/// cara 0 de cada modelo.
 	/// \tparam MaxModels capacidad de modelos de la tabla.
-	/// \tparam TableVertices capacidad de vértices de la tabla.
-	/// \tparam TableIndices capacidad de índices de la tabla.
-	/// \tparam TableFaces capacidad de caras de la tabla.
-	/// \tparam TableMaterials capacidad de materiales de la tabla.
+	/// \tparam TableVertices vertices maximos por modelo.
+	/// \tparam TableIndices indices maximos por modelo.
+	/// \tparam TableFaces caras maximas por modelo.
+	/// \tparam TableMaterials materiales maximos por modelo.
 	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
 		  u16 TableMaterials>
 	u32 render_silhouette(
@@ -414,9 +414,10 @@ public:
 		const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
 		playfield::Surface& target, u8 color,
 		eng::Ref<graphics::FramePlan> plan = {},
-		playfield::RasterOp op = playfield::RasterOp::Copy) noexcept {
+		playfield::RasterOp op = playfield::RasterOp::Copy,
+		bool cull_backfaces = false, bool silhouette_only = false) noexcept {
 		return render_wire_with([&](ModelHandle handle) { return models.mesh(handle); }, target,
-					color, plan, op);
+					color, plan, op, cull_backfaces, silhouette_only);
 	}
 
 	/// Igual que el anterior, resolviendo contra una tabla de vistas `Mesh`.
@@ -426,14 +427,15 @@ public:
 	/// \return número de aristas dibujadas.
 	u32 render_wire(eng::Span<const Mesh> models, playfield::Surface& target, u8 color,
 			eng::Ref<graphics::FramePlan> plan = {},
-			playfield::RasterOp op = playfield::RasterOp::Copy) noexcept {
+			playfield::RasterOp op = playfield::RasterOp::Copy,
+			bool cull_backfaces = false, bool silhouette_only = false) noexcept {
 		return render_wire_with(
 			[&](ModelHandle handle) -> eng::Ref<const Mesh> {
 				return (handle.valid() && handle.index < models.size())
 					       ? &models[handle.index]
 					       : nullptr;
 			},
-			target, color, plan, op);
+			target, color, plan, op, cull_backfaces, silhouette_only);
 	}
 
 private:
@@ -446,7 +448,7 @@ private:
 	template <class MeshAt>
 	u32 render_wire_with(MeshAt&& mesh_at, playfield::Surface& target, u8 color,
 			      eng::Ref<graphics::FramePlan> plan,
-			      playfield::RasterOp op) noexcept {
+			      playfield::RasterOp op, bool cull_backfaces, bool silhouette_only) noexcept {
 		update_transforms();
 		u32 edges = 0u;
 		m_nodes.for_each([&](Node3D& node, PoolHandle handle) {
@@ -462,7 +464,7 @@ private:
 			m_model.t = node.world_position;
 			edges += graphics::render_wire(*mesh, m_model, m_camera, target, color,
 						       m_world, m_edges, MaxEdges, m_cam_scratch,
-						       m_xs, m_ys, plan, op);
+						       m_xs, m_ys, plan, op, cull_backfaces, silhouette_only);
 		});
 		return edges;
 	}
@@ -590,8 +592,8 @@ private:
 	/// Implementacion comun de las rutas de silueta: mismo orden painter que
 	/// `render_with`; si un modelo no cabe en el hull (near o >16 vertices), cae a
 	/// `render_solid_styled` para no perder la cara.
-	/// \tparam MeshAt invocable `(ModelHandle) -> Ref<const Mesh>`.
-	/// \tparam ColorAt invocable `(NodeId, face) -> u8`.
+	/// \tparam MeshAt callable que resuelve un `ModelHandle` a `Mesh`.
+	/// \tparam ColorAt callable que da el color plano de un nodo.
 	template <class MeshAt, class ColorAt>
 	u32 render_silhouette_with(MeshAt&& mesh_at, playfield::Surface& target,
 				   ColorAt&& color_at) noexcept {

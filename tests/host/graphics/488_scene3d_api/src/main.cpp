@@ -21,7 +21,9 @@
 #include <eng/memory/mem_bank.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/mesh_primitives.hpp>
+#include <eng/sim/model_body3d.hpp>
 
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -262,7 +264,7 @@ void test_scene_lifecycle() {
 	constexpr u32 total = m_off + nm * 4u;
 
 	std::vector<u8> p(total, 0u);
-	write_be16(p.data(), assets::Model3DAssetView::kVersion);
+	write_be16(p.data(), 1u); // fixture v1 historica
 	write_be16(p.data() + 2u, 0u);
 	write_be16(p.data() + 4u, nv);
 	write_be16(p.data() + 6u, nf);
@@ -305,6 +307,77 @@ void test_scene_lifecycle() {
 	return p;
 }
 
+/// Payload Model3D v2: mismo cubo + 1 parte y 2 esferas de fisica.
+[[nodiscard]] std::vector<u8> build_box_model_physics_payload() {
+	constexpr u16 nv = 8u, nf = 6u, ni = 24u, nm = 2u, ns = 2u, np = 1u;
+	constexpr u32 header = assets::Model3DAssetView::kHeaderSizeV2;
+	constexpr u32 v_off = header;
+	constexpr u32 i_off = v_off + nv * 6u;
+	constexpr u32 f_off = i_off + ni * 2u;
+	constexpr u32 m_off = f_off + nf * 6u;
+	constexpr u32 b_off = m_off + nm * 4u;
+	constexpr u32 s_off = b_off + 12u;
+	constexpr u32 p_off = s_off + ns * 12u;
+	std::vector<u8> p(p_off + np * 40u, 0u);
+	write_be16(p.data(), 2u);
+	write_be16(p.data() + 4u, nv);
+	write_be16(p.data() + 6u, nf);
+	write_be16(p.data() + 8u, ni);
+	write_be16(p.data() + 10u, nm);
+	write_be16(p.data() + 12u, ns);
+	write_be16(p.data() + 14u, np);
+	write_be32(p.data() + 32u, v_off);
+	write_be32(p.data() + 36u, i_off);
+	write_be32(p.data() + 40u, f_off);
+	write_be32(p.data() + 44u, m_off);
+	write_be32(p.data() + 48u, b_off);
+	write_be32(p.data() + 52u, s_off);
+	write_be32(p.data() + 56u, p_off);
+	const s16 verts[nv][3] = {
+		{-20, -20, -20}, {20, -20, -20}, {20, 20, -20}, {-20, 20, -20},
+		{-20, -20, 20}, {20, -20, 20}, {20, 20, 20}, {-20, 20, 20},
+	};
+	for (u16 i = 0u; i < nv; ++i) {
+		write_be16(p.data() + v_off + i * 6u, static_cast<u16>(verts[i][0]));
+		write_be16(p.data() + v_off + i * 6u + 2u, static_cast<u16>(verts[i][1]));
+		write_be16(p.data() + v_off + i * 6u + 4u, static_cast<u16>(verts[i][2]));
+	}
+	const u16 faces[nf][4] = {
+		{4, 5, 6, 7}, {0, 3, 2, 1}, {7, 6, 2, 3},
+		{0, 1, 5, 4}, {1, 2, 6, 5}, {0, 4, 7, 3},
+	};
+	for (u16 f = 0u; f < nf; ++f) {
+		for (u16 k = 0u; k < 4u; ++k) write_be16(p.data() + i_off + (f * 4u + k) * 2u, faces[f][k]);
+		write_be16(p.data() + f_off + f * 6u, static_cast<u16>(f * 4u));
+		write_be16(p.data() + f_off + f * 6u + 2u, 4u);
+		write_be16(p.data() + f_off + f * 6u + 4u, static_cast<u16>(f < 3u ? 0u : 1u));
+	}
+	p.data()[m_off] = 3u;
+	p.data()[m_off + 4u] = 5u;
+	p.data()[m_off + 5u] = 1u;
+	const s16 bmin[3] = {-20, -20, -20};
+	const s16 bmax[3] = {20, 20, 20};
+	for (u8 k = 0u; k < 3u; ++k) {
+		write_be16(p.data() + b_off + k * 2u, static_cast<u16>(bmin[k]));
+		write_be16(p.data() + b_off + 6u + k * 2u, static_cast<u16>(bmax[k]));
+	}
+	for (u8 i = 0u; i < ns; ++i) {
+		const u32 o = s_off + i * 12u;
+		write_be16(p.data() + o, 0u);
+		write_be16(p.data() + o + 2u, static_cast<u16>(i * 10u));
+		write_be16(p.data() + o + 4u, 0u);
+		write_be16(p.data() + o + 6u, static_cast<u16>(i == 0u ? 12u : 8u));
+		p.data()[o + 8u] = 0u;
+	}
+	write_be16(p.data() + p_off, 0xffffu); // parent = -1
+	write_be16(p.data() + p_off + 2u, 0u);
+	write_be16(p.data() + p_off + 4u, ns);
+	write_be16(p.data() + p_off + 6u, 100u);
+	write_be16(p.data() + p_off + 34u, 256u);
+	write_be16(p.data() + p_off + 36u, 205u);
+	write_be16(p.data() + p_off + 38u, 26u);
+	return p;
+}
 void test_model_asset() {
 	using SceneT = scene3d::Scene<4, 8>;
 	const std::vector<u8> payload = build_box_model_payload();
@@ -358,6 +431,86 @@ void test_model_asset() {
 	check(table.pattern(handle, 3u) == 1u, "material patron cara 3");
 	check(table.material_index(handle, 3u) == 1u, "indice de material cara 3");
 	check(table.bounds(handle).max.v[1] == 20, "bounds del modelo en tabla");
+	const std::vector<u8> physics_payload = build_box_model_physics_payload();
+	const assets::Model3DAssetView physics {
+		UafPayload {physics_payload.data(), static_cast<u32>(physics_payload.size())}};
+	check(physics.valid(), "Model3D v2 valido");
+	check(physics.version() == 2u && physics.sphere_count() == 2u &&
+		      physics.part_count() == 1u,
+	      "Model3D v2 conteos de fisica");
+	const assets::ModelPart body_part = physics.part(0u);
+	check(body_part.parent == -1 && body_part.mass == 100u &&
+		      body_part.sphere_count == 2u,
+	      "Model3D v2 parte raiz");
+	check(physics.sphere(0u).radius == 12u && physics.sphere(1u).radius == 8u,
+	      "Model3D v2 esferas");
+	scene3d::ModelTable<1, 8, 24, 6, 2, 2, 1> physics_table;
+	const scene3d::ModelHandle physics_handle = physics_table.add(physics);
+	check(physics_handle.valid() && physics_table.sphere_count(physics_handle) == 2u &&
+		      physics_table.part_count(physics_handle) == 1u,
+	      "ModelTable v2 copia esferas/partes");
+	eng::sim3d::CompoundBody3D<eng::real, 2> compound;
+	check(eng::sim3d::build_compound_from_model(physics, compound), "asset -> compound");
+	check(compound.count == 2u && compound.mass > 0.0f, "compound masa");
+	check(compound.inertia.v[0] > 0.0f && compound.inertia.v[1] > 0.0f,
+	      "compound inercia diagonal");
+	eng::sim3d::ArticulatedBody3D<eng::real, 2, 2> articulated;
+	check(eng::sim3d::build_articulated_from_model(physics, articulated),
+	      "asset -> articulated");
+	check(articulated.part_count == 1u && articulated.sphere_count == 2u,
+	      "articulated partes/esferas");
+	articulated.step(0.016f, -9.0f, 0.0f, 2u);
+	check(articulated.world[0].center.v[1] >= articulated.world[0].radius,
+	      "articulated suelo");
+	eng::sim3d::ArticulatedBody3D<float, 2, 2> chain;
+	chain.add_part(-1, math3d::vec3<float>(0, 0, 0), 1.0f);
+	chain.add_part(0, math3d::vec3<float>(0, 10, 0), 1.0f);
+	chain.add_sphere(0u, math3d::vec3<float>(0, 0, 0), 2.0f, 1.0f);
+	chain.add_sphere(1u, math3d::vec3<float>(0, 0, 0), 2.0f, 1.0f);
+	chain.finalize(math3d::vec3<float>(0, 20, 0));
+	for (int i = 0; i < 20; ++i) chain.step(0.016f, -9.0f, 0.0f, 4u);
+	const float dy = chain.parts[1].position.v[1] - chain.parts[0].position.v[1];
+	check(dy > 9.0f && dy < 11.0f, "articulated joint conserva pivote");
+
+	eng::sim3d::ArticulatedBody3D<float, 2, 2> angular;
+	angular.add_part(-1, math3d::vec3<float>(0, 0, 0), 0.0f);
+	angular.add_part(0, math3d::vec3<float>(0, 0, 0), 2.0f);
+	angular.add_sphere(1u, math3d::vec3<float>(2, 0, 0), 1.0f, 2.0f);
+	angular.finalize();
+	check(angular.parts[1].inertia.v[2] > 8.7f && angular.parts[1].inertia.v[2] < 8.9f,
+	      "inercia incluye termino propio");
+	angular.apply_impulse(1u, math3d::vec3<float>(0, 0, 4), math3d::vec3<float>(2, 1, 0));
+	check(angular.parts[1].velocity.v[2] > 0.0f, "impulso lineal");
+	check(angular.parts[1].angular_velocity.v[1] != 0.0f, "impulso descentrado -> par");
+	check(angular.set_hinge(1u, 0u, -0.1f, 0.1f), "bisagra configurada");
+	angular.set_angles(1u, math3d::vec3<float>(0.5f, 0.3f, 0.2f));
+	const auto hinge_angles = angular.parts[1].angles;
+	eng::sim3d::ArticulatedBody3D<float, 2, 1> telescopic;
+	telescopic.add_part(-1, math3d::vec3<float>(0, 0, 0), 0.0f);
+	telescopic.add_part(0, math3d::vec3<float>(10, 0, 0), 1.0f);
+	telescopic.add_sphere(1u, math3d::vec3<float>(0, 0, 0), 1.0f, 1.0f);
+	check(telescopic.set_slide(1u, 0u, 2.0f, 8.0f), "telescopico configurado");
+	telescopic.finalize();
+	telescopic.parts[1].position.v[0] = 20.0f;
+	telescopic.step(0.1f, 0.0f, -100.0f, 2u);
+	const float reach = telescopic.parts[1].position.v[0] - telescopic.parts[0].position.v[0];
+	check(reach >= 1.9f && reach <= 8.1f, "telescopico respeta limite");
+	check(hinge_angles.v[0] <= 0.1001f && hinge_angles.v[1] == 0.0f &&
+		      hinge_angles.v[2] == 0.0f,
+	      "bisagra limita eje y anula el resto");
+	angular.set_angular_velocity(1u, {0.05f, 0.0f, 0.0f});
+	angular.step(0.1f, 0.0f, -100.0f, 1u);
+	check(angular.parts[1].angles.v[0] > 0.0f, "step integra angulo de bisagra");
+
+	eng::sim3d::ArticulatedBody3D<float, 1, 1> rotated;
+	rotated.add_part(-1, math3d::vec3<float>(0, 0, 0), 1.0f);
+	rotated.add_sphere(0u, math3d::vec3<float>(2, 0, 0), 0.5f, 1.0f);
+	const math3d::Vec3t<float> quarter_turn {{0.0f, 0.0f, 0.25f}};
+	check(rotated.set_angles(0u, quarter_turn), "orientacion z");
+	rotated.finalize();
+	check(std::abs(rotated.world[0].center.v[0]) < 0.02f &&
+		      rotated.world[0].center.v[1] > 1.99f,
+	      "esfera rota con la parte");
 
 	scene3d::Scene<4, 8> scene;
 	check(scene.set_camera(cam), "camara de escena con modelo");

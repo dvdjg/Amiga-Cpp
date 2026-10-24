@@ -63,7 +63,7 @@ constexpr s16 kHalfW = 160;
 constexpr s16 kHalfH = 104;
 
 constexpr eng::Palette32 kPalette {{
-	0x000, 0xf80, 0x0df, 0x7ef, 0xff0, 0x6f6, 0xf9c, 0xf24,
+	0x000, 0xfff, 0x0df, 0x7ef, 0xff0, 0x6f6, 0xf9c, 0xf24,
 	0x333, 0x888, 0xccc, 0x05f, 0x444, 0x0a3, 0xa07, 0xfff,
 }};
 constexpr u8 kHudColor = 15u;
@@ -77,6 +77,14 @@ constexpr u16 kPhaseStep = 12u;
 #define K091_WIRE 1
 #endif
 static_assert(K091_WIRE == 0 || K091_WIRE == 1, "K091_WIRE debe ser 0 o 1");
+
+#if K091_WIRE
+constexpr u8 kWorldPlanes = 1u; ///< alambre: un solo bit (lineas de color 1).
+constexpr u8 kLineColor = 1u;
+#else
+constexpr u8 kWorldPlanes = kPlanes;
+constexpr u8 kLineColor = 15u;
+#endif
 
 /// Códigos de fallo de arranque (el runner los resuelve por `.map`).
 enum : u32 {
@@ -123,7 +131,11 @@ struct Scene3dDemo {
 		m_canvas.set_polygon_fill_sink(m_fill.sink());
 		// El alambre encola líneas por Blitter en el `FramePlan` (la ruta CPU de
 		// `draw_line` cuesta ~1500 ciclos/píxel y no cabe en el presupuesto).
+#if K091_WIRE
 		m_canvas.set_rasterizer(&eng::playfield::kBlitterRaster);
+#else
+		m_canvas.set_rasterizer(&eng::playfield::kBlitterRaster);
+#endif
 		for (u8 b = 0u; b < m_display.buffer_count(); ++b) {
 			const eng::PlaneBytes planes = m_display.buffer(b);
 			(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(planes.size()), kWidth,
@@ -174,8 +186,14 @@ struct Scene3dDemo {
 		m_display.commit();
 		const eng::PlaneBytes planes = m_display.back();
 		(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(planes.size()), kWidth,
-					kHeight, kPlanes, kPlaneBytes);
-		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth, kWorldH);
+					kHeight, kWorldPlanes, kPlaneBytes);
+#if K091_WIRE
+		(void)backend.blitter_clear(planes, kWorldPlanes, kRowBytes, kPlaneBytes, kWidth,
+					    kWorldH, false);
+#else
+		(void)backend.blitter_clear(planes, kWorldPlanes, kRowBytes, kPlaneBytes, kWidth,
+					    kWorldH);
+#endif
 
 		m_phase = static_cast<u16>((m_phase + kPhaseStep) & 4095u);
 		math3d::Mat3<> root_rot {};
@@ -195,8 +213,8 @@ struct Scene3dDemo {
 #if K091_WIRE
 		m_plan.clear();
 		const u32 edges = m_world.render_wire(
-			m_models, world, kHudColor, eng::Ref<eng::graphics::FramePlan> {m_plan},
-			eng::playfield::RasterOp::Xor);
+			m_models, world, kLineColor, eng::Ref<eng::graphics::FramePlan> {m_plan},
+			eng::playfield::RasterOp::Xor, true, false);
 		const bool plan_ok = backend.execute_frame_plan(m_plan);
 		stats << 'E' << edges << " J" << m_plan.blit_job_count()
 		      << (plan_ok ? " OK" : " ERR") << (m_plan.ok() ? " ok" : " bad");

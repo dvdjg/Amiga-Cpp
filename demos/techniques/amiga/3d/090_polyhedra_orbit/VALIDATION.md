@@ -1,6 +1,6 @@
 # VALIDATION — 090_polyhedra_orbit
 
-Estado: **ABIERTA / NO VERIFICADA por cadencia** (15,3–16,2 fps medidos frente al objetivo de 20 fps y al suelo de 25 fps de `AGENTS.md` §3). El usuario acepta quedarse en ~16 fps con la escena y los colores actuales. La geometría, el relleno y la ausencia de grietas/artefactos están verificados en el alcance que se detalla abajo; flicker/tearing y la comparación pixel a pixel de la versión de 4 planos quedan **SIN VERIFICAR**.
+Estado: **ABIERTA / NO VERIFICADA por cadencia** (15,3–16,2 fps medidos frente al objetivo de 20 fps y al suelo de 25 fps de `AGENTS.md` §3). El objetivo de 25 fps sigue abierto; la escena actual se queda en ~16 fps. La geometría, el relleno y la ausencia de grietas/artefactos están verificados en el alcance que se detalla abajo; flicker/tearing y la comparación pixel a pixel de la versión de 4 planos quedan **SIN VERIFICAR**.
 
 ## 1. Malla y geometría
 
@@ -41,7 +41,7 @@ Conclusiones:
 
 ## 5. Límites y deuda
 
-- **20 fps / 25 fps**: no alcanzados (ver §3). El usuario acepta la cadencia actual; si se quisiera 20, la vía es reducir la escena (un sólido o sin cubo) y volver a medir.
+- **20 fps / 25 fps**: no alcanzados (ver 3). Si se quisiera 20 fps, la via es reducir la escena (un solido o sin cubo); 25 fps no se alcanza con esta tecnica y dos solidos.
 - **Flicker y tearing**: no verificados con la batería de flicker ni con capturas por campo. El damero de 1 píxel es sensible al muestreo de la captura; hay que comprobarlo antes de declarar la demo cerrada.
 - **Comparación pixel a pixel del build de 4 planos**: no hay golden actualizado; la evidencia es la referencia geométrica del build anterior, el detector de grietas (0 en 4 frames) y la visión.
 - **HUD**: se refresca cada 32 frames (≈0,5 s a 16 fps); en capturas cortas puede verse `FRAME 0 FPS 0.0` porque aún no ha llegado el primer refresco. No es un defecto de render.

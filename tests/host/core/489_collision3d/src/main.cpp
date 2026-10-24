@@ -68,8 +68,65 @@ void test_scalar(const char* label) {
 	check(!ray_sphere(Ray3<S> {v3<S>(-5, 3, 0), v3<S>(1, 0, 0), ten},
 			  Sphere3<S> {v3<S>(0, 0, 0), one}, no_hit),
 	      label);
-	(void)four;
+	Obb3<S> oa {};
+	oa.center = v3<S>(0, 0, 0);
+	oa.axis[0] = v3<S>(1, 0, 0);
+	oa.axis[1] = v3<S>(0, 1, 0);
+	oa.axis[2] = v3<S>(0, 0, 1);
+	oa.half = v3<S>(1, 1, 1);
+	Obb3<S> ob = oa;
+	ob.center = v3<S>(3, 0, 0);
+	check(!obb_overlap(oa, ob), label);
+	ob.center = v3<S>(1, 0, 0);
+	check(obb_overlap(oa, ob), label);
+	SweepBroadphase3D<S, 3> bp {};
+	check(bp.add(Aabb3<S> {v3<S>(0, 0, 0), v3<S>(2, 2, 2)}, 1u), label);
+	check(bp.add(Aabb3<S> {v3<S>(1, 1, 1), v3<S>(3, 3, 3)}, 2u), label);
+	check(bp.add(Aabb3<S> {v3<S>(10, 0, 0), v3<S>(11, 1, 1)}, 3u), label);
+	BroadphasePair pairs[2] {};
+	check(bp.pairs(Span<BroadphasePair>(pairs, 2u)) == 1u && pairs[0].a == 1u && pairs[0].b == 2u, label);
+	Sphere3<S> moving {v3<S>(-3, 0, 0), one};
+	RayHit3<S> sweep {};
+	check(sweep_sphere_aabb(moving, v3<S>(10, 0, 0),
+				Aabb3<S> {v3<S>(-1, -1, -1), v3<S>(1, 1, 1)}, sweep),
+	      label);
+	check(sweep.hit && sweep.t > zero && sweep.t < one, label);
+	const s16 heights[4] = {10, 20, 30, 40};
+	Heightfield3D<S> hf {Span<const s16>(heights, 4u), 2u, 2u, zero, zero, T::from_int(10)};
+	S gh = zero;
+	check(heightfield_at(hf, T::from_int(5), T::from_int(5), gh) &&
+		      T::to_int(gh) == 10,
+	      label);
+	check(heightfield_at(hf, T::from_int(15), T::from_int(5), gh) &&
+		      T::to_int(gh) == 20,
+	      label);
+	check(!heightfield_at(hf, T::from_int(50), zero, gh), label);
+	check(sphere_heightfield(Sphere3<S> {v3<S>(5, 12, 5), T::from_int(5)}, hf, gh), label);
+	check(!sphere_heightfield(Sphere3<S> {v3<S>(5, 30, 5), T::from_int(5)}, hf, gh), label);	(void)four;
 	(void)zero;
+}
+
+void test_layers_float() {
+	Obb3<float> unit_box {};
+	unit_box.axis[0] = v3<float>(1, 0, 0);
+	unit_box.axis[1] = v3<float>(0, 1, 0);
+	unit_box.axis[2] = v3<float>(0, 0, 1);
+	unit_box.half = v3<float>(10, 10, 10);
+	check(sphere_obb(Sphere3<float> {v3<float>(12, 0, 0), 3.0f}, unit_box),
+	      "sphere-OBB toca");
+	check(!sphere_obb(Sphere3<float> {v3<float>(20, 0, 0), 3.0f}, unit_box),
+	      "sphere-OBB separada");
+	Trigger3D<float> trigger {};
+	trigger.volume = unit_box;
+	trigger.filter = CollisionFilter {1u, 2u};
+	check(filter_accepts(trigger.filter, CollisionFilter {2u, 1u}), "capas compatibles");
+	check(!filter_accepts(trigger.filter, CollisionFilter {4u, 1u}), "capas rechazadas");
+	check(trigger_sphere(trigger, Sphere3<float> {v3<float>(12, 0, 0), 3.0f},
+			     CollisionFilter {2u, 0xffffu}),
+	      "trigger dispara");
+	check(!trigger_sphere(trigger, Sphere3<float> {v3<float>(12, 0, 0), 3.0f},
+			      CollisionFilter {4u, 0xffffu}),
+	      "trigger filtra capa");
 }
 
 } // namespace
@@ -78,8 +135,9 @@ int main() {
 	test_scalar<float>("float");
 	using Q4 = eng::math::Fixed<eng::s16, 4>;
 	test_scalar<Q4>("Fixed<s16,4>");
+	test_layers_float();
 	if (g_fail == 0) {
-		std::printf("OK: HOST-489 colision 3D (esfera/AABB/rayo) validada.\n");
+		std::printf("OK: HOST-489 colision 3D (esfera/AABB/rayo/OBB/broadphase/sweep/heightfield) validada.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones.\n", g_fail);

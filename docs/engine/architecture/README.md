@@ -12,6 +12,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [CODING_STYLE.md](CODING_STYLE.md) | Restricciones y estilo: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay. |
 | [MATH_LIBRARY.md](MATH_LIBRARY.md) | Modelo de la librería de matemáticas genérica: `Fixed<Repr,Exp,Policy>`, `Vec`/`Mat`/`Affine`, escalar como parámetro de plantilla. |
 | [3D_PHYSICS.md](3D_PHYSICS.md) | **Física 3D realista en A500**: opciones (cinemática de estados, cuerpos rígidos arcade, SAT-3D de OBB, proxy de colisión), costes medidos por kernel y opción preferida por hitos. |
+| [3D_GAME_API_REFERENCE.md](3D_GAME_API_REFERENCE.md) | **Referencia actual de la API 3D**: Scene, ModelTable, Model3D v1/v2, renderer, fisica compuesta/articulada y convenciones. |
 | [3D_GAME_ARCHITECTURE.md](3D_GAME_ARCHITECTURE.md) | Arquitectura objetivo de juego 3D: pipeline de cámara/clipping, raster planar por n-gons/spans, escena, colisión, física, rigging, LOD y perfiles de optimización. |
 | [MODEL3D_ASSET_FORMAT.md](MODEL3D_ASSET_FORMAT.md) | Especificación propuesta JSON→UAF-R para geometría, materiales de paleta/trama, rigging, keyframes y codecs fixed para Amiga. |
 | [SCENE_COMPOSITION.md](SCENE_COMPOSITION.md) | **Composición de escenas**: modelo de tres planos (recursos / programa de Copper / comportamiento), etapas + presets + handles de parcheo, y por qué el CRTP/la familia de drivers sobran. |
