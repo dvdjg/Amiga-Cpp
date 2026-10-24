@@ -40,3 +40,7 @@ docs/guides/
 - Roadmaps y planes: `docs/guides/roadmap/` (marcar su estado en el `README.md` de la carpeta). La tabla única de destino de un documento nuevo está en `docs/README.md`.
 - Soporte Tiled y pipeline de mundo/tilesets: `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`.
 - Runbooks de agentes y metodología: `docs/guides/methodology/`.
+
+## Tutoriales
+
+- [3D_GAME_TUTORIAL.md](3D_GAME_TUTORIAL.md): como montar un juego 3D con primitivas o modelos cocinados, relleno Blitter, fisica de esferas/partes y presupuesto de 25 fps.
