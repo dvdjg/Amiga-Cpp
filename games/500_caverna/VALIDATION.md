@@ -3,7 +3,7 @@
 ## Medición
 
 ```text
-500_caverna/A500_release | emulado=49,89?50,00 fps | 141869 ciclos/frame | 0,99996 campos/frame | stable=true
+500_caverna/A500_release | emulado=49,89–50,00 fps | 141869 ciclos/frame | 0,99996 campos/frame | stable=true
 ```
 
 Ventana de 12 s; `measure-fps`. El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada.
