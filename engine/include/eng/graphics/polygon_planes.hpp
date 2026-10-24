@@ -60,6 +60,28 @@ namespace detail {
 inline void plane_or_span(eng::u8* plane, eng::u16 row_bytes, eng::s32 y, eng::s32 xl, eng::s32 xr,
 			  eng::u16 pattern_word) {
 	eng::u8* row = plane + static_cast<eng::u32>(y) * row_bytes;
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+	// Ruta por PALABRAS (Amiga, big-endian): los planos están alineados a 16 bits
+	// y `row_bytes` es par (layouts planares de 320 px = 40 B). Escribir palabras
+	// completas en el interior ahorra la mitad de lecturas/escrituras frente al
+	// recorrido byte a byte y es la diferencia medida entre la referencia CPU y
+	// esta ruta en la demo 097. En host little-endian se conserva la ruta por
+	// bytes: un `u16` invertiría el orden de los dos bytes de la palabra.
+	const eng::u32 w0 = static_cast<eng::u32>(xl) >> 4u;
+	const eng::u32 w1 = static_cast<eng::u32>(xr) >> 4u;
+	const eng::u16 m0 = static_cast<eng::u16>(0xffffu >> (static_cast<eng::u32>(xl) & 15u));
+	const eng::u16 m1 = static_cast<eng::u16>(0xffffu << (15u - (static_cast<eng::u32>(xr) & 15u)));
+	eng::u16* words = reinterpret_cast<eng::u16*>(row);
+	if (w0 == w1) {
+		words[w0] = static_cast<eng::u16>(words[w0] | ((m0 & m1) & pattern_word));
+		return;
+	}
+	words[w0] = static_cast<eng::u16>(words[w0] | (m0 & pattern_word));
+	for (eng::u32 i = w0 + 1u; i < w1; ++i) {
+		words[i] = static_cast<eng::u16>(words[i] | pattern_word);
+	}
+	words[w1] = static_cast<eng::u16>(words[w1] | (m1 & pattern_word));
+#else
 	const eng::u32 b0 = static_cast<eng::u32>(xl) >> 3u;
 	const eng::u32 b1 = static_cast<eng::u32>(xr) >> 3u;
 	// MSB = píxel izquierdo: índice de byte par -> byte alto de la palabra de patrón.
@@ -77,6 +99,7 @@ inline void plane_or_span(eng::u8* plane, eng::u16 row_bytes, eng::s32 y, eng::s
 	for (eng::u32 i = b0 + 1u; i < b1; ++i) {
 		row[i] = static_cast<eng::u8>(row[i] | pat_at(i));
 	}
+#endif
 }
 
 /// Cruces de una scanline (capacidad fija, sin heap). Si se supera, se descarta el exceso.

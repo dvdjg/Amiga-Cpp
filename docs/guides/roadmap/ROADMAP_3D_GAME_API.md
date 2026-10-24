@@ -206,7 +206,8 @@ Invariantes: el clear de un objeto cubre su bbox anterior y el actual; las caras
 
 ## 10. Demos, juegos y numeración
 
-- Demos del ámbito `demos/techniques/amiga/3d`: **`091_scene3d_nodes`** (G2, **construida**; visión OK, 31,82 fps release con alambre directo), **`092_articulated_character`** (G7), **`093_rigid_anim`** (G4), **`095_collision3d`** (G6), **`096_silhouette_swarm`** (P8) y las pendientes 094/097.
+- Demos del ámbito `demos/techniques/amiga/3d`: **`091_scene3d_nodes`** (G2, **construida**; visión OK, 31,82 fps release con alambre directo), **`092_articulated_character`** (G7), **`093_rigid_anim`** (G4), **`095_collision3d`** (G6), **`096_silhouette_swarm`** (P8), **`099_starfox_travel`** (traveling 3D con siluetas CPU, **28,48 fps release**) y las pendientes 094/097 (097 reservada para el horizonte del plan de presentación).
+- `099_starfox_travel` valida una ruta de **siluetas pequeñas por spans CPU directos** sobre dos planos: 3 sólidos, enemigos y balas a 28,48 fps release (249.041 ciclos/frame, 1,755 campos), sin excepción de presupuesto. El fondo/HUD viven en los planos 2/3 y no se tocan por frame; la ruta `plane_or_span` del engine se optimizó con palabras en big-endian y conserva la ruta por bytes en host (HOST-217/474/479/481/482 en verde).
 - Juego del corte vertical: `games/401_3d_room` (siguiente libre; si se acuerda un bloque 600 para 3D, reservarlo en [`NUMBERING.md`](../../ai-dev-environment/NUMBERING.md) y actualizar este documento).
 - Tests host: **HOST-488** cubre G0+G1 (`tests/host/graphics/488_scene3d_api`), **HOST-489** cubre colisión 3D (`tests/host/core/489_collision3d`) y **HOST-490** física arcade (`tests/host/sim/490_physics3d`); el cooker se valida con `node dist/tools/assets/cook-model3d.js --self-test`. Los nuevos reservan ID en `TAXONOMY.md`. Sondas on-target en `tests/amiga/l1_backend/` con el siguiente número libre.
 

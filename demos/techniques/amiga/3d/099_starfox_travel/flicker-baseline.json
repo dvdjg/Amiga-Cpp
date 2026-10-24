@@ -1,0 +1,5 @@
+{
+  "max_candidates": 36,
+  "max_blocks_low": 55,
+  "note": "Calibrado con la secuencia release de 8 frames (separacion ~300 ms) de la escena de traveling. El detector marca como candidatos los cazas y las estrellas que se mueven de forma independiente (no hay traslacion global que compensar); la revision de los frames y la vision no encontraron flicker, tearing ni rectangulos de borrado. Recalibrar si cambia el numero/tamano de objetos o el fondo."
+}
