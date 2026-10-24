@@ -293,7 +293,6 @@ private:
 			// allocator las moviera a otro par, leerían otros `COLORxx`).
 			d.assign_rank = 1u;
 			d.preferred_channel = static_cast<eng::u8>(i * 2u);
-			d.preferred = scene::Representation::Sprite;
 			d.transparency = scene::TransparencyMode::Opaque; // sprite: transparencia nativa
 			d.background = scene::BackgroundPolicy::None;
 			m_ids[i] = m_scene.add(d);
@@ -315,7 +314,6 @@ private:
 			// Fijos con canal preferido 4 y 5 (par 4/5): conservan su gama al moverse.
 			d.assign_rank = 1u;
 			d.preferred_channel = static_cast<eng::u8>(4u + i);
-			d.preferred = scene::Representation::Sprite;
 			d.transparency = scene::TransparencyMode::Opaque;
 			d.background = scene::BackgroundPolicy::None;
 			m_ids[kGems + i] = m_scene.add(d);

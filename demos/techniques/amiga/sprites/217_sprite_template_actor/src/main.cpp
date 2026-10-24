@@ -229,7 +229,6 @@ private:
 		d.x = static_cast<eng::s16>(m_hpos);
 		d.y = static_cast<eng::s16>(m_vpos);
 		d.z = 10u;
-		d.preferred = scene::Representation::Sprite;
 		d.transparency = scene::TransparencyMode::Opaque; // sprite: transparencia nativa
 		d.background = scene::BackgroundPolicy::None;
 		m_id = m_scene.add(d);

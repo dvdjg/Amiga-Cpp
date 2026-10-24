@@ -319,7 +319,6 @@ private:
 			d.visual = m_bullet_vis;
 			d.x = static_cast<eng::s16>(40u + s * 34u);
 			d.y = static_cast<eng::s16>(48u + s * 22u);
-			d.preferred = eng::scene::Representation::Sprite;
 			d.transparency = eng::scene::TransparencyMode::Opaque; // sprite: nativo
 			d.background = eng::scene::BackgroundPolicy::None;
 			m_bullet_ids[s] = m_bullets.add(d);

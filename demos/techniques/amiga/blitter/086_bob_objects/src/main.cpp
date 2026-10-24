@@ -575,7 +575,6 @@ private:
 			d.y = 0;
 			d.surface = 0u;
 			d.z = static_cast<eng::u8>(10u + i);
-			d.preferred = scene::Representation::Bob;
 			d.layout = graphics::BobLayout::Planar;
 			if (policy == 0u) {
 				d.transparency = scene::TransparencyMode::Mask1Bit;

@@ -30,6 +30,7 @@ int g_fail = 0;
 
 struct FakeOverlay {
 	int clears = 0;
+	int text_calls = 0;
 	char name[64] {};
 	char state[64] {};
 	char stats[64] {};
@@ -37,14 +38,28 @@ struct FakeOverlay {
 	void clear() noexcept { ++clears; }
 
 	void text(int x, int y, const char* text, eng::u32 rgb) noexcept {
-		(void)x;
 		(void)rgb;
-		char* dst = y == 4 ? name : y == 12 ? state : y == 20 ? stats : nullptr;
-		if (dst == nullptr || text == nullptr) {
+		if (text == nullptr || x != eng::debug::HostHud::kMarginX ||
+		    y != eng::debug::HostHud::kMarginY) {
 			return;
 		}
-		std::strncpy(dst, text, 63u);
-		dst[63] = '\0';
+		++text_calls;
+		char block[256] {};
+		std::strncpy(block, text, sizeof(block) - 1u);
+		char* lines[3] = {name, state, stats};
+		char* p = block;
+		for (unsigned i = 0u; i < 3u && *p != '\0'; ++i) {
+			char* end = p;
+			while (*end != '\0' && *end != '\n') {
+				++end;
+			}
+			if (*end == '\n') {
+				*end++ = '\0';
+			}
+			std::strncpy(lines[i], p, 63u);
+			lines[i][63] = '\0';
+			p = end;
+		}
 	}
 };
 
@@ -52,6 +67,7 @@ void test_identity_and_fps() {
 	FakeOverlay overlay {};
 	eng::debug::HostHud hud {};
 	hud.draw(overlay, "486 TEST HUD", eng::debug::Version {1u, 2u}, 0u, 1000u);
+	CHECK(overlay.text_calls == 1); // un solo bloque multil?nea
 	CHECK(std::strncmp(overlay.name, "486 TEST HUD v1.2.", 18u) == 0);
 	CHECK(std::strncmp(overlay.state, "F0 0.0FPS", 9u) == 0);
 	CHECK(overlay.clears == 1);

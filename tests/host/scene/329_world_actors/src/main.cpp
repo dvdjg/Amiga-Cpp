@@ -48,7 +48,6 @@ scene::ActorDesc make_bob(eng::s16 x, eng::s16 y, eng::u8 z) {
 	d.y = y;
 	d.surface = 0u;
 	d.z = z;
-	d.preferred = scene::Representation::Bob;
 	return d;
 }
 

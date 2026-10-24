@@ -302,3 +302,32 @@ y pedir **regiones relativas**; pasar siempre pares/tríos (referencia + actual 
 > frames, tearing sutil, corrupción de copperlist). La referencia fiable es la **capa determinista**;
 > la respuesta del modelo es **apoyo**, no veredicto. Ante discrepancia, prevalece el frame-diff.
 
+
+## Sonda de imágenes reutilizable (`image_probe.py`)
+
+Para diagnósticos de capturas (HUD, texto, regiones, recortes) no se escriben ya scripts Python inline: `image_probe.py` concentra la lógica y se puede importar o usar como CLI. Solo depende de Pillow.
+
+```bash
+# ¿Dónde está el texto blanco y cuántas bandas de líneas hay?
+python tools/vision-review/image_probe.py probe out/vision/captura.png \
+  --color white --region 0,0,1200,300 --min-count 3 --json
+
+# Recortar y ampliar una zona para revisión visual
+python tools/vision-review/image_probe.py crop out/vision/captura.png \
+  out/vision/hud.png --box 0,0,700,120
+python tools/vision-review/image_probe.py scale out/vision/hud.png \
+  out/vision/hud_4x.png --factor 4
+```
+
+Código:
+
+```python
+from image_probe import load_rgb, probe_color, crop, save_png
+
+img = load_rgb("out/vision/captura.png")
+result = probe_color(img, (255, 255, 255), region=(0, 0, 1200, 300))
+if result.bbox:
+    save_png(crop(img, result.bbox.as_tuple()), "out/vision/hud.png")
+```
+
+Las cajas usan la convención de Pillow (`right`/`bottom` exclusivos). `bands` agrupa filas contiguas con tinta; es la forma barata de distinguir una línea de HUD de tres. Tests: `python -m unittest tools/vision-review/test_image_probe.py`.

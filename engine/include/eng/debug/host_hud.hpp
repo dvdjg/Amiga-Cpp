@@ -48,17 +48,25 @@ public:
 		if (clear) {
 			dbg.clear();
 		}
-		dbg.text(4, 4, m_name.c_str(), 0xffffffu);
-		dbg.text(4, 12, m_state.c_str(), 0xffffffu);
+		// Un solo bloque: el overlay del host (WinUAE) redimensiona y recorta
+		// primitivas por separado; tres `text` en filas fijas pod?an perder las
+		// primeras l?neas. El bloque mantiene el orden y el margen seguro.
+		m_block.clear();
+		m_block << m_name.c_str() << '\n' << m_state.c_str();
 		if (stats != nullptr && *stats != '\0') {
 			m_stats.clear();
 			m_stats << stats;
-			dbg.text(4, 20, m_stats.c_str(), 0xffffffu);
+			m_block << '\n' << m_stats.c_str();
 		}
+		dbg.text(kMarginX, kMarginY, m_block.c_str(), 0xffffffu);
 	}
 
 	/// Última estimación de fps ×10 (p. ej. 275 = 27,5 fps); 0 hasta la primera ventana.
 	[[nodiscard]] constexpr eng::u32 fps10() const noexcept { return m_fps10; }
+
+	/// Margen seguro del bloque multil?nea en el overlay.
+	static constexpr eng::s16 kMarginX = 8;
+	static constexpr eng::s16 kMarginY = 8;
 
 private:
 	HudFpsWindow m_fps {};          ///< ventana de ~1 s para fps10
@@ -66,6 +74,7 @@ private:
 	eng::util::TextLine<64> m_name {};  ///< nombre + versión
 	eng::util::TextLine<48> m_state {}; ///< frame + fps
 	eng::util::TextLine<64> m_stats {}; ///< telemetría opcional del llamador
+	eng::util::TextLine<176> m_block {}; ///< bloque multil?nea enviado al overlay
 };
 
 } // namespace eng::debug

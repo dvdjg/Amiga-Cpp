@@ -222,7 +222,6 @@ struct ActorDesc {
 	eng::u8 strip_id = 0;
 	eng::u8 strip_index = 0;
 	eng::u8 strip_span = 1;
-	Representation preferred = Representation::Sprite;
 	/// **Petición explícita de BOB** para la fachada por intención (`SpritePolicy::Bob`,
 	/// `Reuse::None`, `Attach::Off` sobre contenido de 4 planos). No consume sprite HW;
 	/// el compositor lo marca `as_bob` sin pasar por el reparto de canales. No cambia el
@@ -304,7 +303,6 @@ inline Bob bob_from_visual(const Visual& v, BobLayout layout, TransparencyMode t
 	d.y = y;
 	d.surface = surface;
 	d.z = z;
-	d.preferred = Representation::Bob;
 	return d;
 }
 
