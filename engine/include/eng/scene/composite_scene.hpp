@@ -44,7 +44,6 @@
 #include <eng/graphics/sprite_attached.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/scene/composite_actor.hpp>
-#include <eng/scene/representation.hpp>
 
 namespace eng {
 

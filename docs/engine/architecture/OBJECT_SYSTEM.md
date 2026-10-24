@@ -109,7 +109,7 @@ Invariantes:
 
 ## 4. Elección y degradación de representación
 
-La representación actual se expresa con `eng::scene::Representation`: `Cpu`, `Sprite`, `Bob` y `Layer`. La aplicación solo aporta una **preferencia** dentro de `ActorDesc` (`preferred`, `priority`, `scrolls`, geometría y planos); el `SpriteAllocator` elige y consume recursos con `SpriteAllocator`, cuyo orden es `Layer > Sprite > Bob > Cpu`.
+`eng::scene::Representation` queda solo para las **partes compuestas** (`Sprite`/`Bob`). `ActorDesc` ya no declara `preferred`: el `SpriteAllocator` decide el reparto en la composici?n y `SpriteLoadReport` publica el resultado.
 
 Reglas de elegibilidad ya codificadas:
 

@@ -41,7 +41,6 @@
 #include <eng/graphics/sprite_chain.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/scene/actor.hpp>
-#include <eng/scene/representation.hpp>
 #include <eng/scene/sprite_visual.hpp>
 
 namespace eng {

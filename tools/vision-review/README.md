@@ -331,3 +331,21 @@ if result.bbox:
 ```
 
 Las cajas usan la convención de Pillow (`right`/`bottom` exclusivos). `bands` agrupa filas contiguas con tinta; es la forma barata de distinguir una línea de HUD de tres. Tests: `python -m unittest tools/vision-review/test_image_probe.py`.
+
+## Captura y regresión del HUD
+
+`capture-window.ps1` captura una ventana real de WinUAE (`window`, `client` o `screen`), opcionalmente la redimensiona. Evita repetir P/Invoke inline:
+
+```powershell
+powershell -File tools/vision-review/capture-window.ps1 -TitleLike WinUAE -Out out/vision/win.png -Mode client
+powershell -File tools/vision-review/capture-window.ps1 -ProcessId 1234 -Width 1500 -Height 1000 -Out out/vision/win-wide.png -Mode screen
+```
+
+`hud-resize-check.ps1` automatiza la regresión del HUD: lanza una demo, redimensiona la ventana en segundo plano y exige que el bloque multilínea siga teniendo tinta y varias bandas. Requiere WinUAE, `run-demo` y Pillow:
+
+```powershell
+powershell -File tools/vision-review/hud-resize-check.ps1
+powershell -File tools/vision-review/hud-resize-check.ps1 -Demo demos/techniques/amiga/sprites/225_sprite_director_stress -Width 1600 -Height 1000
+```
+
+El check imprime `HUD resize OK: pixels=..., bands=...` y deja la captura en `out/vision/hud-resize-check.png`.
