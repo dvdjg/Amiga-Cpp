@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-24T21:35:53.300Z
+- Fecha: 2026-10-24T23:48:18.606Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_003.png, frame_004.png, frame_006.png, frame_007.png (6)
+- Frames: frame_000.png, frame_004.png, frame_007.png (3)
 - Secuencia: `out/run/099_starfox_travel/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -17,32 +17,35 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Análisis de las imágenes:**
 
-Las tres imágenes muestran una secuencia de un juego de estilo retro, identificado como "099 STARFOX TRAVEL v1.0.6477", en la fase "RAIL RUN SECTOR 7" con "NO INPUT".
+**Elementos gráficos observables:**
 
-**Elementos gráficos fijos:**
-*   **Fondo:** Un espacio negro con pequeños puntos de luz azules dispersos, representando estrellas.
-*   **Barra superior:** Una franja horizontal de color azul oscuro con un elemento azul más claro en la esquina superior izquierda.
-*   **Barra inferior:** Una franja horizontal de color azul oscuro que contiene varios objetos:
-    *   A la izquierda: un objeto gris con forma de pez o roca.
-    *   En el centro: un objeto gris más pequeño.
-    *   A la derecha: un objeto azul claro con forma de semiesfera.
-*   **Texto en la parte inferior:** En letras blancas y amarillas, se lee "099 STARFOX TRAVEL" y debajo "RAIL RUN SECTOR 7 NO INPUT".
-*   **Nave principal:** Un triángulo azul claro con un punto amarillo en su centro, ubicado en el centro de la pantalla, ligeramente más abajo del centro. La nave parece estar en movimiento hacia abajo, pero en las tres imágenes está en la misma posición vertical.
-
-**Elementos gráficos móviles (enemigos):**
-*   **Objetos rojos:** Hay varios triángulos rojos que se mueven en el espacio. En cada imagen, su posición cambia ligeramente, lo que sugiere movimiento continuo.
-    *   **Imagen 1:** Hay tres triángulos rojos visibles. Uno está a la izquierda, otro en el centro y otro a la derecha.
-    *   **Imagen 2:** Los triángulos rojos se han desplazado. El de la izquierda se ha movido hacia arriba y a la derecha. El del centro se ha movido hacia abajo y a la izquierda. El de la derecha se ha movido hacia abajo y a la izquierda.
-    *   **Imagen 3:** Los triángulos rojos continúan su movimiento. El de la izquierda se ha movido hacia abajo y a la derecha. El del centro se ha movido hacia arriba y a la izquierda. El de la derecha se ha movido hacia arriba y a la izquierda.
+*   **Fondo:** Un espacio negro con pequeños puntos de luz (estrellas) dispersos.
+*   **Objetos en el centro:**
+    *   Un objeto principal de forma triangular, de color azul claro con un borde más oscuro, que parece estar en movimiento hacia abajo.
+    *   Dos objetos más pequeños, de forma triangular y color rojizo, situados a la izquierda y derecha del objeto principal, que también parecen estar en movimiento.
+*   **Elementos en la parte inferior:**
+    *   Una franja horizontal de color púrpura oscuro.
+    *   Sobre esta franja, varios objetos de forma irregular (parecidos a rocas o montañas) en tonos grises y púrpura.
+*   **Texto en la parte inferior:**
+    *   "099 STARFOX TRAVEL"
+    *   "RAIL RUN SECTOR 7"
+    *   "NO INPUT"
+*   **Texto en la parte superior:**
+    *   "099 STARFOX TRAVEL v1.0.6501 | F45 81.6FPS | E2 2B2" (en la primera imagen)
+    *   "099 STARFOX TRAVEL v1.0.6501 | F61 21.4FPS | E2 B1" (en la segunda imagen)
 
 **Cambios entre imágenes:**
-*   **Posición de los enemigos rojos:** Es el único elemento que cambia de posición entre las imágenes, indicando un movimiento continuo.
-*   **FPS (Framers Per Second):** El valor en la esquina superior derecha cambia: 89.6FPS en la imagen 1, 29.6FPS en la imagen 2 y 29.5FPS en la imagen 3. Esto sugiere que el juego está siendo ejecutado en un entorno con rendimiento variable.
 
-**Observaciones:**
-*   **Contorno de los objetos:** Los contornos de los objetos (nave, enemigos, obstáculos) son limpios y no presentan bandas, halos ni píxeles cortados. No hay artefactos visibles.
-*   **Fondo:** El fondo permanece igual en cada imagen, con las estrellas en la misma posición relativa.
-*   **Elementos superpuestos:** No hay elementos superpuestos ni incompletos.
-*   **Posición de la nave:** La nave principal permanece en la misma posición en todas las imágenes, lo que sugiere que el juego está en pausa o que el jugador no ha dado ninguna entrada (confirmado por "NO INPUT").
+*   **Posición de los objetos:** Los objetos triangulares (principal y secundarios) han cambiado ligeramente de posición respecto a la primera imagen, lo que sugiere movimiento.
+*   **Texto en la parte superior:** El texto cambia de "F45 81.6FPS | E2 2B2" a "F61 21.4FPS | E2 B1". Esto indica un cambio en el estado del programa, probablemente en el marco de tiempo o en la memoria.
+*   **FPS:** El valor de FPS cambia de 81.6 a 21.4, lo que sugiere una variación en el rendimiento del programa o un cambio en la configuración de renderizado.
 
-**Conclusión:** Las imágenes muestran una secuencia de un juego de acción en 2D con un estilo retro. La nave principal está en una posición fija, mientras que los enemigos rojos se mueven en el espacio. El fondo es constante y no presenta artefactos visibles. El cambio en el FPS indica que el juego está siendo ejecutado en un entorno con rendimiento variable.
+**Observaciones sobre la calidad gráfica:**
+
+*   **Contornos de los objetos:** Los contornos de los objetos triangulares son limpios y no presentan bandas, halos rectangulares ni píxeles cortados. No hay restos de su posición anterior.
+*   **Fondo alrededor de los objetos:** El fondo negro permanece uniforme y no se ve afectado por los objetos, lo que sugiere que los objetos no tapan el fondo con un rectángulo de color uniforme, sino que se superponen directamente sobre él.
+*   **Elementos en la parte inferior:** Los objetos en la franja inferior permanecen estacionarios y su apariencia es consistente en ambas imágenes.
+
+**Conclusión:**
+
+Las imágenes muestran una escena de un juego o simulador de espacio con un objeto principal y dos secundarios en movimiento. El texto en la parte superior cambia entre las imágenes, indicando un cambio en el estado del programa. La calidad gráfica es consistente, con contornos limpios y fondo uniforme. No se observan artefactos, recortes o elementos superpuestos.
