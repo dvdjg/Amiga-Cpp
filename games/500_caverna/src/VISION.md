@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-24T18:43:03.079Z
+- Fecha: 2026-10-24T19:08:03.708Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_003.png, frame_004.png, frame_005.png (5)
+- Frames: frame_000.png, frame_001.png, frame_002.png (3)
 - Secuencia: `out/run/500_caverna/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,30 +15,23 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes son idénticas en su contenido visual, excepto por el texto en la barra superior.
+**Imagen 1:**
+- **Fondo:** Negro.
+- **Elemento fijo inferior:** Un bloque rectangular de caracteres numéricos (2, 3, 4, 5, 6, 7) en color verde claro sobre fondo oscuro, con contorno blanco. Está centrado en la parte inferior de la pantalla.
+- **Elementos flotantes superiores:** Seis cuadrados verdes con el número "1" en blanco, distribuidos en la parte superior. Uno está en la esquina superior derecha, otro en la parte superior central, y otros cuatro en posiciones dispersas.
+- **Elementos móviles:** Dos rectángulos verticales rojos y dos rectángulos verticales naranjas. Están suspendidos en el aire, sobre el bloque inferior. Uno de los rectángulos naranjas está parcialmente superpuesto sobre el bloque inferior.
+- **Texto en la esquina superior izquierda:** "CAVERNA DEMO 500 v1.0.160 | F36 0.0FPS".
 
-**Descripción general:**
-- **Fondo:** Una cuadrícula de píxeles de color verde claro sobre un fondo negro.
-- **Contenido de la cuadrícula:** Está compuesta por caracteres numéricos (0, 1, 2, 3, 4, 5, 6, 7) y símbolos (como `|` y `+` en algunos bordes) que forman un patrón repetitivo y estructurado. El patrón se repite en filas y columnas, creando una especie de malla o mapa.
-- **Elementos visibles:**
-  - **Objetos móviles (en forma de bloques):** Hay varios bloques de color que parecen estar en movimiento o posicionados en el mapa.
-    - Un bloque **naranja** en la columna 4, fila 4 (contando desde la parte superior izquierda).
-    - Un bloque **rojo** en la columna 4, fila 6.
-    - Un bloque **rojo** en la columna 6, fila 7.
-    - Un bloque **marrón** en la columna 8, fila 5.
-  - **Contorno de los objetos:** Los contornos de los bloques son limpios, sin halos ni artefactos visibles. No hay píxeles cortados ni colgando en los bordes.
-  - **Fondo alrededor:** El fondo inmediatamente alrededor de los bloques es el mismo patrón de la cuadrícula, no hay un rectángulo de color uniforme que los cubra.
+**Imagen 2:**
+- **Fondo:** Negro.
+- **Elemento fijo inferior:** El bloque de caracteres numéricos es idéntico al de la primera imagen.
+- **Elementos flotantes superiores:** Los seis cuadrados verdes con "1" están en la misma posición que en la primera imagen.
+- **Elementos móviles:**
+  - Los dos rectángulos rojos están en la misma posición que en la primera imagen.
+  - Los dos rectángulos naranjas han cambiado de posición. El que estaba a la izquierda ha avanzado hacia la derecha, y el que estaba a la derecha ha avanzado hacia la izquierda. Ambos están ahora parcialmente superpuestos sobre el bloque inferior.
+- **Texto en la esquina superior izquierda:** "CAVERNA DEMO 500 v1.0.160 | F56 44.5FPS".
 
-**Cambios entre imágenes:**
-- **Texto en la barra superior:**
-  - **Imagen 1:** `F26 0.0FPS`
-  - **Imagen 2:** `F184 44.5FPS`
-  - **Imagen 3:** `F144 44.5FPS`
-- **Interpretación:** El texto "F26 0.0FPS" en la primera imagen sugiere que el programa no está renderizando correctamente o que está en un estado de pausa/inicio. En las siguientes imágenes, el FPS (frames per second) es 44.5, lo que indica que el programa está funcionando normalmente. El valor "F26" y "F184" y "F144" probablemente representan un contador o un identificador de frame, que cambia entre imágenes, pero no hay cambios en la visualización de la cuadrícula ni en la posición de los bloques.
-
-**Observaciones:**
-- No hay artefactos, recortes, elementos superpuestos o incompletos.
-- La posición de los bloques es la misma en todas las imágenes.
-- El patrón de la cuadrícula es consistente en todas las imágenes.
-
-**Conclusión:** Las imágenes muestran una secuencia de capturas de pantalla de un programa llamado "CAVERNA DEMO 500 v1.0.155". El contenido visual de la cuadrícula y los bloques no cambia entre las imágenes, pero el texto en la barra superior cambia, indicando un cambio en el estado del programa (de 0.0FPS a 44.5FPS y un cambio en el identificador de frame).
+**Cambios observables:**
+- Los rectángulos naranjas se han movido horizontalmente hacia el centro, superponiéndose parcialmente sobre el bloque inferior.
+- El texto en la esquina superior izquierda ha cambiado de "F36 0.0FPS" a "F56 44.5FPS", lo que sugiere que el juego ha comenzado a correr.
+- Los demás elementos (cuadrados verdes, rectángulos rojos, bloque inferior) mantienen su posición relativa y apariencia.

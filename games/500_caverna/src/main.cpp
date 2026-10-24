@@ -53,13 +53,48 @@ constexpr eng::u16 kPalette[32] {
 	0x421, 0x742, 0x085, 0x0aa, 0x4dd, 0xf6c, 0xf3a, 0x221,
 };
 
-/// Crea un relieve por bandas para que la cámara recorra formas amplias y legibles,
-/// con el mapa fijo `FixedTileLayerMap<256>`.
+constexpr eng::u16 kSolidFirst = 2u;
+constexpr eng::u16 kSolidLast = 11u;
+constexpr eng::s16 kGravity = 1;
+constexpr eng::s16 kJump = -8;
+constexpr eng::s16 kPlayerSize = 16;
+
+/// `true` si la celda es parte del terreno que bloquea al jugador. Los tiles
+/// 0/1 son decoracion y los 2..11 son las plataformas/suelo del tileset.
+bool tile_is_solid(eng::u16 tx, eng::u16 ty) {
+	if (tx >= kMapWidth || ty >= kMapHeight) return true;
+	const eng::u16 tile = g_cells[static_cast<eng::u32>(ty) * kMapWidth + tx];
+	return tile >= kSolidFirst && tile <= kSolidLast;
+}
+
+/// Colision de la caja 16x16 con el tilemap en coordenadas de mundo. Se usa
+/// `>> 4` (tile 16 px) y no division en el bucle de juego.
+bool box_hits_solid(eng::s32 x, eng::s32 y) {
+	if (x < 0 || y < 0) return true;
+	const eng::s32 tx0 = x >> 4;
+	const eng::s32 ty0 = y >> 4;
+	const eng::s32 tx1 = (x + kPlayerSize - 1) >> 4;
+	const eng::s32 ty1 = (y + kPlayerSize - 1) >> 4;
+	for (eng::s32 ty = ty0; ty <= ty1; ++ty) {
+		for (eng::s32 tx = tx0; tx <= tx1; ++tx) {
+			if (tile_is_solid(static_cast<eng::u16>(tx), static_cast<eng::u16>(ty))) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/// Crea un relieve por bandas y una linea de pilares bajos para que el jugador
+/// tenga obstaculos horizontales que superar saltando. El suelo esta en la fila
+/// 7 (y=112) y los tiles 8..11 rellenan el terreno inferior.
 void build_map() {
 	for (eng::u16 y = 0u; y < kMapHeight; ++y) {
 		for (eng::u16 x = 0u; x < kMapWidth; ++x) {
 			eng::u16 tile = 0u;
-			if (y < 7u) {
+			if (y == 6u && (x & 31u) == 0u) {
+				tile = static_cast<eng::u16>(2u + ((x >> 4u) & 1u));
+			} else if (y < 7u) {
 				tile = ((x + y * 5u) % 19u == 0u) ? 1u : 0u;
 			} else if (y == 7u) {
 				tile = static_cast<eng::u16>(2u + ((x / 4u) & 1u));
@@ -96,11 +131,15 @@ struct DemoGame {
 	// Cámara del motor (posición px que conduce el `App`); se sincroniza con la del `World`.
 	eng::s32 cam_x = 0;
 	eng::s32 cam_y = 0;
-	eng::s16 player_x = 152;
+	eng::s16 player_wx = 152; // posicion de mundo, no de pantalla
 	eng::s16 player_y = 96;
+	eng::s16 player_vy = 0;
+	bool on_ground = true;
+	bool jump_prev = false;
 	static constexpr eng::u8 kEnemyCount = 4u;
 	eng::s16 enemy_x[kEnemyCount] {32, 96, 168, 264};
-	eng::s16 enemy_y[kEnemyCount] {128, 152, 176, 136};
+	eng::s16 enemy_y[kEnemyCount] {80, 64, 88, 72};
+	eng::s8 enemy_dx[kEnemyCount] {1, -1, 1, -1};
 	static constexpr eng::u8 kSpriteCount = 1u + kEnemyCount;
 	static constexpr eng::u16 kSpriteBytes = 64u;
 	eng::graphics::SpriteConfig m_sprites[kSpriteCount] {};
@@ -109,7 +148,20 @@ struct DemoGame {
 	bool joy_right = false;
 	bool joy_up = false;
 	bool joy_down = false;
+	eng::u8 joy_fire = 0u;
+	eng::u8 mouse_buttons = 0u;
 	bool ready = false;
+
+	[[nodiscard]] eng::s16 player_screen_x() const {
+		const eng::s32 sx = static_cast<eng::s32>(player_wx) - cam_x;
+		if (sx < 0) return 0;
+		if (sx > static_cast<eng::s32>(kWidth - kPlayerSize)) return static_cast<eng::s16>(kWidth - kPlayerSize);
+		return static_cast<eng::s16>(sx);
+	}
+
+	[[nodiscard]] eng::s16 enemy_screen_x(eng::u8 i) const {
+		return static_cast<eng::s16>(enemy_x[i] - cam_x);
+	}
 
 	/// DATA de sprite: 16 lineas de DAT/DATB por slot; el jugador y cuatro enemigos.
 	void init_sprites() {
@@ -128,22 +180,35 @@ struct DemoGame {
 			m_sprites[slot].height = 16u;
 			m_sprites[slot].attach = false;
 		}
-		m_sprites[0].hpos = static_cast<eng::u16>(0x81u + player_x);
+		m_sprites[0].hpos = static_cast<eng::u16>(0x81u + player_screen_x());
 		m_sprites[0].vstart = static_cast<eng::u16>(0x2cu + player_y);
 		m_sprites[0].vstop = static_cast<eng::u16>(m_sprites[0].vstart + 16u);
 		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
 			const eng::u8 slot = static_cast<eng::u8>(i + 1u);
-			m_sprites[slot].hpos = static_cast<eng::u16>(0x81u + enemy_x[i]);
+			m_sprites[slot].hpos = static_cast<eng::u16>(0x81u + enemy_screen_x(i));
 			m_sprites[slot].vstart = static_cast<eng::u16>(0x2cu + enemy_y[i]);
 			m_sprites[slot].vstop = static_cast<eng::u16>(m_sprites[slot].vstart + 16u);
 			scene.sprites().set(slot, m_sprites[slot]);
 		}
 		scene.sprites().set(0u, m_sprites[0]);
+		animate_enemies(0u);
 		scene.invalidate_composition();
 	}
 
+	/// Mantiene al jugador en una posicion estable de pantalla y desplaza el
+	/// mundo: la camara no se mueve a la vez que el sprite, sino que lo sigue.
+	void follow_camera() {
+		constexpr eng::s32 kScreenAnchor = 152;
+		eng::s32 target = static_cast<eng::s32>(player_wx) - kScreenAnchor;
+		if (target < 0) target = 0;
+		const eng::s32 max_x = static_cast<eng::s32>(kMapWidth * kTile) - kWidth;
+		if (target > max_x) target = max_x;
+		cam_x = target;
+		cam_y = 0;
+	}
+
 	void place_player() {
-		const eng::u16 hpos = static_cast<eng::u16>(0x81u + player_x);
+		const eng::u16 hpos = static_cast<eng::u16>(0x81u + player_screen_x());
 		const eng::u16 vstart = static_cast<eng::u16>(0x2cu + player_y);
 		if (m_sprites[0].hpos == hpos && m_sprites[0].vstart == vstart) return;
 		m_sprites[0].hpos = hpos;
@@ -151,6 +216,64 @@ struct DemoGame {
 		m_sprites[0].vstop = static_cast<eng::u16>(vstart + 16u);
 		scene.sprites().set(0u, m_sprites[0]);
 		scene.invalidate_composition();
+	}
+
+	/// Alterna el ancho del bloque de los enemigos cada 16 frames. Se escribe
+	/// solo el DATA que el DMA relee; no hace falta reemitir la copperlist.
+	void animate_enemies(eng::u32 frame) {
+		if ((frame & 15u) != 0u) return;
+		auto words = scene.sprites().sprite_words();
+		const eng::u16 pattern = ((frame >> 4u) & 1u) != 0u ? 0x07e0u : 0x03c0u;
+		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
+			const eng::u8 slot = static_cast<eng::u8>(i + 1u);
+			for (eng::u8 line = 2u; line < 14u; ++line) {
+				words[static_cast<eng::usize>(slot) * 32u + static_cast<eng::usize>(line) * 2u] = pattern;
+			}
+		}
+	}
+
+	/// Patrulla los enemigos cada 8 frames y refresca sus sprites una sola vez.
+	/// El refresco incluye la camara ya actualizada, para que no se queden fijos
+	/// en pantalla mientras el mundo se desplaza.
+	void update_enemies(eng::u32 frame) {
+		if ((frame & 15u) != 0u) return;
+		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
+			enemy_x[i] = static_cast<eng::s16>(enemy_x[i] + enemy_dx[i] * 2);
+			if (enemy_x[i] < 16) {
+				enemy_x[i] = 16;
+				enemy_dx[i] = 1;
+			}
+			if (enemy_x[i] > static_cast<eng::s16>(kMapWidth * kTile - 16u)) {
+				enemy_x[i] = static_cast<eng::s16>(kMapWidth * kTile - 16u);
+				enemy_dx[i] = -1;
+			}
+		}
+		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
+			const eng::u8 slot = static_cast<eng::u8>(i + 1u);
+			const eng::s16 sx = enemy_screen_x(i);
+			const bool visible = sx >= 0 && sx <= static_cast<eng::s16>(kWidth - 16);
+			m_sprites[slot].enabled = visible;
+			if (visible) {
+				m_sprites[slot].hpos = static_cast<eng::u16>(0x81u + sx);
+				m_sprites[slot].vstart = static_cast<eng::u16>(0x2cu + enemy_y[i]);
+				m_sprites[slot].vstop = static_cast<eng::u16>(m_sprites[slot].vstart + 16u);
+			}
+			scene.sprites().set(slot, m_sprites[slot]);
+		}
+		scene.invalidate_composition();
+	}
+
+	/// Resuelve el contacto jugador/enemigo con una reaccion minima: invierte
+	/// la patrulla y deja al jugador en la posicion horizontal previa.
+	void resolve_enemy_hits(eng::s16 old_wx) {
+		const eng::Box player { player_wx, player_y, kPlayerSize, kPlayerSize };
+		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
+			const eng::Box enemy { enemy_x[i], enemy_y[i], kPlayerSize, kPlayerSize };
+			if (eng::overlaps(player, enemy)) {
+				enemy_dx[i] = static_cast<eng::s8>(-enemy_dx[i]);
+				player_wx = old_wx;
+			}
+		}
 	}
 
 
@@ -188,10 +311,12 @@ struct DemoGame {
 		config.map.height = kMapHeight;
 		config.map.wrap_x = 0u;
 		config.map.wrap_y = 0u;
+		config.map.empty_tile = 0u; // el tile 0 es cielo/vacio, no se pinta
 		config.map2.cells = eng::Span<const eng::u16> {g_cells, kMapWidth * kMapHeight};
 		config.map2.height = kMapHeight;
 		config.map2.wrap_x = 0u;
 		config.map2.wrap_y = 0u;
+		config.map2.empty_tile = 0u;
 		config.tileset_count = kTilesetCount;
 		config.fg_row_fn = &tile_row;
 		config.bg_row_fn = &tile_row;
@@ -210,11 +335,11 @@ struct DemoGame {
 		eng::amiga::mark_ready();
 	}
 
-	/// Movimiento de cámara y jugador; el `App` conduce el frame.
+	/// Lee entrada por mensajes, integra gravedad/salto y resuelve la colision
+	/// contra el tilemap antes de mover la camara y refrescar los sprites.
 	void update(auto& app) {
 		if (!ready) return;
 		eng::s16 mouse_dx = 0;
-		eng::s16 mouse_dy = 0;
 		auto& port = eng::os::system_port();
 		if (!port.empty()) {
 			eng::os::Msg msg {};
@@ -222,7 +347,9 @@ struct DemoGame {
 				switch (msg.type) {
 				case eng::os::MsgType::MouseMove:
 					mouse_dx = static_cast<eng::s16>(mouse_dx + msg.payload.mouse.dx);
-					mouse_dy = static_cast<eng::s16>(mouse_dy + msg.payload.mouse.dy);
+					break;
+				case eng::os::MsgType::MouseButton:
+					mouse_buttons = msg.payload.mouse.buttons;
 					break;
 				case eng::os::MsgType::Joystick:
 					if (msg.payload.joy.port == 2u) {
@@ -230,6 +357,7 @@ struct DemoGame {
 						joy_right = (msg.payload.joy.dirs & eng::amiga::kJoyRight) != 0u;
 						joy_up = (msg.payload.joy.dirs & eng::amiga::kJoyUp) != 0u;
 						joy_down = (msg.payload.joy.dirs & eng::amiga::kJoyDown) != 0u;
+						joy_fire = msg.payload.joy.fire;
 					}
 					break;
 				default:
@@ -238,29 +366,58 @@ struct DemoGame {
 			}
 		}
 		const eng::s16 dx = static_cast<eng::s16>((joy_right ? 2 : 0) - (joy_left ? 2 : 0) + mouse_dx);
-		const eng::s16 dy = static_cast<eng::s16>((joy_down ? 1 : 0) - (joy_up ? 1 : 0) + mouse_dy);
-		if (dx == 0 && dy == 0) return;
-		player_x = static_cast<eng::s16>(player_x + dx);
-		player_y = static_cast<eng::s16>(player_y + dy);
-		if (player_x < 8) player_x = 8;
-		if (player_x > 296) player_x = 296;
-		if (player_y < 8) player_y = 8;
-		if (player_y > 184) player_y = 184;
+		const bool jump_down = (joy_fire != 0u) || ((mouse_buttons & 1u) != 0u) || joy_up;
+		if (jump_down && !jump_prev && on_ground) {
+			player_vy = kJump;
+			on_ground = false;
+		}
+		jump_prev = jump_down;
 
-		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
-			const eng::s16 ddx = static_cast<eng::s16>(player_x - enemy_x[i]);
-			const eng::s16 ddy = static_cast<eng::s16>(player_y - enemy_y[i]);
-			if (ddx > -16 && ddx < 16 && ddy > -16 && ddy < 16) {
-				player_x = static_cast<eng::s16>(player_x - 2);
+		const eng::s16 old_wx = player_wx;
+		if (dx != 0) {
+			player_wx = static_cast<eng::s16>(player_wx + dx);
+			if (player_wx < 8) player_wx = 8;
+			if (player_wx > static_cast<eng::s16>(kMapWidth * kTile - 8u)) {
+				player_wx = static_cast<eng::s16>(kMapWidth * kTile - 8u);
+			}
+			if (box_hits_solid(player_wx, player_y)) {
+				player_wx = old_wx;
 			}
 		}
 
-		cam_x += dx;
-		if (cam_x < 0) cam_x = 0;
-		if (cam_x > static_cast<eng::s32>(kMapWidth * kTile - kWidth)) {
-			cam_x = static_cast<eng::s32>(kMapWidth * kTile - kWidth);
+		player_vy = static_cast<eng::s16>(player_vy + kGravity);
+		if (player_vy > 8) player_vy = 8;
+		player_y = static_cast<eng::s16>(player_y + player_vy);
+		if (player_y < 0) {
+			player_y = 0;
+			player_vy = 0;
 		}
+		const eng::s16 max_y = static_cast<eng::s16>(kHeight - kPlayerSize);
+		if (player_y > max_y) {
+			player_y = max_y;
+			player_vy = 0;
+		}
+		if (box_hits_solid(player_wx, player_y)) {
+			if (player_vy > 0) {
+				while (player_y > 0 && box_hits_solid(player_wx, player_y)) {
+					player_y = static_cast<eng::s16>(player_y - 1);
+				}
+				on_ground = true;
+			} else if (player_vy < 0) {
+				while (player_y < max_y && box_hits_solid(player_wx, player_y)) {
+					player_y = static_cast<eng::s16>(player_y + 1);
+				}
+			}
+			player_vy = 0;
+		} else {
+			on_ground = box_hits_solid(player_wx, player_y + 1);
+		}
+
+		resolve_enemy_hits(old_wx);
+		follow_camera();
 		place_player();
+		update_enemies(app.frame());
+		animate_enemies(app.frame());
 	}
 
 	/// El `App` materializa el mundo y conduce el motor; el juego solo publica telemetría.
