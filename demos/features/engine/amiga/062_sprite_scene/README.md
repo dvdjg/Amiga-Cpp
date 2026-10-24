@@ -1,5 +1,7 @@
 # Demo 062 — fachada de sprites de nivel A (`eng::scene::SpriteDirector`)
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 Tutorial: el juego **da de alta actores** (`SpriteDesc`) y llama `emit`; el engine **compone**
 (HW sprites + `SpriteAllocator` + BOB fallback) **sin** que el juego declare los buffers de trabajo ni
 un `FramePlan`. Es la fachada del sistema de objetos NES (8 sprites/línea + overflow).

@@ -3,7 +3,7 @@
 ## Medición
 
 ```text
-500_caverna/A500_release | emulado=49,92 fps | 142102 ciclos/frame | 1,00159 campos/frame | stable=true
+500_caverna/A500_release | emulado=50,00 fps | 141869 ciclos/frame | 0,99996 campos/frame | stable=true
 ```
 
 Ventana de 12 s; `measure-fps`. La media es 49,92 fps y las muestras individuales oscilan entre 49,27 y 50,58 fps por la cuantización de frames por ventana. La medición es en reposo, sin entrada sostenida; no se ha medido el coste de un salto o desplazamiento continuo.

@@ -1,5 +1,7 @@
 # 217_sprite_template_actor - plantilla de franjas por el camino de actores
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 **Objetivo:** un objeto vertical de **cuatro franjas** servido por **un solo canal** de sprite
 ("chasing the raster") declarado como **plantilla** (`HwSpriteTemplate`) dentro de un
 `ActorDesc`: el engine proyecta los segmentos a intents **encadenados**

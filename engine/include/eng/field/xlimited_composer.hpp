@@ -221,9 +221,8 @@ private:
     void emit_display_header(Sched& sched, const PlayfieldHardwareView& view) const {
         // Fuente única de la cabecera (la misma que usa `scene::RasterLayout`).
         FieldHeaderConfig h {};
-        const u16 sprite_dma = static_cast<u16>(
-            (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0u) |
-            (m_placements.empty() ? 0u : 0x0020u)); // SPREN para placements externos
+        u16 sprite_dma = m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0u;
+        if (!m_placements.empty()) sprite_dma |= 0x0020u; // SPREN para placements externos
         h.dmacon = static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                                     copper::DmaCopper | copper::DmaBitplane | sprite_dma);
         // BPLCON0 por el constructor único (`bplcon0_for`): BPU = planos del view; con 6
@@ -408,6 +407,12 @@ public:
     /// Fuerza una re-emision completa en el proximo `compose()` (p. ej. tras configurar sprites).
     void invalidate() noexcept { m_copper_initialized = false; }
 
+    /// Placements de sprite HW del frame (multiplexado vertical). Sustituyen al
+    /// `SpriteManager` como fuente si la lista no esta vacia.
+    void set_sprite_placements(eng::Span<const graphics::HwSpritePlacement> placements) noexcept {
+        m_placements = placements;
+    }
+
     bool compose(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
         if (!m_initialized) return false;
         if (!valid(pf1, pf2)) return false;
@@ -550,7 +555,8 @@ private:
         // BPLCON1: nibble bajo = fine de PF1, alto = fine de PF2.
         const u16 bplcon1 = static_cast<u16>(
             ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f));
-        const u16 sprite_dma = m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0u;
+        u16 sprite_dma = m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0u;
+        if (!m_placements.empty()) sprite_dma |= 0x0020u;
         sched.move(copper::Register::DMACON,
             static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                              copper::DmaCopper | copper::DmaBitplane | sprite_dma));
@@ -561,7 +567,7 @@ private:
         u16 bplcon2 = m_cfg.foreground_is_pf2 ? 0x0040u : 0x0000u;
         // Los bits de prioridad PF1P/PF2P solo se tocan con sprites: en DPF sin
         // sprites cambiarian la prioridad relativa de los dos playfields.
-        if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) bplcon2 |= 0x0024u;
+        if ((m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) || !m_placements.empty()) bplcon2 |= 0x0024u;
         sched.move(copper::Register::BPLCON2, bplcon2);
         // Módulos: en DPF AMBOS playfields se muestran con el MISMO DDF/fetch, así
         // que el módulo de cada uno debe usar el fetch real de PF1 (no el suyo
@@ -577,14 +583,6 @@ private:
         sched.move(copper::Register::DDFSTRT, m_cfg.ddfstrt);
         sched.move(copper::Register::DDFSTOP, m_cfg.ddfstop);
         sched.emit_palette(m_cfg.palette, 0, 16); // DPF: 16 colores (PF1 0..7, PF2 8..15)
-        if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
-            sched.emit_palette(m_cfg.palette, 16, 16); // sprites COLOR16-31
-            if (m_cfg.sprites_armed) {
-                m_cfg.sprites->emit_armed_into(sched, 32u);
-            } else {
-                m_cfg.sprites->emit_into(sched);
-            }
-        }
         for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
             const u8 hw1 = hardware_plane(i, true);
             const u8 hw2 = hardware_plane(i, false);
@@ -594,6 +592,17 @@ private:
             m_patch_pf1[i][1] = sched.move_at(copper::bitplane_pointer_low_register(hw1), static_cast<u16>(a1 & 0xffffu));
             m_patch_pf2[i][0] = sched.move_at(copper::bitplane_pointer_high_register(hw2), static_cast<u16>(a2 >> 16));
             m_patch_pf2[i][1] = sched.move_at(copper::bitplane_pointer_low_register(hw2), static_cast<u16>(a2 & 0xffffu));
+        }
+        if (!m_placements.empty()) {
+            sched.emit_palette(m_cfg.palette, 16, 16); // sprites COLOR16-31
+            graphics::SpriteManager::emit_placements_into(sched, m_placements, 32u, {}, {}, true);
+        } else if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
+            sched.emit_palette(m_cfg.palette, 16, 16); // sprites COLOR16-31
+            if (m_cfg.sprites_armed) {
+                m_cfg.sprites->emit_armed_into(sched, 32u);
+            } else {
+                m_cfg.sprites->emit_into(sched);
+            }
         }
         m_split_a = pf1.split_active;
         m_split_b = pf2.split_active;
@@ -654,6 +663,7 @@ private:
     }
 
     Config m_cfg {};
+    eng::Span<const graphics::HwSpritePlacement> m_placements {};
     copper::DoubleBuffer m_copper {};
     u16 m_copper_words = 0;
     bool m_initialized = false;

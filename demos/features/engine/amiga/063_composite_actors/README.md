@@ -1,5 +1,7 @@
 # Demo 063 — sprites compuestos (`eng::CompositeScene`, F1)
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 Tutorial de la fachada de **sprites compuestos**: el juego describe contenido multi-parte
 (`CompositeVisual`: partes con su `Visual`, offsets respecto al ancla, frames por parte y
 secuencias) y estado (`CompositeState`: posición, secuencia, espejo); el engine decide la

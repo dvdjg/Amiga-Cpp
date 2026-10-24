@@ -8,6 +8,10 @@
 /// "sprite → BOB transparente" del engine). Es la pieza que separa el "qué quiero
 /// mostrar" (`SpriteIntent`/`Visual`) del "cómo se materializa" (`SpriteManager`).
 ///
+/// **Uso interno.** No está deprecado: es el motor que usa `SpriteDirector`/`SpriteScene`.
+/// El código de juego **no llama al allocator directamente**; declara `SpriteHint` en
+/// `eng::scene::SpriteDirector`, que aplica este reparto y devuelve `SpriteLoadReport`.
+///
 /// Algoritmo: *greedy first-fit* con multiplexado vertical. Procesa los intents
 /// ordenados por `top` ascendente y asigna a cada uno el primer canal libre en su
 /// intervalo. Si los 8 canales están ocupados, marca `as_bob`. Es el mismo criterio que

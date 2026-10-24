@@ -1,5 +1,7 @@
 # 066: showcase de BOBs + Sprites HW
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 Vitrina técnica de **todos los usos de BOB** del motor (la matriz de HOST-439 en vivo) más
 sprites hardware. Referencia por píxeles exactos:
 `tests/host/graphics/439_bob_render_matrix`.

@@ -1,5 +1,7 @@
 # 221 — Palette splitting de sprites (el mismo arte, dos paletas por franja)
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 Demo de la técnica **F7/F4.3** (`docs/guides/roadmap/ROADMAP_SPRITES_COMPLETO.md` §3.5): dos anillos de 16×16 viven en **un solo canal** (el 0, franjas disjuntas) y cada uno declara su **paleta** (`ActorDesc::sprite_palette`). El compositor arbitra con `plan_sprite_palettes`: el segundo actor **conmuta** los registros de su par al entrar en su franja (**CopperSwitch**) mediante un `SpritePaletteEvent` que `SpriteScene::present` intercala con los rearmes. Es el mismo arte pintado con dos juegos de colores sin gastar planos ni canales (`sprite-layer.md` §3: los canales de un par comparten `COLOR16-19`).
 
 - **Fachada de juego**: alta de actores + `emit` + `present` (el juego no toca canales ni Copper).

@@ -1,5 +1,7 @@
 # 216_attached_actors - pares *attached* end-to-end por el camino de actores
 
+> **Estado:** demo legacy de `SpriteScene`/`CompositeScene`; la fachada vigente es `SpriteDirector` (demo 225). Se conserva como referencia hist?rica.
+
 **Objetivo:** demostrar la técnica *attached* (15 colores) **a través de la fachada de
 actores**: el juego declara un `ActorDesc` con `visual.attached` (4 planos de 16 px) en
 `eng::SpriteScene`; el engine reparte los **dos canales contiguos** del par, **cocina** las dos

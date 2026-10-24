@@ -53,6 +53,7 @@
 #include <eng/field/xlimited.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_manager.hpp>
+#include <eng/scene/actor_types.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
@@ -715,6 +716,7 @@ public:
     bool compose() {
         if (!m_initialized) return false;
         m_single.set_sprite_placements(m_sprite_placements);
+        m_dual.set_sprite_placements(m_sprite_placements);
         if (m_cfg.dpf.enabled) {
             if (m_cfg.dpf.fg_canvas) {
                 return m_dual.compose(m_field[0].hardware_view(), m_fg_canvas.hardware_view());
@@ -870,6 +872,37 @@ public:
     graphics::SpriteManager& sprites() { return m_sprites; }
     const graphics::SpriteManager& sprites() const { return m_sprites; }
 
+    /// Bloque DATA de sprites (Chip) reservado por la escena. La copia de los
+    /// pixeles sigue siendo responsabilidad del juego; el bloque es la fuente
+    /// que consumen los placements.
+    [[nodiscard]] eng::ChipView<eng::SpriteTag> sprite_data_view() const noexcept {
+        return m_sprites.sprite_data_view();
+    }
+    /// Words mutables del bloque DATA de sprites (setup del arte).
+    [[nodiscard]] auto sprite_words() noexcept { return m_sprites.sprite_words(); }
+
+    /// Compone un frame de `SpriteDirector` y publica sus placements en la
+    /// copperlist de la escena. `SpriteDirector` es la fachada publica; la
+    /// escena no expone `SpriteManager` al juego.
+    ///
+    /// El contexto se rellena con el display de esta escena (sin camara de
+    /// actores: los `SpriteDesc` ya usan coordenadas de pantalla). Los BOB
+    /// degradados no se dibujan en esta ruta: el reporte los marca y el juego
+    /// debe mantener la escena dentro de los canales/placement disponibles.
+    /// \tparam Director fachada de sprites (`SpriteDirector`); debe ofrecer
+    ///         `emit(FramePlan&, ActorEmitContext&)` y `placements()`.
+    template <class Director>
+    auto emit_sprite_director(Director& director) noexcept {
+        eng::scene::ActorEmitContext ctx {};
+        ctx.display_top = xlimited_detail::kDiwStrt >> 8u;
+        ctx.ring_height = m_cfg.display_height;
+        m_sprite_plan.clear();
+        auto report = director.emit(m_sprite_plan, ctx);
+        set_sprite_placements(director.placements());
+        invalidate_composition();
+        return report;
+    }
+
     /// **Placements de sprite HW del frame** (multiplexado vertical). Vacio = usa el
     /// `SpriteManager` como hasta ahora. Se reenvia al compositor en `compose()`; la lista
     /// debe seguir viva hasta el final del frame y venir ordenada por `vstart`.
@@ -922,6 +955,7 @@ private:
     CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
     graphics::SpriteManager m_sprites {};
     eng::Span<const graphics::HwSpritePlacement> m_sprite_placements {};
+    eng::graphics::FramePlan m_sprite_plan {};
     XlimitedTileBank m_tiles[2] {};
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};

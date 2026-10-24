@@ -15,6 +15,10 @@
 /// `scene::CompositeState` (posición, secuencia, frame, espejo). Las hitboxes del frame se
 /// consultan con `hitboxes(id, ...)`.
 ///
+/// \deprecated **No usar en código nuevo.** Es implementación interna/legacy de compuestos;
+/// la fachada pública vigente es `eng::scene::SpriteDirector`. Se retirará de la fachada
+/// pública cuando las demos históricas migren.
+///
 /// Los pares *attached* (parte de 4 planos y 16 px) se cocinan en el pool Chip que dé
 /// `set_cooked_pool` (como en `SpriteScene`); sin pool, esa parte se materializa como BOB.
 ///
