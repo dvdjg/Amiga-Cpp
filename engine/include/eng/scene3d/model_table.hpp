@@ -65,8 +65,9 @@ public:
 		const u16 nm = asset.material_count();
 		const u16 ns = asset.sphere_count();
 		const u16 npp = asset.part_count();
+		const u16 nfp = asset.face_part_count();
 		if (nv > MaxVertices || ni > MaxIndices || nf > MaxFaces || nm > MaxMaterials ||
-		    ns > MaxSpheres || npp > MaxParts) {
+		    ns > MaxSpheres || npp > MaxParts || (nfp != 0u && npp == 0u)) {
 			return {};
 		}
 		Slot& slot = m_slots[m_count];
@@ -80,6 +81,7 @@ public:
 			const assets::ModelFace face = asset.face(i);
 			slot.faces[i] = math3d::FaceSpan {face.first, face.count};
 			slot.face_material[i] = face.material;
+			slot.face_part[i] = asset.face_part(i);
 		}
 		for (u16 i = 0u; i < nm; ++i) {
 			slot.materials[i] = asset.material(i);
@@ -134,6 +136,7 @@ public:
 		for (u32 i = 0u; i < nf; ++i) {
 			slot.faces[i] = mesh.faces[i];
 			slot.face_material[i] = 0u;
+			slot.face_part[i] = 0u;
 		}
 		slot.materials[0] = assets::ModelMaterial {color, pattern, 0u};
 		slot.bounds.min = slot.verts[0];
@@ -183,7 +186,13 @@ public:
 		return (slot.valid() && face < slot->nf) ? slot->face_material[face] : 0xffffu;
 	}
 
-	/// Índice de paleta de la cara `face` (atajo para el callback de color).
+	/// Parte asociada a la cara `face` (v2), o 0 sin binding.
+	[[nodiscard]] u8 face_part(ModelHandle handle, u32 face) const noexcept {
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		return (slot.valid() && face < slot->nf) ? slot->face_part[face] : 0u;
+	}
+
+	/// Indice de paleta de la cara `face` (0 si no existe).
 	[[nodiscard]] u8 color(ModelHandle handle, u32 face) const noexcept {
 		return material(handle, face).color;
 	}
@@ -231,6 +240,7 @@ private:
 		u16 indices[MaxIndices] {};
 		math3d::FaceSpan faces[MaxFaces] {};
 		u16 face_material[MaxFaces] {};
+		u8 face_part[MaxFaces] {};
 		assets::ModelMaterial materials[MaxMaterials] {};
 		assets::ModelSphere spheres[MaxSpheres == 0u ? 1u : MaxSpheres] {};
 		assets::ModelPart parts[MaxParts == 0u ? 1u : MaxParts] {};

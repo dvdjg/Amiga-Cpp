@@ -43,6 +43,8 @@ export interface ModelMaterialSource {
 export interface ModelFaceSource {
 	vertices: number[];
 	material?: number;
+	/** Indice de parte v2 para esta cara (opcional; 0 = sin binding). */
+	part?: number;
 }
 
 export interface ModelSphereSource {
@@ -265,6 +267,17 @@ export function model3dChunkDataV2(src: ModelSource): Buffer {
 	}
 	if (indexCount > 0xffff) fail('demasiados indices');
 
+	const facePartOffset = MODEL3D_HEADER_BYTES_V2;
+	let hasFaceParts = false;
+	for (let i = 0; i < src.faces.length; i++) {
+		const fp = src.faces[i].part;
+		if (fp !== undefined) {
+			if (!Number.isInteger(fp) || fp < 0 || fp >= parts.length) {
+				fail(`cara ${i}: part fuera de rango (${fp})`);
+			}
+			hasFaceParts = true;
+		}
+	}
 	const vOff = MODEL3D_HEADER_BYTES_V2;
 	const iOff = vOff + src.vertices.length * 6;
 	const fOff = iOff + indexCount * 2;
@@ -272,7 +285,8 @@ export function model3dChunkDataV2(src: ModelSource): Buffer {
 	const bOff = mOff + src.materials.length * 4;
 	const sOff = bOff + 12;
 	const pOff = sOff + sphereCount * 12;
-	const total = pOff + parts.length * 40;
+	const fpOff = pOff + parts.length * 40;
+	const total = fpOff + (hasFaceParts ? src.faces.length : 0);
 	const out = Buffer.alloc(total);
 
 	out.writeUInt16BE(2, 0);
@@ -283,7 +297,8 @@ export function model3dChunkDataV2(src: ModelSource): Buffer {
 	out.writeUInt16BE(src.materials.length, 10);
 	out.writeUInt16BE(sphereCount, 12);
 	out.writeUInt16BE(parts.length, 14);
-	for (let i = 16; i < 32; i += 2) out.writeUInt16BE(0, i);
+	out.writeUInt16BE(hasFaceParts ? src.faces.length : 0, 16);
+	for (let i = 18; i < 32; i += 2) out.writeUInt16BE(0, i);
 	out.writeUInt32BE(vOff, 32);
 	out.writeUInt32BE(iOff, 36);
 	out.writeUInt32BE(fOff, 40);
@@ -291,7 +306,7 @@ export function model3dChunkDataV2(src: ModelSource): Buffer {
 	out.writeUInt32BE(bOff, 48);
 	out.writeUInt32BE(sOff, 52);
 	out.writeUInt32BE(pOff, 56);
-	out.writeUInt32BE(0, 60);
+	out.writeUInt32BE(hasFaceParts ? fpOff : 0, 60);
 
 	let min = [32767, 32767, 32767];
 	let max = [-32768, -32768, -32768];
@@ -389,6 +404,11 @@ export function model3dChunkDataV2(src: ModelSource): Buffer {
 			sphereFirst++;
 		}
 	}
+	if (hasFaceParts) {
+		for (let fi = 0; fi < src.faces.length; fi++) {
+			out[fpOff + fi] = src.faces[fi].part ?? 0;
+		}
+	}
 	return out;
 }
 
@@ -411,7 +431,7 @@ function buildCubeSource(): ModelSource {
 		[4, 5, 6, 7], [0, 3, 2, 1], [7, 6, 2, 3],
 		[0, 1, 5, 4], [1, 2, 6, 5], [0, 4, 7, 3],
 	];
-	const faces: ModelFaceSource[] = quads.map((q, i) => ({ vertices: q, material: i < 3 ? 0 : 1 }));
+	const faces: ModelFaceSource[] = quads.map((q, i) => ({ vertices: q, material: i < 3 ? 0 : 1, part: i < 3 ? 0 : 1 }));
 	return {
 		format: 'amiga-model-source',
 		version: 2,
@@ -468,6 +488,8 @@ function selfTest(): void {
 	const mOff = p.readUInt32BE(44);
 	const sOff = p.readUInt32BE(52);
 	const pOff = p.readUInt32BE(56);
+	const fpCount = p.readUInt16BE(16);
+	const fpOff = p.readUInt32BE(60);
 	if (version !== 2 || nv !== 8 || nf !== 6 || ni !== 24 || nm !== 2 || ns !== 3 || npart !== 2) {
 		throw new Error(`self-test: conteos inesperados v=${version} ns=${ns} np=${npart}`);
 	}
@@ -487,6 +509,9 @@ function selfTest(): void {
 	}
 	if (p.readInt16BE(pOff) !== -1 || p.readInt16BE(pOff + 40) !== 0) {
 		throw new Error("self-test: jerarquia de partes inesperada");
+	}
+	if (fpCount !== nf || fpOff !== pOff + npart * 40 || p[fpOff] !== 0 || p[fpOff + 3] !== 1) {
+		throw new Error(`self-test: face->part inesperado fpCount=${fpCount} nf=${nf} fpOff=${fpOff} pOff=${pOff} npart=${npart} f0=${p[fpOff]} f3=${p[fpOff+3]}`);
 	}
 
 	console.log(`OK cook-model3d: ${blob.length} bytes, ${nv} vértices, ${nf} caras, ${nm} materiales`);

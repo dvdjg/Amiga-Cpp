@@ -106,12 +106,36 @@ void test_scalar(const char* label) {
 	(void)zero;
 }
 
+void test_layers_float() {
+	Obb3<float> unit_box {};
+	unit_box.axis[0] = v3<float>(1, 0, 0);
+	unit_box.axis[1] = v3<float>(0, 1, 0);
+	unit_box.axis[2] = v3<float>(0, 0, 1);
+	unit_box.half = v3<float>(10, 10, 10);
+	check(sphere_obb(Sphere3<float> {v3<float>(12, 0, 0), 3.0f}, unit_box),
+	      "sphere-OBB toca");
+	check(!sphere_obb(Sphere3<float> {v3<float>(20, 0, 0), 3.0f}, unit_box),
+	      "sphere-OBB separada");
+	Trigger3D<float> trigger {};
+	trigger.volume = unit_box;
+	trigger.filter = CollisionFilter {1u, 2u};
+	check(filter_accepts(trigger.filter, CollisionFilter {2u, 1u}), "capas compatibles");
+	check(!filter_accepts(trigger.filter, CollisionFilter {4u, 1u}), "capas rechazadas");
+	check(trigger_sphere(trigger, Sphere3<float> {v3<float>(12, 0, 0), 3.0f},
+			     CollisionFilter {2u, 0xffffu}),
+	      "trigger dispara");
+	check(!trigger_sphere(trigger, Sphere3<float> {v3<float>(12, 0, 0), 3.0f},
+			      CollisionFilter {4u, 0xffffu}),
+	      "trigger filtra capa");
+}
+
 } // namespace
 
 int main() {
 	test_scalar<float>("float");
 	using Q4 = eng::math::Fixed<eng::s16, 4>;
 	test_scalar<Q4>("Fixed<s16,4>");
+	test_layers_float();
 	if (g_fail == 0) {
 		std::printf("OK: HOST-489 colision 3D (esfera/AABB/rayo/OBB/broadphase/sweep/heightfield) validada.\n");
 		return 0;

@@ -23,6 +23,7 @@
 #include <eng/retro/mesh_primitives.hpp>
 #include <eng/sim/model_body3d.hpp>
 
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -470,6 +471,36 @@ void test_model_asset() {
 	for (int i = 0; i < 20; ++i) chain.step(0.016f, -9.0f, 0.0f, 4u);
 	const float dy = chain.parts[1].position.v[1] - chain.parts[0].position.v[1];
 	check(dy > 9.0f && dy < 11.0f, "articulated joint conserva pivote");
+
+	eng::sim3d::ArticulatedBody3D<float, 2, 2> angular;
+	angular.add_part(-1, math3d::vec3<float>(0, 0, 0), 0.0f);
+	angular.add_part(0, math3d::vec3<float>(0, 0, 0), 2.0f);
+	angular.add_sphere(1u, math3d::vec3<float>(2, 0, 0), 1.0f, 2.0f);
+	angular.finalize();
+	check(angular.parts[1].inertia.v[2] > 8.7f && angular.parts[1].inertia.v[2] < 8.9f,
+	      "inercia incluye termino propio");
+	angular.apply_impulse(1u, math3d::vec3<float>(0, 0, 4), math3d::vec3<float>(2, 1, 0));
+	check(angular.parts[1].velocity.v[2] > 0.0f, "impulso lineal");
+	check(angular.parts[1].angular_velocity.v[1] != 0.0f, "impulso descentrado -> par");
+	check(angular.set_hinge(1u, 0u, -0.1f, 0.1f), "bisagra configurada");
+	angular.set_angles(1u, math3d::vec3<float>(0.5f, 0.3f, 0.2f));
+	const auto hinge_angles = angular.parts[1].angles;
+	check(hinge_angles.v[0] <= 0.1001f && hinge_angles.v[1] == 0.0f &&
+		      hinge_angles.v[2] == 0.0f,
+	      "bisagra limita eje y anula el resto");
+	angular.set_angular_velocity(1u, {0.05f, 0.0f, 0.0f});
+	angular.step(0.1f, 0.0f, -100.0f, 1u);
+	check(angular.parts[1].angles.v[0] > 0.0f, "step integra angulo de bisagra");
+
+	eng::sim3d::ArticulatedBody3D<float, 1, 1> rotated;
+	rotated.add_part(-1, math3d::vec3<float>(0, 0, 0), 1.0f);
+	rotated.add_sphere(0u, math3d::vec3<float>(2, 0, 0), 0.5f, 1.0f);
+	const math3d::Vec3t<float> quarter_turn {{0.0f, 0.0f, 0.25f}};
+	check(rotated.set_angles(0u, quarter_turn), "orientacion z");
+	rotated.finalize();
+	check(std::abs(rotated.world[0].center.v[0]) < 0.02f &&
+		      rotated.world[0].center.v[1] > 1.99f,
+	      "esfera rota con la parte");
 
 	scene3d::Scene<4, 8> scene;
 	check(scene.set_camera(cam), "camara de escena con modelo");

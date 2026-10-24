@@ -36,7 +36,10 @@ constexpr u16 kHeight = 256u;
 constexpr u16 kWorldH = 208u;
 constexpr u16 kRowBytes = kWidth / 8u;
 constexpr u8 kPlanes = 4u;
-constexpr u8 kWorldPlanes = 2u; ///< siluetas con 2 planos (colores 1..3).
+#ifndef K092_WIRE
+#define K092_WIRE 0
+#endif
+constexpr u8 kWorldPlanes = K092_WIRE ? 1u : 2u; ///< siluetas con 2 planos (colores 1..3).
 constexpr u32 kPlaneBytes = static_cast<u32>(kRowBytes) * kHeight;
 constexpr u16 kBandY = kWorldH;
 constexpr u16 kBandH = kHeight - kWorldH;
@@ -138,6 +141,18 @@ struct ArticulatedDemo {
 		m_body.add_sphere(0u, math3d::vec3(0, 0, 0), CT::from_int(14), CT::from_int(4));
 		m_body.add_sphere(1u, math3d::vec3(0, 0, 0), CT::from_int(10), CT::from_int(2));
 		m_body.add_sphere(2u, math3d::vec3(0, 0, 0), CT::from_int(8), CT::from_int(1));
+		const auto unit = eng::math::scalar_traits<eng::real>::from_int(1);
+		const auto limit = eng::math::div_norm(
+			unit, eng::math::scalar_traits<eng::real>::from_int(6));
+		const auto swing = eng::math::div_norm(
+			eng::math::div_norm(
+				eng::math::div_norm(unit,
+						    eng::math::scalar_traits<eng::real>::from_int(4)),
+				eng::math::scalar_traits<eng::real>::from_int(4)),
+			eng::math::scalar_traits<eng::real>::from_int(2));
+		(void)m_body.set_hinge(1u, 2u, -limit, limit);
+		(void)m_body.set_hinge(2u, 2u, -limit, limit);
+		m_swing = swing;
 		m_body.finalize();
 		sync_scene();
 
@@ -155,15 +170,33 @@ struct ArticulatedDemo {
 		const eng::PlaneBytes planes = m_display.back();
 		(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(planes.size()), kWidth,
 					kHeight, kPlanes, kPlaneBytes);
-		(void)backend.blitter_clear(planes, kPlanes, kRowBytes, kPlaneBytes, kWidth,
-					    kWorldH, false);
+		clear_world(backend, planes);
 
+#ifndef K092_NOPHYS
+		m_body.set_angular_velocity(1u, {eng::real{}, eng::real{}, m_swing});
+		m_body.set_angular_velocity(2u, {eng::real{}, eng::real{}, -m_swing});
+		m_swing = -m_swing;
 		m_body.step(CT::from_int(1), CT::from_int(-1), CT::zero(), 4u);
+#endif
 		sync_scene();
 
 		eng::playfield::Surface world {m_canvas,
 					       eng::playfield::SurfaceRect {0, 0, kWidth, kWorldH}};
+#ifndef K092_NORENDER
+#if K092_WIRE
+		m_plan.clear();
+		const u32 edges = m_world.render_wire(
+			m_models, world, 1u, eng::Ref<eng::graphics::FramePlan> {m_plan},
+			eng::playfield::RasterOp::Xor, true, true);
+		const bool plan_ok = backend.execute_frame_plan(m_plan);
+		const u32 silhouettes = edges;
+		(void)plan_ok;
+#else
 		const u32 silhouettes = m_world.render_silhouette(m_models, world);
+#endif
+#else
+		const u32 silhouettes = 0u;
+#endif
 		eng::util::TextLine<40> stats {};
 		stats << 'P' << m_body.part_count << " S" << m_body.sphere_count << " F"
 		      << silhouettes;
@@ -180,6 +213,23 @@ private:
 		(void)m_world.set_position(m_torso, m_body.parts[0].position);
 		(void)m_world.set_position(m_hip, m_body.parts[1].position);
 		(void)m_world.set_position(m_leg, m_body.parts[2].position);
+		(void)m_world.set_rotation(m_torso, m_body.parts[0].world_orientation);
+		(void)m_world.set_rotation(m_hip, m_body.parts[1].world_orientation);
+		(void)m_world.set_rotation(m_leg, m_body.parts[2].world_orientation);
+	}
+
+	void clear_world(eng::amiga::AmigaBackend& backend, eng::PlaneBytes planes) {
+		constexpr s16 x0 = 64;
+		constexpr s16 y0 = 48;
+		constexpr s16 x1 = 272;
+		constexpr s16 y1 = 204;
+		constexpr u16 words = static_cast<u16>((x1 - x0) >> 4);
+		for (u8 p = 0u; p < kWorldPlanes; ++p) {
+			const eng::PlaneBytes plane =
+				planes.subspan(static_cast<u32>(p) * kPlaneBytes, kPlaneBytes);
+			(void)backend.blitter_clear_rect(plane, kRowBytes, static_cast<u16>(x0), y0,
+							 words, static_cast<u16>(y1 - y0), false);
+		}
 	}
 
 	void draw_band() {
@@ -197,9 +247,11 @@ private:
 	scene3d::Scene<4, 8> m_world {};
 	scene3d::ModelTable<3, 8, 24, 6, 1> m_models {};
 	eng::sim3d::ArticulatedBody3D<eng::coord, 3, 3> m_body {};
+	eng::real m_swing {};
 	scene3d::NodeId m_torso {};
 	scene3d::NodeId m_hip {};
 	scene3d::NodeId m_leg {};
+	eng::graphics::FramePlan m_plan {};
 	eng::debug::HostHud m_host_hud {};
 };
 

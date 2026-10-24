@@ -46,9 +46,9 @@ scene.render(models, surface);
 | `eng::scene3d::ModelHandle` | `eng/scene3d/types.hpp` | Indice compacto a un modelo registrado. |
 | `eng::scene3d::ModelTable<MaxModels, MaxVertices, MaxIndices, MaxFaces, MaxMaterials, MaxSpheres, MaxParts>` | `eng/scene3d/model_table.hpp` | Copia el asset a buffers fijos; `MaxSpheres`/`MaxParts` habilitan fisica. |
 | `ModelTable::add(asset)` / `add_mesh(mesh, color, pattern)` | | Carga un asset v2 o una primitiva procedural. |
-| `ModelTable::color/pattern/material/sphere/part` | | Material y metadatos de fisica por cara/parte. |
+| `ModelTable::color/pattern/material/face_part/sphere/part` | | Material, binding cara->parte y metadatos de fisica. |
 | `eng::assets::Model3DAssetView` | `eng/assets/model3d.hpp` | Vista validada del chunk `Model3D` v1/v2. |
-| `Model3DAssetView::bounds/sphere/part` | | AABB, esferas y partes. |
+| `Model3DAssetView::bounds/sphere/part/face_part` | | AABB, esferas, partes y binding cara->parte. |
 | `eng::assets::ModelMaterial` | `eng/assets/model3d.hpp` | Color de paleta, patron y flags. |
 | `eng::assets::ModelPart` | `eng/assets/model3d.hpp` | Padre, pivote, rotacion, masa, densidad, friccion, restitucion y AABB local. |
 | `eng::assets::ModelSphere` | `eng/assets/model3d.hpp` | Centro, radio, parte y flags. |
@@ -87,11 +87,12 @@ Para un juego, el lienzo debe tener un `PolygonFillService` instalado y el raste
 |---|---|---|
 | `eng::sim3d::Body3D<S>` / `PhysicsWorld3D<S, N>` | `eng/sim/physics3d.hpp` | Cuerpos esfericos arcade: gravedad, suelo, impulso, sleep y time scale. |
 | `eng::sim3d::CompoundBody3D<S, MaxSpheres>` | `eng/sim/compound_body3d.hpp` | Varias esferas con masa, centro de masas e inercia diagonal; `overlaps`. |
-| `eng::sim3d::ArticulatedBody3D<S, MaxParts, MaxSpheres>` | `eng/sim/articulated_body3d.hpp` | Cadena de partes con pivotes, masa e inercia; integra y resuelve joints de bola por PBD. |
+| `eng::sim3d::ArticulatedBody3D<S, MaxParts, MaxSpheres>` | `eng/sim/articulated_body3d.hpp` | Cadena con pivotes, masa, inercia real, estado angular, joints de bola/bisagra y limites. |
 | `build_compound_from_model(view, body)` | `eng/sim/model_body3d.hpp` | Asset v2 -> cuerpo compuesto. |
 | `build_articulated_from_model(view, body)` | `eng/sim/model_body3d.hpp` | Asset v2 -> cuerpo articulado. |
 | `collision3d::Sphere3/Aabb3/Obb3/Ray3` | `core/util/collision3d.hpp` | Primitivas y tests. |
-| `sphere_overlap`, `sphere_aabb`, `aabb_overlap`, `obb_overlap`, `ray_aabb`, `ray_sphere`, `sweep_sphere_aabb`, `Heightfield3D`/`sphere_heightfield` | | Consultas sin heap. |
+| `sphere_overlap`, `sphere_aabb`, `sphere_obb`, `aabb_overlap`, `obb_overlap`, `ray_aabb`, `ray_sphere`, `sweep_sphere_aabb`, `Heightfield3D`/`sphere_heightfield` | | Consultas sin heap. |
+| `CollisionFilter`, `Trigger3D`, `trigger_obb`, `trigger_sphere` | | Capas/mascaras y triggers OBB sin respuesta fisica. |
 | `SweepBroadphase3D<S, N>` | | Pares de AABB por sweep-and-prune en X. |
 
 El solver angular completo (velocidad/inercia angular por parte y joints con limites) es la siguiente fase; el PBD actual resuelve posiciones y conserva pivotes.

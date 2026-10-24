@@ -387,7 +387,7 @@ El chunk `Model3D=15` admite dos versiones. La v1 (28 B) sigue siendo valida par
 - partes rigidas/articuladas con `parent`, `pivot`, `rotationTurns` (0..4095), `mass`, `density`, `friction`, `restitution`, flags y AABB local;
 - esferas locales `{center s16x3, radius u16, part, flags}` que referencian una parte; el cuerpo compuesto suma masa, centro de masas e inercia diagonal.
 
-El JSON de autoria usa `parts` en esta version. El cooker valida padres anteriores, radios positivos, rangos s16/u16 y capacidad; si no hay `parts`, emite v1 para no pagar por fisica. La jerarquia se aplica por traslacion de pivotes en `build_compound_from_model`; el solver angular por joints queda para el siguiente corte de G7.
+La v2 tambien puede enlazar cada cara con una parte para animacion visual: `faces[i].part` (opcional) se cocina como un array `u8` por cara. La cabecera usa `face_part_count` en el offset 16 y `face_part_offset` en el 60; si el offset es 0 no hay binding. `ModelTable::face_part(handle, face)` expone el indice de parte. El renderer de la escena sigue pintando una malla por nodo; el binding permite a un juego agrupar caras por parte o construir mallas por parte sin duplicar geometria.\n\nEl JSON de autoria usa `parts` en esta version. El cooker valida padres anteriores, radios positivos, rangos s16/u16 y capacidad; si no hay `parts`, emite v1 para no pagar por fisica. La jerarquia se aplica por traslacion de pivotes en `build_compound_from_model`; `ArticulatedBody3D` anade estado angular, inercia real y joints de bisagra con limites. `faces[i].part` se guarda como binding opcional cara->parte (offset 60 de la cabecera).
 
 ```json
 "parts": [

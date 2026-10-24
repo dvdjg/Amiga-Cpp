@@ -91,6 +91,13 @@ template <class S, eng::u16 MaxParts, eng::u16 MaxSpheres>
 			body.clear();
 			return false;
 		}
+		eng::math::Vec<3, eng::real> angles {};
+		for (int axis = 0; axis < 3; ++axis) {
+			angles.v[axis] = eng::math::div_norm(
+				eng::math::scalar_traits<eng::real>::from_int(part.rotation[axis]),
+				eng::math::scalar_traits<eng::real>::from_int(4096));
+		}
+		(void)body.set_angles(pi, angles);
 	}
 	for (eng::u16 pi = 0u; pi < np; ++pi) {
 		const eng::assets::ModelPart part = view.part(pi);

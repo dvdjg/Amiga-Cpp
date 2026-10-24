@@ -289,6 +289,63 @@ template <class S>
 	return true;
 }
 
+/// Filtro de capas/mascaras (16 capas). Un trigger/collider A acepta a B si
+/// `(a.mask & b.layer) != 0` y `(b.mask & a.layer) != 0` (regla simetrica).
+struct CollisionFilter {
+	u16 layer = 1u; ///< bit de capa de este objeto.
+	u16 mask = 0xffffu; ///< capas con las que interactua.
+};
+
+/// \return true si dos filtros se aceptan mutuamente.
+[[nodiscard]] constexpr bool filter_accepts(const CollisionFilter& a,
+					    const CollisionFilter& b) noexcept {
+	return (a.mask & b.layer) != 0u && (b.mask & a.layer) != 0u;
+}
+
+/// Trigger volumetrico OBB + filtro de capas. No resuelve respuesta fisica.
+/// \tparam S escalar de la operacion.
+template <class S>
+struct Trigger3D {
+	Obb3<S> volume {}; ///< volumen del trigger.
+	CollisionFilter filter {}; ///< capa/mascara.
+	bool active = true; ///< los inactivos no disparan.
+};
+
+/// \return true si un cuerpo con `other` capa entra en el trigger.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool trigger_obb(const Trigger3D<S>& trigger, const Obb3<S>& other,
+					 const CollisionFilter& other_filter) noexcept {
+	return trigger.active && filter_accepts(trigger.filter, other_filter) &&
+	       obb_overlap(trigger.volume, other);
+}
+
+/// \return true si una esfera toca el OBB del trigger y pasa el filtro.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool sphere_obb(const Sphere3<S>& sphere, const Obb3<S>& box) noexcept {
+	using T = eng::math::scalar_traits<S>;
+	eng::math::Vec<3, S> d = sphere.center - box.center;
+	S d2 = T::zero();
+	for (int i = 0; i < 3; ++i) {
+		S q = eng::math::dot(d, box.axis[i]);
+		if (q < -box.half.v[i]) q = -box.half.v[i];
+		if (q > box.half.v[i]) q = box.half.v[i];
+		const S e = eng::math::dot(d, box.axis[i]) - q;
+		d2 = d2 + eng::math::mul_norm(e, e);
+	}
+	return d2 <= eng::math::mul_norm(sphere.radius, sphere.radius);
+}
+
+/// \return true si una esfera toca el trigger y pasa el filtro.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool trigger_sphere(const Trigger3D<S>& trigger, const Sphere3<S>& sphere,
+					    const CollisionFilter& other_filter) noexcept {
+	return trigger.active && filter_accepts(trigger.filter, other_filter) &&
+	       sphere_obb(sphere, trigger.volume);
+}
+
 /// Par de indices de una broadphase.
 struct BroadphasePair {
 	u16 a = 0u;
@@ -307,6 +364,7 @@ class SweepBroadphase3D {
 		S max_x {};
 		Aabb3<S> box {};
 		u16 id = 0u;
+		CollisionFilter filter {};
 	};
 public:
 	/// Anade una caja con identificador; false si no cabe.
@@ -317,6 +375,18 @@ public:
 		e.max_x = box.max.v[0];
 		e.box = box;
 		e.id = id;
+		e.filter = {};
+		return true;
+	}
+	/// Anade una caja con filtro de capas; false si no cabe.
+	bool add(const Aabb3<S>& box, u16 id, const CollisionFilter& filter) noexcept {
+		if (m_count >= N) return false;
+		Entry& e = m_entry[m_count++];
+		e.min_x = box.min.v[0];
+		e.max_x = box.max.v[0];
+		e.box = box;
+		e.id = id;
+		e.filter = filter;
 		return true;
 	}
 	/// \return numero de pares solapados (se escriben hasta `out.size()`).
@@ -337,7 +407,8 @@ public:
 		for (u16 i = 0u; i < m_count; ++i) {
 			for (u16 j = i + 1u; j < m_count; ++j) {
 				if (sorted[j].min_x > sorted[i].max_x) break;
-				if (aabb_overlap(sorted[i].box, sorted[j].box)) {
+				if (aabb_overlap(sorted[i].box, sorted[j].box) &&
+				    filter_accepts(sorted[i].filter, sorted[j].filter)) {
 					if (count < out.size()) {
 						out[count] = BroadphasePair {sorted[i].id, sorted[j].id};
 					}

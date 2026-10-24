@@ -139,7 +139,10 @@ public:
 		const u64 b_off = bounds_offset();
 		const u64 s_off = sphere_offset();
 		const u64 p_off = part_offset();
+		const u16 fp_count = face_part_count();
+		const u64 fp_off = face_part_offset();
 		if (np == 0u && ns != 0u) return false;
+		if (fp_count != 0u && fp_count != nf) return false;
 		if (ns > 0u && np == 0u) return false;
 		if (b_off < m_off + static_cast<u64>(nm) * 4u || b_off + 12u > size) return false;
 		if (s_off < b_off + 12u || s_off + static_cast<u64>(ns) * 12u > size) return false;
@@ -154,6 +157,15 @@ public:
 			if (part.parent >= 0 && static_cast<u32>(part.parent) >= i) return false;
 			if (static_cast<u32>(part.sphere_first) + part.sphere_count > ns) return false;
 			for (u8 k = 0u; k < 3u; ++k) if (part.aabb_min[k] > part.aabb_max[k]) return false;
+		}
+		if (fp_count != 0u) {
+			if (np == 0u || fp_off < p_off + static_cast<u64>(np) * 40u ||
+			    fp_off + static_cast<u64>(fp_count) > size) {
+				return false;
+			}
+			for (u32 f = 0u; f < fp_count; ++f) {
+				if (face_part(f) >= np) return false;
+			}
 		}
 		return true;
 	}
@@ -218,6 +230,13 @@ public:
 	[[nodiscard]] u32 part_offset() const {
 		return version() == 2u && m_bytes.size() >= 60u ? read_be32(m_bytes.data() + 56u) : 0u;
 	}
+	/// \return numero de caras con binding a parte (v2; 0 = sin binding).
+	[[nodiscard]] u16 face_part_count() const {
+		return version() == 2u && m_bytes.size() >= 18u ? read_be16(m_bytes.data() + 16u) : 0u;
+	}
+	[[nodiscard]] u32 face_part_offset() const {
+		return version() == 2u && m_bytes.size() >= 64u ? read_be32(m_bytes.data() + 60u) : 0u;
+	}
 	/// Esfera `i`, o `{}` fuera de rango.
 	[[nodiscard]] ModelSphere sphere(u32 i) const {
 		if (version() != 2u || i >= sphere_count()) return {};
@@ -232,6 +251,12 @@ public:
 		s.flags = m_bytes.data()[off + 9u];
 		s.reserved = read_be16(m_bytes.data() + off + 10u);
 		return s;
+	}
+	/// Parte asociada a la cara `i`, o 0 si no hay binding.
+	[[nodiscard]] u8 face_part(u32 i) const {
+		if (version() != 2u || i >= face_part_count()) return 0u;
+		const u64 off = face_part_offset() + static_cast<u64>(i);
+		return range_ok(off, 1u) ? m_bytes.data()[off] : 0u;
 	}
 	/// Parte `i`, o `{}` fuera de rango.
 	[[nodiscard]] ModelPart part(u32 i) const {

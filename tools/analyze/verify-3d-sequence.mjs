@@ -18,6 +18,7 @@ const args = process.argv.slice(2);
 const seqDir = args[0];
 let minFrames = 3;
 let requireMotion = false;
+let minDiff = 24;
 let bg = [0, 0, 0];
 let top = 24;
 let bottom = 0;
@@ -25,6 +26,7 @@ for (let i = 1; i < args.length; ++i) {
 	const a = args[i];
 	if (a === '--min-frames') minFrames = Math.max(1, parseInt(args[++i], 10));
 	else if (a === '--require-motion') requireMotion = true;
+	else if (a === '--min-diff') minDiff = Math.max(1, parseInt(args[++i], 10));
 	else if (a === '--bg') bg = args[++i].split(',').map((v) => parseInt(v, 10));
 	else if (a === '--top') top = parseInt(args[++i], 10);
 	else if (a === '--bottom') bottom = parseInt(args[++i], 10);
@@ -99,7 +101,21 @@ if (requireMotion) {
 	const last = boxes[boxes.length - 1];
 	const moved = first.x0 !== last.x0 || first.y0 !== last.y0 || first.x1 !== last.x1 ||
 		      first.y1 !== last.y1 || first.area !== last.area;
-	if (!moved) fail('sin movimiento entre primero y ultimo frame');
+	let changed = 0;
+	const p0 = frames[0].png.data;
+	const p1 = frames[frames.length - 1].png.data;
+	for (let y = top; y < Math.min(bottom, height); ++y) {
+		for (let x = 0; x < width; ++x) {
+			const i = (y * width + x) * 4;
+			if (Math.abs(p0[i] - p1[i]) + Math.abs(p0[i + 1] - p1[i + 1]) +
+			    Math.abs(p0[i + 2] - p1[i + 2]) > 24) {
+				++changed;
+			}
+		}
+	}
+	if (!moved && changed < minDiff) {
+		fail(`sin movimiento entre primero y ultimo frame (diff ${changed})`);
+	}
 }
 if (failures) process.exit(1);
 console.log(`[3d-seq] OK: ${frames.length} frames ${width}x${height}; areas=${boxes.map((b) => b.area).join(',')}`);

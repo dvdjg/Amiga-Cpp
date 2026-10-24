@@ -8,6 +8,7 @@
 		"build": "tsc -p tsconfig.json",
 		"watch": "tsc -w -p tsconfig.json",
 		"check": "tsc -p tsconfig.json --noEmit",
+		"check:3d": "node tools/check/3d-demo-gate.mjs",
 		"test:run-status-resolver": "npm run build && node tools/run/test-run-status-resolver.mjs"
 	},
 	"devDependencies": {
