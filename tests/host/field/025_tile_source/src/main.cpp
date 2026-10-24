@@ -56,6 +56,9 @@ int main() {
 		check(m.tile_at(0, 4) == m.tile_at(0, 0), "wrap y periodo=alto");
 		m.wrap_x = 2;
 		check(m.tile_at(2, 0) == m.tile_at(0, 0), "wrap x periodo<ancho");
+		check(eng::wrap_period(3, 40) == 3, "wrap_period in-range");
+		check(eng::wrap_period(43, 40) == 3, "wrap_period fuera de rango");
+		check(eng::wrap_period(-1, 40) == 39, "wrap_period negativo");
 	}
 
 	// Disperso: chunk 4x4 en (0,0) y (2,-1).

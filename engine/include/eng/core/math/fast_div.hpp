@@ -57,6 +57,7 @@ constexpr s32 wrap_period(s32 value, u16 period) {
     if (period == 0u) return value;
     if (is_pow2(period)) return value & static_cast<s32>(period - 1u);
     const s32 p = static_cast<s32>(period);
+    if (value >= 0 && value < p) return value;
     return ((value % p) + p) % p;
 }
 
