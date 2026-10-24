@@ -144,15 +144,9 @@ struct ArticulatedDemo {
 		const auto unit = eng::math::scalar_traits<eng::real>::from_int(1);
 		const auto limit = eng::math::div_norm(
 			unit, eng::math::scalar_traits<eng::real>::from_int(6));
-		const auto swing = eng::math::div_norm(
-			eng::math::div_norm(
-				eng::math::div_norm(unit,
-						    eng::math::scalar_traits<eng::real>::from_int(4)),
-				eng::math::scalar_traits<eng::real>::from_int(4)),
-			eng::math::scalar_traits<eng::real>::from_int(2));
 		(void)m_body.set_hinge(1u, 2u, -limit, limit);
 		(void)m_body.set_hinge(2u, 2u, -limit, limit);
-		m_swing = swing;
+		m_limit = limit;
 		m_body.finalize();
 		sync_scene();
 
@@ -173,9 +167,7 @@ struct ArticulatedDemo {
 		clear_world(backend, planes);
 
 #ifndef K092_NOPHYS
-		m_body.set_angular_velocity(1u, {eng::real{}, eng::real{}, m_swing});
-		m_body.set_angular_velocity(2u, {eng::real{}, eng::real{}, -m_swing});
-		m_swing = -m_swing;
+		animate(context.frame.frame_index);
 		m_body.step(CT::from_int(1), CT::from_int(-1), CT::zero(), 4u);
 #endif
 		sync_scene();
@@ -200,7 +192,7 @@ struct ArticulatedDemo {
 #endif
 		eng::util::TextLine<40> stats {};
 		stats << 'P' << m_body.part_count << " S" << m_body.sphere_count << " F"
-		      << silhouettes;
+		      << silhouettes << " A" << m_body.parts[1].angles.v[2].v;
 		m_host_hud.draw(backend.debug(), "092 ARTICULATED CHARACTER", kVersion,
 				context.frame.frame_index, eng::debug::prof_clock(),
 				stats.c_str());
@@ -208,6 +200,20 @@ struct ArticulatedDemo {
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext&) {}
+private:
+	static eng::real quarter(u32 n) {
+		return eng::math::div_norm(eng::math::scalar_traits<eng::real>::from_int(static_cast<int>(n)),
+					   eng::math::scalar_traits<eng::real>::from_int(4));
+	}
+	void animate(u32 frame) {
+		const u32 step = (frame / 3u) & 7u;
+		const u32 tri = step < 4u ? step : 8u - step;
+		const eng::real a = eng::math::mul_norm(m_limit, quarter(tri));
+		const eng::math::Vec<3, eng::real> hip_a {eng::real{}, eng::real{}, a};
+		const eng::math::Vec<3, eng::real> leg_a {eng::real{}, eng::real{}, -a};
+		(void)m_body.set_angles(1u, hip_a);
+		(void)m_body.set_angles(2u, leg_a);
+	}
 
 private:
 	void sync_scene() {
@@ -248,7 +254,7 @@ private:
 	scene3d::Scene<4, 8> m_world {};
 	scene3d::ModelTable<3, 8, 24, 6, 1> m_models {};
 	eng::sim3d::ArticulatedBody3D<eng::coord, 3, 3> m_body {};
-	eng::real m_swing {};
+	eng::real m_limit {};
 	scene3d::NodeId m_torso {};
 	scene3d::NodeId m_hip {};
 	scene3d::NodeId m_leg {};

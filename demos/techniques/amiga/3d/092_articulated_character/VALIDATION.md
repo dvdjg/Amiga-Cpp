@@ -11,7 +11,7 @@ Estado: **FUNCIONAL, VISION OK, cadencia abierta**. Tres partes con masa, pivote
 | Animacion angular de 092 | Secuencia de 4 frames + `src/VISION.md` | **OK vision; movimiento** |
 | Render por silueta con Blitter | Captura + `PolygonFillService` | **OK** |
 | Continuidad de secuencia | `verify-3d-sequence ... --require-motion` | **OK: 4 frames, movimiento** |
-| Cadencia silhouette release | `measure-fps.mjs` | **ABIERTA: 13,1 fps / 3,82 campos** |
+| Cadencia silhouette release | `measure-fps.mjs` | **ABIERTA: 12,6 fps / 3,97 campos** |
 | Cadencia wire release (ablacion) | `K092_WIRE=1` | **ABIERTA: 13,3 fps debug** |
 
 Comandos:
