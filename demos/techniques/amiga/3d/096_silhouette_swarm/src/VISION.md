@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-24T12:18:18.223Z
+- Fecha: 2026-10-24T12:49:51.544Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png (4)
 - Secuencia: `out/run/096_silhouette_swarm/A500_release/sequence`
@@ -16,28 +16,25 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 ## Respuesta (cruda)
 
 **Imagen 1:**
-- **Fondo:** Negro uniforme.
-- **Elementos gráficos:**
-  - En la parte superior, cuatro formas naranjas, que parecen fragmentos de cuadrados o rectángulos, dispuestos en línea horizontal. La forma central es más pequeña y tiene un recorte en su parte inferior izquierda.
-  - En la parte inferior central, un objeto azul claro de forma irregular, similar a un hexágono distorsionado o un polígono con bordes suaves, que parece estar girando ligeramente.
-- **Texto en la parte superior izquierda:** `096 SILHOUETTE SWARM v1.0.6363 | F26 84.0FPS | 55CLO2D2`.
-- **Estado general:** Todos los elementos están visibles y completos. No hay artefactos visibles en los bordes de los objetos ni en el fondo.
+
+*   **Fondo:** Negro uniforme.
+*   **Elementos gráficos:**
+    *   **Texto en la parte superior:** Una línea de texto blanco en la esquina superior izquierda que dice: `096 SILHOUETTE SWARM v1.0.6374 | F20 84.0FPS | 55CLO2D2`.
+    *   **Objeto superior:** Una fila de seis cuadrados naranjas, alineados horizontalmente en la parte superior central de la pantalla. Cada cuadrado tiene bordes pixelados y un ligero efecto de sombra o degradado hacia el interior.
+    *   **Objeto inferior:** Un polígono de color azul claro, con forma irregular y bordes pixelados, ubicado en el centro inferior de la pantalla. Su contorno es limpio, sin halos ni píxeles cortados. El fondo inmediatamente alrededor es negro y uniforme.
+*   **Estado general:** La escena es estática, sin movimiento aparente.
 
 **Imagen 2:**
-- **Fondo:** Negro uniforme.
-- **Elementos gráficos:**
-  - Las cuatro formas naranjas en la parte superior están en la misma posición y forma que en la imagen 1.
-  - El objeto azul claro en la parte inferior central ha cambiado ligeramente de posición y orientación, girado un poco hacia la derecha y hacia abajo, lo que sugiere movimiento.
-- **Texto en la parte superior izquierda:** `096 SILHOUETTE SWARM v1.0.6363 | F50 25.3FPS | SIL 02 D2`.
-- **Estado general:** El objeto azul parece estar en movimiento, pero su contorno es limpio y no hay artefactos ni restos de su posición anterior. El fondo alrededor de los objetos es uniformemente negro, sin restos de color o textura.
+
+*   **Fondo:** Negro uniforme.
+*   **Elementos gráficos:**
+    *   **Texto en la parte superior:** El texto ha cambiado a: `096 SILHOUETTE SWARM v1.0.6374 | F50 25.2FPS | SIL 02 D2`.
+    *   **Objeto superior:** La fila de seis cuadrados naranjas permanece en la misma posición y apariencia que en la imagen anterior.
+    *   **Objeto inferior:** El polígono azul claro ha cambiado de posición. Ahora está ligeramente más a la derecha y ligeramente más abajo que en la primera imagen. Su forma y contorno siguen siendo limpios y pixelados, sin artefactos ni halos. El fondo alrededor es negro y uniforme.
+*   **Estado general:** El objeto inferior ha cambiado de posición, mientras que el objeto superior y el texto superior han cambiado de valor.
 
 **Cambios entre imágenes:**
-- El objeto azul en la parte inferior cambia de posición y orientación, indicando movimiento.
-- El texto en la parte superior cambia: la indicación de FPS cambia de `84.0FPS` a `25.3FPS`, y el texto a la derecha cambia de `55CLO2D2` a `SIL 02 D2`.
-- Las formas naranjas en la parte superior permanecen estacionarias y sin cambios.
 
-**Observaciones:**
-- Los objetos tienen contornos limpios, sin halos ni artefactos visibles.
-- El fondo es uniformemente negro en ambos casos.
-- No hay elementos superpuestos ni incompletos.
-- La posición de los objetos naranjas es idéntica en ambas imágenes.
+*   El texto en la esquina superior izquierda cambió de `F20 84.0FPS | 55CLO2D2` a `F50 25.2FPS | SIL 02 D2`.
+*   La posición del polígono azul claro cambió ligeramente hacia la derecha y abajo.
+*   El polígono azul claro en la imagen 2 tiene una forma ligeramente diferente, con bordes más angulosos en la parte superior derecha, lo que sugiere un cambio en su orientación o forma.
