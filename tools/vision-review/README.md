@@ -341,7 +341,7 @@ powershell -File tools/vision-review/capture-window.ps1 -TitleLike WinUAE -Out o
 powershell -File tools/vision-review/capture-window.ps1 -ProcessId 1234 -Width 1500 -Height 1000 -Out out/vision/win-wide.png -Mode screen
 ```
 
-`hud-resize-check.ps1` automatiza la regresión del HUD: lanza una demo, redimensiona la ventana en segundo plano y exige que el bloque multilínea siga teniendo tinta y varias bandas. Requiere WinUAE, `run-demo` y Pillow:
+`hud-resize-check.ps1` automatiza la regresión del HUD: lanza una demo, redimensiona la ventana en segundo plano y exige que el HUD de una línea siga teniendo tinta. Requiere WinUAE, `run-demo` y Pillow:
 
 ```powershell
 powershell -File tools/vision-review/hud-resize-check.ps1

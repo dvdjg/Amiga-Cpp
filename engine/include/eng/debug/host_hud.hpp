@@ -40,23 +40,18 @@ public:
 		}
 		char label[16] {};
 		const eng::u8 len = version_label(version, label, static_cast<eng::u8>(sizeof(label)));
-		m_name.clear();
-		m_name << (name != nullptr ? name : "") << ' '
-		       << eng::util::StringView(label, len);
-		m_state.clear();
-		m_state << 'F' << frame << ' ' << eng::util::scaled(m_fps10, 1u) << "FPS";
 		if (clear) {
 			dbg.clear();
 		}
-		// Un solo bloque: el overlay del host (WinUAE) redimensiona y recorta
-		// primitivas por separado; tres `text` en filas fijas podían perder las
-		// primeras líneas. El bloque mantiene el orden y el margen seguro.
+		// Una sola línea y una sola primitiva: el overlay de WinUAE recorta
+		// peor las líneas apiladas al redimensionar. El separador `|` mantiene
+		// toda la información útil (nombre, frame/fps, telemetría) visible.
 		m_block.clear();
-		m_block << m_name.c_str() << '\n' << m_state.c_str();
+		m_block << (name != nullptr ? name : "") << ' '
+			<< eng::util::StringView(label, len)
+			<< " | F" << frame << ' ' << eng::util::scaled(m_fps10, 1u) << "FPS";
 		if (stats != nullptr && *stats != '\0') {
-			m_stats.clear();
-			m_stats << stats;
-			m_block << '\n' << m_stats.c_str();
+			m_block << " | " << stats;
 		}
 		dbg.text(kMarginX, kMarginY, m_block.c_str(), 0xffffffu);
 	}
@@ -64,17 +59,14 @@ public:
 	/// Última estimación de fps ×10 (p. ej. 275 = 27,5 fps); 0 hasta la primera ventana.
 	[[nodiscard]] constexpr eng::u32 fps10() const noexcept { return m_fps10; }
 
-	/// Margen seguro del bloque multilínea en el overlay.
+	/// Margen seguro del HUD de una línea.
 	static constexpr eng::s16 kMarginX = 8;
 	static constexpr eng::s16 kMarginY = 8;
 
 private:
 	HudFpsWindow m_fps {};          ///< ventana de ~1 s para fps10
 	eng::u32 m_fps10 = 0u;          ///< última estimación fps ×10
-	eng::util::TextLine<64> m_name {};  ///< nombre + versión
-	eng::util::TextLine<48> m_state {}; ///< frame + fps
-	eng::util::TextLine<64> m_stats {}; ///< telemetría opcional del llamador
-	eng::util::TextLine<176> m_block {}; ///< bloque multilínea enviado al overlay
+	eng::util::TextLine<192> m_block {}; ///< línea única enviada al overlay
 };
 
 } // namespace eng::debug

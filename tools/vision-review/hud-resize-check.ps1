@@ -4,7 +4,7 @@ param(
     [int]$Height = 1000,
     [string]$Out = "out/vision/hud-resize-check.png",
     [int]$MinPixels = 500,
-    [int]$MinBands = 2
+    [int]$MinBands = 1
 )
 
 # Regresión visual del HUD de host al redimensionar la ventana de WinUAE.
