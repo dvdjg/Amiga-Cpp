@@ -2,6 +2,8 @@
 
 Este documento especifica el sistema de objetos del engine: cómo un actor descrito por la aplicación se materializa como **sprite hardware**, **BOB por Blitter** u **objeto CPU**, qué políticas de **transparencia** y de **gestión del fondo** admite, y cómo declara sus **necesidades de Copper** para que una instancia superior (el compositor) monte la copperlist del frame.
 
+> **Estado de implementación (2026-10):** `ActorStore`/`compose_sprites` implementan **Sprite HW y BOB**. `Cpu` y `Layer` son objetivos de diseño, no materializadores disponibles en la API actual: un sprite CPU necesita un renderer sobre `Surface`/CPU Blit Assist y una capa de playfield de DPF se modela como `WorldRegion`/`Layer`, no como `PartRepresentation`. No se añaden enums vacíos mientras no exista consumidor.
+
 Es la pieza de diseño que cierra la infraestructura de objetos del roadmap (`docs/guides/roadmap/NORMALIZACION_REPO.md`, F6). No repite el vocabulario de intenciones ni las plantillas de sprite, que ya están especificados en `VISUAL_EFFECT_SPRITE_DESIGN.md` (`Visual`, `CopperIntent`, `HwSpriteTemplate`, concept `Effect`), ni el modelo de escena retenida de `SCENE_AND_RESOURCES.md`.
 
 Estado: **diseño objetivo**. Las piezas marcadas como EXISTE están implementadas; las marcadas como PROPUESTO son el contrato a implementar.

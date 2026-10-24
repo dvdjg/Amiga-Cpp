@@ -188,8 +188,8 @@ struct ActorDesc {
 	eng::s16 x = 0;                       ///< posición de mundo del ANCLA
 	eng::s16 y = 0;
 	/// Superficie de la composición donde se dibuja (índice en `ActorEmitContext::targets`):
-	/// 0 = playfield de fondo (PF1 en un DPF), 1 = segundo playfield (PF2), etc. Un BOB o
-	/// un objeto CPU se puede dibujar en cualquier combinación de playfields.
+	/// 0 = playfield de fondo (PF1 en un DPF), 1 = segundo playfield (PF2), etc. El camino
+	/// actual materializa BOB/Sprite HW; CPU y Layer no están implementados en `ActorStore`.
 	eng::u8 surface = 0;
 	/// Orden de superposición DENTRO de la superficie: solo compara objetos que se
 	/// dibujan sobre el mismo playfield (mayor = delante).
