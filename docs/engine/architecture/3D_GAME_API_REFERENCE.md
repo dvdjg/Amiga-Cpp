@@ -23,7 +23,8 @@ Cabeceras principales:
 | `eng::scene3d::Node3D` / `NodeDesc` | `eng/api/3d.hpp` | Posicion local (`eng::coord`), rotacion Q4.12, padre, visibilidad y cache world. |
 | `Scene::spawn/remove/set_parent/set_position/set_rotation/set_visible` | | Construccion y edicion de la escena. |
 | `Scene::render(models, surface)` | | Pinta por cara con el color/patron del material; painter de lejos a cerca. |
-| `Scene::render_silhouette(models, surface)` | | Ruta P8: una silueta convexa por objeto, 1 fill por objeto. Experimental para solidos de un color. |
+| `Scene::render_silhouette(models, surface)` | | Ruta P8: una silueta convexa por objeto, 1 fill por objeto. Es una ruta **LOD/flat-fill** para props de un color, sombras, seleccion o siluetas de lejania; pierde caras, patrones y detalle. No es la ruta por defecto de un personaje con materiales. |
+
 | `Scene::render_wire(models, surface, color, plan, op, cull_backfaces, silhouette_only)` | | Alambre con clip near/lateral; las dos ultimas opciones son optimizaciones P8. |
 | `Scene::update_transforms()` | | Recompone solo nodos sucios; se llama dentro de los render. |
 
@@ -87,7 +88,7 @@ Para un juego, el lienzo debe tener un `PolygonFillService` instalado y el raste
 |---|---|---|
 | `eng::sim3d::Body3D<S>` / `PhysicsWorld3D<S, N>` | `eng/sim/physics3d.hpp` | Cuerpos esfericos arcade: gravedad, suelo, impulso, sleep y time scale. |
 | `eng::sim3d::CompoundBody3D<S, MaxSpheres>` | `eng/sim/compound_body3d.hpp` | Varias esferas con masa, centro de masas e inercia diagonal; `overlaps`. |
-| `eng::sim3d::ArticulatedBody3D<S, MaxParts, MaxSpheres>` | `eng/sim/articulated_body3d.hpp` | Cadena con pivotes, masa, inercia real, estado angular, joints de bola/bisagra y limites. |
+| `eng::sim3d::ArticulatedBody3D<S, MaxParts, MaxSpheres>` | `eng/sim/articulated_body3d.hpp` | Cadena con pivotes, masa, inercia real, estado angular, joints de bola, bisagra y telescópico (`set_hinge`/`set_slide`). |
 | `build_compound_from_model(view, body)` | `eng/sim/model_body3d.hpp` | Asset v2 -> cuerpo compuesto. |
 | `build_articulated_from_model(view, body)` | `eng/sim/model_body3d.hpp` | Asset v2 -> cuerpo articulado. |
 | `collision3d::Sphere3/Aabb3/Obb3/Ray3` | `core/util/collision3d.hpp` | Primitivas y tests. |

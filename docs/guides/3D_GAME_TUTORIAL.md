@@ -146,6 +146,10 @@ Reglas: medir en **release**; no dibujar planos que no aportan color; no usar el
 - El wireframe usa aristas unicas y clip near/lateral; no proyectar vertices detras de la camara.
 - Los assets v2 con fisica necesitan capacidades `MaxSpheres/MaxParts` en `ModelTable`.
 
+### Joints baratos: bisagra y telescópico
+
+`ArticulatedBody3D::set_hinge(part, axis, min_turns, max_turns)` limita el giro a un eje; `set_slide(part, axis, min_distance, max_distance)` convierte el pivote hijo en un desplazamiento lineal con topes. Ambos son restricciones PBD: no añaden un solver de contactos. Para un personaje, la bisagra cubre rodilla/codo; el telescópico cubre un pistón, una plataforma o un brazo extensible. Mantén estos grados de libertad separados de la cinemática de la pose y del contacto rígido.
+
 ## 7. Siguiente nivel
 
 - Anadir joints angulares y animacion de partes cuando se cierre G7.

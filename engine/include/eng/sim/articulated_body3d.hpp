@@ -37,6 +37,7 @@ struct ArticulatedBody3D {
 	enum class Joint : eng::u8 {
 		ball = 0u, ///< rotacion libre respecto al padre.
 		hinge = 1u, ///< un solo eje local, con limites.
+		slide = 2u, ///< desplazamiento lineal sobre un eje local, con limites.
 	};
 
 	struct PartState {
@@ -57,6 +58,8 @@ struct ArticulatedBody3D {
 		u8 hinge_axis = 0u; ///< eje local de la bisagra (0=x,1=y,2=z).
 		eng::real hinge_min = R::from_int(-1); ///< limite inferior (turns).
 		eng::real hinge_max = R::from_int(1); ///< limite superior (turns).
+		S slide_min = T::zero(); ///< limite lineal inferior (unidades de S).
+		S slide_max = T::zero(); ///< limite lineal superior (unidades de S).
 		u16 sphere_first = 0u; ///< primer indice de esfera.
 		u16 sphere_count = 0u; ///< numero de esferas.
 	};
@@ -152,7 +155,17 @@ struct ArticulatedBody3D {
 		return true;
 	}
 
-	/// Fija la orientacion local (turns) y refresca las matrices.
+	/// Configura un joint telescopico (desplazamiento lineal) sobre un eje local.
+	bool set_slide(u16 part, u8 axis, S min_distance, S max_distance) noexcept {
+		if (part >= part_count || axis >= 3u || min_distance > max_distance) return false;
+		PartState& p = parts[part];
+		p.joint = Joint::slide;
+		p.hinge_axis = axis;
+		p.slide_min = min_distance;
+		p.slide_max = max_distance;
+		return true;
+	}
+/// Fija la orientacion local (turns) y refresca las matrices.
 	bool set_angles(u16 part, const VecR& angles) noexcept {
 		if (part >= part_count) {
 			return false;
@@ -281,6 +294,20 @@ struct ArticulatedBody3D {
 				PartState& child = parts[i];
 				PartState& parent = parts[pi];
 				eng::math::Vec<3, S> target = parent.position + parent.world_orientation * child.pivot;
+				if (child.joint == Joint::slide) {
+					eng::math::Vec<3, S> axis {};
+					axis.v[child.hinge_axis] = T::one();
+					const eng::math::Vec<3, S> aw = parent.world_orientation * axis;
+					S d = T::zero();
+					for (u8 k = 0u; k < 3u; ++k) {
+						d = d + eng::math::mul_norm(child.position.v[k] - parent.position.v[k], aw.v[k]);
+					}
+					if (d < child.slide_min) d = child.slide_min;
+					if (d > child.slide_max) d = child.slide_max;
+					for (u8 k = 0u; k < 3u; ++k) {
+						target.v[k] = parent.position.v[k] + eng::math::mul_norm(aw.v[k], d);
+					}
+				}
 				const S wsum = child.inv_mass + parent.inv_mass;
 				if (wsum == T::zero()) continue;
 				for (u8 axis = 0u; axis < 3u; ++axis) {

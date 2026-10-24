@@ -485,6 +485,16 @@ void test_model_asset() {
 	check(angular.set_hinge(1u, 0u, -0.1f, 0.1f), "bisagra configurada");
 	angular.set_angles(1u, math3d::vec3<float>(0.5f, 0.3f, 0.2f));
 	const auto hinge_angles = angular.parts[1].angles;
+	eng::sim3d::ArticulatedBody3D<float, 2, 1> telescopic;
+	telescopic.add_part(-1, math3d::vec3<float>(0, 0, 0), 0.0f);
+	telescopic.add_part(0, math3d::vec3<float>(10, 0, 0), 1.0f);
+	telescopic.add_sphere(1u, math3d::vec3<float>(0, 0, 0), 1.0f, 1.0f);
+	check(telescopic.set_slide(1u, 0u, 2.0f, 8.0f), "telescopico configurado");
+	telescopic.finalize();
+	telescopic.parts[1].position.v[0] = 20.0f;
+	telescopic.step(0.1f, 0.0f, -100.0f, 2u);
+	const float reach = telescopic.parts[1].position.v[0] - telescopic.parts[0].position.v[0];
+	check(reach >= 1.9f && reach <= 8.1f, "telescopico respeta limite");
 	check(hinge_angles.v[0] <= 0.1001f && hinge_angles.v[1] == 0.0f &&
 		      hinge_angles.v[2] == 0.0f,
 	      "bisagra limita eje y anula el resto");

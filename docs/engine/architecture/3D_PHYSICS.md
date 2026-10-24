@@ -193,6 +193,11 @@ entre formulaciones).
   inversa** (0 = estático) es un buen candidato a MF16 por su rango.
 - **Tiempo**: `dt` fijo por frame (1/50 s) evita dividir; los integradores usan `dt` constante.
 
+## 7. Joints con límites y encaje del fixed
+
+Un joint telescópico es una restricción de distancia a lo largo de un eje local: `d = dot(child.position - parent.position, axis)`, `d = clamp(d, min, max)` y corrección PBD de la posición. Cabe en fixed de posición (q0/q4) porque no divide, no usa trigonometría y el rango útil es pequeño; conviene guardar `min/max` en el mismo escalar que la longitud y limitar el número de iteraciones. Un joint angular es otra restricción, pero sobre orientación; aquí el estado útil son turns q12 y una tabla de seno/coseno, no una matriz de fuerzas.
+
+El fixed no cubre igual todo el solver: masa, inercia, impulsos y ratios de contacto tienen rangos grandes y productos que desbordan el s16; para eso el engine usa `MiniFloat16`/escala fija fuera del bucle de posiciones. Tampoco conviene meter en un único solver cinemática, resortes, telescópicos y contactos rígidos: las opciones de gameplay (pose animada, telescópico con topes, bisagra) deben ser restricciones baratas y separadas del solver de contacto. Si se necesita más rigor, el camino es un fixed de 32 bits o float en host, no ensanchar los mismos q0/q12 hasta que pierdan sentido.
 ## 7. Hitos
 
 | Hito | Entrega | Criterio de cierre |

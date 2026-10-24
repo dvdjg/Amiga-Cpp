@@ -52,3 +52,7 @@ La secuencia de la **variante rellena** se valido aparte con `vision-final.mjs` 
 - **Flicker**: `verify-3d-sequence.mjs` confirma movimiento y ausencia de saltos de area entre frames; no sustituye una captura a 50 Hz de todas las poses, pero es la primera regresion automatica.
 - **Poses**: la secuencia cubre cuatro poses; no barre todos los angulos ni el cruce por near del hijo.
 - **Regresion corregida**: `convex_spans` avanzaba como maximo 1 px por fila en aristas con `|dx| > dy` (DDA con `if` en vez de `while`), lo que dejaba muescas en caras y cubos rellenos. El arreglo esta cubierto por HOST-045 (arista poco profunda) y HOST-481 (cara q12 y cobertura CPU/contigua); 087 y 091 se revisaron en WinUAE. La cadencia sigue siendo deuda de P8.
+
+## 6. Experimento de lote de líneas (2026-10-24)
+
+Se prototipó un `LineBatch` en `FramePlan` (un job por plano con segmentos contiguos y ejecución compacta en el backend) para sustituir 18 jobs de línea por 2. La implementación dibujaba correctamente y reducía el HUD a `L16 J2 OK`, pero el coste real no mejoró: **21,24 fps / 334.041 ciclos debug** frente a **22,02 fps / 322.119 ciclos** de la ruta por línea. La conclusión es que el cuello es la ejecución/espera de cada línea del Blitter y no el alta de jobs; el prototipo se retiró para no meter complejidad ni una regresión del 4 % en la API. Para 25 fps en este tipo de alambre hay que reducir líneas visibles o cambiar de representación, no solo agrupar el plan.
