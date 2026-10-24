@@ -26,7 +26,6 @@
   1    38  engine/include/eng/api/effects/sprite_layer.hpp
   0     3  engine/include/eng/api/framebuffer.hpp
   0     1  engine/include/eng/api/scroll.hpp
-  0    15  engine/include/eng/assets/model3d.hpp
   4    35  engine/include/eng/assets/uaf.hpp
   0     7  engine/include/eng/audio/acp1_stream.hpp
   0    18  engine/include/eng/audio/acp1_v3.hpp
@@ -231,7 +230,7 @@
   0     2  engine/include/eng/graphics/present_controller.hpp
   0     2  engine/include/eng/graphics/raster_intent.hpp
   0     2  engine/include/eng/graphics/render_pacing.hpp
-  0    26  engine/include/eng/graphics/render3d.hpp
+  0    25  engine/include/eng/graphics/render3d.hpp
   0    36  engine/include/eng/graphics/sprite_allocator.hpp
   2     0  engine/include/eng/graphics/sprite_asset.hpp
   3    11  engine/include/eng/graphics/sprite_chain.hpp
@@ -316,7 +315,7 @@
   0     1  engine/include/eng/scene/banded_target.hpp
   0    18  engine/include/eng/scene/composite_actor.hpp
   0    19  engine/include/eng/scene/composite_scene.hpp
-  0    35  engine/include/eng/scene/display.hpp
+  0    41  engine/include/eng/scene/display.hpp
   0    23  engine/include/eng/scene/formation.hpp
   0     7  engine/include/eng/scene/layer.hpp
   0    32  engine/include/eng/scene/mechanisms.hpp

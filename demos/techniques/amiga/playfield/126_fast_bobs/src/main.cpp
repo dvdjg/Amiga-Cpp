@@ -78,6 +78,7 @@ constexpr u16 kBytesPerRow = kWidth / 8u;   // 40
 constexpr u8 kPlanes = 6u;                  // DPF 3+3
 constexpr u32 kBitmapBytes = static_cast<u32>(kBytesPerRow) * kPlanes * kHeight; // 61440
 constexpr u16 kBandBottom = 208u;           // franja inferior de 0 planos
+constexpr eng::u32 kFailGiant = 0x00012604u; // fallo de la capa PF
 
 // Hoja del BOB: contenido 16×16 + **márgenes F5** (`fast_bob_margins`): el asset declara el
 // desplazamiento máximo por eje y el helper devuelve padding y tamaño final; el ancla del
@@ -203,7 +204,7 @@ struct FastBobsDemo {
 			if (eng::scene::plan_playfield_layer(req, caps).accepted) {
 				m_giant.field = eng::scene::LayerPlayfield::Pf2;
 				if (!m_giant.draw_cpu(m_band.bob_target_b())) {
-					eng::debug::mark_failed(g_eng_run_status, 0x00012604u);
+					eng::debug::mark_failed(g_eng_run_status, kFailGiant);
 					return;
 				}
 			}

@@ -3,6 +3,7 @@
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf --keep-running
 
 #include <eng/api/api.hpp>
+#include <eng/debug/host_hud.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/core/math/sinetable.hpp>
 #include <eng/field/xlimited_scene.hpp>
@@ -148,7 +149,7 @@ enum class TourPhase : eng::u8 { HToEnd = 0, VToEnd, ObToOrigin, ToCenter, Lissa
 //     en corkscrew+split.
 //   true → corkscrew DUAL clásico: AMBOS campos con split de Copper (un único
 //     split → Y COMPARTIDA; sin mirror, menos Chip RAM).
-static constexpr bool kShareY = false;
+static constexpr bool kShareY = true;
 
 // --- Variante rápida «Sonic» (medición E1, paramétrica sin macros) ----------
 // kFastStep > 0 → todas las fases usan ese salto máximo por eje (p. ej. 6 px/
@@ -170,6 +171,7 @@ struct DemoGame {
 	eng::u8 m_sfY = 0;                 // fase Y propia del FG (oscilador)
 	eng::u32 m_maxYDelta = 0;          // máx. |fgY - bgY| observado (regresión Y)
 	bool ready = false;
+	eng::debug::HostHud m_host_hud {};
 
 	static constexpr eng::SineTable<255, 256> kSin {};
 
@@ -217,7 +219,7 @@ struct DemoGame {
 		// Con `kShareY=true` se usa el corkscrew dual clásico (Y compartida).
 		if constexpr (kShareY) scene_cfg.dual_linear_field = 0;
 		else scene_cfg.dual_linear_field = 1;
-		scene_cfg.max_step = kFastStep > 0 ? kFastStep : 2;
+		scene_cfg.max_step = kFastStep > 0 ? kFastStep : 1;
 		scene_cfg.visible_tile_bias_x = 1;
 		scene_cfg.visible_tile_bias_y = 1;
 
@@ -261,8 +263,8 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020202u);
 			return;
 		}
-		scene.fg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 2);
-		scene.bg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 2);
+		scene.fg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 1);
+		scene.bg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 1);
 
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020203u);
@@ -380,6 +382,10 @@ struct DemoGame {
 			scene.install(backend);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+		if ((context.frame.frame_index & 7u) == 0u) {
+			m_host_hud.draw(backend.debug(), "202 XLIMITED DPF", eng::debug::Version {1u, 0u},
+					context.frame.frame_index, eng::debug::prof_clock());
+		}
 	}
 };
 
