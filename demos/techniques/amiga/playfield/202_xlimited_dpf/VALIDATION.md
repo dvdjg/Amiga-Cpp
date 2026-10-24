@@ -5,7 +5,7 @@ Intención: dual playfield 3+3 con scroll XLimited y mapa real; debe sostener 50
 ## Medición entregada
 
 ```text
-202_xlimited_dpf/A500_release | emulado=49,96 fps | 141988 ciclos/frame | 1,00079 campos/frame
+202_xlimited_dpf/A500_release | emulado=49,92?49,96 fps | 141988?142102 ciclos/frame | 1,00079?1,00159 campos/frame
 202_xlimited_dpf/A500_debug   | emulado=49,9 fps (ventana corta) | HUD a 1/8 de refresco
 ```
 
