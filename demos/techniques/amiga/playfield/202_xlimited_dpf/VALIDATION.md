@@ -24,7 +24,7 @@ Correcciones:
 - Eliminado el bloque `DEBUG` de `XLimitedPlayfield::add_draw`.
 - `draw_block_job_for_block` cachea el bloque de mapa y evita resolverlo tres veces por copia/espejo.
 - La demo entregada usa `kShareY=true` y `max_step=1`; se documenta la reducción frente a la variante de Y independiente.
-- HUD de host a 1/4 de refresco.
+- HUD de host a 1/8 de refresco.
 
 ## Deuda
 

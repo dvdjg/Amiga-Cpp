@@ -149,7 +149,7 @@ enum class TourPhase : eng::u8 { HToEnd = 0, VToEnd, ObToOrigin, ToCenter, Lissa
 //     en corkscrew+split.
 //   true → corkscrew DUAL clásico: AMBOS campos con split de Copper (un único
 //     split → Y COMPARTIDA; sin mirror, menos Chip RAM).
-static constexpr bool kShareY = true;
+static constexpr bool kShareY = true;\nstatic constexpr bool kStaticPlaquettes = true;
 
 // --- Variante rápida «Sonic» (medición E1, paramétrica sin macros) ----------
 // kFastStep > 0 → todas las fases usan ese salto máximo por eje (p. ej. 6 px/
