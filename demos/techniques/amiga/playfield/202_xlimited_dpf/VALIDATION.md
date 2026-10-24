@@ -2,6 +2,8 @@
 
 Intención: dual playfield 3+3 con scroll XLimited y mapa real; debe sostener 50 Hz PAL.
 
+El objetivo «50 fps PAL» es **una iteración por campo PAL nominal** (~49,9–50,0 en `measure-fps` por la ventana y la cuantización de campos), no 50,000 exactos. Se exige cadencia estable y ausencia de frames repetidos, no un literal.
+
 ## Medición entregada
 
 ```text

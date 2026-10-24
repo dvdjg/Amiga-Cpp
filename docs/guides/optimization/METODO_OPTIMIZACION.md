@@ -8,6 +8,10 @@ más las lecciones medidas en el repo ([lecciones del port del Blitter](../../de
 Complementa a [`OPTIMIZACION_GPP_68000.md`](OPTIMIZACION_GPP_68000.md) (coste por operación y
 técnicas) y a [`METODOLOGIA_PROFILING.md`](METODOLOGIA_PROFILING.md) (pipeline de medida).
 
+## Nomenclatura: «50 fps PAL»
+
+«50 fps PAL» significa **una iteración de juego por campo PAL nominal**, no una exigencia de 50,000 fps exactos en el medidor. La cadencia PAL de referencia es 50 Hz; `measure-fps` entrega de forma práctica **≈49,9–50,0 fps** según la ventana de 1 s, la cuantización de campos y el redondeo del contador. Cuando el objetivo de una demo se escribe como «50 Hz» o «50 fps», el criterio es **un frame por VBlank PAL, sin frames repetidos ni mesetas de 2 campos**, medido con la ventana larga y con `stable=true`; no se persigue un 50,000 literal ni se relaja el criterio de cadencia.
+
 ## 1. Principios (por qué)
 
 1. **El coste es la especificación, no un anexo.** En OCS los chips trabajan en paralelo sobre un
