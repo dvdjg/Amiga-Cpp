@@ -169,10 +169,6 @@ struct ArticulatedDemo {
 					kHeight, kPlanes, kPlaneBytes);
 		clear_world(backend, planes);
 
-#ifndef K092_NOPHYS
-		animate(context.frame.frame_index);
-		m_body.step(CT::from_int(1), CT::from_int(-1), CT::zero(), 4u);
-#endif
 		sync_scene();
 
 		eng::playfield::Surface world {m_canvas,
@@ -187,8 +183,14 @@ struct ArticulatedDemo {
 #else
 		const u32 silhouettes = m_world.render_silhouette(m_models, world);
 #endif
-		(void)backend.wait_blitter();
 #endif
+#ifndef K092_NOPHYS
+		// Fisica desacoplada: el frame ya esta encolado en el Blitter; el solver
+		// calcula el estado del SIGUIENTE frame mientras el Blitter dibuja este.
+		animate(context.frame.frame_index);
+		m_body.step(CT::from_int(1), CT::from_int(-1), CT::zero(), 2u);
+#endif
+		(void)backend.wait_blitter();
 #else
 		const u32 silhouettes = 0u;
 #endif

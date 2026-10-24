@@ -170,3 +170,6 @@ node tools/check/3d-demo-gate.mjs --strict
 ```
 
 El gate revisa 090, 091, 092 y 095 y falla si falta una secuencia o si no hay cambio entre el primer y el ultimo frame. Sin `--strict` (host CI) avisa y omite las secuencias ausentes. Para depurar un fallo usa `tools/analyze/verify-3d-sequence.mjs <dir> --require-motion`; la vision sigue siendo el gate visual final.
+## 8. Rendimiento
+
+Las rutas medidas y la política de física desacoplada están en [3D_HIGH_PERFORMANCE_GAMEPLAY.md](3D_HIGH_PERFORMANCE_GAMEPLAY.md). Regla corta: alambre directo con collect_wire_edges + wire_lines, silueta solo para props planos, física en el hueco del Blitter a >=5 Hz y fixed q0/q12 con escalas explícitas.
