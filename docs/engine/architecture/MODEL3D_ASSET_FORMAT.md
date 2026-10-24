@@ -377,3 +377,32 @@ conteos y CRC antes de publicar vistas.
 - [`UAF_PACK.md`](../../tools/UAF_PACK.md)
 - [`blitter-line-subpixel-fill.md`](../../reference/amiga/techniques/blitter-line-subpixel-fill.md)
 - [`MEMORY_OWNERSHIP.md`](MEMORY_OWNERSHIP.md)
+
+## Implementacion actual: Model3D v2 (2026-10-24)
+
+El chunk `Model3D=15` admite dos versiones. La v1 (28 B) sigue siendo valida para mallas estaticas. La v2 (64 B) anade al mismo chunk la descripcion fisica que consume `eng::sim3d::CompoundBody3D`:
+
+- cabecera de 64 B con `sphere_count` y `part_count`, offsets de geometria en 32..44 y offsets de `bounds`/`sphere`/`part` en 48..56;
+- `bounds` explicito (min/max s16) para culling y broadphase;
+- partes rigidas/articuladas con `parent`, `pivot`, `rotationTurns` (0..4095), `mass`, `density`, `friction`, `restitution`, flags y AABB local;
+- esferas locales `{center s16x3, radius u16, part, flags}` que referencian una parte; el cuerpo compuesto suma masa, centro de masas e inercia diagonal.
+
+El JSON de autoria usa `parts` en esta version. El cooker valida padres anteriores, radios positivos, rangos s16/u16 y capacidad; si no hay `parts`, emite v1 para no pagar por fisica. La jerarquia se aplica por traslacion de pivotes en `build_compound_from_model`; el solver angular por joints queda para el siguiente corte de G7.
+
+```json
+"parts": [
+  {
+    "parent": null,
+    "pivot": [0, 0, 0],
+    "mass": 100,
+    "density": 1.0,
+    "friction": 0.8,
+    "restitution": 0.1,
+    "aabb": { "min": [-20, -20, -20], "max": [20, 20, 20] },
+    "spheres": [
+      { "center": [0, -8, 0], "radius": 12 },
+      { "center": [0, 8, 0], "radius": 12 }
+    ]
+  }
+]
+```

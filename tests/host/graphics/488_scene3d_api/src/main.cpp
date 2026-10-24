@@ -21,6 +21,7 @@
 #include <eng/memory/mem_bank.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/mesh_primitives.hpp>
+#include <eng/sim/model_body3d.hpp>
 
 #include <cstdio>
 #include <vector>
@@ -262,7 +263,7 @@ void test_scene_lifecycle() {
 	constexpr u32 total = m_off + nm * 4u;
 
 	std::vector<u8> p(total, 0u);
-	write_be16(p.data(), assets::Model3DAssetView::kVersion);
+	write_be16(p.data(), 1u); // fixture v1 historica
 	write_be16(p.data() + 2u, 0u);
 	write_be16(p.data() + 4u, nv);
 	write_be16(p.data() + 6u, nf);
@@ -305,6 +306,77 @@ void test_scene_lifecycle() {
 	return p;
 }
 
+/// Payload Model3D v2: mismo cubo + 1 parte y 2 esferas de fisica.
+[[nodiscard]] std::vector<u8> build_box_model_physics_payload() {
+	constexpr u16 nv = 8u, nf = 6u, ni = 24u, nm = 2u, ns = 2u, np = 1u;
+	constexpr u32 header = assets::Model3DAssetView::kHeaderSizeV2;
+	constexpr u32 v_off = header;
+	constexpr u32 i_off = v_off + nv * 6u;
+	constexpr u32 f_off = i_off + ni * 2u;
+	constexpr u32 m_off = f_off + nf * 6u;
+	constexpr u32 b_off = m_off + nm * 4u;
+	constexpr u32 s_off = b_off + 12u;
+	constexpr u32 p_off = s_off + ns * 12u;
+	std::vector<u8> p(p_off + np * 40u, 0u);
+	write_be16(p.data(), 2u);
+	write_be16(p.data() + 4u, nv);
+	write_be16(p.data() + 6u, nf);
+	write_be16(p.data() + 8u, ni);
+	write_be16(p.data() + 10u, nm);
+	write_be16(p.data() + 12u, ns);
+	write_be16(p.data() + 14u, np);
+	write_be32(p.data() + 32u, v_off);
+	write_be32(p.data() + 36u, i_off);
+	write_be32(p.data() + 40u, f_off);
+	write_be32(p.data() + 44u, m_off);
+	write_be32(p.data() + 48u, b_off);
+	write_be32(p.data() + 52u, s_off);
+	write_be32(p.data() + 56u, p_off);
+	const s16 verts[nv][3] = {
+		{-20, -20, -20}, {20, -20, -20}, {20, 20, -20}, {-20, 20, -20},
+		{-20, -20, 20}, {20, -20, 20}, {20, 20, 20}, {-20, 20, 20},
+	};
+	for (u16 i = 0u; i < nv; ++i) {
+		write_be16(p.data() + v_off + i * 6u, static_cast<u16>(verts[i][0]));
+		write_be16(p.data() + v_off + i * 6u + 2u, static_cast<u16>(verts[i][1]));
+		write_be16(p.data() + v_off + i * 6u + 4u, static_cast<u16>(verts[i][2]));
+	}
+	const u16 faces[nf][4] = {
+		{4, 5, 6, 7}, {0, 3, 2, 1}, {7, 6, 2, 3},
+		{0, 1, 5, 4}, {1, 2, 6, 5}, {0, 4, 7, 3},
+	};
+	for (u16 f = 0u; f < nf; ++f) {
+		for (u16 k = 0u; k < 4u; ++k) write_be16(p.data() + i_off + (f * 4u + k) * 2u, faces[f][k]);
+		write_be16(p.data() + f_off + f * 6u, static_cast<u16>(f * 4u));
+		write_be16(p.data() + f_off + f * 6u + 2u, 4u);
+		write_be16(p.data() + f_off + f * 6u + 4u, static_cast<u16>(f < 3u ? 0u : 1u));
+	}
+	p.data()[m_off] = 3u;
+	p.data()[m_off + 4u] = 5u;
+	p.data()[m_off + 5u] = 1u;
+	const s16 bmin[3] = {-20, -20, -20};
+	const s16 bmax[3] = {20, 20, 20};
+	for (u8 k = 0u; k < 3u; ++k) {
+		write_be16(p.data() + b_off + k * 2u, static_cast<u16>(bmin[k]));
+		write_be16(p.data() + b_off + 6u + k * 2u, static_cast<u16>(bmax[k]));
+	}
+	for (u8 i = 0u; i < ns; ++i) {
+		const u32 o = s_off + i * 12u;
+		write_be16(p.data() + o, 0u);
+		write_be16(p.data() + o + 2u, static_cast<u16>(i * 10u));
+		write_be16(p.data() + o + 4u, 0u);
+		write_be16(p.data() + o + 6u, static_cast<u16>(i == 0u ? 12u : 8u));
+		p.data()[o + 8u] = 0u;
+	}
+	write_be16(p.data() + p_off, 0xffffu); // parent = -1
+	write_be16(p.data() + p_off + 2u, 0u);
+	write_be16(p.data() + p_off + 4u, ns);
+	write_be16(p.data() + p_off + 6u, 100u);
+	write_be16(p.data() + p_off + 34u, 256u);
+	write_be16(p.data() + p_off + 36u, 205u);
+	write_be16(p.data() + p_off + 38u, 26u);
+	return p;
+}
 void test_model_asset() {
 	using SceneT = scene3d::Scene<4, 8>;
 	const std::vector<u8> payload = build_box_model_payload();
@@ -358,6 +430,29 @@ void test_model_asset() {
 	check(table.pattern(handle, 3u) == 1u, "material patron cara 3");
 	check(table.material_index(handle, 3u) == 1u, "indice de material cara 3");
 	check(table.bounds(handle).max.v[1] == 20, "bounds del modelo en tabla");
+	const std::vector<u8> physics_payload = build_box_model_physics_payload();
+	const assets::Model3DAssetView physics {
+		UafPayload {physics_payload.data(), static_cast<u32>(physics_payload.size())}};
+	check(physics.valid(), "Model3D v2 valido");
+	check(physics.version() == 2u && physics.sphere_count() == 2u &&
+		      physics.part_count() == 1u,
+	      "Model3D v2 conteos de fisica");
+	const assets::ModelPart body_part = physics.part(0u);
+	check(body_part.parent == -1 && body_part.mass == 100u &&
+		      body_part.sphere_count == 2u,
+	      "Model3D v2 parte raiz");
+	check(physics.sphere(0u).radius == 12u && physics.sphere(1u).radius == 8u,
+	      "Model3D v2 esferas");
+	scene3d::ModelTable<1, 8, 24, 6, 2, 2, 1> physics_table;
+	const scene3d::ModelHandle physics_handle = physics_table.add(physics);
+	check(physics_handle.valid() && physics_table.sphere_count(physics_handle) == 2u &&
+		      physics_table.part_count(physics_handle) == 1u,
+	      "ModelTable v2 copia esferas/partes");
+	eng::sim3d::CompoundBody3D<eng::real, 2> compound;
+	check(eng::sim3d::build_compound_from_model(physics, compound), "asset -> compound");
+	check(compound.count == 2u && compound.mass > 0.0f, "compound masa");
+	check(compound.inertia.v[0] > 0.0f && compound.inertia.v[1] > 0.0f,
+	      "compound inercia diagonal");
 
 	scene3d::Scene<4, 8> scene;
 	check(scene.set_camera(cam), "camara de escena con modelo");

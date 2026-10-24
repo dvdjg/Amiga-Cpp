@@ -451,7 +451,7 @@ inline u32 render_solid_styled(const math3d::PolyMeshViewT<S>& mesh, const Model
 	u32 drawn = 0;
 	for (u32 fi = 0u; fi < nf; ++fi) {
 		const eng::Span<const u16> idx = mesh.face_indices(fi);
-		const u8 n = static_cast<u8>(idx.size());
+		const u8 n = idx.size();
 		if (n < 3u || n > 8u) continue; // caras convexas ≤ 8 (contrato)
 		bool valid = true;
 		for (u8 k = 0u; k < n; ++k) {
@@ -684,7 +684,8 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 		       math3d::Vec3t<S>* world, WireEdge* edges, u16 edge_cap,
 		       CamVertex<S>* cam_scratch, s16* xs, s16* ys,
 		       eng::Ref<graphics::FramePlan> plan = {},
-		       playfield::RasterOp op = playfield::RasterOp::Copy) noexcept {
+		       playfield::RasterOp op = playfield::RasterOp::Copy,
+		       bool cull_backfaces = false, bool silhouette_only = false) noexcept {
 	const u32 nv = mesh.vertex_count();
 	const u32 nf = mesh.face_count();
 	if (world == nullptr || edges == nullptr || cam_scratch == nullptr || xs == nullptr ||
@@ -693,11 +694,56 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 	}
 	math3d::mesh_transform(mesh.vertices, model,
 			       eng::Span<math3d::Vec3t<S>>(world, nv));
+	const bool all_inside = camera_contains_vertices<S>(cam, world, nv);
+	u32 seen[8] {};
+	const bool use_mask = nv <= 16u;
+	u8 front_counts[256] {};
+	const auto front_face = [&](const eng::Span<const u16>& idx) -> bool {
+		const math3d::Vec3t<S>& a = world[idx[0u]];
+		const math3d::Vec3t<S>& b = world[idx[1u]];
+		const math3d::Vec3t<S>& c = world[idx[2u]];
+		const s32 ax = math3d::coord_at(a, 0);
+		const s32 ay = math3d::coord_at(a, 1);
+		const s32 az = math3d::coord_at(a, 2);
+		const s32 ux = math3d::coord_at(b, 0) - ax;
+		const s32 uy = math3d::coord_at(b, 1) - ay;
+		const s32 uz = math3d::coord_at(b, 2) - az;
+		const s32 vx = math3d::coord_at(c, 0) - ax;
+		const s32 vy = math3d::coord_at(c, 1) - ay;
+		const s32 vz = math3d::coord_at(c, 2) - az;
+		const s32 nx = uy * vz - uz * vy;
+		const s32 ny = uz * vx - ux * vz;
+		const s32 nz = ux * vy - uy * vx;
+		return nx * -ax + ny * -ay + nz * -az > 0;
+	};
+	/// Clave 0..255 para una arista con vertices <16 (indice menor primero).
+	const auto edge_key = [](u16 ia, u16 ib) -> u32 {
+		if (ia > ib) {
+			const u16 t = ia;
+			ia = ib;
+			ib = t;
+		}
+		return ia * 16u + ib;
+	};
+	if (silhouette_only && use_mask) {
+		for (u32 fi = 0u; fi < nf; ++fi) {
+			const eng::Span<const u16> idx = mesh.face_indices(fi);
+			const u8 n = idx.size();
+			if (n < 3u || n > 8u || !front_face(idx)) continue;
+			for (u8 k = 0u; k < n; ++k) {
+				const u8 j = static_cast<u8>((k + 1u == n) ? 0u : (k + 1u));
+				if (idx[k] < nv && idx[j] < nv && idx[k] != idx[j]) {
+					++front_counts[edge_key(idx[k], idx[j])];
+				}
+			}
+		}
+	}
 	u16 edge_count = 0u;
 	for (u32 fi = 0u; fi < nf; ++fi) {
 		const eng::Span<const u16> idx = mesh.face_indices(fi);
-		const u8 n = static_cast<u8>(idx.size());
+		const u8 n = idx.size();
 		if (n < 3u || n > 8u) continue;
+		if ((cull_backfaces || silhouette_only) && !front_face(idx)) continue;
 		for (u8 k = 0u; k < n; ++k) {
 			const u8 j = static_cast<u8>((k + 1u == n) ? 0u : (k + 1u));
 			u16 ia = idx[k];
@@ -708,25 +754,33 @@ inline u32 render_wire(const math3d::PolyMeshViewT<S>& mesh, const Model& model,
 				ia = ib;
 				ib = tmp;
 			}
+			const u32 key = ia * 16u + ib;
+			if (silhouette_only && (!use_mask || front_counts[key] != 1u)) continue;
 			bool found = false;
-			for (u16 e = 0u; e < edge_count; ++e) {
-				if (edges[e].a == ia && edges[e].b == ib) {
-					found = true;
-					break;
+			if (use_mask) {
+				const u32 word = key >> 5u;
+				const u32 bit = 1u << (key & 31u);
+				found = (seen[word] & bit) != 0u;
+				if (!found) seen[word] |= bit;
+			} else {
+				for (u16 e = 0u; e < edge_count; ++e) {
+					if (edges[e].a == ia && edges[e].b == ib) {
+						found = true;
+						break;
+					}
 				}
 			}
 			if (!found && edge_count < edge_cap) {
 				edges[edge_count++] = WireEdge {ia, ib};
 			}
 		}
-	}
-	u32 drawn = 0u;
+	}	u32 drawn = 0u;
 	for (u16 e = 0u; e < edge_count; ++e) {
 		const math3d::Vec3t<S>& wa = world[edges[e].a];
 		const math3d::Vec3t<S>& wb = world[edges[e].b];
 		CamVertex<S> a {wa.v[0], wa.v[1], wa.v[2]};
 		CamVertex<S> b {wb.v[0], wb.v[1], wb.v[2]};
-		if (!clip_camera_segment<S>(cam, a, b, a, b)) continue;
+		if (!all_inside && !clip_camera_segment<S>(cam, a, b, a, b)) continue;
 		if (!project_camera_vertex<S>(a, cam, xs[0], ys[0])) continue;
 		if (!project_camera_vertex<S>(b, cam, xs[1], ys[1])) continue;
 		if (target.draw_line(xs[0], ys[0], xs[1], ys[1], color, plan, op)) {

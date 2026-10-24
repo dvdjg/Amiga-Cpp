@@ -33,13 +33,14 @@ namespace eng::scene3d {
 /// \tparam MaxVertices vértices máximos por modelo; ≥ 3.
 /// \tparam MaxIndices índices máximos por modelo (suma de vértices de sus caras); ≥ 3.
 /// \tparam MaxFaces caras máximas por modelo; ≥ 1.
-/// \tparam MaxMaterials materiales máximos por modelo; ≥ 1.
-///
-/// El objeto contiene todo el almacenamiento: `MaxModels × (MaxVertices·6 +
+/// \tparam MaxMaterials materiales maximos por modelo; >= 1.
+/// \tparam MaxSpheres esferas de fisica maximas por modelo; 0 = sin fisica.
+/// \tparam MaxParts partes articuladas maximas por modelo; 0 = sin fisica.
 /// MaxIndices·2 + MaxFaces·6 + MaxFaces·2 + MaxMaterials·4)` bytes
 /// aproximadamente. Colocarlo en almacenamiento estático/global o en el arena del
 /// juego, no en la pila del 68000.
-template <u16 MaxModels, u16 MaxVertices, u16 MaxIndices, u16 MaxFaces, u16 MaxMaterials>
+template <u16 MaxModels, u16 MaxVertices, u16 MaxIndices, u16 MaxFaces, u16 MaxMaterials,
+	  u16 MaxSpheres = 0u, u16 MaxParts = 0u>
 class ModelTable : public util::NonMovable {
 	static_assert(MaxModels > 0u, "ModelTable: MaxModels debe ser > 0");
 	static_assert(MaxModels <= 0xfffeu, "ModelTable: MaxModels debe caber en u16");
@@ -62,7 +63,10 @@ public:
 		const u16 ni = asset.index_count();
 		const u16 nf = asset.face_count();
 		const u16 nm = asset.material_count();
-		if (nv > MaxVertices || ni > MaxIndices || nf > MaxFaces || nm > MaxMaterials) {
+		const u16 ns = asset.sphere_count();
+		const u16 npp = asset.part_count();
+		if (nv > MaxVertices || ni > MaxIndices || nf > MaxFaces || nm > MaxMaterials ||
+		    ns > MaxSpheres || npp > MaxParts) {
 			return {};
 		}
 		Slot& slot = m_slots[m_count];
@@ -80,6 +84,12 @@ public:
 		for (u16 i = 0u; i < nm; ++i) {
 			slot.materials[i] = asset.material(i);
 		}
+		for (u16 i = 0u; i < ns; ++i) {
+			slot.spheres[i] = asset.sphere(i);
+		}
+		for (u16 i = 0u; i < npp; ++i) {
+			slot.parts[i] = asset.part(i);
+		}
 		slot.bounds = asset.bounds();
 		slot.view = Mesh {
 			eng::Span<const math3d::Vec3t<eng::coord>>(slot.verts, nv),
@@ -91,6 +101,8 @@ public:
 		slot.ni = ni;
 		slot.nf = nf;
 		slot.nm = nm;
+		slot.ns = ns;
+		slot.npart = npp;
 		++m_count;
 		return ModelHandle {static_cast<u16>(m_count - 1u)};
 	}
@@ -146,6 +158,8 @@ public:
 		slot.ni = static_cast<u16>(ni);
 		slot.nf = static_cast<u16>(nf);
 		slot.nm = 1u;
+		slot.ns = 0u;
+		slot.npart = 0u;
 		++m_count;
 		return ModelHandle {static_cast<u16>(m_count - 1u)};
 	}
@@ -185,6 +199,24 @@ public:
 		return slot.valid() ? slot->bounds : assets::ModelBounds {};
 	}
 
+	/// Esfera de fisica `i` del modelo, o `{}` si no existe.
+	[[nodiscard]] assets::ModelSphere sphere(ModelHandle handle, u32 i) const noexcept {
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		return (slot.valid() && i < slot->ns) ? slot->spheres[i] : assets::ModelSphere {};
+	}
+	/// Parte articulada `i` del modelo, o `{}` si no existe.
+	[[nodiscard]] assets::ModelPart part(ModelHandle handle, u32 i) const noexcept {
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		return (slot.valid() && i < slot->npart) ? slot->parts[i] : assets::ModelPart {};
+	}
+	[[nodiscard]] u16 sphere_count(ModelHandle handle) const noexcept {
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		return slot.valid() ? slot->ns : 0u;
+	}
+	[[nodiscard]] u16 part_count(ModelHandle handle) const noexcept {
+		const eng::Ref<const Slot> slot = slot_of(handle);
+		return slot.valid() ? slot->npart : 0u;
+	}
 	/// \return número de modelos registrados.
 	[[nodiscard]] u16 size() const noexcept { return m_count; }
 	/// \return capacidad de modelos de esta instancia.
@@ -200,12 +232,16 @@ private:
 		math3d::FaceSpan faces[MaxFaces] {};
 		u16 face_material[MaxFaces] {};
 		assets::ModelMaterial materials[MaxMaterials] {};
+		assets::ModelSphere spheres[MaxSpheres == 0u ? 1u : MaxSpheres] {};
+		assets::ModelPart parts[MaxParts == 0u ? 1u : MaxParts] {};
 		assets::ModelBounds bounds {};
 		Mesh view {};
 		u16 nv = 0;
 		u16 ni = 0;
 		u16 nf = 0;
 		u16 nm = 0;
+		u16 ns = 0;
+		u16 npart = 0;
 	};
 
 	/// \param handle modelo consultado.
