@@ -319,6 +319,12 @@ public:
 	/// \return número total de caras rellenadas; 0 si no hay nada visible.
 	/// \note La tabla puede tener más capacidad que la escena; `Scene::MaxVertices`
 	///       sigue siendo el tope efectivo por malla.
+	/// \tparam MaxModels modelos maximos de la tabla.
+	/// \tparam TableVertices vertices maximos por modelo.
+	/// \tparam TableIndices indices maximos por modelo.
+	/// \tparam TableFaces caras maximas por modelo.
+	/// \tparam TableMaterials materiales maximos por modelo.
+	/// \tparam Backend backend con la API de lineas del Blitter.
 	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
 		  u16 TableMaterials, class ColorFn>
 	u32 render(const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
@@ -341,6 +347,12 @@ public:
 	/// \param models tabla de modelos no propietaria; debe sobrevivir a la llamada.
 	/// \param target superficie de destino (el llamador la limpia antes).
 	/// \return número total de caras rellenadas; 0 si no hay nada visible.
+	/// \tparam MaxModels modelos maximos de la tabla.
+	/// \tparam TableVertices vertices maximos por modelo.
+	/// \tparam TableIndices indices maximos por modelo.
+	/// \tparam TableFaces caras maximas por modelo.
+	/// \tparam TableMaterials materiales maximos por modelo.
+	/// \tparam Backend backend con la API de lineas del Blitter.
 	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
 		  u16 TableMaterials>
 	u32 render(const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
@@ -380,6 +392,12 @@ public:
 	/// \tparam TableIndices indices maximos por modelo.
 	/// \tparam TableFaces caras maximas por modelo.
 	/// \tparam TableMaterials materiales maximos por modelo.
+	/// \tparam MaxModels modelos maximos de la tabla.
+	/// \tparam TableVertices vertices maximos por modelo.
+	/// \tparam TableIndices indices maximos por modelo.
+	/// \tparam TableFaces caras maximas por modelo.
+	/// \tparam TableMaterials materiales maximos por modelo.
+	/// \tparam Backend backend con la API de lineas del Blitter.
 	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
 		  u16 TableMaterials>
 	u32 render_silhouette(
@@ -393,6 +411,47 @@ public:
 			});
 	}
 
+	/// **Recoge las aristas visibles de la escena** en coordenadas de pantalla, sin
+	/// pintarlas. El llamador puede entregarlas al rasterizador que prefiera
+	/// (`retro::wire_lines` en Amiga para la ruta rápida de juego). Evita el
+	/// `FramePlan`/`Surface::draw_line` por arista.
+	/// \param models tabla de modelos no propietaria.
+	/// \param out arreglo de salida; puede ser nulo para solo contar.
+	/// \param capacity capacidad de `out`.
+	/// \param color máscara de planos de las aristas.
+	/// \param cull_backfaces descarta aristas de caras traseras.
+	/// \param silhouette_only emite solo las aristas de silueta.
+	/// \return número de aristas escritas (o contadas si `out == nullptr`).
+	/// \tparam MaxModels modelos máximos de la tabla.
+	/// \tparam TableVertices vértices máximos por modelo.
+	/// \tparam TableIndices índices máximos por modelo.
+	/// \tparam TableFaces caras máximas por modelo.
+	/// \tparam TableMaterials materiales máximos por modelo.
+	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
+		  u16 TableMaterials>
+	u32 collect_wire_edges(
+		const ModelTable<MaxModels, TableVertices, TableIndices, TableFaces, TableMaterials>& models,
+		eng::Span<graphics::WireScreenEdge> out, u8 color,
+		bool cull_backfaces = false, bool silhouette_only = false) noexcept {
+		update_transforms();
+		playfield::Surface dummy {};
+		u32 total = 0u;
+		m_nodes.for_each([&](Node3D& node, PoolHandle handle) {
+			(void)handle;
+			if (!node.visible || total >= out.size()) return;
+			eng::Ref<const Mesh> mesh = models.mesh(node.model);
+			if (!mesh.valid() || mesh->vertex_count() > MaxVertices) return;
+			m_model.m = node.world_rotation;
+			m_model.t = node.world_position;
+			const u32 room = out.size() - total;
+			const u32 got = graphics::render_wire(
+				*mesh, m_model, m_camera, dummy, color, m_world, m_edges, MaxEdges,
+				m_cam_scratch, m_xs, m_ys, {}, playfield::RasterOp::Copy,
+				cull_backfaces, silhouette_only, out.subspan(total));
+			total += got < room ? got : room;
+		});
+		return total;
+	}
 	/// **Pinta la escena en alambre** con la `ModelTable`: resuelve la jerarquía,
 	/// proyecta cada arista única y la dibuja con `color` sobre `target`. Es la ruta
 	/// barata para depurar escena/rotación sin depender del relleno de caras.
@@ -408,6 +467,12 @@ public:
 	/// \tparam TableFaces caras máximas por modelo.
 	/// \tparam TableMaterials materiales máximos por modelo.
 	/// \note `MaxEdges` es por malla; las aristas sobrantes se omiten.
+	/// \tparam MaxModels modelos maximos de la tabla.
+	/// \tparam TableVertices vertices maximos por modelo.
+	/// \tparam TableIndices indices maximos por modelo.
+	/// \tparam TableFaces caras maximas por modelo.
+	/// \tparam TableMaterials materiales maximos por modelo.
+	/// \tparam Backend backend con la API de lineas del Blitter.
 	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
 		  u16 TableMaterials>
 	u32 render_wire(
@@ -659,6 +724,7 @@ private:
 	NodeId m_order[MaxNodes] {}; ///< nodos visibles ordenados de lejos a cerca.
 	s32 m_depth[MaxNodes] {}; ///< clave de profundidad de `m_order` (z de la posición).
 	graphics::WireEdge m_edges[MaxEdges] {}; ///< scratch de aristas únicas de `render_wire`.
+	graphics::WireScreenEdge m_out_edges[MaxEdges] {}; ///< scratch de líneas para `collect_wire_edges`.
 };
 
 } // namespace eng::scene3d

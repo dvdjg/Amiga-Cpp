@@ -29,6 +29,7 @@
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/polygon_fill.hpp>
 #include <eng/retro/fixed_trig.hpp>
+#include <eng/retro/wireframe.hpp>
 #include <eng/retro/mesh_primitives.hpp>
 
 namespace {
@@ -52,7 +53,7 @@ constexpr u8 kPlanes = 4u;
 constexpr u32 kPlaneBytes = static_cast<u32>(kRowBytes) * kHeight;
 constexpr u16 kBandY = kWorldH;
 constexpr u16 kBandH = kHeight - kWorldH;
-constexpr u8 kBuffers = 2u;
+constexpr u8 kBuffers = 3u;
 
 // --- Cámara ------------------------------------------------------------------
 constexpr s16 kFocal = 340;
@@ -211,13 +212,14 @@ struct Scene3dDemo {
 					       eng::playfield::SurfaceRect {0, 0, kWidth, kWorldH}};
 		eng::util::TextLine<40> stats {};
 #if K091_WIRE
-		m_plan.clear();
-		const u32 edges = m_world.render_wire(
-			m_models, world, kLineColor, eng::Ref<eng::graphics::FramePlan> {m_plan},
-			eng::playfield::RasterOp::Xor, true, false);
-		const bool plan_ok = backend.execute_frame_plan(m_plan);
-		stats << 'E' << edges << " J" << m_plan.blit_job_count()
-		      << (plan_ok ? " OK" : " ERR") << (m_plan.ok() ? " ok" : " bad");
+		eng::graphics::WireScreenEdge screen_edges[64] {};
+		const u32 count = m_world.collect_wire_edges(
+			m_models, eng::Span<eng::graphics::WireScreenEdge>(screen_edges, 64u), kLineColor,
+			true, false);
+		const u32 drawn = eng::retro::wire_lines(
+			backend, planes, kRowBytes, kPlaneBytes, kWorldPlanes,
+			eng::Span<const eng::graphics::WireScreenEdge>(screen_edges, count), true);
+		stats << 'E' << drawn << " D";
 #else
 #if K091_SILHOUETTE
 		const u32 faces = m_world.render_silhouette(m_models, world);

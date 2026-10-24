@@ -54,11 +54,11 @@ namespace eng::retro {
 /// `clip` (opcional): ventana de recorte en píxeles; cada arista se recorta con
 /// `clip_line` (Liang-Barsky) antes de programar el Blitter y las que caen fuera no se
 /// trazan. Con `nullptr` (por defecto) no hay recorte: coste cero (la geometría debe caber
-/// en el lienzo, como en el original de `wireframe`).
-template <class Backend>
+/// `Edge` debe exponer `x0`, `y0`, `x1`, `y1` y `color` (por ejemplo `OutlineEdge` o `graphics::WireScreenEdge`).
+template <class Backend, class Edge>
 inline eng::u32 wire_lines(Backend& backend, eng::PlaneBytes planes, eng::u16 row_bytes,
 			   eng::u32 plane_bytes, eng::u8 plane_count,
-			   eng::Span<const OutlineEdge> edges, bool wait = true,
+			   eng::Span<const Edge> edges, bool wait = true,
 			   eng::Ref<const eng::retro::Rect> clip = nullptr) {
 	// Modo COPIA (sin ONEDOT/EOR): aquí NO hay truco de paridad — el canal D va a la
 	// propia línea (`d_base = nullptr`) y `blitter_line_draw` lo reescribe POR LÍNEA
@@ -70,7 +70,7 @@ inline eng::u32 wire_lines(Backend& backend, eng::PlaneBytes planes, eng::u16 ro
 		plane_count >= 8u ? 0xffu : static_cast<eng::u8>((1u << plane_count) - 1u);
 	eng::u32 lines = 0u;
 	for (eng::usize i = 0u; i < edges.size(); ++i) {
-		const OutlineEdge& e = edges[i];
+		const Edge& e = edges[i];
 		const eng::u8 color = static_cast<eng::u8>(e.color & color_mask);
 		if (color == 0u) {
 			continue;

@@ -10,6 +10,7 @@
 #include <eng/api/3d.hpp>
 #include <eng/api/api.hpp>
 #include <eng/debug/host_hud.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/graphics/composition/compose.hpp>
@@ -63,6 +64,7 @@ constexpr u8 kHudColor = 15u;
 constexpr eng::debug::Version kVersion {1u, 0u};
 
 enum : u32 {
+	kProfFrame = 0, kProfClear = 1, kProfRender = 2, kProfPhysics = 3, kProfHud = 4, kProfWait = 5,
 	kBootMemory = 0x00009201u,
 	kBootCompose = 0x00009202u,
 	kBootMask = 0x00009203u,
@@ -92,6 +94,9 @@ struct ArticulatedDemo {
 			return;
 		}
 		m_display.takeover(backend);
+#ifdef K092_NASTY
+		backend.set_blitter_priority(true);
+#endif
 
 		m_mask = backend.memory_manager().chip().reserve<eng::MaskTag>(
 			static_cast<u32>(kRowBytes) * kHeight + 16u, 16);
@@ -154,6 +159,7 @@ struct ArticulatedDemo {
 		sync_scene();
 
 		m_ready = true;
+		ENG_PROF_INIT(6u);
 		update(backend, context);
 		update(backend, context);
 		eng::amiga::mark_ready();
@@ -163,46 +169,56 @@ struct ArticulatedDemo {
 		if (!m_ready) {
 			return;
 		}
+		ENG_PROF_FRAME();
+		ENG_PROF_BEGIN(kProfFrame);
 		m_display.commit();
 		const eng::PlaneBytes planes = m_display.back();
 		(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(planes.size()), kWidth,
 					kHeight, kPlanes, kPlaneBytes);
+		ENG_PROF_BEGIN(kProfClear);
 		clear_world(backend, planes);
+		ENG_PROF_END(kProfClear);
 
-#ifndef K092_NOPHYS
-		animate(context.frame.frame_index);
-		m_body.step(CT::from_int(1), CT::from_int(-1), CT::zero(), 4u);
-#endif
 		sync_scene();
 
+		ENG_PROF_BEGIN(kProfRender);
 		eng::playfield::Surface world {m_canvas,
 					       eng::playfield::SurfaceRect {0, 0, kWidth, kWorldH}};
 #ifndef K092_NORENDER
 #if K092_WIRE
-		m_plan.clear();
-		const u32 edges = m_world.render_wire(
-			m_models, world, 1u, eng::Ref<eng::graphics::FramePlan> {m_plan},
-			eng::playfield::RasterOp::Xor, true, true);
-		const bool plan_ok = backend.execute_frame_plan(m_plan);
-		const u32 silhouettes = edges;
-		(void)plan_ok;
+		const u32 silhouettes = m_world.render_wire_direct(
+			m_models, backend, planes, kRowBytes, kPlaneBytes, kWorldPlanes, 1u, true, true);
 #else
 #if K092_FACE
 		const u32 silhouettes = m_world.render(m_models, world);
 #else
 		const u32 silhouettes = m_world.render_silhouette(m_models, world);
 #endif
-		(void)backend.wait_blitter();
 #endif
+		ENG_PROF_END(kProfRender);
+#ifndef K092_NOPHYS
+		ENG_PROF_BEGIN(kProfPhysics);
+		// Fisica desacoplada: el frame ya esta encolado en el Blitter; el solver
+		// calcula el estado del SIGUIENTE frame mientras el Blitter dibuja este.
+		animate(context.frame.frame_index);
+		m_body.step(CT::from_int(1), CT::from_int(-1), CT::zero(), 2u);
+		ENG_PROF_END(kProfPhysics);
+#endif
+		ENG_PROF_BEGIN(kProfWait);
+		(void)backend.wait_blitter();
+		ENG_PROF_END(kProfWait);
 #else
 		const u32 silhouettes = 0u;
 #endif
 		eng::util::TextLine<40> stats {};
 		stats << 'P' << m_body.part_count << " S" << m_body.sphere_count << " F"
 		      << silhouettes << " A" << m_body.parts[1].angles.v[2].v;
+		ENG_PROF_BEGIN(kProfHud);
 		m_host_hud.draw(backend.debug(), "092 ARTICULATED CHARACTER", kVersion,
 				context.frame.frame_index, eng::debug::prof_clock(),
 				stats.c_str());
+		ENG_PROF_END(kProfHud);
+		ENG_PROF_END(kProfFrame);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 

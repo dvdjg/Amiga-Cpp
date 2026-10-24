@@ -63,6 +63,8 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `088_blit3d_planes` | `A500_debug` | 31,97 | 221 898 | 0x1 | 2026-10-20 | `e98c14b1` | 650 | 144 233 530 |
 | `088_blit3d_planes — ruta D+G (proyección+clip 2D, HUD/8f)` | `A500_debug` | 42,93 | 165 242 | 0x2 | 2026-10-20 | `d6e488df + árbol local` | 872 | 144 091 428 |
 | `088_blit3d_planes — ruta D+G + fix HOST-479` | `A500_debug` | 43,60 | 162 701 | 0x3 | 2026-10-20 | `d6e488df + árbol local` | 883 | 143 665 122 |
+| `091_scene3d_nodes` | `A500_release` | 30,62 | 231 656 | 0x0 | 2026-10-24 | `fe01d8b9` | 619 | 143 395 286 |
+| `096_silhouette_swarm` | `A500_release` | 27,01 | 262 642 | 0x0 | 2026-10-24 | `fe01d8b9` | 547 | 143 665 122 |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 

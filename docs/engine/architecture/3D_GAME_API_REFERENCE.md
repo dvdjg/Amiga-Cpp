@@ -26,6 +26,7 @@ Cabeceras principales:
 | `Scene::render_silhouette(models, surface)` | | Ruta P8: una silueta convexa por objeto, 1 fill por objeto. Es una ruta **LOD/flat-fill** para props de un color, sombras, seleccion o siluetas de lejania; pierde caras, patrones y detalle. No es la ruta por defecto de un personaje con materiales. |
 
 | `Scene::render_wire(models, surface, color, plan, op, cull_backfaces, silhouette_only)` | | Alambre con clip near/lateral; las dos ultimas opciones son optimizaciones P8. |
+| `Scene::collect_wire_edges(models, out, cap, color, ...)` + `retro::wire_lines(backend, planes, ...)` | | Alambre de juego sin `FramePlan`: proyecta aristas a `WireScreenEdge` y las traza con `retro::wire_lines` (1 preludio + N líneas). Es la ruta rápida: 091 mide 30,6 fps release. |
 | `Scene::update_transforms()` | | Recompone solo nodos sucios; se llama dentro de los render. |
 
 Ejemplo minimo:

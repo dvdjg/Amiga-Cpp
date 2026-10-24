@@ -100,7 +100,7 @@
 5 demos/techniques/amiga/playfield/121_mirror_scroll/src/main.cpp
 5 demos/techniques/amiga/playfield/122_doublebuffer_scroll/src/main.cpp
 4 demos/techniques/amiga/playfield/125_layers_dualpf/src/main.cpp
-4 demos/techniques/amiga/playfield/126_fast_bobs/src/main.cpp
+5 demos/techniques/amiga/playfield/126_fast_bobs/src/main.cpp
 4 demos/techniques/amiga/playfield/127_dpf_two_bitmaps/src/main.cpp
 4 demos/techniques/amiga/playfield/128_strip_scroller/src/main.cpp
 6 demos/techniques/amiga/playfield/129_split_screen_bands/src/main.cpp

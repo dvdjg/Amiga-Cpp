@@ -17,6 +17,7 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [091_scene3d_nodes](091_scene3d_nodes/README.md) |
 | [092_articulated_character](092_articulated_character/README.md) |
 | [095_collision3d](095_collision3d/README.md) |
+| [096_silhouette_swarm](096_silhouette_swarm/README.md) |
 
 ## Build / run / analyze
 
