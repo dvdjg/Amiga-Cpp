@@ -94,6 +94,9 @@ struct ArticulatedDemo {
 			return;
 		}
 		m_display.takeover(backend);
+#ifdef K092_NASTY
+		backend.set_blitter_priority(true);
+#endif
 
 		m_mask = backend.memory_manager().chip().reserve<eng::MaskTag>(
 			static_cast<u32>(kRowBytes) * kHeight + 16u, 16);

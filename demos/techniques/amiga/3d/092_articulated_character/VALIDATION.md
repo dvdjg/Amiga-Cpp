@@ -29,3 +29,6 @@ Limite: el solver no resuelve contactos angulares ni motores de joint; la inerci
 ## 7. Límite de fill/clear (2026-10-24)
 
 Se probaron tres optimizaciones de relleno: clear por cada parte (6 blits), clear único más pequeño (160×156) y un solo plano de color. Resultados release: **12,75 fps** con clear por parte, **12,78** con clear pequeño y **12,91** con un plano, frente a **12,93** con el clear de 208×156 y 2 planos. Ninguna mejora: el coste restante no es el clear. Sin física se llega a **15,36 fps**, así que el relleno/clear por sí solo ya está por debajo de 25. La conclusión es que 092 es un banco de pruebas del solver y de la silueta; para 25 fps de juego habría que reducir el número/tamaño de partes o usar sprites, no seguir tocando el clear.
+## 8. Blitter nasty / BLTPRI
+
+La variante `-DK092_NASTY=1` activa `set_blitter_priority(true)` (BLTPRI): el Blitter no cede slots a la CPU. Resultado release: **12,80 fps** frente a 12,93 sin nasty. No ayuda en 092 porque el relleno mezcla generación de spans/máscara en CPU y esperas por objeto; quitar la CPU del bus no acelera esa parte. En 090, donde el relleno es más Blitter-puro, sí se usa BLTPRI, pero aun así se queda en 16,3 fps.
