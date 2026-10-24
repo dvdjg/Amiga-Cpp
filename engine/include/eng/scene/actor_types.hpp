@@ -189,7 +189,7 @@ struct ActorDesc {
 	eng::s16 y = 0;
 	/// Superficie de la composición donde se dibuja (índice en `ActorEmitContext::targets`):
 	/// 0 = playfield de fondo (PF1 en un DPF), 1 = segundo playfield (PF2), etc. El camino
-	/// actual materializa BOB/Sprite HW; CPU y Layer no están implementados en `ActorStore`.
+	/// actual materializa BOB/Sprite HW y CPU; Layer se planifica fuera de `ActorStore`.
 	eng::u8 surface = 0;
 	/// Orden de superposición DENTRO de la superficie: solo compara objetos que se
 	/// dibujan sobre el mismo playfield (mayor = delante).
@@ -221,6 +221,10 @@ struct ActorDesc {
 	eng::u8 strip_id = 0;
 	eng::u8 strip_index = 0;
 	eng::u8 strip_span = 1;
+	/// **Petición explícita de CPU** para la fachada por intención (`SpritePolicy::Cpu`):
+	/// el compositor copia el contenido directamente en el playfield de `surface`, sin
+	/// consumir sprite HW ni encolar un BOB. `targets[surface]` sigue siendo el destino.
+	bool force_cpu = false;
 	/// **Petición explícita de BOB** para la fachada por intención (`SpritePolicy::Bob`,
 	/// `Reuse::None`, `Attach::Off` sobre contenido de 4 planos). No consume sprite HW;
 	/// el compositor lo marca `as_bob` sin pasar por el reparto de canales. No cambia el

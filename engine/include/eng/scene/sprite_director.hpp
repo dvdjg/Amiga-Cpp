@@ -3,7 +3,7 @@
 /// \file sprite_director.hpp
 /// **Fachada pública única de sprites** (`eng::SpriteDirector`): el juego declara
 /// `VisualId`/`CompositeId`, posición e intención (`SpriteHint`), y el director compone
-/// sprites HW + BOB + paleta por banda con un solo presupuesto/reporte.
+/// sprites HW + BOB + CPU + paleta por banda con un solo presupuesto/reporte.
 ///
 /// Es la capa de alto nivel del sistema; `SpriteScene` y `CompositeScene` quedan como
 /// implementación/“modo avanzado”. El director:
@@ -160,6 +160,12 @@ public:
 	/// \post en éxito se ocupa un slot y, para simple, un actor interno; para compuesto,
 	///       una entrada en `CompositeScene`.
 	[[nodiscard]] SpriteId add(const SpriteDesc& desc) noexcept {
+		if (desc.hint.policy == SpritePolicy::Layer) {
+			return {}; // un PF/capa no se convierte en actor ni en BOB: ver playfield_layer.hpp
+		}
+		if (desc.hint.policy == SpritePolicy::Cpu && !m_caps.cpu) {
+			return {}; // backend sin copia CPU: rechazo controlado, no BOB silencioso
+		}
 		const SpriteVisualView view = m_assets.view(desc.content);
 		if (!view.valid()) {
 			return {};
@@ -293,6 +299,11 @@ public:
 			}
 		});
 	}
+
+	/// Capacidades del backend/planner (CPU/PF).
+	constexpr void set_capabilities(const SpriteCapabilities& c) noexcept { m_caps = c; }
+	/// Capacidades vigentes.
+	[[nodiscard]] constexpr const SpriteCapabilities& capabilities() const noexcept { return m_caps; }
 
 	/// Presupuesto de la fachada (canales, scanline, BOB, Copper, paleta, gap).
 	/// \param b límites del frame; se comparan en `emit` y producen avisos/`ok == false`
@@ -428,6 +439,7 @@ public:
 			const SpriteLoadReport simple_report =
 				m_simple.emit(plan, ctx, copper, m_ledger);
 			r.bob += simple_report.bob;
+			r.cpu += simple_report.cpu;
 			r.hw += simple_report.hw;
 			r.degraded += simple_report.degraded;
 			r.copper_intents += simple_report.copper_intents;
@@ -470,7 +482,7 @@ public:
 
 		// 4) Contabilidad de placements/canales/scanline/gap.
 		r.hw = m_place_count;
-		r.parts = static_cast<eng::u16>(r.hw + r.bob);
+		r.parts = static_cast<eng::u16>(r.hw + r.bob + r.cpu);
 		r.palette_events = m_palette_count;
 		u16 scan[512] {};
 		u16 last_bottom[eng::graphics::kSpriteChannels] {};
@@ -518,6 +530,7 @@ public:
 			if (e.emitter == SpriteEmitter::PerLine) ++r.emitter_per_line;
 			else if (e.emitter == SpriteEmitter::DmaChain) ++r.emitter_chain;
 			else if (e.emitter == SpriteEmitter::Horizontal) ++r.emitter_horizontal;
+			else if (e.emitter == SpriteEmitter::Cpu) ++r.emitter_cpu;
 			else ++r.emitter_rearm;
 			if (e.desc.hint.reuse == SpriteReuse::PerLine &&
 			    !e.desc.line_layer.valid()) {
@@ -608,18 +621,18 @@ private:
 		a.sprite_palette = d.sprite_palette;
 		a.animation = d.animation;
 		a.y = d.y;
+		const bool force_cpu = d.hint.policy == SpritePolicy::Cpu;
 		bool force_bob = d.hint.policy == SpritePolicy::Bob ||
-				 d.hint.policy == SpritePolicy::Cpu ||
-				 d.hint.policy == SpritePolicy::Layer ||
 				 d.hint.reuse == SpriteReuse::None;
 		if (d.hint.attach == SpriteAttach::Off &&
 		    eng::graphics::visual_is_attached_pair(v)) {
 			force_bob = true; // 4 planos no caben en un canal
 		}
 		// `SpriteDesc::x` es X de pantalla; el registro de sprite usa HSTART absoluto.
-		// Un BOB no lleva ese origen (el Blitter escribe píxeles de pantalla).
-		a.x = force_bob ? d.x
-				: static_cast<eng::s16>(d.x + eng::graphics::kSpriteScreenXOrigin);
+		// Un BOB/CPU no lleva ese origen (escriben píxeles de pantalla).
+		a.x = (force_bob || force_cpu)
+			      ? d.x
+			      : static_cast<eng::s16>(d.x + eng::graphics::kSpriteScreenXOrigin);
 		a.surface = d.surface;
 		a.z = d.z;
 		a.anchor = d.anchor;
@@ -641,7 +654,8 @@ private:
 		a.strip_id = d.hint.strip_id;
 		a.strip_index = d.hint.strip_index;
 		a.strip_span = d.hint.strip_span;
-		a.force_bob = force_bob;
+		a.force_cpu = force_cpu;
+		a.force_bob = force_bob && !force_cpu;
 		return a;
 	}
 
@@ -698,6 +712,7 @@ private:
 	CompositeSceneType m_composites {};  ///< escena interna de entidades compuestas
 	PoolType m_entities {};              ///< handles `SpriteId` (índice+generación de entidad)
 	eng::graphics::SpriteChannelLedger m_ledger {}; ///< canales ocupados por compuestos en el frame
+	SpriteCapabilities m_caps {};        ///< capacidades CPU/PF del backend
 	SpriteBudget m_budget {};            ///< límites usados por `apply_budget` en `emit`
 	BlitDeadline m_deadline {};          ///< límite de Blitter comprobado en `emit`
 	eng::graphics::BobLayout m_bob_layout = eng::graphics::BobLayout::Planar; ///< layout BOB por defecto

@@ -18,6 +18,7 @@ struct SpriteComposeResult {
 	eng::u16 sprites = 0;  ///< sprites hardware publicados (dos por actor *attached*, una por franja)
 	eng::u16 degraded = 0; ///< actores que no caben en hardware (`as_bob`)
 	eng::u16 bobs = 0;     ///< actores finalmente dibujados como BOB
+	eng::u16 cpu = 0;      ///< actores dibujados por CPU (copia síncrona)
 	eng::u16 copper = 0;   ///< intenciones de Copper escritas (ancladas a los actores)
 	eng::u16 palette = 0;  ///< eventos de paleta por franja (plantillas + arbitraje F7)
 	/// **Telemetría de reparto** (para el planner y la batería de estrés): máscara de canales
@@ -152,6 +153,16 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 						 s.intent_actor, s.sort_intents, s.sort_actor,
 						 s.y_offsets);
 	if (n == 0u) {
+		// Sin intents: puede ser una escena solo-CPU (no es rechazo) o un rechazo
+		// controlado (p. ej. grupo + attached). Distinguirlos evita silenciar errores.
+		bool cpu_only = true;
+		for (eng::u16 i = 0u; i < MaxActors; ++i) {
+			if (store.used(i) && !store.at(i).desc.force_cpu) {
+				cpu_only = false;
+				break;
+			}
+		}
+		r.ok = cpu_only;
 		return r;
 	}
 	// Guarda la secuencia de actores de este frame (su orden Y tras el sort por `top`):

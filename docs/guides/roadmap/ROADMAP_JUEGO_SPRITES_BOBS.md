@@ -24,7 +24,7 @@ La **lista viva y priorizada de pendientes de sprites** sigue en `ROADMAP_UNIFIC
 - **Sprite** (a secas): la **entidad gráfica animada de alto nivel** de un juego —contenido, animaciones, ancla, hitboxes y comportamiento (el sprite del jugador, el de un camión, el de una bala)—. Puede materializarse con cualquier combinación de piezas internas. En el engine se describe con `ActorDesc` + `Animation` y, cuando es multi-parte, con `CompositeVisual`/`CompositeState` (F1).
 - **Sprite HW**: uno de los 8 canales DMA de Agnus (`graphics/sprite_manager.hpp`). Se nombra siempre «Sprite HW», nunca «sprite» a secas, para no mezclar capas.
 - **BOB** (*Blitter object*, «sprite blob»): copia de bitmap por Blitter (`graphics/bob.hpp`).
-- **Sprite CPU**: objeto rasterizado por la CPU (en A1200, *CPU Blit Assist*); corresponde al camino CPU (no hay fachada de juego implementada).
+- **Sprite CPU**: objeto rasterizado por la CPU (en A500 copia planar de 16 bits; en A1200, *CPU Blit Assist* de 32 bits); corresponde a `ActorDesc::force_cpu` + `graphics/cpu_blit.hpp` (HOST-491).
 - **Sprite Playfield**: una capa de playfield (p. ej. PF2 de un DPF) usada como un objeto grande con scroll (enemigo gigante, patrón Jim Power); corresponde a una capa declarativa (`WorldRegion`), no a un enum de actor.
 - **Materialización**: el cómo se dibuja este frame un sprite (Sprite HW / BOB / CPU / Playfield). La elige el **planner** (`SpriteAllocator` y composición) y puede degradar sin cambiar el contenido.
 - **Contenido**: los píxeles, máscara y frames (`Visual`), sin flags de hardware ni de representación.
@@ -77,7 +77,7 @@ La **lista viva y priorizada de pendientes de sprites** sigue en `ROADMAP_UNIFIC
 
 ### 2.3 Límites de alcance declarados
 
-El sistema **no** cubre hoy (y está bien que no lo haga en el núcleo): recorte parcial de un objeto que no cabe entero en la ventana (se rechaza, documentado en `OBJECT_SYSTEM.md` §2), anclaje distinto por frame, objeto CPU con política de fondo, y capa de hitboxes por frame (no existe un tipo de «caja de golpe» que siga a la animación). Los tres primeros son estados del sistema de actores, no del chipset; el cuarto es parte de F1 de este roadmap.
+El sistema **no** cubre hoy (y está bien que no lo haga en el núcleo): recorte parcial de un objeto que no cabe entero en la ventana (se rechaza, documentado en `OBJECT_SYSTEM.md` §2), anclaje distinto por frame, `SaveUnder` en la ruta CPU (se rechaza), y capa de hitboxes por frame (no existe un tipo de «caja de golpe» que siga a la animación). Los tres primeros son estados del sistema de actores, no del chipset; el cuarto es parte de F1 de este roadmap.
 
 ## 3. Contraste con el inventario de técnicas (consulta externa)
 
@@ -502,3 +502,9 @@ F1 → F2 (o F2 → F1 si el primer juego objetivo es un shmup) → F8 si hay ni
 - Emulador: `docs/reference/emulators/winuae/sprite-dma.md`, `sprite-color-priority.md`; AHRM 3.ª cap. 4 (sprites) y cap. 7 (`BPLCON2`, `CLXCON`/`CLXDAT`); *CPU Blit Assist* (Power Programs) para el camino de Sprite CPU (A1200).
 - Reutilización en el engine: `core/math/spline.hpp` (Bézier/Hermite/Catmull-Rom genéricos), `core/math/interp.hpp` (lerp/easings), `core/math/isqrt.hpp`, `core/math/sinetable.hpp`, `core/util/{state_machine,event}.hpp`, `scene/composite_actor.hpp` (`PartRepresentation`), `graphics/copper/plan.hpp` (conflictos por línea), `scene/route_camera.hpp`.
 - Estado vivo: `ROADMAP_UNIFICADO.md` §«Sprites hardware — estado»; fachada `eng/scene/sprite_scene.hpp`; metódica `DEMO_VISUAL_DEBUG.md` y `docs/testing/README.md`.
+
+## CPU Blit Assist A1200 (roadmap, no implementar ahora)
+
+La ruta CPU A500 ya existe (`ActorDesc::force_cpu` + `graphics/cpu_blit.hpp`, HOST-491); la ruta **híbrida CPU/Blitter de 32 bits** para A1200/A4000/CD32/A3000 queda en roadmap, no en esta entrega. Requiere: bus de 32 bits declarado por el backend, copia de palabras largas, reparto de líneas Blitter/CPU por tabla `BlitSplitTable<MachineProfile>` y calibración real (los emuladores sobreestiman el 68020). La API de contenido no cambia: el actor sigue pidiendo CPU y el planner decide la ruta.
+
+La emisión de BOBs de las capas de escena se centraliza en `scene/bob_emitter.hpp` (`BobEmitter`): destino, `FramePlan` y contador en un solo punto; `BobLayer` y `FastBobLayer` lo usan. Las capas XYlimited deben usar `Band::bob_target()` + `BobLayer`/`BobEmitter`, no construir `BlitJob` propios.

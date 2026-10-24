@@ -2,7 +2,7 @@
 
 Este documento especifica el sistema de objetos del engine: cómo un actor descrito por la aplicación se materializa como **sprite hardware**, **BOB por Blitter** u **objeto CPU**, qué políticas de **transparencia** y de **gestión del fondo** admite, y cómo declara sus **necesidades de Copper** para que una instancia superior (el compositor) monte la copperlist del frame.
 
-> **Estado de implementación (2026-10):** `ActorStore`/`compose_sprites` implementan **Sprite HW y BOB**. `Cpu` y `Layer` son objetivos de diseño, no materializadores disponibles en la API actual: un sprite CPU necesita un renderer sobre `Surface`/CPU Blit Assist y una capa de playfield de DPF se modela como `WorldRegion`/`Layer`, no como `PartRepresentation`. No se añaden enums vacíos mientras no exista consumidor.
+> **Estado de implementación (2026-10):** `ActorStore`/`compose_sprites` implementan **Sprite HW, BOB y CPU**. El actor CPU usa `ActorDesc::force_cpu` y `graphics/cpu_blit.hpp` (copia planar de 16 bits por palabras y desplazamiento de ventana); A1200/68020 usará la misma interfaz con copia de 32 bits/híbrida. Una capa de playfield (PF) se planifica como `WorldRegion`/`Layer` + `scene/playfield_layer.hpp`, nunca como `ActorDesc` ni `PartRepresentation`. `Layer` no es una representación de parte.
 
 Es la pieza de diseño que cierra la infraestructura de objetos del roadmap (`docs/guides/roadmap/NORMALIZACION_REPO.md`, F6). No repite el vocabulario de intenciones ni las plantillas de sprite, que ya están especificados en `VISUAL_EFFECT_SPRITE_DESIGN.md` (`Visual`, `CopperIntent`, `HwSpriteTemplate`, concept `Effect`), ni el modelo de escena retenida de `SCENE_AND_RESOURCES.md`.
 
@@ -77,7 +77,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Contrato del sprite resuelto (`HwSpritePlacement`) y volcado al emisor (`SpriteManager::apply`) | EXISTE | `graphics/sprite.hpp`, `graphics/sprite_manager.hpp` |
 | Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | EXISTE | proyección (`sprite_template_view_to_intents`), **cadena vertical** en el allocator (`chain_id` reserva el canal para todo el rango) y emisión por franja con paleta intercalada (`emit_placements_into`); HOST-003/072/428, demo `217_sprite_template_actor` |
 | Tiles como BOB (blit desde banco común + posición de mapa) | EXISTE | `BlitJobKind::TileBlockCopy` (`frame_plan.hpp`), `field/xlimited.hpp` |
-| Objeto CPU sobre `Surface` con política de fondo | PROPUESTO | §14.7 |
+| Objeto CPU sobre `BobTarget`/playfield con política de fondo | HECHO (A500) | §14.7 |
 
 ## 3. Modelo de dominio
 
@@ -314,8 +314,16 @@ Ordenadas por dependencia, dentro del roadmap F6:
 4. **Emisión de BOB** desde el actor: `bob_draw`/`bob_erase_box` con el rectángulo efectivo y el origen del frame dentro de la hoja. **HECHO**; el **recorte parcial** a la ventana (x/y negativos) queda pendiente (hoy se rechaza el objeto que no cabe entero). La **costura del anillo** (rect que cruza el fin del bucle del corkscrew) **SÍ se reparte** desde `graphics/bob_ring.hpp`: con `ActorEmitContext::ring_height` el dibujo, el borrado y el save-under salen como hasta dos trabajos lineales (la parte envuelta va a las líneas 0.. con la fuente avanzada); sin anillo o sin cruce el camino es lineal con una única comparación. Cubierto por HOST-453 (píxeles exactos con la línea envuelta, save-under espejado byte a byte, variantes Or flat/planar) y ejercitado en hardware por el modo `K121_ACTOR_SEAM` de la 121 (auto-chequeo por frame leyendo la parte visible y la envuelta del bitmap del anillo).
 5. **Necesidades de Copper ancladas**: conversión de relativas a absolutas. **HECHO** (`actor_emit_copper`); la fusión con prioridad por z en el `Plan` queda pendiente.
 6. **Cableado de la degradación sprite → BOB**: `SpriteAllocator::as_bob` a `BlitJob` con el mismo `Visual`. **HECHO en el engine**: `build_sprite_intents` (una intención por actor, ordenada por `top`) + `emit_bob_fallbacks` (emite como BOB los degradados, en orden por superficie y `z`, con `bob_from_visual`); falta reescribir la demo 054 para consumirlo.
-7. **Objeto CPU** sobre `Surface` con política de fondo y presupuesto. **PENDIENTE**.
+7. **Objeto CPU** sobre `BobTarget`/playfield con política de fondo. **HECHO** en A500: `ActorDesc::force_cpu` + `graphics/cpu_blit.hpp` (HOST-491; demo 225). La ruta híbrida de 32 bits de A1200 queda para §19 de `ENGINE_2D_ABSTRACCIONES.md`.
 8. **Demo con gate visual** que consuma el sistema: **HECHO** — la demo 121 usa el camino del SISTEMA **por defecto** (`ActorStore` + `Animation` + `SaveUnder` + pack con guarda sobre el puente `field/actor_target.hpp`; el camino propio queda tras `K121_ACTOR_LEGACY` como A/B). Gate visual: el actor se ve en captura (552 px del cuerpo en su columna), la guarda por frame lee el bitmap cada frame y el **golden de 16 subposiciones del sistema da 16/16 exactas sin daño colateral** (`tools/analyze/verify-121-actor-golden.mjs`); el modo `K121_ACTOR_SEAM` valida el reparto en la costura en hardware. Detalle del cierre: DT-024.
+
+### 14.7 Materialización CPU y capas PF (estado)
+La materialización CPU es una **representación de actor**, no un tipo de contenido: `ActorDesc::force_cpu` pide la copia directa en el playfield de `surface`.
+- Ruta rápida `Opaque`: copia palabra a palabra de 16 bits (ancho de Chip OCS/ECS), con desplazamiento de ventana y la palabra de guarda de la hoja.
+- `Or`/`And`: operación lógica por palabra.
+- `CookieCut`: máscara separable o máscara derivada de los planos (transparencia por píxel; es la ruta lenta, no la de un sprite opaco).
+- `ClearRect`: borra la caja previa por CPU; `SaveUnder` se rechaza en esta ruta.
+Un PF (enemigo gigante/fondo) **no es un actor**: se planifica como capa con `scene/playfield_layer.hpp` y `WorldRegion`/`Layer`. Solo se acepta como PF si el display tiene DPF, el playfield está libre y la capa ocupa la altura completa. Si no cabe, se rechaza; no se crea un actor sustituto. La ruta híbrida 68020 + bus de 32 bits (A1200/CD32/A3000/A4000) se añadirá sobre la misma copia CPU, no sobre una API distinta.
 
 ## 15. Repaso final: clasificación de abstracciones, fronteras y huecos
 

@@ -18,6 +18,7 @@
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/scene/band_plan.hpp>
+#include <eng/scene/bob_emitter.hpp>
 
 namespace eng::scene {
 
@@ -91,17 +92,18 @@ public:
 			order[at] = i;
 			++n;
 		}
-		eng::u16 drawn = 0u;
+		BobEmitter emitter;
+		emitter.begin(plan, target);
 		for (eng::u8 j = 0u; j < n; ++j) {
 			const BobActor& a = m_actors[order[j]];
 			const eng::s16 dx = a.x - fine_scroll; // compensa el fine scroll del campo
 			const eng::u8 frame = a.anim.valid() ? a.anim.frame() : a.frame;
 			const eng::graphics::Sprite& sh = sheet(a.sheet_index);
-			if (a.visible && sh.draw(plan, target, frame, dx, a.y)) {
-				++drawn;
+			if (a.visible) {
+				(void)emitter.draw(sh, frame, dx, a.y);
 			}
 		}
-		return drawn;
+		return emitter.drawn();
 	}
 
 	/// **Emite cada actor a la banda que contiene su `y`** (`ROADMAP_GAME_API.md` §7, split-screen):
@@ -316,37 +318,34 @@ public:
 			}
 		}
 
-		// 1) Limpia las áreas previas de los que degradan (para que no queden restos).
-		eng::u16 drawn = 0u;
+		BobEmitter emitter;
+		emitter.begin(plan, target);
+		// 1) Limpia las áreas previas de los que degradan.
 		for (eng::u8 i = 0u; i < m_count; ++i) {
 			if (live[i] && slow[i] && !m_painted[i].empty()) {
 				(void)clear_box(plan, target, m_painted[i].x, m_painted[i].y,
 						m_painted[i].w, m_painted[i].h);
 			}
 		}
-		// 2) Dibuja: rápido (copia con padding) o degradado (cookie-cut sin padding).
+		// 2) Dibuja: rápido (copia con padding) o degradado (cookie-cut).
 		for (eng::u8 i = 0u; i < m_count; ++i) {
 			if (!live[i]) {
 				continue;
 			}
 			const BobActor& a = m_actors[i];
-			bool ok = false;
 			if (slow[i]) {
 				const eng::s16 fx = a.x - fine_scroll;
-				ok = m_cookie.draw(plan, target, a.frame, fx, a.y);
+				(void)emitter.draw(m_cookie, a.frame, fx, a.y);
 				m_painted[i] = eng::Box {fx, a.y, m_cookie.width(), m_cookie.height()};
 			} else {
-				ok = m_sheet.draw(plan, target, a.frame, fast[i].x, fast[i].y);
+				(void)emitter.draw(m_sheet, a.frame, fast[i].x, fast[i].y);
 				m_painted[i] = fast[i];
 			}
 			m_prev_x[i] = a.x;
 			m_prev_y[i] = a.y;
 			m_has[i] = true;
-			if (ok) {
-				++drawn;
-			}
 		}
-		return drawn;
+		return emitter.drawn();
 	}
 
 	/// **Emite cada actor a la banda que contiene su `y`** (split-screen), con la misma política de

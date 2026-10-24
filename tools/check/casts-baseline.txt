@@ -231,7 +231,7 @@
   0     2  engine/include/eng/graphics/present_controller.hpp
   0     2  engine/include/eng/graphics/raster_intent.hpp
   0     2  engine/include/eng/graphics/render_pacing.hpp
-  0    29  engine/include/eng/graphics/render3d.hpp
+  0    26  engine/include/eng/graphics/render3d.hpp
   0    36  engine/include/eng/graphics/sprite_allocator.hpp
   2     0  engine/include/eng/graphics/sprite_asset.hpp
   3    11  engine/include/eng/graphics/sprite_chain.hpp
@@ -310,7 +310,7 @@
   0     1  engine/include/eng/rpg/sim_bridge.hpp
   0     3  engine/include/eng/rpg/stats.hpp
   0    22  engine/include/eng/scene/actor_sprite.hpp
-  0    22  engine/include/eng/scene/actor_store.hpp
+  0    24  engine/include/eng/scene/actor_store.hpp
   2    16  engine/include/eng/scene/actor_types.hpp
   0     9  engine/include/eng/scene/band_plan.hpp
   0     1  engine/include/eng/scene/banded_target.hpp
@@ -326,7 +326,7 @@
   0     9  engine/include/eng/scene/sprite_director_types.hpp
   0    18  engine/include/eng/scene/sprite_director.hpp
   0     3  engine/include/eng/scene/sprite_scene.hpp
-  0    38  engine/include/eng/scene/sprite_visual.hpp
+  0    40  engine/include/eng/scene/sprite_visual.hpp
   0    15  engine/include/eng/scene/trajectory.hpp
   0    25  engine/include/eng/scene/virtual_scene.hpp
   0     7  engine/include/eng/scene3d/model_table.hpp

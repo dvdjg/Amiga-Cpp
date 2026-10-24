@@ -153,11 +153,13 @@ public:
 		sc.cooked_pairs = eng::Span<eng::scene::AttachedCookedCache> {m_cooked_pairs, MaxActors};
 		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper,
 						       ledger);
+		m_result.cpu = eng::scene::emit_cpu_actors(plan, m_store, ctx);
 		m_prev_count = sc.prev_count; // la secuencia de este frame queda para el siguiente
 		m_cooked_used = sc.cooked_used;
 		eng::scene::SpriteLoadReport r {};
 		r.hw = m_result.sprites;
 		r.bob = m_result.bobs;
+		r.cpu = m_result.cpu;
 		r.degraded = m_result.degraded;
 		r.copper_intents = m_result.copper;
 		r.palette_events = m_result.palette;

@@ -639,6 +639,9 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// espejo gestionados) pero con un plano de máscara de 1 bit compartido con
     /// el layout de fila de un plano fuente: donde el bit es 0 se conserva el
     /// fondo, donde es 1 se escribe el BOB.
+    /// **No es la vía de objetos**: para actores/BOBs de juego, usar
+    /// `Band::bob_target()` + `scene::BobLayer`/`FastBobLayer` (o `BobEmitter`),
+    /// que centralizan el `FramePlan`, el destino y el reparto de recursos.
     bool add_world_bitmap_masked(graphics::FramePlan& plan, // override de Playfield
                                  Span<const u16> src, Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride,

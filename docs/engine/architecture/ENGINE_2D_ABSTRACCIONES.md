@@ -657,6 +657,8 @@ Defectos:
 
 ## 19. Blit híbrido CPU/Blitter (selección por CPU)
 
+> **Estado (2026-10):** la ruta CPU pura de A500 ya existe para actores (`graphics/cpu_blit.hpp`, `ActorDesc::force_cpu`, HOST-491). Es una copia planar de 16 bits por palabras; esta sección describe la ruta **híbrida de 32 bits** de 68020/A1200, que reutilizará la misma copia con palabras largas y reparto de líneas Blitter/CPU. La tabla de reparto y su calibración siguen pendientes.
+
 Basado en la técnica de Jeroen Knoester (Power Programs, "CPU Assisted Blitting"): en máquinas con memoria chip de 32 bits y CPU ≥ 68020 (A1200, CD32, A3000, A4000), el Blitter sin `BLTPRI` deja a la CPU ~1 de cada 4 ciclos (o 1 de 3 con canales B&D), y la CPU (que accede a chip de 32 bits, el doble de eficiente que el Blitter de 16) hace una parte del blit (líneas inferiores) mientras el Blitter hace las superiores. ~13% más de bobs/frame; requiere alineación a longword y objetos ≥ 32 px. Nota clave del autor: **los emuladores sobreestiman el 68020**; hay que calibrar en hardware real.
 
 ```

@@ -8,6 +8,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/graphics/bob_ring.hpp>
+#include <eng/graphics/cpu_blit.hpp>
 #include <eng/scene/actor_types.hpp>
 
 namespace eng::scene {
@@ -68,6 +69,52 @@ inline bool emit_bob(FramePlan& plan, const Actor& a, const Frame& f, eng::s16 x
 	return eng::graphics::bob_draw(plan, b, 0u, x, y, target);
 }
 
+/// Vista del frame `f` para la copia CPU: mismo recorte de hoja que `emit_bob`, pero
+/// con `frame_count=1` y sin `frame_stride` (el frame ya está seleccionado).
+inline Bob cpu_frame_bob(const Actor& a, const Frame& f) {
+	Bob b = a.bob;
+	const eng::u32 row = eng::graphics::bob_detail::sheet_row_of(a.bob);
+	const eng::usize sheet_off =
+		static_cast<eng::u32>(f.y) * row + (static_cast<eng::u32>(f.x) >> 4u) * 2u;
+	b.sheet = b.sheet.subview(sheet_off, b.sheet.size() - sheet_off);
+	if (!b.mask.empty() && b.mask.size() > sheet_off) {
+		b.mask = b.mask.subview(sheet_off, b.mask.size() - sheet_off);
+	}
+	b.width = f.w;
+	b.height = f.h;
+	b.frame_count = 1u;
+	b.frame_stride = 0u;
+	return b;
+}
+
+/// Emite un actor CPU directamente en su playfield. No encola trabajos: la copia es
+/// síncrona. `ClearRect` borra la caja previa por CPU; `SaveUnder` no tiene sentido en
+/// esta ruta y se rechaza de forma controlada.
+inline ActorEmitStatus emit_cpu(FramePlan& plan, Actor& a, const Frame& f,
+				const DirtyRect& rect, const ActorEmitContext& ctx,
+				const BobTarget& target) {
+	const BackgroundPolicy policy = resolve_background(a.desc.background, f.w, f.h);
+	if (policy == BackgroundPolicy::SaveUnder) {
+		return ActorEmitStatus::Full;
+	}
+	const DirtyRect& prev = a.prev[ctx.buffer];
+	if (policy == BackgroundPolicy::ClearRect && prev.valid()) {
+		if (!eng::graphics::cpu_clear_box(target, prev.left, prev.top, prev.width(),
+						  prev.height())) {
+			return ActorEmitStatus::Full;
+		}
+	}
+	const Bob b = cpu_frame_bob(a, f);
+	const eng::graphics::CpuBlitResult res =
+		eng::graphics::cpu_draw_bob(target, b, 0u, rect.left, rect.top);
+	if (!res.ok) {
+		return ActorEmitStatus::Full;
+	}
+	a.prev[ctx.buffer] = rect;
+	plan.add_dirty_rect(rect);
+	return ActorEmitStatus::Ok;
+}
+
 } // namespace actor_detail
 
 /// Emite el actor para el frame actual: fondo (borrado o save-under) y objeto. El rect
@@ -110,6 +157,14 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 				return ActorEmitStatus::Clipped;
 			}
 		}
+	}
+
+	if (a.desc.force_cpu) {
+		const ActorEmitStatus st = actor_detail::emit_cpu(plan, a, f, rect, ctx, target);
+		if (st == ActorEmitStatus::Ok && out_rect.valid()) {
+			*out_rect = rect;
+		}
+		return st;
 	}
 
 	const BackgroundPolicy policy = resolve_background(a.desc.background, f.w, f.h);
@@ -327,6 +382,38 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 	return emitted;
 }
 
+/// Emite **solo los actores CPU** en orden por superficie y `z`. Devuelve cuántos
+/// se copiaron; 0 si el orden no cabe o un actor devuelve `Full`. Los actores no-CPU
+/// se omiten (los materializa el compositor de sprites/BOB).
+/// \tparam MaxActors capacidad del `ActorStore` que se recorre.
+template <eng::u16 MaxActors>
+inline eng::u16 emit_cpu_actors(FramePlan& plan, ActorStore<MaxActors>& store,
+				const ActorEmitContext& ctx) {
+	eng::scene::ActorId order[MaxActors] {};
+	const eng::u16 n = plan_actor_order(store, eng::Span<eng::scene::ActorId> {order, MaxActors});
+	if (n == 0u) {
+		return 0u;
+	}
+	eng::u16 emitted = 0u;
+	for (eng::u16 i = 0u; i < n; ++i) {
+		auto a = store.get(order[i]);
+		if (!a.valid()) {
+			return 0u;
+		}
+		if (!a->desc.force_cpu) {
+			continue;
+		}
+		const ActorEmitStatus st = actor_emit(plan, *a, ctx);
+		if (st == ActorEmitStatus::Full) {
+			return 0u;
+		}
+		if (st == ActorEmitStatus::Ok) {
+			++emitted;
+		}
+	}
+	return emitted;
+}
+
 /// Orden estable por `top` con counting-sort cuando el compositor aporta scratch de 512 líneas.
 /// Devuelve `false` para el fallback de inserción si falta capacidad o una línea sale del rango PAL.
 inline bool stable_sort_sprite_intents_by_top(eng::Span<SpriteIntent> intents,
@@ -397,6 +484,9 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		const auto a = store.get(order[i]);
 		if (!a.valid()) {
 			return 0u;
+		}
+		if (a->desc.force_cpu) {
+			continue; // se copia en el playfield, no ocupa canal ni intent
 		}
 		const Frame f = actor_current_frame(*a);
 		const DirtyRect r = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);

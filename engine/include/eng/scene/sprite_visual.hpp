@@ -325,6 +325,15 @@ private:
 };
 
 /// Política de materialización pedida por el juego.
+/// Capacidades de materialización declaradas por el backend/planner.
+/// El director solo acepta `SpritePolicy::Cpu` si `cpu` está disponible; una capa
+/// PF se planifica aparte con `scene/playfield_layer.hpp`.
+struct SpriteCapabilities {
+	bool cpu = true;          ///< copia CPU disponible (A500 sí; backend sin CPU, no)
+	bool dpf = false;         ///< hay dual playfield
+	eng::u8 free_playfields = 0u; ///< playfields libres para capas PF
+};
+
 enum class SpritePolicy : eng::u8 {
 	Auto = 0u,   ///< sprite HW si cabe; BOB si no.
 	Sprite = 1u, ///< intenta sprite HW; el allocator puede degradar.
@@ -474,6 +483,7 @@ struct SpriteLoadReport {
 	eng::u16 parts = 0u;
 	eng::u16 hw = 0u;
 	eng::u16 bob = 0u;
+	eng::u16 cpu = 0u;
 	eng::u16 degraded = 0u;
 	eng::u16 attached_pairs = 0u;
 	eng::u16 strips = 0u;
@@ -494,6 +504,7 @@ struct SpriteLoadReport {
 	eng::u16 emitter_chain = 0u;
 	eng::u16 emitter_per_line = 0u;
 	eng::u16 emitter_horizontal = 0u;
+	eng::u16 emitter_cpu = 0u;
 	eng::u32 warnings = 0u;
 	bool ok = true;
 
@@ -512,6 +523,7 @@ struct SpriteLoadReport {
 		parts = static_cast<eng::u16>(parts + o.parts);
 		hw = static_cast<eng::u16>(hw + o.hw);
 		bob = static_cast<eng::u16>(bob + o.bob);
+		cpu = static_cast<eng::u16>(cpu + o.cpu);
 		degraded = static_cast<eng::u16>(degraded + o.degraded);
 		attached_pairs = static_cast<eng::u16>(attached_pairs + o.attached_pairs);
 		strips = static_cast<eng::u16>(strips + o.strips);
@@ -532,6 +544,7 @@ struct SpriteLoadReport {
 		emitter_chain = static_cast<eng::u16>(emitter_chain + o.emitter_chain);
 		emitter_per_line = static_cast<eng::u16>(emitter_per_line + o.emitter_per_line);
 		emitter_horizontal = static_cast<eng::u16>(emitter_horizontal + o.emitter_horizontal);
+		emitter_cpu = static_cast<eng::u16>(emitter_cpu + o.emitter_cpu);
 		warnings |= o.warnings;
 		ok = ok && o.ok;
 	}
@@ -610,8 +623,13 @@ struct SpriteStaticDesc {
 		}
 		eng::u8 need = d.channels != 0u ? d.channels : 1u;
 		if (d.strip_span > need) need = d.strip_span;
-		if (d.policy == SpritePolicy::Bob || d.policy == SpritePolicy::Cpu ||
-		    d.policy == SpritePolicy::Layer || d.reuse == SpriteReuse::None) {
+		if (d.policy == SpritePolicy::Cpu) {
+			++r.cpu;
+			++r.emitter_cpu;
+			continue; // copia CPU: no consume canal ni presupuesto Blitter
+		}
+		if (d.policy == SpritePolicy::Bob || d.policy == SpritePolicy::Layer ||
+		    d.reuse == SpriteReuse::None) {
 			++r.bob;
 			++r.bob_jobs;
 			r.blit_words += static_cast<eng::u32>(span) * need;
