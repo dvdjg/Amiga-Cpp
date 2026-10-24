@@ -35,7 +35,8 @@ La variante rellena se compila con `K091_WIRE=0` en `DEMO_FLAGS`.
 | Relleno por cara (historica, 3 cubos) | 3 | 1 | 1.128.714 ciclos | 7,96 | 6,28 |
 | Alambre CPU (`draw_line` sin plan) | 3 | 1 | 2.392.418 ciclos | 16,86 | 2,97 |
 | Alambre Blitter Copy | 2 | 1 | 964.533 ciclos | 6,80 | 7,35 |
-| **Alambre Blitter EOR, 1 plano, 18 aristas visibles (por defecto)** | **2** | **2** | **321.398 ciclos** | **2,26** | **22,07** |
+| **Alambre Blitter EOR, 1 plano, 18 aristas visibles (debug)** | **2** | **2** | **321.398 ciclos** | **2,26** | **22,07** |
+| **Alambre Blitter EOR (release A500)** | **2** | **2** | **294.897 ciclos** | **2,08** | **24,06** |
 
 La cadencia de la variante por defecto es uniforme dentro de la ventana (21,6-22,6 fps), sin picos. La ruta optimizada usa 1 plano, culling de aristas traseras (18 aristas visibles), mascara de deduplicacion O(1) y clear asincrono; quedan 18 jobs de linea por frame. Las filas de CPU/Copy son medidas historicas de la ruta de 4 planos. El doble buffer evita que la captura vea el clear; no cambia el coste. La variante rellena mejora a 8,39 fps al reducir a 2 cubos y usar doble buffer, pero sigue por debajo del suelo de 25 fps.
 
@@ -47,7 +48,7 @@ La secuencia de la **variante rellena** se valido aparte con `vision-final.mjs` 
 
 ## 5. Limites y siguientes gates
 
-- **Cadencia**: 22,07 fps (alambre), 8,39 fps (relleno por cara) y 12,64 fps (silueta convexa) no cumplen el suelo de 25 fps; el alambre se acerca (18 jobs, 321k ciclos) pero la demo queda abierta. La silueta mejora 1,5x (561.192 vs 845.925 ciclos) al hacer 1 fill por objeto, pero aun paga 4 planos por objeto y el clear. El siguiente paso de P8/P5 es la composicion `S` + `M_p`, el clear por dirty-rect y el router por coste; tambien falta el batch de lineas para el alambre.
+- **Cadencia**: 24,06 fps en release (22,07 en debug) para alambre; 8,39 fps relleno por cara y 12,64 fps silueta convexa. El alambre queda a 4% del suelo de 25 fps en release; las rutas de relleno siguen abiertas. La silueta mejora 1,5x (561.192 vs 845.925 ciclos) al hacer 1 fill por objeto, pero aun paga 4 planos por objeto y el clear. El siguiente paso de P8/P5 es la composicion `S` + `M_p`, el clear por dirty-rect y el router por coste; tambien falta el batch de lineas para el alambre.
 - **Flicker**: `verify-3d-sequence.mjs` confirma movimiento y ausencia de saltos de area entre frames; no sustituye una captura a 50 Hz de todas las poses, pero es la primera regresion automatica.
 - **Poses**: la secuencia cubre cuatro poses; no barre todos los angulos ni el cruce por near del hijo.
 - **Regresion corregida**: `convex_spans` avanzaba como maximo 1 px por fila en aristas con `|dx| > dy` (DDA con `if` en vez de `while`), lo que dejaba muescas en caras y cubos rellenos. El arreglo esta cubierto por HOST-045 (arista poco profunda) y HOST-481 (cara q12 y cobertura CPU/contigua); 087 y 091 se revisaron en WinUAE. La cadencia sigue siendo deuda de P8.
