@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-24T08:51:58.320Z
+- Fecha: 2026-10-24T09:03:07.379Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png (4)
 - Secuencia: `out/run/092_articulated_character/A500_release/sequence`
@@ -16,22 +16,26 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 ## Respuesta (cruda)
 
 **Imagen 1:**
-- **Fondo:** Negro uniforme.
-- **Elementos gráficos:**
-  - Un rectángulo naranja, posicionado verticalmente en el centro de la imagen.
-  - Un cuadrado azul claro, situado a la derecha del rectángulo naranja, con su borde inferior alineado con el borde superior del rectángulo naranja.
-  - Un rectángulo azul claro más largo, inclinado hacia la izquierda y arriba, con su borde inferior alineado con el borde superior del cuadrado azul.
-- **Texto en la parte superior izquierda:** "692 ARTICULATED CHARACTER v1.0.6320 | F52010F95P$ | P335B3F3".
-- **Estado:** Todos los elementos están completamente visibles, con contornos limpios y sin artefactos. El fondo negro está intacto alrededor de los objetos.
+- **Elementos gráficos:** Un conjunto de tres formas geométricas sobre fondo negro.
+  - Un rectángulo naranja, posicionado en la parte inferior central.
+  - Un cuadrado azul brillante, situado encima y ligeramente a la derecha del rectángulo naranja.
+  - Un rectángulo azul claro, inclinado hacia la izquierda, que se superpone parcialmente al cuadrado azul brillante.
+- **Estado:** Las formas están estacionarias. No hay movimiento ni cambio de posición.
+- **Texto en la parte superior izquierda:** `692 ARTICULATED CHARACTER v1.0.6333 | F6 3010 FPS | P3 3583F3`.
+- **Fondo:** Uniformemente negro. Las formas tienen contornos limpios, sin halos ni artefactos visibles. El fondo inmediatamente alrededor de las formas es negro y uniforme.
 
 **Imagen 2:**
-- **Fondo:** Negro uniforme.
-- **Elementos gráficos:**
-  - El rectángulo naranja ha cambiado de posición: ahora está completamente desplazado hacia abajo, con su borde inferior más cercano a la parte inferior de la imagen.
-  - El cuadrado azul y el rectángulo inclinado azul claro mantienen la misma posición y orientación que en la imagen 1.
-- **Texto en la parte superior izquierda:** "692 ARTICULATED CHARACTER v1.0.6320 | F29 18.9FPS | P3 53 F3".
-- **Estado:** El rectángulo naranja se ha desplazado verticalmente hacia abajo. Los otros dos elementos permanecen fijos. Los contornos de todos los objetos son limpios y no hay artefactos ni restos de la posición anterior. El fondo negro está intacto alrededor de los objetos.
+- **Elementos gráficos:** El mismo conjunto de tres formas geométricas, en la misma posición y orientación que en la imagen 1.
+- **Estado:** Las formas están estacionarias. No hay movimiento ni cambio de posición.
+- **Texto en la parte superior izquierda:** `692 ARTICULATED CHARACTER v1.0.6333 | F20 11.2FPS | P3 53 F3`.
+- **Fondo:** Uniformemente negro. Las formas tienen contornos limpios, sin halos ni artefactos visibles. El fondo inmediatamente alrededor de las formas es negro y uniforme.
 
 **Cambios observables:**
-- El rectángulo naranja se ha desplazado hacia abajo entre las dos imágenes.
-- El texto en la parte superior ha cambiado: la parte "F52010F95P$ | P335B3F3" se ha reemplazado por "F29 18.9FPS | P3 53 F3".
+- El texto en la parte superior derecha ha cambiado: `F6 3010 FPS` en la imagen 1 se ha convertido en `F20 11.2FPS` en la imagen 2, y `P3 3583F3` se ha convertido en `P3 53 F3`.
+- Las formas gráficas y su posición no han cambiado entre ambas imágenes.
+
+**Observaciones:**
+- Ambas imágenes muestran el mismo estado visual de las formas gráficas.
+- No hay parpadeos, recortes, artefactos ni elementos superpuestos.
+- El fondo es uniformemente negro en ambos casos.
+- Las formas tienen contornos limpios y no presentan píxeles cortados o colgando en los bordes.
