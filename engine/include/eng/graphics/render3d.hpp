@@ -540,6 +540,7 @@ inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const 
 		}
 		order[j] = key;
 	}
+	/// Producto cruzado 2D `(a-o) x (b-o)`; positivo = giro a la izquierda.
 	const auto cross = [&](u16 o, u16 a, u16 b) -> s32 {
 		const s32 ax = xs[a] - xs[o];
 		const s32 ay = ys[a] - ys[o];

@@ -359,6 +359,7 @@ public:
 	/// plano. Para modelos con caras de colores distintos, el llamador debe usar
 	/// `render`; esta ruta usa `color_of(id, 0)`. Si un objeto cruza el near, cae
 	/// automaticamente a la ruta por cara.
+	/// \tparam ColorFn invocable `(NodeId, face) -> u8` que devuelve el índice de paleta.
 	template <class ColorFn>
 	u32 render_silhouette(eng::Span<const Mesh> models, playfield::Surface& target,
 			      ColorFn&& color_of) noexcept {
@@ -374,6 +375,11 @@ public:
 
 	/// Variante de silueta contra una `ModelTable` y el color del material de la
 	/// cara 0 de cada modelo.
+	/// \tparam MaxModels capacidad de modelos de la tabla.
+	/// \tparam TableVertices capacidad de vértices de la tabla.
+	/// \tparam TableIndices capacidad de índices de la tabla.
+	/// \tparam TableFaces capacidad de caras de la tabla.
+	/// \tparam TableMaterials capacidad de materiales de la tabla.
 	template <u16 MaxModels, u16 TableVertices, u16 TableIndices, u16 TableFaces,
 		  u16 TableMaterials>
 	u32 render_silhouette(
@@ -584,6 +590,8 @@ private:
 	/// Implementacion comun de las rutas de silueta: mismo orden painter que
 	/// `render_with`; si un modelo no cabe en el hull (near o >16 vertices), cae a
 	/// `render_solid_styled` para no perder la cara.
+	/// \tparam MeshAt invocable `(ModelHandle) -> Ref<const Mesh>`.
+	/// \tparam ColorAt invocable `(NodeId, face) -> u8`.
 	template <class MeshAt, class ColorAt>
 	u32 render_silhouette_with(MeshAt&& mesh_at, playfield::Surface& target,
 				   ColorAt&& color_at) noexcept {
