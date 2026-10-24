@@ -7,13 +7,13 @@ El objetivo «50 fps PAL» es **una iteración por campo PAL nominal** (~49,9–
 ## Medición entregada
 
 ```text
-202_xlimited_dpf/A500_release | emulado=49,92–49,96 fps | 141988–142102 ciclos/frame | 1,00079–1,00159 campos/frame
+202_xlimited_dpf/A500_release | emulado=49,92–50,00 fps | 141870–142102 ciclos/frame | 0,99996–1,00159 campos/frame
 202_xlimited_dpf/A500_debug   | emulado=49,9 fps (ventana corta) | HUD a 1/8 de refresco
 ```
 
 La captura final muestra el mapa, las plaquettes y la franja inferior completos; el HUD de una línea aparece en el margen seguro.
 
-Ventana larga de 12 s (`A500_release`, árbol actual): **49,92–49,96 fps**, 141988–142102 ciclos/frame y 1,00079–1,00159 campos/frame. La cadencia queda dentro del ruido de la ventana de 1 s (49,3–50,6 fps), no en la meseta de 46–47 fps anterior. El 3+3 se mantiene a 320×208.
+Ventana larga de 12 s (`A500_release`, árbol actual): **49,92–50,00 fps**, 141870–142102 ciclos/frame y 0,99996–1,00159 campos/frame. La cadencia queda dentro del ruido de la ventana de 1 s (49,3–50,6 fps), no en la meseta de 46–47 fps anterior. El 3+3 se mantiene a 320×208; la última pasada cerró en 50,00 fps y 0,99996 campos/frame.
 
 ## Sonda de carga de juego
 
