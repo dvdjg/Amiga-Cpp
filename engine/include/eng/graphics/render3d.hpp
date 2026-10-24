@@ -496,6 +496,8 @@ inline u32 render_solid_styled(const math3d::PolyMeshViewT<S>& mesh, const Model
 /// Requiere que todos los vertices esten delante del near (si no, devuelve 0 y el
 /// llamador debe caer a `render_solid_styled`). No usa painter entre caras: el
 /// objeto se pinta completo con `color` (silueta opaca).
+/// \tparam S escalar de coordenadas (q0 en 68000).
+/// \tparam Model transform afin con parte lineal y traslacion.
 /// \param hull buffer de indices de capacidad >= nv (maximo 16).
 /// \return 1 si pinto la silueta; 0 si no se pudo (near/capacidad/vacio).
 template <class S, class Model>
@@ -540,6 +542,7 @@ inline u32 render_convex_silhouette(const math3d::PolyMeshViewT<S>& mesh, const 
 		}
 		order[j] = key;
 	}
+	/// Producto cruz 2D de `o->a` y `o->b`; positivo = giro a la izquierda.
 	const auto cross = [&](u16 o, u16 a, u16 b) -> s32 {
 		const s32 ax = xs[a] - xs[o];
 		const s32 ay = ys[a] - ys[o];
