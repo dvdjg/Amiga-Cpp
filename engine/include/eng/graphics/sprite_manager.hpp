@@ -86,6 +86,12 @@ public:
     /// Acceso acotado al bloque de DATA (el tamaño viaja con el puntero).
 	Span<u8> sprite_data() { return { m_data.view.data(), m_data.view.size() }; }
 	Span<const u8> sprite_data() const { return { m_data.view.as_const().data(), m_data.view.size() }; }
+	/// Words mutables del bloque DATA (para generarlo en setup).
+	[[nodiscard]] Words<SpriteTag> sprite_words() { return m_data.view.as_words(); }
+	/// Vista **Chip tipada** del bloque DATA: la que exige `SpriteConfig`/`HwSpritePlacement`.
+	/// El bloque se reservó en Chip; `mem_view_chip()` certifica el banco y no inventa la
+	/// procedencia (falla si el bloque no es Chip).
+	[[nodiscard]] ChipView<SpriteTag> sprite_data_view() const { return m_data.mem_view_chip(); }
 
     /// Configura el canal `index` (0..7). Silenciosamente ignorado si `index >= 8`; un
     /// canal **habilitado sin DATA** (`ChipView` vacía) queda **deshabilitado**: la forma

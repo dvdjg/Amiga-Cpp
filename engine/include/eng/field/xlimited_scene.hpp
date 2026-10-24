@@ -515,7 +515,7 @@ public:
                 cfg.dpf.foreground_is_pf2,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, ddfstop,
-                cfg.dpf.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
+                cfg.dpf.color_zones, sprites, cfg.sprites_armed})) return eng::util::unexpected(eng::Result::OutOfMemory);
         } else {
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
@@ -705,9 +705,13 @@ public:
         return update(plan, dx, dy, frame);
     }
 
+    /// Fuerza la re-emision de la copperlist en el proximo `compose()`.
+    void invalidate_composition() noexcept { m_dual.invalidate(); m_single.invalidate(); }
+
     /// Genera la copperlist del frame (single o dual) a partir del estado actual
     /// de los campos. Llámala tras ejecutar el plan. Con franja HUD, el
     /// compositor emite la zona inferior (playfield separado) tras el main.
+    /// \return `true` si la copperlist se compuso; `false` si la escena no esta inicializada.
     bool compose() {
         if (!m_initialized) return false;
         m_single.set_sprite_placements(m_sprite_placements);

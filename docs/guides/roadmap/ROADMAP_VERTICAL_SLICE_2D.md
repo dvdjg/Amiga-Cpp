@@ -1,6 +1,6 @@
 # Vertical slice 2D: «Caverna» (A500)
 
-Estado: **V0 hecho y V1 parcial** en `games/500_caverna`: mapa fijo `FixedTileLayerMap<256>`, cámara y jugador por la fachada, 50,0 fps; faltan DPF 3+3, colisión, enemigos, audio y la medición automática de latencia. Este documento fija el primer juego que debe cerrar la API de alto nivel y el presupuesto contra el que se medirá. No es una demo de técnica: es el consumidor real que obliga a que la fachada, el planner, los assets y el presupuesto funcionen juntos.
+Estado: **V0 hecho y V1/V3/V4 parciales** en `games/500_caverna`: mapa fijo `FixedTileLayerMap<256>`, cámara, jugador, DPF 3+3, cuatro enemigos como sprites y HUD a 50,0 fps; faltan colisión contra tiles, salto/gravedad, audio y la medición automática de latencia. Este documento fija el primer juego que debe cerrar la API de alto nivel y el presupuesto contra el que se medirá. No es una demo de técnica: es el consumidor real que obliga a que la fachada, el planner, los assets y el presupuesto funcionen juntos.
 
 ## 1. Qué se construye
 
@@ -27,7 +27,7 @@ Estos números son el contrato de aceptación; si un cambio los supera, se recor
 | Coste de pared | ≤ 1 campo por frame; p95 ≤ 1,01 campos | `measure-fps` |
 | Memoria de escena | ≤ 160 KiB Chip, con headroom explícito para OS/audio | `remaining_chip()` y matriz de memoria |
 | Blitter | ≤ 8k palabras y ≤ 48 jobs por frame | `FramePlan::blit_budget()` |
-| Sprites | ≤ 4 canales/placements simultáneos | reporte del `SpriteDirector` |
+| Sprites | ≤ 5 canales/placements simultáneos (jugador + cuatro enemigos) | reporte del `SpriteDirector` |
 | Audio | 1 música + 4 SFX, ≤ 4 voces DMA; sin underrun en 12 s | `AudioPlan`/`AudioFeeder` |
 | Latencia de entrada | cambio visible en el siguiente campo | prueba de secuencia |
 | Memoria dinámica | 0 reservas/heap por frame | inspección y contadores |
@@ -39,10 +39,10 @@ La base de la 202 ya mide **≈32,6k ciclos** de CPU activa con DPF 3+3 y scroll
 | Fase | Entregable | Gate |
 |---|---|---|
 | **V0 - contrato** | `MiniGame` de alto nivel con `App`/`Screen`/`input`/`present`; sin plomería | HOST-494 compila; revisión de imports |
-| **V1 - mundo** | cámara, mapa fijo 256×20, scroll DPF y colisión de cajas | V1 parcial: cámara/mapa/jugador a 50 fps; faltan DPF 3+3 y colisión |
+| **V1 - mundo** | cámara, mapa fijo 256×20, scroll DPF y colisión de cajas | V1 parcial: cámara/mapa/jugador/DPF 3+3 a 50 fps; faltan colisión contra tiles y salto/gravedad |
 | **V2 - jugador** | movimiento, salto, gravedad, suelo/plataformas, cámara dead-zone | prueba de entrada y vídeo de secuencia |
-| **V3 - enemigos y sprites** | ocho actores, animación, prioridad y reacción; cuatro canales | presupuesto de sprites y 12 s |
-| **V4 - audio y HUD** | música + cuatro SFX, HUD 1 línea, eventos de sonido | sin underrun; HUD legible |
+| **V3 - enemigos y sprites** | ocho actores, animación, prioridad y reacción; cinco canales | V3 parcial: jugador + cuatro enemigos estáticos; faltan animación, reacción y ocho actores |
+| **V4 - audio y HUD** | música + cuatro SFX, HUD 1 línea, eventos de sonido | V4 parcial: HUD 1 línea con número y fps; audio pendiente |
 | **V5 - cierre** | carga por manifiesto, sin memoria dinámica, presupuesto congelado | `run-headroom-gate`, suite host y visión |
 
 Cada fase conserva el juego jugable; no se aplaza la integración al final.

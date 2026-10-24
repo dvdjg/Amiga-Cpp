@@ -71,7 +71,7 @@ public:
 
     /// \param memory  gestor de memoria (doble buffer de copperlist en Chip).
     /// \param cfg     config del display (paleta, registros, sprites opcionales).
-    /// \return `false` si no cabe el doble buffer o la paleta está vacía.
+    /// \return `false` si no cabe el doble buffer o la paleta esta vacia.
     bool init(MemoryManager& memory, const Config& cfg) {
         m_cfg = cfg;
         if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
@@ -94,6 +94,9 @@ public:
     void set_sprite_placements(eng::Span<const graphics::HwSpritePlacement> placements) noexcept {
         m_placements = placements;
     }
+
+    /// Fuerza una re-emision completa en el proximo `compose()` (p. ej. tras configurar sprites).
+    void invalidate() noexcept { m_copper_initialized = false; }
 
 
 
@@ -387,17 +390,23 @@ public:
         u16 ddfstop = xlimited_detail::kDdfStop;
         // Raster colors opcionales (gradiente del color del patron de fondo).
         eng::Span<const ColorZone> color_zones {};
+        eng::Ref<const graphics::SpriteManager> sprites {}; // opcional
+        bool sprites_armed = false;
     };
 
     /// \param memory  gestor de memoria (doble buffer de copperlist en Chip).
     /// \param cfg     config del display (paleta, registros, sprites opcionales).
-    /// \return `false` si no cabe el doble buffer o la paleta está vacía.
+    /// \return `false` si no cabe el doble buffer o la paleta esta vacia.
     bool init(MemoryManager& memory, const Config& cfg) {
+
         m_cfg = cfg;
         if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
         m_initialized = true;
         return true;
     }
+
+    /// Fuerza una re-emision completa en el proximo `compose()` (p. ej. tras configurar sprites).
+    void invalidate() noexcept { m_copper_initialized = false; }
 
     bool compose(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
         if (!m_initialized) return false;
@@ -541,14 +550,19 @@ private:
         // BPLCON1: nibble bajo = fine de PF1, alto = fine de PF2.
         const u16 bplcon1 = static_cast<u16>(
             ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f));
+        const u16 sprite_dma = m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0u;
         sched.move(copper::Register::DMACON,
             static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
-                             copper::DmaCopper | copper::DmaBitplane));
+                             copper::DmaCopper | copper::DmaBitplane | sprite_dma));
         sched.move(copper::Register::BPLCON0, bplcon0);
         // Slot del MOVE de BPLCON1: el fine X cambia con cada pixel de scroll y
         // el camino caliente solo parchea words (no re-emite la lista).
         m_patch_bplcon1 = sched.move_at(copper::Register::BPLCON1, bplcon1);
-        sched.move(copper::Register::BPLCON2, m_cfg.foreground_is_pf2 ? 0x0040u : 0x0000u);
+        u16 bplcon2 = m_cfg.foreground_is_pf2 ? 0x0040u : 0x0000u;
+        // Los bits de prioridad PF1P/PF2P solo se tocan con sprites: en DPF sin
+        // sprites cambiarian la prioridad relativa de los dos playfields.
+        if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) bplcon2 |= 0x0024u;
+        sched.move(copper::Register::BPLCON2, bplcon2);
         // Módulos: en DPF AMBOS playfields se muestran con el MISMO DDF/fetch, así
         // que el módulo de cada uno debe usar el fetch real de PF1 (no el suyo
         // propio, que puede diferir: un CanvasPlayfield asume fetch estándar -40
@@ -563,6 +577,14 @@ private:
         sched.move(copper::Register::DDFSTRT, m_cfg.ddfstrt);
         sched.move(copper::Register::DDFSTOP, m_cfg.ddfstop);
         sched.emit_palette(m_cfg.palette, 0, 16); // DPF: 16 colores (PF1 0..7, PF2 8..15)
+        if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
+            sched.emit_palette(m_cfg.palette, 16, 16); // sprites COLOR16-31
+            if (m_cfg.sprites_armed) {
+                m_cfg.sprites->emit_armed_into(sched, 32u);
+            } else {
+                m_cfg.sprites->emit_into(sched);
+            }
+        }
         for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
             const u8 hw1 = hardware_plane(i, true);
             const u8 hw2 = hardware_plane(i, false);
