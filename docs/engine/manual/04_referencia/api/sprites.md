@@ -32,6 +32,6 @@ Por debajo: `scene::compose_sprites` + `SpriteAllocator` + `emit_bob_fallbacks` 
 
 ## Fachada por intención: `SpriteDirector`
 
-`eng::scene::SpriteDirector` (`engine/include/eng/scene/sprite_director.hpp`) es la fachada nueva: el juego registra contenido (`VisualId`/`CompositeId`), declara `SpriteHint` y posición, y recibe un `SpriteLoadReport` único (canales, scanline, BOB, Copper, paleta, gap y emisores). Compone simple y compuesto con un ledger compartido, aplica el gap de 1 línea y permite `BandPalette` con `top + scroll_y`. `SpriteScene`/`CompositeScene` quedan como implementaci?n interna/legacy en `eng/scene/`. Test: `HOST-485`. Detalle: `docs/engine/architecture/SPRITE_DIRECTOR.md`.
+`eng::scene::SpriteDirector` (`engine/include/eng/scene/sprite_director.hpp`) es la fachada nueva: el juego registra contenido (`VisualId`/`CompositeId`), declara `SpriteHint` y posición, y recibe un `SpriteLoadReport` único (canales, scanline, BOB, Copper, paleta, gap y emisores). Compone simple y compuesto con un ledger compartido, aplica el gap de 1 línea y permite `BandPalette` con `top + scroll_y`. `SpriteScene`/`CompositeScene` quedan como implementación interna/legacy en `eng/scene/`. Test: `HOST-485`. Detalle: `docs/engine/architecture/SPRITE_DIRECTOR.md`.
 
 Volver a [`api/`](README.md) · [Referencia](../README.md) · [índice del manual](../../README.md).

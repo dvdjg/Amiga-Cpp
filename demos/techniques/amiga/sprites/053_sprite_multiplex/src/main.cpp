@@ -6,7 +6,7 @@
 // Demo 053: multiplexado de sprites hardware + color multiplexing.
 // ============================================================================
 //
-// Valida el camino de sprites de la nueva estructura del engine a trav?s de
+// Valida el camino de sprites de la nueva estructura del engine a través de
 // `scene::SpriteDirector`: una plantilla portable (`HwSpriteTemplate`) con seis
 // segmentos y cambios de paleta, publicada con `emit` + `present`.
 //

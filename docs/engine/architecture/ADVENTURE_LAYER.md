@@ -59,7 +59,7 @@ Antes de crear cada pieza se busca su equivalente en el engine (regla §1.7 de `
 | Verbos e intenciones | `eng::util::IntentQueue` + verbos de `eng/rpg/interaction.hpp` | **Generalizar**: el conjunto de verbos es **dato** (`VerbSet`), no código por juego |
 | Composición de capas de la sala | `scene::LayerPlan`/`LayerRole`/`SceneStrategy` (`eng/scene/plan.hpp`) | **Reutilizar**: el Stage Composer produce esas capas |
 | Técnicas de scroll y su coste | `scene::{ScrollKind,ScrollSpec,RegionCost}` (`eng/scene/world.hpp`), `eng/scene/scroll_plan.hpp` | **Reutilizar**: la técnica es dato de capa y el planner ya sabe degradar |
-| Elección sprite/BOB/capa/CPU | `scene::Representation`/`SpriteAllocator` (`eng/scene/representation.hpp`) | **Reutilizar** (con `SpriteBudget` del compositor) |
+| Elección sprite/BOB/capa/CPU | `PartRepresentation`/`SpriteAllocator` (`eng/scene/composite_actor.hpp`) | **Reutilizar** (con `SpriteBudget` del compositor) |
 | Sprites HW (cursor, props) y degradación | `sprite_allocator`, `sprite_channel_window`, `sprite_chain`, `scene/sprite_scene.hpp` | **Reutilizar** (cursor por sprite HW ya es patrón de `eng::ui`) |
 | BOBs, compuestos, trayectorias y pool | `scene/composite_actor.hpp`, `trajectory.hpp`, `entity_pool.hpp`, `scene/composite_scene.hpp` | **Reutilizar** |
 | Navegación por polígonos convexos | `eng::ai::NavMesh` (`eng/ai/navigation/navmesh_lite.hpp`, HOST-118) + `eng::util::graph`/`pathfinding` | **Reutilizar**: las walkboxes son polígonos convexos con portales; el grafo se deriva de la adyacencia |

@@ -23,7 +23,7 @@
 namespace eng::collision3d {
 
 /// Esfera en el escalar `S`: centro y radio (mismas unidades).
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 struct Sphere3 {
 	eng::math::Vec<3, S> center {}; ///< centro.
@@ -31,7 +31,7 @@ struct Sphere3 {
 };
 
 /// Caja axis-aligned inclusiva.
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 struct Aabb3 {
 	eng::math::Vec<3, S> min {}; ///< esquina mínima.
@@ -39,7 +39,7 @@ struct Aabb3 {
 };
 
 /// Rayo/segmento: `origin + t·dir`, con `t` en [0, max_t] si `max_t >= 0`.
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 struct Ray3 {
 	eng::math::Vec<3, S> origin {}; ///< origen.
@@ -48,7 +48,7 @@ struct Ray3 {
 };
 
 /// Resultado de una consulta de rayo.
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 struct RayHit3 {
 	bool hit = false; ///< true si hay intersección válida.
@@ -58,7 +58,7 @@ struct RayHit3 {
 };
 
 /// ¿Se solapan dos esferas? Compara distancias al cuadrado (sin `sqrt`).
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 [[nodiscard]] constexpr bool sphere_overlap(const Sphere3<S>& a, const Sphere3<S>& b) {
 	const S r = a.radius + b.radius;
@@ -66,7 +66,7 @@ template <class S>
 }
 
 /// ¿Se solapa una esfera con una AABB? Punto más cercano + distancia².
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 [[nodiscard]] constexpr bool sphere_aabb(const Sphere3<S>& s, const Aabb3<S>& box) {
 	eng::math::Vec<3, S> q = s.center;
@@ -78,7 +78,7 @@ template <class S>
 }
 
 /// ¿Se solapan dos AABB?
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 [[nodiscard]] constexpr bool aabb_overlap(const Aabb3<S>& a, const Aabb3<S>& b) {
 	for (int i = 0; i < 3; ++i) {
@@ -92,7 +92,7 @@ template <class S>
 /// \param box caja inclusiva.
 /// \param out resultado rellenado si devuelve `true`.
 /// \return `true` si el rayo toca la caja dentro de `[0, max_t]`.
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 [[nodiscard]] bool ray_aabb(const Ray3<S>& ray, const Aabb3<S>& box, RayHit3<S>& out) {
 	using T = eng::math::scalar_traits<S>;
@@ -139,7 +139,7 @@ template <class S>
 /// Rayo contra esfera. La ecuación cuadrática se evalúa en `S`; el test del
 /// header la ejercita con escalares de rango suficiente. Devuelve la primera
 /// intersección con `t >= 0` y `t <= max_t`.
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 [[nodiscard]] bool ray_sphere(const Ray3<S>& ray, const Sphere3<S>& sphere, RayHit3<S>& out) {
 	using T = eng::math::scalar_traits<S>;

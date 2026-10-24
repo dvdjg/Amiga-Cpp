@@ -12,7 +12,7 @@
 ///     es un par *attached*), para el `SpriteAllocator`/compositor de sprites;
 ///   - `composite_emit_bobs`: los `BlitJob` de las partes que van a BOB en el `FramePlan`.
 ///
-/// La **representación de cada parte la decide el planner** (una `Representation` por parte,
+/// La **representación de cada parte la decide el planner** (una `PartRepresentation` por parte,
 /// en el mismo orden que `CompositeVisual::parts`); si el span está vacío, el
 /// materializador de BOB dibuja todas las partes (representación por defecto). Ni el
 /// contenido ni el estado llevan registros, canales ni flags de hardware.
@@ -26,9 +26,15 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/scene/actor_types.hpp>
-#include <eng/scene/representation.hpp>
 
 namespace eng::scene {
+
+/// Cómo se materializa una **parte compuesta** (`Sprite` HW o BOB).
+/// La representación del actor simple la decide la composición, no este enum.
+enum class PartRepresentation : eng::u8 {
+	Sprite = 0, ///< sprite hardware.
+	Bob = 1,    ///< BOB por Blitter.
+};
 
 using eng::graphics::bob_draw;
 using eng::graphics::CompositeFrame;
@@ -178,19 +184,19 @@ inline void composite_set_sequence(CompositeState& st, u8 sequence, bool restart
 }
 
 /// ¿La representación de la parte `i` es `want`? Con `repr` vacío o corto, vale el defecto.
-[[nodiscard]] constexpr bool composite_part_is(eng::Span<const Representation> repr,
+[[nodiscard]] constexpr bool composite_part_is(eng::Span<const PartRepresentation> repr,
 					       eng::usize i,
-					       Representation want) noexcept {
+					       PartRepresentation want) noexcept {
 	return repr.empty() || i >= repr.size() || repr[i] == want;
 }
 
-/// **Materializa a intents de Sprite HW** las partes marcadas `Representation::Sprite` (con
+/// **Materializa a intents de Sprite HW** las partes marcadas `PartRepresentation::Sprite` (con
 /// `part_repr` vacío no se emite ninguna: sin planner, el defecto es BOB). Un contenido de
 /// par *attached* (4 planos, w <= 16) produce DOS intents contiguos, igual que
 /// `build_sprite_intents`. Devuelve cuántas intents escribió (puede parar por falta de sitio).
 [[nodiscard]] inline u16 composite_to_sprite_intents(const CompositeVisual& vis,
 						     const CompositeState& st,
-						     eng::Span<const Representation> part_repr,
+						     eng::Span<const PartRepresentation> part_repr,
 						     eng::Span<SpriteIntent> out) noexcept {
 	if (composite_current_frame(vis, st) == nullptr) {
 		return 0u;
@@ -198,7 +204,7 @@ inline void composite_set_sequence(CompositeState& st, u8 sequence, bool restart
 	u16 n = 0u;
 	for (eng::usize i = 0; i < vis.parts.size(); ++i) {
 		const CompositePart& part = vis.parts[i];
-		if (!composite_part_is(part_repr, i, Representation::Sprite)) {
+		if (!composite_part_is(part_repr, i, PartRepresentation::Sprite)) {
 			continue;
 		}
 		if (part.visual.pixels.empty() || part.visual.w == 0u || part.visual.h == 0u) {
@@ -228,12 +234,12 @@ inline void composite_set_sequence(CompositeState& st, u8 sequence, bool restart
 	return n;
 }
 
-/// **Materializa a BOB** las partes marcadas `Representation::Bob` (con `part_repr` vacío,
+/// **Materializa a BOB** las partes marcadas `PartRepresentation::Bob` (con `part_repr` vacío,
 /// todas). `layout`/`transparency` describen el formato del contenido de las partes.
 /// Devuelve cuántas partes se dibujaron (0 si el plan rechazó todos los jobs). El borrado
 /// del rastro es política del llamador (como en `BobLayer`).
 [[nodiscard]] inline u16 composite_emit_bobs(const CompositeVisual& vis, const CompositeState& st,
-					     eng::Span<const Representation> part_repr,
+					     eng::Span<const PartRepresentation> part_repr,
 					     FramePlan& plan, const BobTarget& target,
 					     BobLayout layout = BobLayout::Planar,
 					     TransparencyMode transparency =
@@ -245,7 +251,7 @@ inline void composite_set_sequence(CompositeState& st, u8 sequence, bool restart
 	u16 drawn = 0u;
 	for (eng::usize i = 0; i < vis.parts.size(); ++i) {
 		const CompositePart& part = vis.parts[i];
-		if (!composite_part_is(part_repr, i, Representation::Bob)) {
+		if (!composite_part_is(part_repr, i, PartRepresentation::Bob)) {
 			continue;
 		}
 		if (part.visual.pixels.empty()) {

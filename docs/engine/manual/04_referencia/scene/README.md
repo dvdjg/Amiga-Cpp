@@ -13,7 +13,7 @@ El módulo `eng::scene` describe **qué** quiere mostrar un juego (mundo, capas,
 
 | Grupo | Cabeceras |
 |---|---|
-| **Mundo** | `world.hpp` (`World`: contenedor **aditivo** de `Layer`, cada una con su `Camera2D` y profundidad; `add_layer` devuelve `Ref<Layer>` anulable), `layer.hpp` (`DrawLayer`), `actor.hpp`/`actor_store.hpp`/`actor_sprite.hpp`/`actor_types.hpp`, `world_tile_map.hpp`, `representation.hpp`. |
+| **Mundo** | `world.hpp` (`World`: contenedor **aditivo** de `Layer`, cada una con su `Camera2D` y profundidad; `add_layer` devuelve `Ref<Layer>` anulable), `layer.hpp` (`DrawLayer`), `actor.hpp`/`actor_store.hpp`/`actor_sprite.hpp`/`actor_types.hpp`, `world_tile_map.hpp`, `composite_actor.hpp`. |
 | **Planner** | `plan.hpp` (`LayerRole`, `LayerPlacement`, `LayerContent`, `LayerPlan`; `WorldLayerKind`/`ScrollKind`), `route_camera.hpp`, `scroll_plan.hpp` (planificador de scroll adaptativo). Estrategias: `dpf_plan.hpp` (`Dpf`), `band_plan.hpp` (`Bands`), `raster_plan.hpp` (convergencia planner ↔ `RasterLayout`). |
 | **Escena declarativa** | `display.hpp`: pantalla como **bandas** (`Band`) materializadas en un `copper::Scheduler` —`emit_display`/`emit_palette`/`emit_gradient`/`emit_fine_scroll`— sin que el juego nombre registros. |
 | **Capas de dibujo** | `bobs.hpp` (`BobLayer`: una hoja de sprites + N objetos), `banded_target.hpp` (dibujo **split-aware**: reparte un rect entre las bandas), `virtual_scene.hpp` (**no implementada**). |

@@ -30,8 +30,12 @@ const isIgnored = (abs) => {
   const rel = path.relative(ROOT, abs).replace(/\\/g, '/');
   return IGNORE.some((ig) => rel === ig || rel.startsWith(ig));
 };
-const EXT = new Set(['.cpp', '.hpp', '.h', '.c', '.md', '.sh', '.mjs', '.ts', '.js', '.json', '.txt', '.tsx', '.py', '.asm', '.s', '.inc']);
+const EXT = new Set(['.cpp', '.hpp', '.h', '.c', '.md', '.sh', '.mjs', '.ts', '.js', '.json', '.txt', '.tsx', '.py', '.ps1', '.asm', '.s', '.inc']);
 const MOJI = /\u00C3[\u0080-\u00BF]|\u00C2[\u0080-\u00BF]|\u00E2\u0080|\uFFFD/;
+// Un '?' entre letras suele ser una tilde o enye perdida al escribir con una consola
+// no-UTF8 (p. ej. `representaci?n`). Las URLs se excluyen para no confundir
+// query strings leg?timas (`prod.php?id=...`).
+const LOST_ACCENT = /\b(?:Admisi|C|Implementaci|Representaci|admisi|c|composici|cu|emisi|f|implementaci|intersecci|l|m|materializaci|multil|operaci|pod|pol|trav|v)\?[\p{L}]/u;
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
 function walk(dir, out = []) {
@@ -55,7 +59,11 @@ for (const root of ROOTS) {
       continue;
     }
     try { utf8.decode(buf); } catch { bad.push(`${f}: no es UTF-8 valido`); continue; }
-    if (MOJI.test(buf.toString('utf8'))) bad.push(`${f}: mojibake (UTF-8 doblemente codificado)`);
+    const text = buf.toString('utf8');
+    if (MOJI.test(text)) bad.push(`${f}: mojibake (UTF-8 doblemente codificado)`);
+    if (LOST_ACCENT.test(text.replace(/https?:\/\/\S+/g, ''))) {
+      bad.push(`${f}: '?' dentro de una palabra (tilde o enye perdida)`);
+    }
   }
 }
 

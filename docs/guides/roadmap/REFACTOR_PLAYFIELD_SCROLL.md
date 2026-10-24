@@ -132,7 +132,7 @@ en el proceso.
 - Detalle: `docs/engine/architecture/CONTENT_AND_TILEMAP.md`.
 - **Estado**: piezas puras implementadas y testeadas (HOST-025/026/027/028/029/030): `TileSource` +
   `SparseTileMap` (`tile_source.hpp`), `ChunkCache` (`chunk_cache.hpp`), `Animation`/`Frame`
-  y hoja de sprite (`animation.hpp`), `SpriteAllocator` (`representation.hpp`),
+  y hoja de sprite (`animation.hpp`), `SpriteAllocator` (`graphics/sprite_allocator.hpp`),
   `StreamingWorldMap` (`streaming_map.hpp`) y `TileMapView` (`tile_source.hpp`). El importador
   `tools/ehb/parse-tmx.mjs` soporta mapas finitos e infinitos (`<chunk>`) y las codificaciones
   CSV/XML/base64(gzip/zlib). El scroll ya consume el accesor abstracto: `XLimitedPlayfield`/

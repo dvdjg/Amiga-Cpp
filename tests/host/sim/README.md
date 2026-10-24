@@ -41,4 +41,4 @@ Categoría `sim` de la batería host (L1). El índice de categorías está en [.
 | HOST-322 | [sim_numeric_planner](322_sim_numeric_planner/README.md) | `eng/sim/planner.hpp` + `world.hpp` con dominio GOAP numérico: `PlannerDriver` y `SimWorld` aceptan por plantilla el booleano ligero (por defecto) o `SimNumericGoap<N>` (hechos + magnitudes), sin cambiar el algoritmo. |
 | HOST-317 | [sim_anytime_loop](317_sim_anytime_loop/README.md) | Consumidor real del *anytime*: bucle por frames con `apply_budget` que ejecuta parciales; alcanza el objetivo repartiendo el trabajo y ninguna búsqueda supera el presupuesto (coste por frame acotado). |
 
-| HOST-490 | [physics3d](490_physics3d/README.md) | `eng/sim/physics3d.hpp`: f?sica 3D arcade m?nima con esferas, suelo, impulso, sleep y time scale; `float` y `Fixed<s16,8>`. |
+| HOST-490 | [physics3d](490_physics3d/README.md) | `eng/sim/physics3d.hpp`: física 3D arcade mínima con esferas, suelo, impulso, sleep y time scale; `float` y `Fixed<s16,8>`. |

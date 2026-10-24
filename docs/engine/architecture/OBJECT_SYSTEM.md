@@ -37,7 +37,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 
 | Pieza | Estado | Dónde |
 |---|---|---|
-| Elección de representación (`Representation`, `ActorDesc`, `SpriteBudget`, `SpriteAllocator`, `SpriteAllocator`) | EXISTE | `engine/include/eng/scene/representation.hpp` |
+| Elección de representación (`PartRepresentation`, `ActorDesc`, `SpriteBudget`, `SpriteAllocator`) | EXISTE | `engine/include/eng/scene/composite_actor.hpp` |
 | Contenido portable (`Visual`) y vocabulario de intención (`CopperIntent`, `SpriteIntent`, concept `Effect`) | EXISTE | `engine/include/eng/graphics/raster_intent.hpp` |
 | Contenido animado (`Animation`, `Frame`) | EXISTE | `engine/include/eng/graphics/animation.hpp` |
 | Plan de Blits (`FramePlan`, `BlitJob`, `BlitJobKind`, `DirtyRect`, `BlitBudget`) | EXISTE | `engine/include/eng/graphics/frame_plan.hpp` |
@@ -65,7 +65,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Superficie destino y orden `z` **por superficie** (`ActorDesc::surface`, `ActorEmitContext::targets`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Prioridad de sprite frente a los playfields (`ActorDesc::sprite_priority`, `SpriteIntent::priority`) | EXISTE | `scene/actor.hpp`, `graphics/raster_intent.hpp` |
 | Proyección de un actor al camino de sprite (`actor_to_sprite_intent`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
-| Playfield como capa: fondo de DPF o bitmap suelto (Soft DPF) | PARCIAL | `Representation::Layer`; la composición de superficies se especifica en `PLAYFIELD_SCROLL_ARCHITECTURE.md` |
+| Playfield como capa: fondo de DPF o bitmap suelto (Soft DPF) | PARCIAL | capa declarativa (`WorldRegion`); la composición de superficies se especifica en `PLAYFIELD_SCROLL_ARCHITECTURE.md` |
 | Orden de emisión por superficie y `z` (`plan_actor_order`, `emit_actors_in_order`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Tiras horizontales de sprite (canales contiguos, `strip_id`/`strip_index`/`strip_span`) | EXISTE | `engine/include/eng/graphics/sprite_allocator.hpp` |
 | Proyección de plantilla a intenciones (`sprite_template_to_intents`, `SpriteIntentSet`) | EXISTE | `engine/include/eng/graphics/sprite.hpp` |
@@ -109,7 +109,7 @@ Invariantes:
 
 ## 4. Elección y degradación de representación
 
-`eng::scene::Representation` queda solo para las **partes compuestas** (`Sprite`/`Bob`). `ActorDesc` ya no declara `preferred`: el `SpriteAllocator` decide el reparto en la composici?n y `SpriteLoadReport` publica el resultado.
+`eng::scene::PartRepresentation` queda solo para las **partes compuestas** (`Sprite`/`Bob`). `ActorDesc` ya no declara `preferred`: el `SpriteAllocator` decide el reparto en la composición y `SpriteLoadReport` publica el resultado.
 
 Reglas de elegibilidad ya codificadas:
 
@@ -261,7 +261,7 @@ La aplicación nunca ve el cambio de representación: consulta, como mucho, la r
 
 Host (deterministas, sin hardware):
 
-- Elección de representación y degradación con presupuestos agotados (extiende el test de `representation.hpp`).
+- Elección de representación y degradación con presupuestos agotados (extiende el test de `composite_actor.hpp`).
 - Asignación de sprites: empaquetado por intervalos, `as_bob` cuando no cabe, independencia del orden de alta.
 - Resolución de conflictos de Copper: mismo registro en la misma línea → gana el de mayor z; empate → identificador menor.
 - Anclaje y offset por frame: rectángulo efectivo correcto, incluido el cambio de tamaño entre frames.

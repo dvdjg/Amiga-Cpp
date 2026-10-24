@@ -157,13 +157,13 @@ int main() {
 	check(st.finished && st.sequence == 2u && st.frame == 0u, "die queda finished");
 
 	// Materializacion a intents: piernas a BOB, torso (4 planos, 16 px) a Sprite HW -> par.
-	const eng::scene::Representation repr[2] = {eng::scene::Representation::Bob,
-						   eng::scene::Representation::Sprite};
+	const eng::scene::PartRepresentation repr[2] = {eng::scene::PartRepresentation::Bob,
+						   eng::scene::PartRepresentation::Sprite};
 	check(eng::scene::composite_to_sprite_intents(vis, st, {}, {}) == 0u,
 	      "sin planner: el defecto no emite intents de sprite");
 	eng::graphics::SpriteIntent intents[4] {};
 	const eng::u16 n_intents = eng::scene::composite_to_sprite_intents(
-		vis, st, eng::Span<const eng::scene::Representation> {repr, 2u},
+		vis, st, eng::Span<const eng::scene::PartRepresentation> {repr, 2u},
 		eng::Span<eng::graphics::SpriteIntent> {intents, 4u});
 	check(n_intents == 2u, "torso attached -> dos intents");
 	check(!intents[0].attach && intents[1].attach, "ATTACH solo en el impar");
@@ -175,7 +175,7 @@ int main() {
 	eng::graphics::FramePlan plan {};
 	const eng::graphics::BobTarget target = make_target();
 	const eng::u16 drawn = eng::scene::composite_emit_bobs(
-		vis, st, eng::Span<const eng::scene::Representation> {repr, 2u}, plan, target);
+		vis, st, eng::Span<const eng::scene::PartRepresentation> {repr, 2u}, plan, target);
 	check(drawn == 1u && plan.blit_job_count() == 1u, "una parte BOB");
 	const eng::graphics::BlitJob& job = plan.blit_job(0u);
 	check(job.kind == eng::graphics::BlitJobKind::MaskedBobCookieCut && job.minterm == 0xcau,

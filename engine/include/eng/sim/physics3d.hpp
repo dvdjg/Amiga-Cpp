@@ -23,7 +23,7 @@
 namespace eng::sim3d {
 
 /// Cuerpo esférico. `inv_mass == 0` = estático (no se mueve ni recibe impulsos).
-/// \tparam S escalar de la operaci?n.
+/// \tparam S escalar de la operación.
 template <class S>
 struct Body3D {
 	eng::math::Vec<3, S> position {}; ///< centro (unidades de mundo).

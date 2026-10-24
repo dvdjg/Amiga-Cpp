@@ -54,7 +54,7 @@ Se calculan en una pasada sobre los placements ya emitidos (sin asignación), de
 
 ## 4. Límites conocidos (declarados, no ocultos)
 
-- **Admisi?n vs capacidad por l?nea**: ya no hay presupuesto de admisi?n que consuma canales al dar de alta; todos los actores entran y el `SpriteAllocator` decide en la composici?n cu?ntos caben y cu?les degradan. Una escena con m?s actores que canales debe dimensionar su capacidad y mirar el reporte.
+- **Admisión vs capacidad por línea**: ya no hay presupuesto de admisión que consuma canales al dar de alta; todos los actores entran y el `SpriteAllocator` decide en la composición cuántos caben y cuáles degradan. Una escena con más actores que canales debe dimensionar su capacidad y mirar el reporte.
 - **Coste de recomposición**: emitir un frame desde `SpriteScene` con decenas de actores y parchear la copperlist completa cuesta cientos de miles de ciclos (medido: ~670k para 30 actores, 5.0 campos/frame). Para 50 fps con muchos objetos, la estructura debe ser estática y parchearse por frame (POS/CTL y, al cambiar de arte, PT); la demo 224 es la referencia medida de ese camino.
 - **Tiras de 32 px y estabilidad de asignación** entre frames: el allocator ya modela corridas; la política de "conservar la misma asignación mientras no se rompan reusos" es determinista por el orden estable de entrada, pero no hay todavía una caché explícita de asignación por actor.
 

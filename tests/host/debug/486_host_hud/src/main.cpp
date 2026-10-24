@@ -67,7 +67,7 @@ void test_identity_and_fps() {
 	FakeOverlay overlay {};
 	eng::debug::HostHud hud {};
 	hud.draw(overlay, "486 TEST HUD", eng::debug::Version {1u, 2u}, 0u, 1000u);
-	CHECK(overlay.text_calls == 1); // un solo bloque multil?nea
+	CHECK(overlay.text_calls == 1); // un solo bloque multilínea
 	CHECK(std::strncmp(overlay.name, "486 TEST HUD v1.2.", 18u) == 0);
 	CHECK(std::strncmp(overlay.state, "F0 0.0FPS", 9u) == 0);
 	CHECK(overlay.clears == 1);

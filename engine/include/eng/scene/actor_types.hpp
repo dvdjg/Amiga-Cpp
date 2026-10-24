@@ -4,7 +4,7 @@
 /// Estado retenido de un actor y su emisión a `FramePlan` / Copper.
 ///
 /// Un actor describe **qué** se ve (contenido portable, posición, prioridad y
-/// políticas); el engine decide **c?mo** se materializa al componer, y puede
+/// políticas); el engine decide **cómo** se materializa al componer, y puede
 /// reasignarlo sin que la aplicación cambie su descripción.
 ///
 /// Este header cubre el modelo de estado y las políticas; la emisión de hardware

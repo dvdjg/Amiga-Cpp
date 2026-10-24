@@ -10,8 +10,8 @@ cabecera de entrada es `api.hpp` (reexporta todo sin definir tipos nuevos).
 | [`screen.hpp`](screen.md) | `Screen`: contexto de dibujo de alto nivel (`clear`/`fill`/`frame`/`line`/`text`/`sprite`). |
 | [`scene.hpp`](scene.md) | Vocabulario de escena (`ScenePlan`/`LayerPlan`/… + estrategias `apply_dpf_plan`/`plan_bands`/`plan_raster_layout`). |
 | [`scroll.hpp`](scroll.md) | `ScrollSpec`, `ScrollKind`, `Camera2D`, `TileScroll` (motores de scroll). |
-| [`sprites.hpp`](sprites.md) | `SpriteScene<MaxActors>`: **API directa legacy**, no incluida en `api.hpp`; c?digo nuevo usa `scene::SpriteDirector`. |
-| `objects.hpp` | `CompositeScene`: **API directa legacy**, no incluida en `api.hpp`; c?digo nuevo usa `scene::SpriteDirector`. |
+| [`sprites.hpp`](sprites.md) | `SpriteScene<MaxActors>`: **API directa legacy**, no incluida en `api.hpp`; código nuevo usa `scene::SpriteDirector`. |
+| `objects.hpp` | `CompositeScene`: **API directa legacy**, no incluida en `api.hpp`; código nuevo usa `scene::SpriteDirector`. |
 | [`framebuffer.hpp`](framebuffer.md) | `IndexedDisplay<Planes,Buffers>`: framebuffer indexado + C2P. |
 | [`display.hpp`](display.md) | `GameDisplay`: descripción del display. |
 | [`assets.hpp`](assets.md) | `Assets`: registro/consulta de assets cocinados. |

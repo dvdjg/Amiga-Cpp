@@ -38,8 +38,8 @@ cambia:
 
 - La elección es **política del engine** (`SpriteAllocator`), transparente a la app; puede
   **reasignar** (sprite→BOB) al añadir elementos, sin que el dev reescriba nada.
-- El actor declara **contenido** y pol?tica de emisi?n; no hay un `preferred` que el engine pueda ignorar: la materializaci?n la decide la composici?n.
-- Implementaci?n: `engine/include/eng/scene/representation.hpp` (enum `Representation`), `engine/include/eng/scene/actor_types.hpp` (`ActorDesc`) y `engine/include/eng/graphics/sprite_allocator.hpp` (reparto efectivo al componer). Cobertura: HOST-003/072/391/485.
+- El actor declara **contenido** y política de emisión; no hay un `preferred` que el engine pueda ignorar: la materialización la decide la composición.
+- Implementación: `engine/include/eng/scene/composite_actor.hpp` (enum `PartRepresentation`, solo partes compuestas), `engine/include/eng/scene/actor_types.hpp` (`ActorDesc`) y `engine/include/eng/graphics/sprite_allocator.hpp` (reparto efectivo al componer). Cobertura: HOST-003/072/391/485.
 
 ## 3. Modelo de recursos y ocupación
 
