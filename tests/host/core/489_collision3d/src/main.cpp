@@ -68,6 +68,29 @@ void test_scalar(const char* label) {
 	check(!ray_sphere(Ray3<S> {v3<S>(-5, 3, 0), v3<S>(1, 0, 0), ten},
 			  Sphere3<S> {v3<S>(0, 0, 0), one}, no_hit),
 	      label);
+	Obb3<S> oa {};
+	oa.center = v3<S>(0, 0, 0);
+	oa.axis[0] = v3<S>(1, 0, 0);
+	oa.axis[1] = v3<S>(0, 1, 0);
+	oa.axis[2] = v3<S>(0, 0, 1);
+	oa.half = v3<S>(1, 1, 1);
+	Obb3<S> ob = oa;
+	ob.center = v3<S>(3, 0, 0);
+	check(!obb_overlap(oa, ob), label);
+	ob.center = v3<S>(1, 0, 0);
+	check(obb_overlap(oa, ob), label);
+	SweepBroadphase3D<S, 3> bp {};
+	check(bp.add(Aabb3<S> {v3<S>(0, 0, 0), v3<S>(2, 2, 2)}, 1u), label);
+	check(bp.add(Aabb3<S> {v3<S>(1, 1, 1), v3<S>(3, 3, 3)}, 2u), label);
+	check(bp.add(Aabb3<S> {v3<S>(10, 0, 0), v3<S>(11, 1, 1)}, 3u), label);
+	BroadphasePair pairs[2] {};
+	check(bp.pairs(Span<BroadphasePair>(pairs, 2u)) == 1u && pairs[0].a == 1u && pairs[0].b == 2u, label);
+	Sphere3<S> moving {v3<S>(-3, 0, 0), one};
+	RayHit3<S> sweep {};
+	check(sweep_sphere_aabb(moving, v3<S>(10, 0, 0),
+				Aabb3<S> {v3<S>(-1, -1, -1), v3<S>(1, 1, 1)}, sweep),
+	      label);
+	check(sweep.hit && sweep.t > zero && sweep.t < one, label);
 	(void)four;
 	(void)zero;
 }
@@ -79,7 +102,7 @@ int main() {
 	using Q4 = eng::math::Fixed<eng::s16, 4>;
 	test_scalar<Q4>("Fixed<s16,4>");
 	if (g_fail == 0) {
-		std::printf("OK: HOST-489 colision 3D (esfera/AABB/rayo) validada.\n");
+		std::printf("OK: HOST-489 colision 3D (esfera/AABB/rayo/OBB/broadphase/sweep) validada.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones.\n", g_fail);

@@ -453,6 +453,23 @@ void test_model_asset() {
 	check(compound.count == 2u && compound.mass > 0.0f, "compound masa");
 	check(compound.inertia.v[0] > 0.0f && compound.inertia.v[1] > 0.0f,
 	      "compound inercia diagonal");
+	eng::sim3d::ArticulatedBody3D<eng::real, 2, 2> articulated;
+	check(eng::sim3d::build_articulated_from_model(physics, articulated),
+	      "asset -> articulated");
+	check(articulated.part_count == 1u && articulated.sphere_count == 2u,
+	      "articulated partes/esferas");
+	articulated.step(0.016f, -9.0f, 0.0f, 2u);
+	check(articulated.world[0].center.v[1] >= articulated.world[0].radius,
+	      "articulated suelo");
+	eng::sim3d::ArticulatedBody3D<float, 2, 2> chain;
+	chain.add_part(-1, math3d::vec3<float>(0, 0, 0), 1.0f);
+	chain.add_part(0, math3d::vec3<float>(0, 10, 0), 1.0f);
+	chain.add_sphere(0u, math3d::vec3<float>(0, 0, 0), 2.0f, 1.0f);
+	chain.add_sphere(1u, math3d::vec3<float>(0, 0, 0), 2.0f, 1.0f);
+	chain.finalize(math3d::vec3<float>(0, 20, 0));
+	for (int i = 0; i < 20; ++i) chain.step(0.016f, -9.0f, 0.0f, 4u);
+	const float dy = chain.parts[1].position.v[1] - chain.parts[0].position.v[1];
+	check(dy > 9.0f && dy < 11.0f, "articulated joint conserva pivote");
 
 	scene3d::Scene<4, 8> scene;
 	check(scene.set_camera(cam), "camara de escena con modelo");

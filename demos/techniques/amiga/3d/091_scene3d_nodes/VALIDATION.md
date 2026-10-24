@@ -1,6 +1,6 @@
 # Validacion de la demo 091 - Scene3D retenida
 
-Estado: **FUNCIONAL, VISION OK, NO VERIFICADA por cadencia**. La escena jerarquica, la rotacion, los materiales y el HUD funcionan; el presupuesto de 25 fps no se cumple con la ruta de lineas por Blitter actual (22,07 fps) ni con la variante rellena (8,39 fps), y queda como deuda de P8/P5. No se han medido flicker ni el peor caso de todas las poses.
+Estado: **FUNCIONAL, VISION OK, NO VERIFICADA por cadencia**. La escena jerarquica, la rotacion, los materiales y el HUD funcionan; el presupuesto de 25 fps no se cumple con la ruta de lineas por Blitter actual (22,07 fps) ni con la variante rellena (8,39 fps), y queda como deuda de P8/P5. La continuidad de secuencia esta cubierta por `verify-3d-sequence.mjs`; queda el barrido de todas las poses a 50 Hz.
 
 ## 1. Alcance y evidencia
 
@@ -12,7 +12,7 @@ Estado: **FUNCIONAL, VISION OK, NO VERIFICADA por cadencia**. La escena jerarqui
 | Demo en WinUAE: dos cubos de alambre, jerarquia y rotacion | Secuencia de 4 frames + [`src/VISION.md`](src/VISION.md) | **OK en vision** |
 | HUD de host (nombre, version, frames, fps, telemetria) | Capturas de la secuencia | **OK** |
 | Cadencia de la variante por defecto (1 plano, aristas visibles) | `measure-fps.mjs` | **ABIERTA: 22,07 fps / 2,26 campos** |
-| Flicker/tearing | - | **SIN VERIFICAR** |
+| Continuidad/flicker de secuencia | `node tools/analyze/verify-3d-sequence.mjs out/run/091_scene3d_nodes/A500_debug/sequence --min-frames 3 --require-motion` | **OK: 3 frames, movimiento, sin saltos de area** |
 | Variante rellena (`K091_WIRE=0`, 2 cubos, doble buffer) | 3 frames + validacion de vision; `measure-fps.mjs` | **OK en vision; 8,39 fps / 5,96 campos; cadencia abierta** |
 
 ## 2. Comandos
@@ -48,6 +48,6 @@ La secuencia de la **variante rellena** se valido aparte con `vision-final.mjs` 
 ## 5. Limites y siguientes gates
 
 - **Cadencia**: 22,07 fps (alambre), 8,39 fps (relleno por cara) y 12,64 fps (silueta convexa) no cumplen el suelo de 25 fps; el alambre se acerca (18 jobs, 321k ciclos) pero la demo queda abierta. La silueta mejora 1,5x (561.192 vs 845.925 ciclos) al hacer 1 fill por objeto, pero aun paga 4 planos por objeto y el clear. El siguiente paso de P8/P5 es la composicion `S` + `M_p`, el clear por dirty-rect y el router por coste; tambien falta el batch de lineas para el alambre.
-- **Flicker**: no se ha ejecutado `--flicker --require-flicker-ok`; el doble buffer reduce el riesgo, pero no hay declaracion.
+- **Flicker**: `verify-3d-sequence.mjs` confirma movimiento y ausencia de saltos de area entre frames; no sustituye una captura a 50 Hz de todas las poses, pero es la primera regresion automatica.
 - **Poses**: la secuencia cubre cuatro poses; no barre todos los angulos ni el cruce por near del hijo.
 - **Regresion corregida**: `convex_spans` avanzaba como maximo 1 px por fila en aristas con `|dx| > dy` (DDA con `if` en vez de `while`), lo que dejaba muescas en caras y cubos rellenos. El arreglo esta cubierto por HOST-045 (arista poco profunda) y HOST-481 (cara q12 y cobertura CPU/contigua); 087 y 091 se revisaron en WinUAE. La cadencia sigue siendo deuda de P8.

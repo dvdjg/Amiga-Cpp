@@ -18,6 +18,7 @@
 #include <eng/core/math/geometry.hpp>
 #include <eng/core/math/linalg.hpp>
 #include <eng/core/math/scalar_math.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::collision3d {
@@ -173,4 +174,137 @@ template <class S>
 	return true;
 }
 
+/// **Sweep de una esfera contra una AABB** (un paso, sin tunneling): expande la
+/// caja por el radio y lanza un rayo desde el centro con `delta` como direccion;
+/// `hit.t` en [0,1] es la fraccion del desplazamiento hasta el contacto.
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] bool sweep_sphere_aabb(const Sphere3<S>& sphere, const eng::math::Vec<3, S>& delta,
+				     const Aabb3<S>& box, RayHit3<S>& out) {
+	Aabb3<S> expanded = box;
+	for (int axis = 0; axis < 3; ++axis) {
+		expanded.min.v[axis] = box.min.v[axis] - sphere.radius;
+		expanded.max.v[axis] = box.max.v[axis] + sphere.radius;
+	}
+	const Ray3<S> ray {sphere.center, delta, eng::math::scalar_traits<S>::one()};
+	return ray_aabb(ray, expanded, out);
+}
+/// Caja orientada: centro, tres ejes unitarios y semiejes.
+/// \tparam S escalar de la operacion.
+/// \tparam S escalar de la operacion.
+template <class S>
+struct Obb3 {
+	eng::math::Vec<3, S> center {}; ///< centro world.
+	eng::math::Vec<3, S> axis[3] {}; ///< ejes unitarios (columnas de la rotacion).
+	eng::math::Vec<3, S> half {}; ///< semiejes a lo largo de axis[0..2].
+};
+
+/// \return radio de la OBB proyectado sobre `axis` (no normalizado).
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr S obb_radius(const Obb3<S>& o, const eng::math::Vec<3, S>& axis) {
+	const S ax = eng::math::dot(axis, o.axis[0]);
+	const S ay = eng::math::dot(axis, o.axis[1]);
+	const S az = eng::math::dot(axis, o.axis[2]);
+	const S rx = ax < eng::math::scalar_traits<S>::zero() ? -ax : ax;
+	const S ry = ay < eng::math::scalar_traits<S>::zero() ? -ay : ay;
+	const S rz = az < eng::math::scalar_traits<S>::zero() ? -az : az;
+	return eng::math::mul_norm(rx, o.half.v[0]) + eng::math::mul_norm(ry, o.half.v[1]) +
+	       eng::math::mul_norm(rz, o.half.v[2]);
+}
+
+/// \return true si dos OBB se solapan (SAT de 15 ejes: 3+3+9 cruces).
+/// \tparam S escalar de la operacion.
+template <class S>
+[[nodiscard]] constexpr bool obb_overlap(const Obb3<S>& a, const Obb3<S>& b) {
+	const eng::math::Vec<3, S> t = b.center - a.center;
+	const auto separated = [&](const eng::math::Vec<3, S>& axis) -> bool {
+		const S l2 = eng::math::dot(axis, axis);
+		if (l2 == eng::math::scalar_traits<S>::zero()) return false;
+		const S d = eng::math::dot(t, axis);
+		const S ad = d < eng::math::scalar_traits<S>::zero() ? -d : d;
+		return ad > obb_radius(a, axis) + obb_radius(b, axis);
+	};
+	for (u8 i = 0; i < 3u; ++i) {
+		if (separated(a.axis[i]) || separated(b.axis[i])) return false;
+	}
+	for (u8 i = 0; i < 3u; ++i) {
+		for (u8 j = 0; j < 3u; ++j) {
+			const S c0 = eng::math::mul_norm(a.axis[i].v[1], b.axis[j].v[2]) -
+				     eng::math::mul_norm(a.axis[i].v[2], b.axis[j].v[1]);
+			const S c1 = eng::math::mul_norm(a.axis[i].v[2], b.axis[j].v[0]) -
+				     eng::math::mul_norm(a.axis[i].v[0], b.axis[j].v[2]);
+			const S c2 = eng::math::mul_norm(a.axis[i].v[0], b.axis[j].v[1]) -
+				     eng::math::mul_norm(a.axis[i].v[1], b.axis[j].v[0]);
+			const eng::math::Vec<3, S> cross {{c0, c1, c2}};
+			if (separated(cross)) return false;
+		}
+	}
+	return true;
+}
+
+/// Par de indices de una broadphase.
+struct BroadphasePair {
+	u16 a = 0u;
+	u16 b = 0u;
+};
+
+/// **Sweep-and-prune 3D** sobre el eje X, capacidad fija. Pensado para AABBs
+/// pequenos y N bajo (A500); evita el producto cartesiano completo.
+/// \tparam S escalar de la operacion.
+/// \tparam N numero maximo de cajas (>0).
+template <class S, u16 N>
+class SweepBroadphase3D {
+	static_assert(N > 0u, "SweepBroadphase3D: N > 0");
+	struct Entry {
+		S min_x {};
+		S max_x {};
+		Aabb3<S> box {};
+		u16 id = 0u;
+	};
+public:
+	/// Anade una caja con identificador; false si no cabe.
+	bool add(const Aabb3<S>& box, u16 id) noexcept {
+		if (m_count >= N) return false;
+		Entry& e = m_entry[m_count++];
+		e.min_x = box.min.v[0];
+		e.max_x = box.max.v[0];
+		e.box = box;
+		e.id = id;
+		return true;
+	}
+	/// \return numero de pares solapados (se escriben hasta `out.size()`).
+	u16 pairs(eng::Span<BroadphasePair> out) const noexcept {
+		if (out.empty()) return 0u;
+		Entry sorted[N];
+		for (u16 i = 0u; i < m_count; ++i) sorted[i] = m_entry[i];
+		for (u16 i = 1u; i < m_count; ++i) {
+			const Entry key = sorted[i];
+			u16 j = i;
+			while (j > 0u && sorted[j - 1u].min_x > key.min_x) {
+				sorted[j] = sorted[j - 1u];
+				--j;
+			}
+			sorted[j] = key;
+		}
+		u16 count = 0u;
+		for (u16 i = 0u; i < m_count; ++i) {
+			for (u16 j = i + 1u; j < m_count; ++j) {
+				if (sorted[j].min_x > sorted[i].max_x) break;
+				if (aabb_overlap(sorted[i].box, sorted[j].box)) {
+					if (count < out.size()) {
+						out[count] = BroadphasePair {sorted[i].id, sorted[j].id};
+					}
+					++count;
+				}
+			}
+		}
+		return count;
+	}
+	void clear() noexcept { m_count = 0u; }
+
+private:
+	Entry m_entry[N] {};
+	u16 m_count = 0u;
+};
 } // namespace eng::collision3d
