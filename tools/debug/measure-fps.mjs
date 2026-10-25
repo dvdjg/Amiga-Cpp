@@ -39,6 +39,14 @@ if (!DEMO) { console.error('Uso: node tools/debug/measure-fps.mjs <demo_dir_name
 const CONFIG_NAME = POSITIONAL[1] || 'A500_debug';
 const GDB_PORT = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 const SIDE_PORT = parseInt(process.env.WINUAE_SIDE_CHANNEL_PORT || '2346', 10);
+const argValue = (name, fallback = '') => {
+  const i = ARGV.indexOf(name);
+  return i >= 0 && ARGV[i + 1] !== undefined ? ARGV[i + 1] : fallback;
+};
+const WATCHDOG_ENABLED = ARGV.includes('--watchdog') || argValue('--watchdog-address') !== '' || process.env.ENG_RUN_WATCHDOG === '1';
+const WATCHDOG_ADDRESS_ARG = argValue('--watchdog-address');
+const WATCHDOG_TIMEOUT_FRAMES = Math.max(1, parseInt(argValue('--watchdog-timeout-frames', '600'), 10));
+const WATCHDOG_MODE = argValue('--watchdog-mode', 'latch') === 'pause' ? 'pause' : 'latch';
 const MAP = `${ROOT}/out/demos/${DEMO}/${CONFIG_NAME}/${DEMO}.${CONFIG_NAME}.map`;
 // WinUAE + dh0 de la extension Bartman: se autodetecta la version MAS NUEVA instalada (usar una
 // fija desincronizaba con run-demo/launch-winuae y podia colgar el arranque de algunas demos).
@@ -264,6 +272,26 @@ if (readyStatus?.state !== RUN_STATE_READY) {
   process.exit(2);
 }
 console.log(`[fps] READY en frame=${readyStatus.frame}; comienza la ventana de medida`);
+
+let watchdogArmed = false;
+if (WATCHDOG_ENABLED) {
+  const explicit = WATCHDOG_ADDRESS_ARG === '' ? null : parseInt(WATCHDOG_ADDRESS_ARG, 0);
+  const watchdogAddress = explicit !== null && Number.isFinite(explicit)
+    ? explicit
+    : magicAddr + 8; // g_eng_run_status.frame
+  const arm = await sideChannelCommand(
+    `watchdog arm 0x${watchdogAddress.toString(16)} 4 ${WATCHDOG_TIMEOUT_FRAMES} ${WATCHDOG_MODE}`,
+    SIDE_PORT,
+    3000,
+  );
+  if (!arm.ok) {
+    console.error(`[fps] watchdog arm fallo: ${arm.error ?? arm.raw ?? 'unknown'}`);
+    await conn.disconnect(true);
+    process.exit(2);
+  }
+  watchdogArmed = true;
+  console.log(`[fps] watchdog arm 0x${watchdogAddress.toString(16)} ${WATCHDOG_TIMEOUT_FRAMES} campos (${WATCHDOG_MODE})`);
+}
 // **Muestreo por sub-ventanas**: una media única engaña cuando el frame está en el borde
 // del campo (una demo que alterna frames de 1 y 2 campos da ~33 fps de media, pero ni va a
 // 50 ni a 25: cada ventana oscila). Se toman N sub-ventanas, se calcula el fps de cada una
@@ -290,6 +318,14 @@ for (let i = 0; i < SAMPLE_COUNT; ++i) {
   prev = now;
 }
 const t1 = Date.now();
+let watchdogStatus = null;
+if (watchdogArmed) {
+  const wd = await sideChannelCommand('watchdog status', SIDE_PORT, 3000);
+  watchdogStatus = wd.ok ? wd.reply : { ok: false, error: wd.error ?? wd.raw };
+  if (watchdogStatus?.fired) {
+    console.error(`[fps] WATCHDOG: ${watchdogStatus.reason ?? '?'} pc=${watchdogStatus.firedPc ?? '?'} frame=${watchdogStatus.firedFrame ?? '?'}`);
+  }
+}
 // Si NINGUNA sub-ventana avanzó frames, el run-status no está vivo (dirección falsa o demo
 // colgada): reintento corto antes de abortar, con diagnóstico (antes se abortaba a ciegas).
 if (samples.every((s) => s.frames <= 0)) {
@@ -385,6 +421,7 @@ if (JSON_OUT) {
     cycles: dCycles,
     measurementMs: t1 - t0,
     detail: '0x' + (samples[samples.length - 1].detail >>> 0).toString(16),
+    watchdog: watchdogStatus,
     stable,
     quantizedFields: quantizedFields || null,
     minFps: Number(minFps.toFixed(2)),
@@ -392,6 +429,11 @@ if (JSON_OUT) {
     samples: samples.map((s) => ({ frames: s.frames, fps: Number(s.fps.toFixed(2)) })),
   };
   console.log(JSON.stringify(result));
+}
+
+if (watchdogStatus?.fired) {
+  await conn.disconnect(true);
+  process.exit(4);
 }
 
 if (ARGV.includes('--require-stable') && (!stable || quantizedFields > 1)) {

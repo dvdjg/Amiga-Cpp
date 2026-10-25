@@ -1369,9 +1369,9 @@ const sequenceCameraX = sequenceCameraXArg === ''
   : sequenceCameraXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 255);
 const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0'), 10));
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
-const watchdogEnabled = hasArg('--watchdog') || argValue('--watchdog-address', '') !== '';
-const watchdogAddressText = argValue('--watchdog-address', '');
-const watchdogTimeoutFrames = Math.max(1, parseInt(argValue('--watchdog-timeout-frames', '600'), 10));
+const watchdogEnabled = hasArg('--watchdog') || argValue('--watchdog-address', process.env.ENG_RUN_WATCHDOG_ADDRESS || '') !== '' || process.env.ENG_RUN_WATCHDOG === '1';
+const watchdogAddressText = argValue('--watchdog-address', process.env.ENG_RUN_WATCHDOG_ADDRESS || '');
+const watchdogTimeoutFrames = Math.max(1, parseInt(argValue('--watchdog-timeout-frames', process.env.ENG_RUN_WATCHDOG_TIMEOUT_FRAMES || '600'), 10));
 const watchdogMode = argValue('--watchdog-mode', 'latch') === 'pause' ? 'pause' : 'latch';
 const hardTimeoutMs = Math.max(0, parseInt(argValue('--hard-timeout-ms', '0'), 10));
 const warpEnabled = hasArg('--warp');
@@ -1909,7 +1909,7 @@ try {
   }
 
   // --joy: inyecta direcciones/botones de joystick (`input joy <port> <dir|button> <1|0>`); a
-  // diferencia del teclado, el monitor usa nombres de evento (`INPUTEVENT_JOY1_LEFT`...), as� que es
+  // diferencia del teclado, el monitor usa nombres de evento (`INPUTEVENT_JOY1_LEFT`...), así que es
   // fiable. Spec: `port:dir` separado por comas, p. ej. `--joy 1:left` (joystick del puerto 2) o
   // `--joy 1:up,1:fire`. port 0 = joystick 1, port 1 = joystick 2.
   // Con `--joy-through-sequence`, la pulsacion se mantiene durante la captura de secuencia y se

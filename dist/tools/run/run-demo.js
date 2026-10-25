@@ -1297,9 +1297,9 @@ const sequenceCameraX = sequenceCameraXArg === ''
     : sequenceCameraXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 255);
 const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0'), 10));
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
-const watchdogEnabled = hasArg('--watchdog') || argValue('--watchdog-address', '') !== '';
-const watchdogAddressText = argValue('--watchdog-address', '');
-const watchdogTimeoutFrames = Math.max(1, parseInt(argValue('--watchdog-timeout-frames', '600'), 10));
+const watchdogEnabled = hasArg('--watchdog') || argValue('--watchdog-address', process.env.ENG_RUN_WATCHDOG_ADDRESS || '') !== '' || process.env.ENG_RUN_WATCHDOG === '1';
+const watchdogAddressText = argValue('--watchdog-address', process.env.ENG_RUN_WATCHDOG_ADDRESS || '');
+const watchdogTimeoutFrames = Math.max(1, parseInt(argValue('--watchdog-timeout-frames', process.env.ENG_RUN_WATCHDOG_TIMEOUT_FRAMES || '600'), 10));
 const watchdogMode = argValue('--watchdog-mode', 'latch') === 'pause' ? 'pause' : 'latch';
 const hardTimeoutMs = Math.max(0, parseInt(argValue('--hard-timeout-ms', '0'), 10));
 const warpEnabled = hasArg('--warp');
