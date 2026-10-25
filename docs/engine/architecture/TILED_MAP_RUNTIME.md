@@ -123,6 +123,8 @@ Todo se escribe en `out/assets/tiled/<proyecto>/` (generado, fuera de git); el r
 
 ## 4. Formato cocinado: MapBundle
 
+Estado: `MapBundle` v1 **baked** implementado (`tools/tiled/map_bundle.mjs`, `eng::map::MapAssetView`/`LayerView`, HOST-498): cabecera BE, una o más capas de celdas `u16`, paleta y banco externo. Catálogo `TileRef`, páginas y objetos siguen siendo objetivo de T4/T5.
+
 El `WorldMap` actual (versión 1, una capa, un banco/paleta) se conserva para los mapas y capas que usan un **banco único residente** y para no romper a los consumidores existentes. Las capas que usan catálogo/páginas necesitan una variante con el mismo directorio y celdas pero referencias a `TileCatalog`/`TilePages`: `MapLayerCells` (o `WorldMap` v2, decisión de T3). Un `MapBundle` añade los chunks que faltan para describir un proyecto Tiled soportado. Los tipos nuevos se añaden a `eng::assets::ChunkType` cuando se implementen; los números concretos se fijan en T3 y no pueden colisionar con los existentes.
 
 | Chunk | Contenido | Consumidor |

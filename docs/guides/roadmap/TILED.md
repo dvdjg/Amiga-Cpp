@@ -61,13 +61,13 @@ Tiled es **formato de autoría**, no de runtime. La estrategia es un **cooker ho
 
 - `tools/tiled/parse-tmx.mjs` — parser estructural → `eng.tiled-ir` v1 (T1, implementado); `xml.mjs` y fixtures/autotest en la misma carpeta.
 - `tools/tiled/compose-map.mjs` — compone capas/grupos/objetos/imágenes en una PNG bake (T2/T3, implementado).
-- `tools/tiled/cook-map.mjs` — cuantiza perfiles 16c/32c/EHB, emite propuesta y promueve `selected/` (T2/T3 parcial; `--palette`/`--planes` para imponer la paleta final).
+- `tools/tiled/cook-map.mjs` — cuantiza perfiles 16c/32c/EHB, emite propuesta, `MapBundle` v1 y promueve `selected/` (T2/T3/T4 parcial; `--palette`/`--planes` para imponer la paleta final).
 - `tools/ehb/quantize-ehb.mjs` y `slice-tiles.mjs` — paleta y corte/dedupe; `slice-tiles --dither checker` implementa el optimal-checker para transiciones.
 - `tools/ehb/emit-xlimited-bank.mjs` — banco interleaved prehecho para 1..6 planos.
 - `tools/ehb/parse-tmx.mjs` — extractor legacy (regex). Compatibilidad hasta T9; el pipeline nuevo no depende de él.
 - `tools/ehb/gid-to-bank.mjs` y `tools/ehb/pack-world.mjs` — conversión de una capa a `WorldMap`; formato en `WORLD_FORMAT.md`.
 - `tools/amiga-tiles/amiga-tiles.mjs` — cuantización/corte/dedupe/tilebank (2..255 colores, EHB, dither, layouts); no conoce Tiled.
-- Pendiente: `MapBundle` UAF-R, páginas/catálogo runtime y el visor de presupuesto. El flujo actual produce assets C (`selected/tiled_map.h` + banco) para la demo 206.
+- Runtime: `eng::map::MapAssetView`/`LayerView` leen `selected/map.bundle` (BE) y la demo 206 lo conduce con `XlimitedScene`; banco EHB aparte (HOST-498). Pendiente: catálogo `TileRef`, páginas/pin y UAF-R completo.
 
 ## Conversor externo (`png2amiga`)
 

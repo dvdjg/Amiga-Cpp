@@ -19,6 +19,7 @@
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/field/xlimited_scene.hpp>
+#include <eng/map/asset.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
@@ -26,8 +27,8 @@
 
 #include "support/gcc8_c_support.h"
 
-// Mapa, paleta y celdas cocinados (perfil seleccionado).
-#include "../../../../../../out/assets/tiled/beginning-fields/selected/tiled_map.h"
+// MapBundle y banco cocinados (perfil seleccionado).
+#include "../../../../../../out/assets/tiled/beginning-fields/selected/map_bundle.h"
 
 struct ExecBase* SysBase = nullptr;
 
@@ -59,9 +60,6 @@ constexpr eng::u16 kTile = 16u;
 constexpr eng::u16 kViewportW = 320u;
 constexpr eng::u16 kViewportH = 256u;
 constexpr eng::u8 kPlanes = TILED_MAP_PLANES;
-constexpr eng::u16 kMapW = TILED_MAP_W;
-constexpr eng::u16 kMapH = TILED_MAP_H;
-constexpr eng::u16 kTileCount = TILED_MAP_TILES;
 constexpr eng::u16 kPaletteCount = (kPlanes == 6u) ? 32u : (1u << kPlanes);
 constexpr eng::debug::Version kVersion {1u, 0u};
 constexpr eng::u32 kReadyDetail = 0x20600000u;
@@ -72,6 +70,7 @@ constexpr playfield::ScrollConsts kScrollConsts {
 
 enum class Fail : eng::u32 {
 	Memory = 0x00020601u,
+	MapAsset = 0x00020605u,
 	SceneBegin = 0x00020602u,
 	Fill = 0x00020603u,
 	ComposeInit = 0x00020604u,
@@ -81,18 +80,18 @@ enum class Fail : eng::u32 {
 
 eng::u16 g_palette[32] {};
 
-void build_palette() {
-	// `kTileIndexedPalette` es RGB888 en orden de índice. En EHB solo se cargan
-	// las 32 bases; el hardware deriva los half (COLOR32..63).
-	for (eng::u16 i = 0u; i < kPaletteCount; ++i) {
-		const eng::u8* c = &kTileIndexedPalette[static_cast<eng::u32>(i) * 3u];
-		g_palette[i] = static_cast<eng::u16>(((c[0] >> 4) << 8) | ((c[1] >> 4) << 4) | (c[2] >> 4));
-	}
+void build_palette(const eng::map::MapAssetView& map) {
+	// El bundle ya trae palabras Amiga 0x0RGB; en EHB solo se cargan las 32 bases
+	// y el hardware deriva los half (COLOR32..63).
+	const eng::u16 count = map.palette_count() < kPaletteCount ? map.palette_count() : kPaletteCount;
+	for (eng::u16 i = 0u; i < count; ++i) g_palette[i] = map.palette_word(i);
 }
 
 struct DemoGame {
-	playfield::XlimitedScene<kScrollConsts> scene {};
-	playfield::XlimitedSceneConfig scene_cfg {};
+	eng::map::MapAssetView m_map {eng::Span<const eng::u8> {kMapBundle, sizeof(kMapBundle)}};
+	eng::map::LayerView m_layer {};
+	playfield::XlimitedScene<kScrollConsts, eng::map::LayerView> scene {};
+	playfield::XlimitedSceneConfigT<eng::map::LayerView> scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::debug::HostHud host_hud {};
 	eng::s16 direction = 1;
@@ -105,27 +104,29 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
 			return;
 		}
-		build_palette();
+		if (!m_map.valid() || m_map.planes() != kPlanes || !m_map.palette_count()) {
+			eng::debug::mark_failed(g_eng_run_status, Fail::MapAsset);
+			return;
+		}
+		m_layer = eng::map::LayerView {m_map, 0u};
+		if (!m_layer.has_data()) {
+			eng::debug::mark_failed(g_eng_run_status, Fail::MapAsset);
+			return;
+		}
+		build_palette(m_map);
 
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
 		scene_cfg.tile_width = kTile;
 		scene_cfg.tile_height = kTile;
-		scene_cfg.planes = kPlanes;
+		scene_cfg.planes = m_map.planes();
 		scene_cfg.fetch_mode = 0u;
 		scene_cfg.y_mode = playfield::AxisPolicy::Off;
 		scene_cfg.direction = playfield::DirectionPolicy::Bidirectional;
 		scene_cfg.display_height = kViewportH;
 		scene_cfg.max_step = 4u;
-		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(
-			&kTileIndexedMap[0][0], static_cast<eng::usize>(kMapW) * kMapH);
-		scene_cfg.map.width = kMapW;
-		scene_cfg.map.height = kMapH;
-		scene_cfg.map.wrap_x = kMapW; // mundo horizontal toroidal
-		scene_cfg.map.wrap_y = 0u;
-		scene_cfg.map.edge_tile = 0u;
-		scene_cfg.map.empty_tile = 0xFFFFu;
-		scene_cfg.tileset_count = kTileCount;
+		scene_cfg.map = m_layer;
+		scene_cfg.tileset_count = m_map.tile_count();
 		scene_cfg.blocks_prebuilt = g_tiled_bank;
 		scene_cfg.blocks_prebuilt_size = g_tiled_bank_size;
 		scene_cfg.palette = g_palette;
@@ -168,7 +169,7 @@ struct DemoGame {
 		}
 		++frame_of_day;
 		eng::util::TextLine<64> stats;
-		stats << "X=" << scene.bg().mapposx() << " T=" << kTileCount << " P=" << eng::u16(kPlanes);
+		stats << "X=" << scene.bg().mapposx() << " T=" << m_map.tile_count() << " P=" << eng::u16(kPlanes);
 		host_hud.draw(backend.debug(), "206 TILED BAKED", kVersion, context.frame.frame_index,
 			      eng::debug::prof_clock(), stats.c_str());
 	}

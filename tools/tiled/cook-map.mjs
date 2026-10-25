@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { parseTmxFile } from './parse-tmx.mjs';
 import { composeMap } from './compose-map.mjs';
+import { packMapBundle, bundleHeader } from './map_bundle.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const QUANTIZE = path.join(ROOT, 'tools/ehb/quantize-ehb.mjs');
@@ -142,6 +143,30 @@ function writeSelected(outDir, profile) {
 		'',
 	].join('\n');
 	fs.writeFileSync(path.join(selectedDir, 'tiled_map.h'), header, 'utf8');
+	// MapBundle v1: banco externo + una capa baked + paleta. La demo lo lee con
+	// eng::map::MapAssetView; el header C sigue disponible para el camino r?pido.
+	const bundle = packMapBundle({
+		tileWidth: tiles.tile,
+		tileHeight: tiles.tile,
+		planes: profile.planes,
+		tileCount: tiles.stats.unique,
+		bankBytes: fs.statSync(path.join(profileDir, 'tilebank.xlimited.bin')).size,
+		palette: tiles.palette,
+		layers: [{
+			id: 0,
+			mode: 0,
+			width: tiles.cols,
+			height: tiles.rows,
+			originX: 0,
+			originY: 0,
+			wrapX: tiles.cols,
+			wrapY: 0,
+			emptyTile: 0xffff,
+			cells: tiles.map,
+		}],
+	});
+	fs.writeFileSync(path.join(selectedDir, 'map.bundle'), bundle);
+	fs.writeFileSync(path.join(selectedDir, 'map_bundle.h'), bundleHeader('kMapBundle', bundle), 'utf8');
 	const selected = {
 		profile: profile.name,
 		planes: profile.planes,
@@ -152,6 +177,8 @@ function writeSelected(outDir, profile) {
 		header: path.relative(ROOT, path.join(selectedDir, 'tiled_map.h')),
 		tilebankIndexed: path.relative(ROOT, path.join(selectedDir, 'tilebank_indexed.h')),
 		tilebankXlimited: path.relative(ROOT, path.join(selectedDir, 'tilebank.xlimited.bin')),
+		bundle: path.relative(ROOT, path.join(selectedDir, 'map.bundle')),
+		bundleHeader: path.relative(ROOT, path.join(selectedDir, 'map_bundle.h')),
 	};
 	fs.writeFileSync(path.join(outDir, 'selected.json'), JSON.stringify(selected, null, 2) + '\n', 'utf8');
 	return selected;

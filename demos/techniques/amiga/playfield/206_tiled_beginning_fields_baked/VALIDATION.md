@@ -11,7 +11,7 @@
 `node tools/debug/measure-fps.mjs 206_tiled_beginning_fields_baked A500_debug --json`:
 
 ```json
-{"demo":"206_tiled_beginning_fields_baked","config":"A500_debug","date":"2026-10-25","commit":"0524a2ca","emulatedFps":49.89,"hostFps":49.85,"cyclesPerFrame":142191,"fieldsPerFrame":1.00222,"frames":1008,"cycles":143328598,"measurementMs":20219,"detail":"0x20600000","watchdog":null,"stable":true,"quantizedFields":1,"minFps":49.52,"maxFps":50.08}
+{"demo":"206_tiled_beginning_fields_baked","config":"A500_debug","date":"2026-10-25","commit":"ab469460","emulatedFps":49.92,"hostFps":49.85,"cyclesPerFrame":142102,"fieldsPerFrame":1.00159,"frames":1011,"cycles":143665122,"measurementMs":20281,"detail":"0x20600000","watchdog":null,"stable":true,"quantizedFields":1,"minFps":49.52,"maxFps":50.32}
 ```
 
 Regresión con flicker:
@@ -33,4 +33,4 @@ La respuesta cruda completa está en [`src/VISION.md`](src/VISION.md). Resumen: 
 
 ## Conclusión
 
-En el alcance probado, el bake Tiled se ve coherente, el scroll horizontal es continuo y el coste es 49,89 fps con 1,0022 campos/frame. Sin verificar: overlays/animación runtime, Y, oclusión de actores e isométrico. La selección EHB está justificada por la capa de sombras y el informe `proposal.md`; el usuario puede imponer otra paleta/profundidad con `cook-map --palette/--planes`.
+En el alcance probado, el bake Tiled se ve coherente, el scroll horizontal es continuo y el coste es 49,92 fps con 1,0016 campos/frame. Sin verificar: overlays/animación runtime, Y, oclusión de actores e isométrico. La selección EHB está justificada por la capa de sombras y el informe `proposal.md`; el usuario puede imponer otra paleta/profundidad con `cook-map --palette/--planes`.

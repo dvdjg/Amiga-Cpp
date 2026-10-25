@@ -68,10 +68,13 @@ try {
 		const selected = JSON.parse(fs.readFileSync(path.join(out, 'selected.json'), 'utf8'));
 		assert.equal(selected.profile, '32c');
 		assert.equal(selected.planes, 5);
-		assert.ok(fs.existsSync(path.join(out, 'selected', 'tiled_map.h')));
+		for (const file of ['tiled_map.h', 'map.bundle', 'map_bundle.h']) assert.ok(fs.existsSync(path.join(out, 'selected', file)), `selected/${file}`);
 		const header = fs.readFileSync(path.join(out, 'selected', 'tiled_map.h'), 'utf8');
 		assert.match(header, /TILED_MAP_W 4u/);
 		assert.match(header, /TILED_MAP_PLANES 5u/);
+		const bundleHeader = fs.readFileSync(path.join(out, 'selected', 'map_bundle.h'), 'utf8');
+		assert.match(bundleHeader, /TILED_MAP_PLANES 5u/);
+		assert.ok(fs.statSync(path.join(out, 'selected', 'map.bundle')).size > 88);
 	});
 
 	test('cook: paleta impuesta (custom)', () => {
