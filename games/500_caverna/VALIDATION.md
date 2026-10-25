@@ -3,10 +3,11 @@
 ## Medición
 
 ```text
-500_caverna/A500_release | emulado=49,93 fps | 142073 ciclos/frame | 1,00139 campos/frame | stable=true
+500_caverna/A500_release | emulado=50,04 fps | 141761 ciclos/frame | 0,99919 campos/frame | stable=true
+500_caverna/A500_caverna_single1_release | emulado=49,92 fps | 142102 ciclos/frame | 1,00159 campos/frame | stable=true
 ```
 
-Ventana de 20 s; `measure-fps`. La media es 49,89 fps (host) y las muestras individuales oscilan entre 49,63 y 50,32 fps por la cuantización de frames por ventana. La medición es en reposo, sin entrada sostenida; no se ha medido el coste de un salto o desplazamiento continuo.
+Ventana de 8 s; measure-fps. La variante single se compila con EXTRA_DEFINES=-DCAVERNA_SINGLE=1 y desactiva DPF en init; conserva los ocho sprites y sus placements. La media es 49,89 fps (host) y las muestras individuales oscilan entre 49,63 y 50,32 fps por la cuantización de frames por ventana. La medición es en reposo, sin entrada sostenida; no se ha medido el coste de un salto o desplazamiento continuo.
 
 El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El display es **DPF 3+3** de 320×208; el jugador y los siete enemigos son sprites hardware (8 canales).
 
@@ -36,7 +37,7 @@ El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El d
 Salto con joystick del puerto 2 (mantener arriba o fuego):
 
 ```bash
-bash tools/run/run-demo.sh games/500_caverna --config A500_release --wait-ms 800 --joy 1:up --joy-hold-ms 40 --sequence-frames 3 --sequence-interval-ms 80
+bash tools/run/run-demo.sh games/500_caverna --config A500_release --wait-ms 800 --joy 1:up --joy-through-sequence --sequence-frames 6 --sequence-interval-ms 40
 ```
 
 Salto con ratón (botón izquierdo) y desplazamiento horizontal:
@@ -45,12 +46,14 @@ Salto con ratón (botón izquierdo) y desplazamiento horizontal:
 bash tools/run/run-demo.sh games/500_caverna --config A500_release --wait-ms 800 --mouse-from 120,100 --mouse-to 220,100 --sequence-frames 3 --sequence-interval-ms 200
 ```
 
-Con `--joy 1:up --joy-hold-ms 40` la secuencia muestra al jugador por encima del suelo y después aterrizando. La comprobación es manual/asistida por visión; la automatización de píxeles y de latencia sigue pendiente. La evaluación canónica de visión está en `src/VISION.md`.
+Con `--joy 1:up --joy-through-sequence --sequence-frames 6 --sequence-interval-ms 40` la secuencia muestra al jugador por encima del suelo y después aterrizando. La comprobación es manual/asistida por visión; la automatización de píxeles y de latencia sigue pendiente. La evaluación canónica de visión está en `src/VISION.md`.
 
 La comprobación semántica específica de salto se ejecuta con:
 
 ```bash
 node tools/analyze/vision-jump.mjs out/run/500_caverna/A500_release/sequence --require
 ```
+
+Telemetria del compositor (HUD temporal): `FE=4` y `PH` crece en dual (40 y 56) y single (30); el parcheo POS/CTL se aplica. Se corrigio el contador `debug_patch_hits()` del compositor dual, que no se incrementaba.
 
 La sonda actual responde `SALTO: NO` para las secuencias probadas: detecta desplazamiento horizontal, pero el VLM no confirma la subida/bajada vertical. Se deja como NO VERIFICADO hasta ajustar la inyección del salto o la captura temporal.

@@ -315,6 +315,10 @@ struct CavernaGame : eng::scene::SpriteBank<kActorCount> {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
+#ifdef CAVERNA_SINGLE
+		// Variante de validacion del compositor single (sin DPF).
+		config.dpf.enabled = false;
+#endif
 		// Específico del corcóscru: política de ejes, mapa y generador de filas.
 		config.y_mode = playfield::AxisPolicy::Off;
 		config.direction = playfield::DirectionPolicy::Bidirectional;
