@@ -75,20 +75,47 @@ Las celdas son `u16`/números JS con el GID **sin limpiar**; `0` es vacío. Un G
 
 En `columns="0"` los IDs locales pueden tener huecos: `tilecount` cuenta los tiles definidos, `maxTileId` es el máximo id local y `tileIds` la lista ordenada de ids definidos. El rango de GID llega a `firstgid + maxTileId` y la validación comprueba pertenencia exacta; no se asume una rejilla contigua.
 
+## Bake y cooker de perfiles
+
+```bash
+# 1) Componer capas/grupos/objetos/imágenes en una imagen bake (primer frame de animaciones)
+node tools/tiled/compose-map.mjs "ruta/Beginning Fields.tmx" \
+  --plan tools/tiled/fixtures/beginning-fields.cook-plan.json \
+  --out out/assets/tiled/beginning-fields
+
+# 2) Cocinar 16c/32c/EHB, escribir propuesta y promover EHB
+node tools/tiled/cook-map.mjs "ruta/Beginning Fields.tmx" \
+  --plan tools/tiled/fixtures/beginning-fields.cook-plan.json \
+  --out out/assets/tiled/beginning-fields \
+  --profiles 16c,32c,ehb --dither checker --select ehb
+
+# 3) Imponer número de colores/paleta final
+node tools/tiled/cook-map.mjs "ruta/Beginning Fields.tmx" --out out/assets/tiled/beginning-fields \
+  --palette mi_paleta.json --planes 5 --dither checker --select custom
+```
+
+`compose-map` aplica orden de capas, opacidad de capa/grupo, offsets, tile objects con alineación/`tileoffset`, image layers y el primer frame de tiles animados. En mapas finitos recorta al rectángulo lógico del mapa; en infinitos calcula bounds por chunks/objetos. Escribe `composed.png` y `compose.json` con stats, avisos y errores; una imagen faltante es error.
+
+`cook-map` ejecuta `quantize-ehb.mjs` (perfil forzado), `slice-tiles.mjs` con `--dither checker` y `emit-xlimited-bank.mjs` (1..6 planos), y escribe `proposal.json`/`proposal.md` con tiles, banco, PSNR y estimación Chip. La recomendación automática es una **propuesta**, no una imposición: EHB se sugiere con capas de sombra o >32 colores; `--select` promueve el perfil elegido a `selected/` y genera `tiled_map.h` para la demo. `--palette` permite imponer la paleta y `--planes` su profundidad. El checker es el optimal-checker de dos tonos consecutivos por luminancia portado de `amiga-tiles`; `--dither none` conserva el comportamiento anterior.
+
+Salidas por perfil en `profiles/<perfil>/`: `tilebank.raw.bin` (1 B/píxel), `tilebank_indexed.h`, `tilebank.xlimited.bin`, `tiles.json`, `reconstruct.png`, `tilebank.png`, `quant/palette.json`. `selected/` contiene `tiled_map.h`, `tilebank_indexed.h` y `tilebank.xlimited.bin`.
+
 ## Fixtures y tests
 
 `fixtures/` contiene XML pequeño y determinista; las imágenes apuntan a `assets/amiga/hud/test_icons.png` (ya versionado) y el parser no las decodifica. Ver `fixtures/README.md`.
 
 ```bash
 node tools/tiled/test-parse-tmx.mjs
+node tools/tiled/test-cook.mjs
 ```
 
-El autotest cubre XML, atlas/colección, animaciones, objetos, propiedades, grupos, CSV/base64 gzip/zlib, chunks negativos, flips, GID fuera de rango/no definido, zstd y orientación rechazada. Si existe el proyecto local `Beginning Fields.tmx`, lo parsea como integración y comprueba 18 tilesets, 7 capas de tiles, 2 objectgroups, 169 objetos y 256 GID únicos. El test se ejecuta en la pasada completa de `tools/run-host-tests.sh`.
+`test-parse-tmx` cubre XML, atlas/colección, animaciones, objetos, propiedades, grupos, CSV/base64 gzip/zlib, chunks negativos, flips, GID fuera de rango/no definido, zstd y orientación rechazada. Si existe el proyecto local `Beginning Fields.tmx`, lo parsea como integración y comprueba 18 tilesets, 7 capas de tiles, 2 objectgroups, 169 objetos y 256 GID únicos. `test-cook` comprueba el bake del fixture, los tres perfiles, la propuesta/`selected` y la paleta impuesta. Ambos se ejecutan en la pasada completa de `tools/run-host-tests.sh`.
 
 ## Límites actuales
 
-- No lee imágenes ni cocina tiles/paletas/páginas; eso es T2/T3.
+- El parser no lee imágenes; `compose-map`/`cook-map` sí, con `pngjs`, en host.
+- El formato actual es un **bake opaco** + banco/mapa C para una demo; no hay todavía `MapBundle` UAF-R, catálogo `VisualId`, páginas runtime ni capas `Overlay`/`Occluder` separadas.
 - No evalúa wangsets/terrain/rules: consume las capas resultantes (el cooker las trata como cualquier capa).
 - Rechaza `template` de objeto, orientaciones hex/staggered y compresión `zstd` con diagnósticos; no las convierte en silencio.
 - El IR JSON puede ser grande (un mapa 40×40 con 7 capas y objetos ronda 1,5 MB con indentación); es un intermedio host, no un asset de runtime.
-- Las plantillas de objeto, la selección de paleta y la política de capas se cierran en T2/T3/T6, no en el parser.
+- Las animaciones se hornean con su primer frame; el `TileAnimator` por Blitter es T5. Las plantillas de objeto y la política de capas se cierran en T5/T6.

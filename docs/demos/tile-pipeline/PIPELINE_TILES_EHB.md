@@ -31,9 +31,9 @@ paleta y tabla de índices) sale ya en la convención que consume el chipset EHB
 | Script | Entrada | Salida | Rol |
 |---|---|---|---|
 | `quantize-ehb.mjs` | PNG original | `palette.json` (32 bases RGB), `ehb_palette.h`, `ehb_preview.png` | Elige 32 bases con k-means **half-aware** ordenadas por luminosidad; reserva base 0 para transparencia si hace falta |
-| `slice-tiles.mjs` | PNG + `palette.json` | `tilebank_indexed.h`, `tilebank.raw.bin`, `tiles.json`, `reconstruct.png`, `tilebank.png` | Cuantiza el original a EHB, extrae tiles únicos exactos, (fusión opcional), reconstruye y **compara al 100%**, exporta en BASES-PRIMERO |
+| `slice-tiles.mjs` | PNG + `palette.json` | `tilebank_indexed.h`, `tilebank.raw.bin`, `tiles.json`, `reconstruct.png`, `tilebank.png` | Cuantiza el original a la paleta (4/5/EHB), extrae tiles únicos exactos, (fusión opcional), reconstruye y **compara al 100%**, exporta en BASES-PRIMERO; `--dither checker` aplica el optimal-checker de dos tonos |
 | `emit-const-201.mjs` | `tilebank_indexed.h` + `tiles.json` | `const_game_201.h` | Renombrado determinista: `kEhbPalette[64·3]` + `kRenderMap[1600]` + externs del banco incbin |
-| `emit-xlimited-bank.mjs` | `tilebank.raw.bin` | `tilebank.xlimited.bin` + `tilebank.xlimited.h` | Convierte el banco indexado al banco de bloques interleaved 320 px que dibuja el algoritmo X-Limited |
+| `emit-xlimited-bank.mjs` | `tilebank.raw.bin` | `tilebank.xlimited.bin` + `tilebank.xlimited.h` | Convierte el banco indexado (1..6 planos) al banco de bloques interleaved 320 px que dibuja el algoritmo X-Limited |
 | `test-expindex.mjs` | — | assert host | Verifica que la permutación `expIndex` (intercalado → BASES-PRIMERO) es biyectiva |
 | `parse-tmx.mjs` / `gid-to-bank.mjs` | `.tmx` de Tiled (JSON) | `tmx_bf.json`, `mapa_ehb.h` (opcional) | Ruta alternativa de edición de niveles. La demo 201 actual NO la usa: el mapa sale directo del PNG |
 

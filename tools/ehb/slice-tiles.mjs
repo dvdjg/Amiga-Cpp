@@ -5,7 +5,7 @@
 // sin fusión). Emite PNG indexados (encoder propio PLTE+IDAT) y el .h para Amiga.
 //
 // Uso: node tools/ehb/slice-tiles.mjs <png> --palette out/assets/ehb/palette.json
-//      [--ehb-merge 0.0..1.0] [--sheet-scale 1|2] [--classify] [--out dir]
+//      [--ehb-merge 0.0..1.0] [--sheet-scale 1|2] [--classify] [--out dir] [--dither none|checker]
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -21,6 +21,8 @@ const outDir = argV('--out', 'out/assets/ehb');
 const ehbMerge = parseFloat(argV('--ehb-merge', '1'));
 const sheetScale = parseInt(argV('--sheet-scale', '1'), 10);
 const classify = process.argv.includes('--classify');
+const dither = argV('--dither', 'none');
+if (dither !== 'none' && dither !== 'checker') { console.error('[slice] --dither solo acepta none|checker'); process.exit(2); }
 
 const png = PNG.sync.read(fs.readFileSync(img));
 const cols = png.width / tile, rows = png.height / tile;
@@ -56,6 +58,52 @@ const palSize = paletteI.length;
 console.log(`[slice] paleta ${palSize} colores (${palSize <= 16 ? '4 bits/px' : palSize <= 32 ? '5 bits/px' : 'EHB 64'}${hasAlphaSrc ? ', índice 0 transparente' : ' sin transparencia'})`);
 const nearest = (r, g, bl) => { let bi = 0, dmin = Infinity; for (let q = 0; q < palSize; q++) { const p = paletteI[q]; const dr = r - p[0], dg = g - p[1], db = bl - p[2]; const d = dr * dr + dg * dg + db * db; if (d < dmin) { dmin = d; bi = q; } } return bi; };
 
+// "Optimal checker" (estilo core-design): busca el par de colores consecutivos
+// por luminancia que enmarca el tono del pixel y lo dibuja como tablero 2x2 con
+// densidad = proyeccion sobre el segmento. Crea transiciones sin ruido multicolor
+// y usa toda la paleta; si el par es cromaticamente lejano o el pixel cae casi
+// sobre un color, usa el mas cercano. Portado de tools/amiga-tiles/amiga-tiles.mjs.
+const checkerEntries = [];
+for (let q = 0; q < palSize; q++) {
+  if (hasAlphaSrc && q === 0) continue;
+  const p = paletteI[q];
+  checkerEntries.push({ index: q, rgb: p, lum: 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2] });
+}
+checkerEntries.sort((a, b) => a.lum - b.lum);
+const checkerPick = (r, g, bl) => {
+  if (checkerEntries.length === 0) return 0;
+  let ni = 0, nd = Infinity;
+  for (let k = 0; k < checkerEntries.length; k++) {
+    const p = checkerEntries[k].rgb; const dr = r - p[0], dg = g - p[1], db = bl - p[2]; const d = dr * dr + dg * dg + db * db;
+    if (d < nd) { nd = d; ni = k; }
+  }
+  if (nd < 8) return checkerEntries[ni].index;
+  let best = -1, be = Infinity, bt = 0;
+  for (let k = 0; k + 1 < checkerEntries.length; k++) {
+    const a = checkerEntries[k].rgb, b = checkerEntries[k + 1].rgb;
+    const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+    const l2 = dx * dx + dy * dy + dz * dz;
+    if (l2 === 0) continue;
+    let t = ((r - a[0]) * dx + (g - a[1]) * dy + (bl - a[2]) * dz) / l2;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const e = Math.abs(r - (a[0] + dx * t)) + Math.abs(g - (a[1] + dy * t)) + Math.abs(bl - (a[2] + dz * t));
+    if (e < be) { be = e; best = k; bt = t; }
+  }
+  if (best < 0 || be > 70) return checkerEntries[ni].index;
+  const a = checkerEntries[best].rgb, b = checkerEntries[best + 1].rgb;
+  if (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) > 110) return checkerEntries[ni].index;
+  const ca0 = a[0] - a[1], ca1 = a[1] - a[2], cb0 = b[0] - b[1], cb1 = b[1] - b[2];
+  if (Math.abs(ca0 - cb0) + Math.abs(ca1 - cb1) > 60) return checkerEntries[ni].index;
+  return { base: checkerEntries[best].index, over: checkerEntries[best + 1].index, frac: bt };
+};
+const CHECKER2 = [0, 2, 3, 1];
+const pick = (r, g, bl, x, y) => {
+  if (dither !== 'checker') return nearest(r, g, bl);
+  const c = checkerPick(r, g, bl);
+  if (typeof c === 'number') return c;
+  return c.frac * 4 > CHECKER2[(y & 1) * 2 + (x & 1)] ? c.over : c.base;
+};
+
 // --- 2) CUANTIZAR EL ORIGINAL A LA PALETA PRIMERO (origEhb) -------------------
 const rW = png.width, rH = png.height;
 const origEhb = new Uint8Array(rW * rH);
@@ -64,9 +112,9 @@ for (let y = 0; y < rH; y++) for (let x = 0; x < rW; x++) {
   const a = png.data[o + 3];
   // Transparencia→slot 0 solo si reservamos slot; con --no-alpha los px del
   // atlas (huecos) van también al base más próximo (16 colores / 4 bits/px).
-  origEhb[y * rW + x] = (hasAlphaSrc && a < 128) ? 0 : nearest(png.data[o], png.data[o + 1], png.data[o + 2]);
+  origEhb[y * rW + x] = (hasAlphaSrc && a < 128) ? 0 : pick(png.data[o], png.data[o + 1], png.data[o + 2], x, y);
 }
-console.log(`[slice] original cuantizado a EHB (${palSize} colores) listo`);
+console.log(`[slice] original cuantizado a ${palSize} colores (dither=${dither}) listo`);
 
 // --- 3) EXTRAER tiles únicos EXACTOS desde origEhb ----------------------------
 const bank = [];          // {x,y,pix:Uint8Array(256)}
@@ -79,7 +127,7 @@ for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) {
   if (seen.has(key)) { map[ty * cols + tx] = seen.get(key); }
   else { seen.set(key, bank.length); map[ty * cols + tx] = bank.length; bank.push({ x: tx, y: ty, pix }); }
 }
-console.log(`[slice] tiles únicos (EHB exacto): ${bank.length} de ${cols * rows}`);
+console.log(`[slice] tiles únicos (índices): ${bank.length} de ${cols * rows}`);
 
 // --- 4) FUSIÓN por similitud en índices EHB (--ehb-merge) ----------------------
 if (ehbMerge < 1) {

@@ -491,6 +491,14 @@ else
 			exit 1
 		fi
 	fi
+	TILED_COOK_TEST="$ROOT/tools/tiled/test-cook.mjs"
+	if [ -f "$TILED_COOK_TEST" ] && command -v node >/dev/null 2>&1; then
+		echo "== tiled cooker =="
+		if ! node "$TILED_COOK_TEST"; then
+			echo "tiled cooker fallo: revisar tools/tiled/test-cook.mjs" >&2
+			exit 1
+		fi
+	fi
 fi
 
 echo "Host tests finalizados."

@@ -78,8 +78,10 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 - Validar conteos, longitudes, índices y rutas; emitir `diagnostics` con severidad y localización.
 - **Gate**: IR equivalente a Tiled en los fixtures; ningún atributo soportado se pierde en silencio; los rechazos son accionables.
 
-### T2 — Cooker de tilesets, paleta y páginas
+### T2 — Cooker de tilesets, paleta y páginas — **PARCIAL (bake)**
 
+- Entregado: `compose-map.mjs` compone capas/grupos/objetos/opacidad en host; `cook-map.mjs` prueba 16c/32c/EHB, escribe `proposal.json`/`proposal.md`, permite `--palette`/`--planes`, usa `--dither checker` (optimal-checker portado de `amiga-tiles`) y promueve `selected/`. `slice-tiles.mjs` acepta `--dither checker`; `emit-xlimited-bank.mjs` acepta 1..6 planos. Medido en `Beginning Fields`: 16c 25,17 dB, 32c 28,16 dB, EHB 28,53 dB; banco 153/188/225 KB.
+- Pendiente para el gate completo: páginas de tiles con catálogo, máscara 1bpp para overlays y agrupación explícita de frames de animación; el bake actual usa una imagen compuesta y un banco único.
 - Recolectar solo los tiles referenciados (capas + objetos + frames + flips usados).
 - Cuantizar contra una paleta global por campo (16/32/EHB/DPF) y medir la calidad con `compare-palettes.mjs` + visión.
 - Generar páginas de tiles con layout DMA, dedupe, máscara 1bpp para overlays y alineación/guarda; agrupar frames de animación.
@@ -87,8 +89,10 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 - Producir el informe de bytes Chip/Fast y el preview de reconstrucción.
 - **Gate**: reconstrucción índice a índice al 100 %; preview de contenido equivalente a Tiled con las diferencias de paleta documentadas; informe de página/paleta; sin tiles huérfanos ni duplicados.
 
-### T3 — Cooker de mapa y `MapBundle`
+### T3 — Cooker de mapa y `MapBundle` — **PARCIAL (bake + assets C)**
 
+- Entregado: capas estáticas fundidas en una imagen bake 640×640 respetando orden, offsets, opacidad de grupo, tile objects e image layers; salida `composed.png` + `compose.json` + `proposal.*` + `selected/tiled_map.h`/`tilebank_indexed.h`/`tilebank.xlimited.bin`. La demo 206 consume esos assets con 1183 tiles y 40×40 celdas.
+- Pendiente para el gate completo: `MapBundle` UAF-R con `MapManifest`/`MapLayers`/`TileCatalog`/`TilePages`/`TileAnimations`/`MapObjects`/`Collision`, `VisualId` estables y round-trip multicapa. El perfil actual es un **bake opaco**; las capas vivas/overlay no viajan como capas separadas.
 - Clasificar capas (`Baked`/`Base`/`Overlay`/`Occluder`/`Parallax`/`CollisionOnly`) desde propiedades + `cook-plan`.
 - Fundir las capas estáticas en el fondo base respetando orden, offsets, opacidad horneada y paleta.
 - Emitir `WorldMap` v1 para capas de banco único y `MapLayerCells` (o `WorldMap` v2) para capas con catálogo/páginas, más los chunks nuevos: `MapManifest`, `MapLayers`, `TileCatalog`, `TilePages`, `TileAnimations`, `MapObjects`, `Collision` (nombres; tipos/números se fijan al implementar).
@@ -96,16 +100,19 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 - Validar el bundle y el presupuesto; fallar si una capa `Occluder` se intenta hornear o si la paleta no encaja.
 - **Gate**: bundle determinista (hash), round-trip de mapa/capas/objetos, presupuesto declarado, preview por capa.
 
-### T4 — Runtime de contenido y catálogo
+### T4 — Runtime de contenido y catálogo — **PENDIENTE**
 
+- No implementado: la demo 206 usa la API existente (`XlimitedSceneConfig` + `kTileIndexedMap`) sobre los arrays cocinados. Falta `MapBundle` antes de poder cerrar `AssetView`/`TileCatalog`.
 - Añadir `eng::map::AssetView` (validación del bundle), `TileCatalog`/`TileResolver`, `LayerCellSource` residente y `MapRuntime`.
 - Adaptar `WorldLayerSource`/`WorldMapChunkLoader` para capas del bundle sin romper `WorldView`.
 - Añadir `TilePageCache` residente (sin LRU todavía) con pin por frame y vistas Chip tipadas.
 - Exponer consultas de celda/colisión y un `LevelStats` mínimo.
 - **Gate**: host tests de validación, catálogo, resolución de página, capas y pin; un mapa residente se monta sin heap ni XML.
 
-### T5 — Presenter XYLimited extendido
+### T5 — Presenter XYLimited extendido — **PARCIAL (demo 206)**
 
+- Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,92 fps, 142 102 ciclos/frame, flicker OK y visión de secuencia sin artefactos. `VALIDATION.md` recoge el alcance.
+- Pendiente: `TileLayerStack`, overlays enmascarados, `TileAnimator` y `after_actors` (demos 207/208).
 - `TileLayerStack`: base + overlays por banda entrante; cada overlay con su máscara y orden `z`.
 - Pase de animación `TileAnimator` con presupuesto de celdas visibles y parche enmascarado.
 - Pase `after_actors` para `Occluder`, con dirty rects de actores/cámara/animación.

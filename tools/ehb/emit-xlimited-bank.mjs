@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Convierte el tilebank INDEXADO del pipeline EHB (out/assets/ehb/tilebank.raw.bin,
-// 1 B/píxel por tile, índice EHB 0..63 BASES-PRIMERO, stride tile*tile bytes)
-// al BANCO DE BLOQUES INTERLEAVED que consume el motor X-Limited
-// (`draw_block_job`): un bitmap de 320 px de ancho (40 B/planelínea) donde cada
-// tile se coloca en (tile % (320/tw), tile / (320/tw)) y cada píxel se convierte
-// de índice EHB a sus 6 planos (bit p del índice = plano p; bit 5 = half).
+// Convierte un tilebank INDEXADO (out/assets/ehb/tilebank.raw.bin, 1 B/píxel por
+// tile, índice 0..2^planes-1, stride tile*tile bytes) al BANCO DE BLOQUES INTERLEAVED
+// que consume el motor X-Limited (`draw_block_job`): un bitmap de 320 px de ancho
+// (40 B/planelínea) donde cada tile se coloca en (tile % (320/tw), tile / (320/tw))
+// y cada píxel se convierte de índice a sus `planes` planos (bit p del índice = plano p;
+// en EHB el bit 5 es half). Acepta 1..6 planos; los bancos EHB de 6 planos conservan
+// el layout histórico de la demo 201.
 //
 // POR QUÉ EN EL HOST (no en el Amiga): la conversión necesita en el Amiga el
 // tilebank INDEXADO crudo (287 KB) MÁS el banco interleaved resultante (222 KB)
@@ -25,8 +26,8 @@ const intV = (n, d) => parseInt(argV(n, d), 10);
 const tw = intV('--tw', 16);
 const th = intV('--th', 16);
 const planes = intV('--planes', 6);
-if (tw % 16 !== 0 || th !== 16 || planes !== 6) {
-  console.error(`[emit-xlimited] solo soportado 16x16 x6 (EHB); tw=${tw} th=${th} planes=${planes}`);
+if (tw % 16 !== 0 || th !== 16 || planes < 1 || planes > 6) {
+  console.error(`[emit-xlimited] solo soportado 16x16 x1..6 planos; tw=${tw} th=${th} planes=${planes}`);
   process.exit(1);
 }
 
@@ -75,7 +76,7 @@ for (let tile = 0; tile < tileCount; ++tile) {
 const hdr = [
   '// Banco de bloques X-Limited interleaved (320 px ancho, 40 B/planelínea).',
   `// Generado por tools/ehb/emit-xlimited-bank.mjs a partir del tilebank raw`,
-  `// INDEXADO (${tileCount} tiles de ${tw}x${th}, ${planes} planos EHB).`,
+  `// INDEXADO (${tileCount} tiles de ${tw}x${th}, ${planes} planos).`,
   `// Layout: tile -> (tile % ${blocksPerRow}, tile / ${blocksPerRow}) bloques de`,
   `// ${twBytes*8} px; interleaved por planelínea (row*${planes}+plane).`,
   `extern "C" const unsigned char g_tilebank_xlimited[];`,

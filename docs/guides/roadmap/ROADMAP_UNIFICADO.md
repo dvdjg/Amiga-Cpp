@@ -10,7 +10,7 @@ Fecha: 2026-09. Este fichero **reúne** los roadmaps/disposiciones dispersos y f
 | `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` | reglas vigentes | Pipeline tiles/EHB (reglas de oro, no romper el 100 %) |
 | `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | guía completa | Cuantizar → slice → emit → verificar (round-trip 100 %) |
 | `docs/guides/roadmap/PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md` | RESUELTO | Demos nuevas que quedaban en AmigaDOS |
-| `docs/guides/roadmap/TILED.md` | **vigente (T0–T1 hechos)** | Formato Tiled (.tmx/.tsx), parser estructural e IR v1 (`tools/tiled/`), importador legacy y límites; modelo runtime y API `eng::Level` en `docs/engine/architecture/TILED_MAP_RUNTIME.md`; plan N0–N4 en `ROADMAP_TILED_WORLD_SUPPORT.md` |
+| `docs/guides/roadmap/TILED.md` | **vigente (T0–T1; bake 206)** | Formato Tiled (.tmx/.tsx), parser estructural e IR v1, compose/cooker 16c/32c/EHB y demo 206 (`tools/tiled/`), importador legacy y límites; modelo runtime y API `eng::Level` en `docs/engine/architecture/TILED_MAP_RUNTIME.md`; plan N0–N4 en `ROADMAP_TILED_WORLD_SUPPORT.md` |
 | `docs/engine/architecture/DPF_MIXTO_SPLIT_LINEAL.md` | (nuevo) | DPF: modos de Y por campo (split/lineal/mixto) |
 | `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` | **(nuevo) modelo objetivo** | Separación algoritmo/superficie/composición/máquina de playfields y scroll (contrato de refactor) |
 | `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md` | **(nuevo) roadmap vigente** | Fases para llevar el código actual al modelo objetivo; demos a adaptar (107/110/111/112/201/202) |
