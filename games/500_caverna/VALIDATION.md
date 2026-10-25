@@ -17,7 +17,8 @@ El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El d
 - colisión de la caja 16×16 del jugador contra los tiles sólidos del mapa (suelo y pilares);
 - gravedad, salto con botón izquierdo del ratón, fuego del joystick o arriba; el jugador vuelve a aterrizar en el suelo;
 - ocho actores hardware (jugador + siete enemigos) en los ocho canales, con patrulla y animación de DATA alterna;
-- `SpriteBank`/`SpriteGameView` publican los ocho slots y `SpriteDirector` mantiene el contrato de estado (L1-006);
+- `SpriteDirector` actualiza posiciones sin reemitir y `XlimitedDualComposer` parchea POS/CTL; `SpriteBank`/`SpriteGameView` aportan DATA y slots;
+- `SpriteDirector` mantiene el contrato de estado (L1-006);
 - HUD de host con `CAVERNA DEMO 500`, versión, frame y fps;
 - sin audio ni pitidos;
 - ratón y joystick procesados como mensajes del mini-OS (`MouseMove`/`MouseButton`/`Joystick`), no por sondeo directo de `JOY0DAT`.
@@ -45,3 +46,11 @@ bash tools/run/run-demo.sh games/500_caverna --config A500_release --wait-ms 800
 ```
 
 Con `--joy 1:up --joy-hold-ms 40` la secuencia muestra al jugador por encima del suelo y después aterrizando. La comprobación es manual/asistida por visión; la automatización de píxeles y de latencia sigue pendiente. La evaluación canónica de visión está en `src/VISION.md`.
+
+La comprobación semántica específica de salto se ejecuta con:
+
+```bash
+node tools/analyze/vision-jump.mjs out/run/500_caverna/A500_release/sequence --require
+```
+
+La sonda actual responde `SALTO: NO` para las secuencias probadas: detecta desplazamiento horizontal, pero el VLM no confirma la subida/bajada vertical. Se deja como NO VERIFICADO hasta ajustar la inyección del salto o la captura temporal.

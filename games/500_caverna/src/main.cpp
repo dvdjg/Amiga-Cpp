@@ -145,6 +145,15 @@ struct CavernaGame : eng::scene::GameView<kActorCount> {
 	eng::s8 enemy_dx[kEnemyCount] {1, -1, 1, -1, 1, -1, 1};
 	static constexpr eng::u8 kSpriteCount = kActorCount;
 	static constexpr eng::u16 kSpriteBytes = 64u;
+	using Director = eng::scene::SpriteDirector<static_cast<eng::u16>(kActorCount),
+					    static_cast<eng::u16>(kActorCount), 1u, 1u, 16u, 4u>;
+	Director m_dir {};
+	eng::scene::SpriteId m_actor_ids[kSpriteCount] {};
+	eng::Span<eng::u16> m_sprite_words {};
+	eng::s16 m_player_sx = -1;
+	eng::s16 m_player_sy = -1;
+	bool m_sprites_dirty = false;
+	bool m_sprites_initialized = false;
 	bool joy_left = false;
 	bool joy_right = false;
 	bool joy_up = false;
@@ -165,36 +174,50 @@ struct CavernaGame : eng::scene::GameView<kActorCount> {
 	}
 
 	/// DATA de sprite: 16 lineas de DAT/DATB por slot; jugador y siete enemigos.
-	void publish_sprites() { this->publish(scene); }
+		void publish_sprites() {
+		if (!m_sprites_dirty) return;
+		if (!m_sprites_initialized) {
+			(void)scene.emit_sprite_director(m_dir);
+			m_sprites_initialized = true;
+		} else if (!scene.refresh_sprite_director(m_dir)) {
+			(void)scene.emit_sprite_director(m_dir);
+		}
+		m_sprites_dirty = false;
+	}
 
 	void init_sprites() {
 		m_sprite_data = scene.sprites().sprite_data_view();
 		auto words = scene.sprites().sprite_words();
-		words.fill(0u);
+		m_sprite_words = eng::Span<eng::u16> {words.data(), words.size()};
+		m_sprite_words.fill(0u);
 		for (eng::u8 slot = 0u; slot < kSpriteCount; ++slot) {
-			eng::ChipView<eng::SpriteTag> view =
-				m_sprite_data.subview(static_cast<eng::usize>(slot) * kSpriteBytes, kSpriteBytes);
 			for (eng::u8 line = 2u; line < 14u; ++line) {
-				words[static_cast<eng::usize>(slot) * 32u + static_cast<eng::usize>(line) * 2u] = 0x03c0u;
+				m_sprite_words[static_cast<eng::usize>(slot) * 32u +
+						static_cast<eng::usize>(line) * 2u] = 0x03c0u;
 			}
-			m_sprites[slot].enabled = true;
-			m_sprites[slot].data = view;
-			m_sprites[slot].width_words = 1u;
-			m_sprites[slot].height = 16u;
-			m_sprites[slot].attach = false;
 		}
-		m_sprites[0].hpos = static_cast<eng::u16>(0x81u + player_screen_x());
-		m_sprites[0].vstart = static_cast<eng::u16>(0x2cu + player_y);
-		m_sprites[0].vstop = static_cast<eng::u16>(m_sprites[0].vstart + 16u);
-		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
-			const eng::u8 slot = static_cast<eng::u8>(i + 1u);
-			m_sprites[slot].hpos = static_cast<eng::u16>(0x81u + enemy_screen_x(i));
-			m_sprites[slot].vstart = static_cast<eng::u16>(0x2cu + enemy_y[i]);
-			m_sprites[slot].vstop = static_cast<eng::u16>(m_sprites[slot].vstart + 16u);
-			scene.sprites().set(slot, m_sprites[slot]);
-		}
-		scene.sprites().set(0u, m_sprites[0]);
 		animate_enemies(0u);
+		for (eng::u8 slot = 0u; slot < kSpriteCount; ++slot) {
+			eng::graphics::Visual visual {};
+			visual.pixels = eng::Span<const eng::u16> {
+				m_sprite_words.data() + static_cast<eng::usize>(slot) * 32u, 32u};
+			visual.w = 16u;
+			visual.h = 16u;
+			visual.bitplanes = 2u;
+			const eng::scene::VisualId visual_id = m_dir.add_visual(visual);
+			eng::scene::SpriteDesc desc {};
+			desc.content = eng::scene::SpriteVisualRef::simple(visual_id);
+			desc.hint.policy = eng::scene::SpritePolicy::Sprite;
+			desc.hint.channel = slot;
+			desc.x = slot == 0u ? player_screen_x() : enemy_screen_x(static_cast<eng::u8>(slot - 1u));
+			desc.y = slot == 0u ? player_y : enemy_y[slot - 1u];
+			m_actor_ids[slot] = m_dir.add(desc);
+			if (!m_actor_ids[slot].valid()) {
+				eng::amiga::mark_failed(eng::debug::BootFail::Game);
+				return;
+			}
+		}
+		m_sprites_dirty = true;
 		publish_sprites();
 	}
 
@@ -210,17 +233,14 @@ struct CavernaGame : eng::scene::GameView<kActorCount> {
 		cam_y = 0;
 	}
 
-	void place_player() {
-		const eng::u16 hpos = static_cast<eng::u16>(0x81u + player_screen_x());
-		const eng::u16 vstart = static_cast<eng::u16>(0x2cu + player_y);
-		if (m_sprites[0].hpos == hpos && m_sprites[0].vstart == vstart) return;
-		m_sprites[0].hpos = hpos;
-		m_sprites[0].vstart = vstart;
-		m_sprites[0].vstop = static_cast<eng::u16>(vstart + 16u);
-		scene.sprites().set(0u, m_sprites[0]);
-		publish_sprites();
+		void place_player() {
+		const eng::s16 sx = player_screen_x();
+		if (sx == m_player_sx && player_y == m_player_sy) return;
+		if (!m_dir.set_position(m_actor_ids[0], sx, player_y)) return;
+		m_player_sx = sx;
+		m_player_sy = player_y;
+		m_sprites_dirty = true;
 	}
-
 	/// Alterna el ancho del bloque de los enemigos cada 16 frames. Se escribe
 	/// solo el DATA que el DMA relee; no hace falta reemitir la copperlist.
 	void animate_enemies(eng::u32 frame) {
@@ -238,7 +258,7 @@ struct CavernaGame : eng::scene::GameView<kActorCount> {
 	/// Patrulla los enemigos cada 8 frames y refresca sus sprites una sola vez.
 	/// El refresco incluye la camara ya actualizada, para que no se queden fijos
 	/// en pantalla mientras el mundo se desplaza.
-	void update_enemies(eng::u32 frame) {
+		void update_enemies(eng::u32 frame) {
 		if ((frame & 15u) != 0u) return;
 		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
 			enemy_x[i] = static_cast<eng::s16>(enemy_x[i] + enemy_dx[i] * 2);
@@ -250,22 +270,11 @@ struct CavernaGame : eng::scene::GameView<kActorCount> {
 				enemy_x[i] = static_cast<eng::s16>(kMapWidth * kTile - 16u);
 				enemy_dx[i] = -1;
 			}
+			(void)m_dir.set_position(m_actor_ids[static_cast<eng::u8>(i + 1u)],
+						 enemy_screen_x(i), enemy_y[i]);
 		}
-		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
-			const eng::u8 slot = static_cast<eng::u8>(i + 1u);
-			const eng::s16 sx = enemy_screen_x(i);
-			const bool visible = sx >= 0 && sx <= static_cast<eng::s16>(kWidth - 16);
-			m_sprites[slot].enabled = visible;
-			if (visible) {
-				m_sprites[slot].hpos = static_cast<eng::u16>(0x81u + sx);
-				m_sprites[slot].vstart = static_cast<eng::u16>(0x2cu + enemy_y[i]);
-				m_sprites[slot].vstop = static_cast<eng::u16>(m_sprites[slot].vstart + 16u);
-			}
-			scene.sprites().set(slot, m_sprites[slot]);
-		}
-		publish_sprites();
+		m_sprites_dirty = true;
 	}
-
 	/// Resuelve el contacto jugador/enemigo con una reaccion minima: invierte
 	/// la patrulla y deja al jugador en la posicion horizontal previa.
 	void resolve_enemy_hits(eng::s16 old_wx) {
@@ -421,6 +430,7 @@ struct CavernaGame : eng::scene::GameView<kActorCount> {
 		place_player();
 		update_enemies(app.frame());
 		animate_enemies(app.frame());
+		publish_sprites();
 	}
 
 	/// El `App` materializa el mundo y conduce el motor; el juego solo publica telemetría.

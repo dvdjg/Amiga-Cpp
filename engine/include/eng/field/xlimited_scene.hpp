@@ -902,6 +902,23 @@ public:
         return report;
     }
 
+    /// Actualiza posiciones de sprites simples sin reemitir la composición.
+    /// \tparam Director fachada con `refresh_positions(ctx)` y `placements()`.
+    /// \param director fachada con `refresh_positions(ctx)` y `placements()`.
+    /// \return `false` si la escena no admite actualización solo-posición; el
+    ///         llamador debe usar `emit_sprite_director`.
+    template <class Director>
+    [[nodiscard]] bool refresh_sprite_director(Director& director) noexcept {
+        eng::scene::ActorEmitContext ctx {};
+        ctx.display_top = xlimited_detail::kDiwStrt >> 8u;
+        ctx.ring_height = m_cfg.display_height;
+        if (!director.refresh_positions(ctx)) {
+            return false;
+        }
+        set_sprite_placements(director.placements());
+        return true;
+    }
+
     /// **Placements de sprite HW del frame** (multiplexado vertical). Vacio = usa el
     /// `SpriteManager` como hasta ahora. Se reenvia al compositor en `compose()`; la lista
     /// debe seguir viva hasta el final del frame y venir ordenada por `vstart`.
