@@ -276,6 +276,30 @@ int main() {
 		check(n == 1 && ord[0].index == 0, "MeshPoly: mesh_patches_order (1 parche visible)");
 	}
 
+	// UAF-R anidado: un bundle específico (p. ej. Tiled) viaja como payload de otro UAF-R.
+	{
+		eng::u8 inner_store[64];
+		BlobWriter inner {eng::Span<eng::u8>(inner_store, sizeof(inner_store))};
+		check(inner.begin(), "nested: inner begin");
+		const eng::u8 pal[2] = {0x0F, 0x00};
+		check(inner.add_chunk(ChunkType::Palette, 1, eng::UafPayload{pal}), "nested: inner palette");
+		const eng::UafPayload inner_blob = inner.finish();
+		check(inner.ok(), "nested: inner finish");
+
+		eng::u8 outer_store[128];
+		BlobWriter outer {eng::Span<eng::u8>(outer_store, sizeof(outer_store))};
+		check(outer.begin(), "nested: outer begin");
+		check(outer.add_chunk(ChunkType::NestedUaf, 1, inner_blob), "nested: outer add");
+		Blob outer_blob;
+		check(outer_blob.bind(outer.finish()), "nested: outer bind");
+		const ChunkRef* nc = outer_blob.find(ChunkType::NestedUaf);
+		check(nc != nullptr, "nested: find");
+		Blob inner_view;
+		check(outer_blob.bind_nested(*nc, inner_view), "nested: bind inner");
+		const PaletteView pv {inner_view.data(0)};
+		check(pv.valid() && pv.count() == 1 && pv.color(0) == 0x0F00, "nested: palette");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: contenedor UAF-R validado (bind/find/data + errores).\n");
 		return 0;

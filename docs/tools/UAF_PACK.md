@@ -22,6 +22,7 @@ Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes
 - **CopperTemplates**: `count` palabras `u16` big-endian (`WAIT`/`MOVE`).
 - **Mesh (`obj2c`)**: cabecera `u16 vertex_count, u16 face_count` + vértices `s16 x,y,z` + caras `u16 a,b,c`, todo big-endian.
 - **MeshPoly**: cabecera `u16 vertex_count, u16 face_count, u16 index_count` + vértices `s16 x,y,z` + índices `u16` + caras `{u16 first, u16 count}`, todo big-endian; el consumidor actual es `PolyMeshAssetView` y solo contiene geometría.
+- **NestedUaf**: payload = un UAF-R completo. Es el mecanismo para transportar un formato específico (por ejemplo un `MapBundle` Tiled) como parte de un contenedor general sin que el runtime conozca sus chunks internos; el consumidor lo abre con `Blob::bind_nested`.
 - **Model3D v1**: cabecera de 28 B (`u16 version=1, flags, vertex_count, face_count, index_count, material_count` + cuatro offsets `u32`) + vértices `s16 x,y,z` + índices `u16` + caras `{u16 first, u16 count, u16 material}` + materiales `{u8 color, u8 pattern, u16 flags}`, todo big-endian; el consumidor es `Model3DAssetView` y el registro runtime `ModelTable`.
 
 El formato completo de modelo 3D —materiales por cara, paleta/tramas, nodos, rigging, keyframes y

@@ -61,6 +61,10 @@ enum class ChunkType : u16 {
 	RasterPattern = 17,
 	Animation3D = 18,
 	Collider3D = 19,
+	/// **UAF-R anidado**: payload es otro blob UAF-R válido. Permite que el contenedor
+	/// general transporte un formato específico (p. ej. un bundle Tiled) sin que el
+	/// runtime conozca sus chunks internos.
+	NestedUaf = 20,
 };
 
 /// Referencia validada a un chunk dentro del blob.
@@ -203,6 +207,16 @@ public:
 	const ChunkRef* find(ChunkType type) const {
 		const u16* index = m_index.find(type);
 		return index != nullptr ? &m_chunks[*index] : nullptr;
+	}
+
+	/// **Abre un UAF-R anidado** (`ChunkType::NestedUaf`) como un `Blob` independiente.
+	/// El `Blob` resultante apunta a los mismos bytes y no copia.
+	[[nodiscard]] bool bind_nested(const ChunkRef& chunk, Blob& out) const {
+		return chunk.type == ChunkType::NestedUaf && out.bind(data(chunk));
+	}
+	[[nodiscard]] bool bind_nested(ChunkType type, Blob& out) const {
+		const ChunkRef* c = find(type);
+		return c != nullptr && bind_nested(*c, out);
 	}
 
 private:
