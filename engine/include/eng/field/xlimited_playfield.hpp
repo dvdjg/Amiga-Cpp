@@ -4,6 +4,8 @@
 /// `XLimitedPlayfield`: corkscrew 8-way con bitmap interleaved y wrap vertical. Definido
 /// aparte de `xlimited_base.hpp`; `xlimited.hpp` es la cabecera de familia.
 
+#include <eng/field/actor_target.hpp>
+#include <eng/field/tile_animation.hpp>
 #include <eng/field/xlimited_base.hpp>
 #include <eng/field/xlimited_mapping.hpp>
 
@@ -248,6 +250,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         // Patrón del plano de parallax (RoboCod) pintado una vez (CPU).
         fill_parallax_pattern();
         this->m_initialized = true;
+        m_anim_target = make_actor_target(hardware_view());
         return true;
     }
 
@@ -334,13 +337,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
                 const u16 y = b * this->m_block_planes_lines; // planeline
                 const u16 mapx = a;
                 const u16 mapy = b;
-                auto job = draw_block_job(x, y, mapx, mapy);
-                if (!plan.add_tile_block_copy(job)) return false;
-                if (this->m_linear_display) {
-                    const u16 ym = static_cast<u16>(static_cast<u32>(y) + this->m_mirror_planelines);
-                    auto mjob = draw_block_job(x, ym, mapx, mapy);
-                    if (!plan.add_tile_block_copy(mjob)) return false;
-                }
+                if (!add_draw(plan, x, y, mapx, mapy)) return false;
             }
         }
         return true;
@@ -444,6 +441,10 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     }
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
+    /// Overlays animados de la celda de mapa (mapx,mapy) en el destino f��sico
+    /// (x, y_planeline). Se pinta despuǸs del bloque base y comparte su destino.
+    void set_animator(const TileAnimator* animator) { this->m_cfg.animator = animator; }
+
     bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
         // Política de borde en mapa NO envolvente (wrap_x/y = 0): el corkscrew
         // pre-pinta con bitmaps de margen "bitmap_blocks_per_row" (22) por delante
@@ -807,6 +808,59 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         return this->m_linear_display ? row : this->dmod2(row);
     }
 
+    /// Parchea las celdas visibles cuyos grupos de animaci��n cambiaron de frame.
+    /// Debe llamarse despuǸs de update (scroll) y antes de ejecutar el plan.
+    bool patch_animations(graphics::FramePlan& plan) {
+        if (this->m_cfg.animator == nullptr) return true;
+        return true; // overlays solo por parche (demo 207)
+        const TileAnimator& anim = *this->m_cfg.animator;
+        if (!anim.any_changed()) return true;
+        const s32 camx = m_scroll.state().mapposx;
+        const s32 camy = m_scroll.state().mapposy;
+        const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
+        const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
+        if (mapw <= 0 || maph <= 0) return false;
+        // Una divisi��n por frame (no 2 por celda): las comparaciones de visibilidad
+        // se resuelven con un ajuste de rango porque wx/cam estǭn normalizados.
+        s32 camx_mod = camx % mapw;
+        if (camx_mod < 0) camx_mod += mapw;
+        s32 camy_mod = camy % maph;
+        if (camy_mod < 0) camy_mod += maph;
+        const s32 base_mod = (camx & ~static_cast<s32>(this->ctw() - 1u)) % mapw;
+        const s32 base_x = base_mod < 0 ? base_mod + mapw : base_mod;
+        const s32 ring_base = this->display_offset();
+        const s32 dh = static_cast<s32>(this->display_height());
+        const u16 parity = static_cast<u16>(anim.tick() % 6u);
+        for (u16 g = 0u; g < anim.group_count(); ++g) {
+            if (!anim.group_changed(g) || ((g % 6u) != parity)) continue;
+            const TileAnimationGroupView& grp = anim.group(g);
+            for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
+                const TileAnimationCellView& cell = anim.cell(ci);
+                const TileAnimationLayerView& layer = anim.layer(cell.layer);
+                if (layer.cells == nullptr) continue;
+                const s32 wx = static_cast<s32>(cell.x) * this->ctw();
+                const s32 wy = static_cast<s32>(cell.y) * this->cth();
+                s32 sx = wx - camx_mod;
+                if (sx < 0) sx += mapw;
+                if (sx >= this->m_cfg.viewport_w) continue;
+                s32 sy = wy - camy_mod;
+                if (sy < 0) sy += maph;
+                if (sy >= this->m_cfg.viewport_h) continue;
+                s32 px = wx - base_x;
+                if (px < 0) px += mapw;
+                if (px + this->ctw() > this->m_bitmap_width) continue;
+                s32 ring_y = ring_base + sy;
+                if (ring_y >= dh) ring_y -= dh;
+                if (!anim.draw_group(plan, m_anim_target, this->display_height(),
+                                     static_cast<u16>(px), static_cast<u16>(ring_y), g)) {
+                    return false;
+                }
+            }
+            anim.clear_group(g);
+        }
+        return true;
+    }
+
     /// Fija la posición de la cámara (píxeles de mundo) y sincroniza los punteros
     /// de display. Necesario para arrancar a media altura/ancho (p. ej. un shooter
     /// vertical de 10000 px que empieza abajo y sube). Debe llamarse tras `begin`
@@ -841,6 +895,7 @@ private:
     ScrollEngine<XLimitedPlayfield<SC, MapT, Profile>, SC> m_scroll {}; // cámara + algoritmo (§7)
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
+    graphics::BobTarget m_anim_target {};         // anillo para overlays animados
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
 };
 

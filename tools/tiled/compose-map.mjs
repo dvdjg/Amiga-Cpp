@@ -52,7 +52,7 @@ function flattenLayers(layers, inherited, out) {
 	}
 }
 
-class ImageCache {
+export class ImageCache {
 	constructor() {
 		this.images = new Map();
 	}
@@ -70,7 +70,7 @@ class ImageCache {
 	}
 }
 
-function tileSetFor(ir, gid) {
+export function tileSetFor(ir, gid) {
 	const id = decodeGid(gid).id;
 	const sorted = [...ir.tilesets].sort((a, b) => a.firstgid - b.firstgid);
 	let found = null;
@@ -80,11 +80,23 @@ function tileSetFor(ir, gid) {
 	return found == null ? null : { tileset: found, local: id - found.firstgid };
 }
 
-function tileNode(tileset, local) {
+export function tileNode(tileset, local) {
 	return tileset.tiles?.find((tile) => tile.id === local) ?? null;
 }
 
-function resolveTileImage(ir, gid, cache, { useFirstFrame = true, stack = new Set() } = {}) {
+export function tileHasAnimation(ir, gid) {
+	const match = tileSetFor(ir, gid);
+	if (match == null) return false;
+	const tile = tileNode(match.tileset, match.local);
+	return tile?.animation?.frames?.length > 0;
+}
+
+export function objectHasAnimation(ir, object, cache) {
+	if (object?.gid == null) return false;
+	return tileHasAnimation(ir, object.gid);
+}
+
+export function resolveTileImage(ir, gid, cache, { useFirstFrame = true, stack = new Set() } = {}) {
 	const match = tileSetFor(ir, gid);
 	if (match == null) return { error: `gid ${gid} sin tileset` };
 	const { tileset, local } = match;
@@ -182,7 +194,7 @@ function blit(dst, dstWidth, dstHeight, image, sx, sy, sw, sh, dx, dy, dw, dh, o
 	}
 }
 
-function objectRect(ir, object, iw, ih) {
+export function objectRect(ir, object, iw, ih) {
 	const w = object.width > 0 ? object.width : iw;
 	const h = object.height > 0 ? object.height : ih;
 	const align = ir.map.objectalignment || 'unspecified';
@@ -193,8 +205,12 @@ function objectRect(ir, object, iw, ih) {
 	return { x, y, w, h };
 }
 
-function drawObject(ir, object, layerOpacity, offsetx, offsety, ctx) {
+function drawObject(ir, object, layerOpacity, offsetx, offsety, ctx, policy = null) {
 	if (object.gid == null) return;
+	if ((policy === 'overlay' || policy === 'animated') && objectHasAnimation(ir, object, ctx.cache)) {
+		ctx.skippedAnimated++;
+		return;
+	}
 	const image = resolveTileImage(ir, object.gid, ctx.cache, { useFirstFrame: true });
 	if (image.error != null) {
 		ctx.errors.push(`${layerName(object.__layer ?? {})}: ${image.error}`);
@@ -270,7 +286,7 @@ function applyPlan(ir, plan) {
 			usable.push(item);
 			continue;
 		}
-		usable.push(item);
+		usable.push({ ...item, policy });
 	}
 	return usable;
 }
@@ -297,8 +313,8 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 		buffer[i * 4 + 2] = background[2];
 		buffer[i * 4 + 3] = background[3];
 	}
-	const ctx = { buffer, width, height, cache, warnings: new Set(), errors: [], objectCount: 0 };
-	const tileCount = { cells: 0, drawn: 0, animated: 0, missing: 0 };
+	const ctx = { buffer, width, height, cache, warnings: new Set(), errors: [], objectCount: 0, skippedAnimated: 0 };
+	const tileCount = { cells: 0, drawn: 0, animated: 0, skippedAnimated: 0, missing: 0 };
 	const layerReports = [];
 	for (const item of flat) {
 		const layer = item.layer;
@@ -311,6 +327,12 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 			const visit = (cx, cy, gid) => {
 				++tileCount.cells;
 				if (gid === 0) return;
+				const animatedTile = tileHasAnimation(ir, gid);
+				if ((item.policy === 'overlay' || item.policy === 'animated') && animatedTile) {
+					++tileCount.animated;
+					++tileCount.skippedAnimated;
+					return;
+				}
 				const image = resolveTileImage(ir, gid, cache, { useFirstFrame: true });
 				if (image.error != null) {
 					++tileCount.missing;
@@ -341,7 +363,7 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 			if (layer.draworder === 'topdown') objects.sort((a, b) => (a.y - b.y) || (a.id - b.id));
 			for (const object of objects) {
 				object.__layer = layer;
-				drawObject(ir, object, item.opacity, item.offsetx, item.offsety, ctx);
+				drawObject(ir, object, item.opacity, item.offsetx, item.offsety, ctx, item.policy);
 			}
 			drawn = objects.length;
 		} else if (layer.kind === 'image') {
@@ -372,7 +394,7 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 		bounds: { minX, minY, maxX, maxY, width, height },
 		warnings: [...ctx.warnings],
 		errors: ctx.errors,
-		stats: { ...tileCount, objects: ctx.objectCount, layers: layerReports },
+		stats: { ...tileCount, objects: ctx.objectCount, skippedAnimatedObjects: ctx.skippedAnimated, layers: layerReports },
 	};
 }
 

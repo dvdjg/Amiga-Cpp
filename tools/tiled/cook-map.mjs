@@ -20,6 +20,7 @@ import { PNG } from 'pngjs';
 import { parseTmxFile } from './parse-tmx.mjs';
 import { composeMap } from './compose-map.mjs';
 import { packMapBundle, bundleHeader } from './map_bundle.mjs';
+import { cookAnimations } from './cook-animations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const QUANTIZE = path.join(ROOT, 'tools/ehb/quantize-ehb.mjs');
@@ -122,7 +123,7 @@ function recommend(profiles, unique, hasShadow) {
 	return byName.has(preferred) ? preferred : profiles.slice().sort((a, b) => (b.psnr ?? 0) - (a.psnr ?? 0))[0]?.name ?? null;
 }
 
-function writeSelected(outDir, profile) {
+function writeSelected(outDir, profile, ir, plan) {
 	const selectedDir = path.join(outDir, 'selected');
 	fs.mkdirSync(selectedDir, { recursive: true });
 	const profileDir = path.join(outDir, 'profiles', profile.name);
@@ -160,13 +161,20 @@ function writeSelected(outDir, profile) {
 			originX: 0,
 			originY: 0,
 			wrapX: tiles.cols,
-			wrapY: 0,
+			wrapY: tiles.rows,
 			emptyTile: 0xffff,
 			cells: tiles.map,
 		}],
 	});
 	fs.writeFileSync(path.join(selectedDir, 'map.bundle'), bundle);
 	fs.writeFileSync(path.join(selectedDir, 'map_bundle.h'), bundleHeader('kMapBundle', bundle), 'utf8');
+	const animations = cookAnimations({
+		ir,
+		plan,
+		paletteFile: path.join(profileDir, 'quant', 'palette.json'),
+		planes: profile.planes,
+		outDir: selectedDir,
+	});
 	const selected = {
 		profile: profile.name,
 		planes: profile.planes,
@@ -298,7 +306,7 @@ function main() {
 	if (chosen != null) {
 		const profile = selectedProfiles.find((p) => p.name === chosen);
 		if (profile == null) { console.error(`[cook] no existe el perfil "${chosen}"`); process.exit(2); }
-		selected = writeSelected(out, profile);
+		selected = writeSelected(out, profile, ir, plan);
 	}
 	console.log(`[cook] ${path.basename(source)} -> ${path.relative(ROOT, out)}`);
 	console.log(`[cook] ${composed.bounds.width}x${composed.bounds.height}, uniqueColors=${unique}, shadow=${hasShadow}, dither=${dither}`);

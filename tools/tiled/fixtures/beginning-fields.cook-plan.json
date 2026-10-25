@@ -8,14 +8,14 @@
     "Road": "baked",
     "Shadows": "baked",
     "RockSlopes_Auto": "baked",
-    "Water": "overlay",
-    "Flowers": "overlay"
+    "Water": "baked",
+    "Flowers": "baked"
   },
   "objects": {
-    "Object Layer 1": "decor",
+    "Object Layer 1": "bake",
     "Object Shadows": "bake"
   },
-  "animations": { "mode": "patch", "max_visible_cells": 48 },
+  "animations": { "mode": "patch", "max_visible_cells": 48, "layers": ["Flowers", "Water"], "objects": ["Object Layer 1"] },
   "flips": "prebake-used",
   "opacity": "bake"
 }

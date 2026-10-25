@@ -109,17 +109,16 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 - Exponer consultas de celda/colisión y un `LevelStats` mínimo.
 - **Gate**: host tests de validación, catálogo, resolución de página, capas y pin; un mapa residente se monta sin heap ni XML.
 
-### T5 — Presenter XYLimited extendido — **PARCIAL (demo 206)**
+### T5 – Presenter XYLimited extendido – **PARCIAL (demos 206/207)**
 
-- Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,89 fps, 142 191 ciclos/frame, flicker OK y visión de secuencia sin artefactos. `VALIDATION.md` recoge el alcance.
-- Pendiente: `TileLayerStack`, overlays enmascarados, `TileAnimator` y `after_actors` (demos 207/208).
-- `TileLayerStack`: base + overlays por banda entrante; cada overlay con su máscara y orden `z`.
-- Pase de animación `TileAnimator` con presupuesto de celdas visibles y parche enmascarado.
-- Pase `after_actors` para `Occluder`, con dirty rects de actores/cámara/animación.
+- Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,93 fps en debug, 142 070 ciclos/frame, flicker OK y visión de secuencia sin artefactos.
+- Entregado: `207_tiled_live_layers_animation` (T5a) con `TileAnimator` cocinado (44 grupos, 248 frames, 227 celdas), parche enmascarado planar+máscara, presupuesto en 6 fases y recorrido Y-only; 49,97 fps release, 141 961 ciclos/frame. La fogata, el agua y las flores se ven sin corrupción; visión local confirma el cambio de llama y la ausencia de artefactos. `VALIDATION.md` recoge límites.
+- Pendiente: `TileLayerStack` (base + overlays por banda entrante), composición de celdas nuevas con el frame actual, `after_actors` para `Occluder` y demo 208.
+- El parche actual usa la base con el primer frame; los píxeles transparentes de frames posteriores pueden revelar ese primer frame (ghosting) y las celdas entrantes esperan al siguiente cambio de grupo.
+- X+Y simultáneo baja a ~25 fps; el recorrido entregado es Y-only.
 - Integración con `ScrollLayer`/`App`: un nivel se registra y el `App` lo conduce; visibilidad/modo validados contra el bundle.
 - DPF/paralaje: un segundo campo cuando la paleta y la prioridad lo permitan; sin prometer N campos.
 - **Gate**: demos 206/207/208; 50 fps sin tirones en el alcance medido; flicker; visión de secuencia; no regresión de 201–205.
-
 ### T6 — Objetos, colisión y gameplay
 
 - Emitir `MapObjects` tipados: spawn, trigger, collider, path, camera, door, mechanism, decor; propiedades y clases.
@@ -165,7 +164,7 @@ Demos previstas (números a confirmar con `tools/check/next-number.mjs`):
 | Demo | Nivel | Gate |
 |---|---|---|
 | `206_tiled_beginning_fields_baked` | N1 | Cooker + base cocida + cámara X/Y + 50 fps + visión |
-| `207_tiled_live_layers_animation` | N2 | Overlays + agua/flores animadas + presupuesto de celdas |
+| `207_tiled_live_layers_animation` | N2 | Animación por parche (flores/agua/fogata) + presupuesto; 50 fps Y-only |
 | `208_tiled_occlusion_objects` | N2 | Occluder tras actores + objetos + colisión + profundidad |
 | `209_tiled_iso_room` | N3a | Proyección/picking/orden iso + sala + actores |
 | `210_tiled_stream_world` | N4 | Chunks/páginas + prefetch/pin/eviction + mapa grande |

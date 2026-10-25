@@ -264,6 +264,7 @@ struct XlimitedSceneConfigT {
     MapT map {};                     // mapa de PF1 (cells/wrap/edge)
     MapT map2 {};                    // mapa de PF2 (si dual y no vacío; si no, reusa map)
     eng::u16 tileset_count = 64;
+    TileAnimator* animator = nullptr; // overlays animados cocinados (T5)
     BlocksRowFn fg_row_fn = nullptr; // generador de filas de PF1 (incrusta base/transparencia)
     BlocksRowFn bg_row_fn = nullptr; // generador de filas de PF2 (DPF)
     // Tilebank INDEXADO REAL (pipeline EHB): si se suministra, el banco se
@@ -462,6 +463,7 @@ public:
             fc.map = (pf == 0) ? cfg.map : (cfg.map2.has_data() ? cfg.map2 : cfg.map);
             fc.tileset = m_tiles[pf].words();
             fc.tileset_count = cfg.tileset_count;
+            fc.animator = isPf0 ? cfg.animator : nullptr;
             fc.planes = cfg.planes;
             fc.tile_width = tw;
             fc.tile_height = th;
@@ -570,7 +572,7 @@ public:
                 : static_cast<eng::u16>(m_cfg.viewport_h / m_cfg.tile_height);
             for (eng::u16 b = 0; b < rows; ++b) {
                 for (eng::u16 a = 0; a < cols; ++a) {
-                    if (plan.blit_job_count() >= 120) {
+                    if (plan.blit_job_count() >= 64) {
                         if (!backend.execute_frame_plan(plan)) return false;
                         plan.clear();
                         plan.set_blit_budget_limits({8192, 16384, 4, 120});
@@ -620,7 +622,7 @@ public:
                 for (eng::u8 pf = 0; pf < n; ++pf) {
                     if (!m_field[pf].scroll_left(plan)) return false;
                 }
-                if (plan.blit_job_count() >= 120) {
+                if (plan.blit_job_count() >= 64) {
                     if (!backend.execute_frame_plan(plan)) return false;
                     plan.clear();
                     plan.set_blit_budget_limits({8192, 16384, 4, 120});
@@ -631,7 +633,7 @@ public:
             for (eng::u8 pf = 0; pf < n; ++pf) {
                 if (!m_field[pf].scroll_down(plan)) return false;
             }
-            if (plan.blit_job_count() >= 120) {
+            if (plan.blit_job_count() >= 64) {
                 if (!backend.execute_frame_plan(plan)) return false;
                 plan.clear();
                 plan.set_blit_budget_limits({8192, 16384, 4, 120});
@@ -666,6 +668,16 @@ public:
                 const eng::s32 ddy = isH ? 0 : step;
                 if (!m_field[pf].update_scroll(plan, ddx, ddy)) return false;
             }
+        }
+        return true;
+    }
+
+    /// Parchea las celdas animadas visibles que cambiaron de frame. Llamar tras
+    /// `update()` y antes de ejecutar el plan (los jobs de scroll van primero).
+    bool patch_animations(graphics::FramePlan& plan) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].patch_animations(plan)) return false;
         }
         return true;
     }

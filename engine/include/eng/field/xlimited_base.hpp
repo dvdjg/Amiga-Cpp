@@ -327,6 +327,8 @@
 
 namespace eng::playfield {
 
+class TileAnimator;
+
 /// Depuración: resultado del `valid()` del compositor dual (0 = OK).
 extern volatile eng::u32 g_dbg_dual_valid;
 
@@ -485,6 +487,7 @@ template <class MapT = TileLayerMap>
 struct XlimitedConfigT {
     static_assert(TileMap<MapT>, "MapT debe cumplir TileMap");
     MapT map {};
+    const TileAnimator* animator = nullptr; // overlay animado opcional (T5)
     const u16* tileset = nullptr;      // banco de bloques (BlocksBitmap->Planes[0])
     u16 tileset_count = 0;
     u8 planes = 4;                     // BLOCKSDEPTH, rango 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3)
