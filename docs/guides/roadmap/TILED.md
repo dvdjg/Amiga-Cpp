@@ -24,17 +24,25 @@ Tiled es un editor de mapas. Emite `.tmx` (XML del mapa) y `.tsx` (definición d
 
 Un `.tsx` contiene `<image source="x.png" width height>` + `tilecount`/`columns` y, a veces, `tileoffset`, `margin`, `spacing`, animaciones por tile (`<animation><frame tileid duration/></animation>`) y `objectgroup` por tile con polígonos de colisión. El orden de los tiles del atlas (row-major) es el orden de los gids dentro de su `firstgid`. En una colección de imágenes no hay orden de rejilla: cada tile declara su propia imagen y tamaño.
 
-## Subconjunto que entiende el importador actual
+## Parser estructural (T1)
 
-`tools/ehb/parse-tmx.mjs` es un **extractor preliminar basado en expresiones regulares**, no un parser XML estructural. Soporta:
+`tools/tiled/parse-tmx.mjs` es el parser estructural del pipeline nuevo. Emite `eng.tiled-ir` v1 y resuelve:
 
-- Mapas finitos (`gids` en una matriz) e infinitos por `<chunk x y width height>`, incluidas coordenadas negativas.
-- Codificaciones CSV, XML `<tile>` y base64 con gzip/zlib.
-- Resolución de `.tsx` externos con `--resolve-tsx` (imagen, `tilecount`, `columns`) y tilesets inline básicos.
-- Limpieza de los bits de flip para obtener el id; **no conserva las transformaciones**.
-- `gid-to-bank.mjs`/`pack-world.mjs` convierten una capa y un tileset/banco a `WorldMap`; hay round-trip host.
+- XML con anidamiento, atributos, entidades, CDATA, comentarios y ubicación (línea/columna) para diagnósticos.
+- `.tmx`/`.tsx` externos e inline, atlas y colecciones de imágenes, `firstgid`/`tilecount`/`maxTileId`/`tileIds`, `columns`, `margin`, `spacing`, `tileoffset`, `objectalignment`, `grid`.
+- Capas `layer`, `objectgroup`, `imagelayer` y `group` con visibilidad, opacidad, offsets, paralaje, tint, propiedades y clases; los objetos incluyen rectángulo, elipse, punto, polígono, polilínea, texto y *tile objects*.
+- Animaciones por tile y `objectgroup` de colisión por tile; propiedades tipadas y clases anidadas.
+- Codificaciones CSV, XML `<tile>` y base64 con gzip/zlib; `zstd` se rechaza con diagnóstico.
+- Mapas finitos e infinitos por `<chunk>` con coordenadas negativas, conservando el origen lógico.
+- GID completos: `id = gid & 0x1FFFFFFF` + flips H/V/D en crudo (`decodeGid()` los separa); no se descartan transformaciones.
+- Validación de conteos, índices, rangos de tileset (incluidos huecos de colecciones), GID fuera de rango/no definido y orientaciones hex/staggered.
+- Plantillas de objeto (`template`) se rechazan explícitamente hasta su soporte; wangsets/terrain se tratan como datos de autoría y no se evalúan.
 
-No soporta: estructura XML anidada, grupos, capas de objetos, capas de imagen, propiedades tipadas, animaciones, colecciones de imágenes, `tileoffset`, `objectalignment`, plantillas/clases, `zstd`, validación de conteos ni diagnósticos por capa/objeto. Tampoco conserva el origen lógico de un mapa infinito al normalizar, ni interpreta proyectos `.world` (cada `.tmx` es un nivel independiente).
+El IR, los fixtures y el autotest están documentados en `tools/tiled/README.md`; el test se ejecuta en `tools/run-host-tests.sh`. La integración local con `Beginning Fields` comprueba 18 tilesets, 7 capas de tiles, 2 objectgroups, 169 objetos y 256 GID únicos sin errores ni warnings.
+
+## Extractor legacy
+
+`tools/ehb/parse-tmx.mjs` es un **extractor preliminar basado en expresiones regulares**, no un parser XML estructural. Soporta mapas finitos/infinitos, CSV/XML/base64 gzip/zlib, TSX externos básicos y limpieza de flips, pero no lee grupos, propiedades, animaciones, objetos ni colecciones. `gid-to-bank.mjs`/`pack-world.mjs` siguen convirtiendo una capa y un tileset/banco a `WorldMap`. Se conserva como compatibilidad hasta T9; el pipeline nuevo no depende de él.
 
 ## Estrategia de importación canónica
 
@@ -51,11 +59,12 @@ Tiled es **formato de autoría**, no de runtime. La estrategia es un **cooker ho
 
 ## Herramientas del repo
 
-- `tools/ehb/parse-tmx.mjs` — extractor actual (regex). Se conserva como compatibilidad hasta que T1 cierre el parser estructural.
+- `tools/tiled/parse-tmx.mjs` — parser estructural → `eng.tiled-ir` v1 (T1, implementado); `xml.mjs` y fixtures/autotest en la misma carpeta.
+- `tools/ehb/parse-tmx.mjs` — extractor legacy (regex). Compatibilidad hasta T9; el pipeline nuevo no depende de él.
 - `tools/ehb/gid-to-bank.mjs` y `tools/ehb/pack-world.mjs` — conversión de una capa a `WorldMap`; formato en `WORLD_FORMAT.md`.
 - `tools/amiga-tiles/amiga-tiles.mjs` — cuantización/corte/dedupe/tilebank (2..255 colores, EHB, dither, layouts); no conoce Tiled.
 - `tools/ehb/slice-tiles.mjs` — corte de una imagen en tiles para el pipeline EHB.
-- Herramientas previstas: `tools/tiled/parse-tmx.mjs` (parser estructural), `tools/tiled/cook-map.mjs` (bundle + informe) y el visor de presupuesto. Los nombres se confirman al implementar T0–T3.
+- Herramientas previstas: `tools/tiled/cook-map.mjs` (bundle + informe), el visor de presupuesto y el preview comparativo. Los nombres se confirman en T2/T3.
 
 ## Conversor externo (`png2amiga`)
 

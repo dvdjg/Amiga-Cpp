@@ -57,16 +57,16 @@ Proyecto Tiled                         Host (Node, sin runtime Amiga)
 
 ### 3.1 Parser e IR
 
-El parser actual (`tools/ehb/parse-tmx.mjs`) es un extractor por expresiones regulares: no respeta anidamiento, no lee capas de objetos, grupos, propiedades ni animaciones y limpia los flips. El nuevo parser (`tools/tiled/parse-tmx.mjs`, nombre de trabajo) debe ser **estructural** y host-only. Requisitos:
+El extractor legacy (`tools/ehb/parse-tmx.mjs`) usa expresiones regulares: no respeta anidamiento, no lee capas de objetos, grupos, propiedades ni animaciones y limpia los flips. El parser estructural (`tools/tiled/parse-tmx.mjs`) está implementado (T1), es host-only y emite `eng.tiled-ir` v1; `tools/tiled/README.md` documenta el esquema y los fixtures. Cubre:
 
-- XML con jerarquía y entidades; no regex. Se admite una dependencia host de parseo (SAX o equivalente) o un parser propio con tests de conformidad; el motor no la arrastra.
+- XML con jerarquía y entidades; no regex. Parser propio con tests de conformidad; el motor no arrastra ninguna dependencia de parseo.
 - `.tmx` y `.tsx` externos e inline; rutas relativas al fichero que las declara; múltiples tilesets; `firstgid`, `tilecount`, `columns`, `margin`, `spacing`, `tileoffset`, `objectalignment`.
 - Codificaciones de mapa: CSV, XML `<tile>` y base64 con gzip/zlib. `zstd` se rechaza con mensaje explícito hasta que exista soporte host; no se intenta descomprimir a ciegas.
 - Mapas finitos e infinitos por `<chunk>` con coordenadas negativas. Se conserva el **origen lógico** del mapa; el cooker no debe perderlo al normalizar a chunks de 16×16.
 - Capas `tile`, `objectgroup`, `imagelayer` y `group` con `visible`, `opacity`, `offsetx/y`, `parallaxx/y`, `tintcolor`, propiedades y clases. Los offsets, opacidad, paralaje y visibilidad de un grupo se resuelven en el cooker al aplicar la jerarquía a sus capas hijas. Las propiedades desconocidas se preservan como datos opacos; las que el cooker no sepa interpretar no se aplican en silencio.
 - GID: `id = gid & 0x1FFFFFFF`; flags H `0x80000000`, V `0x40000000`, D `0x20000000`. Se preservan y se validan combinaciones; no se enmascaran como parte del índice. Los bits de rotación hexagonal quedan fuera de alcance.
 - Tilesets de atlas y de colección de imágenes. En colecciones, cada tile tiene su propia imagen y tamaño; no se asume una rejilla uniforme.
-- Validación de tamaños: `width*height` o `chunk.width*chunk.height` frente a celdas decodificadas; longitudes base64 coherentes; índices de tileset dentro de rango; objetos con `gid` resoluble. Se rechazan bounding rectangles extremos o imposibles de representar aunque tengan pocos chunks poblados, y los spans que desborden `s32`.
+- Validación de tamaños: `width*height` o `chunk.width*chunk.height` frente a celdas decodificadas; longitudes base64 coherentes; índices de tileset dentro de rango (incluidos huecos de colecciones); objetos con `gid` resoluble. El rechazo de bounding rectangles extremos o imposibles de representar, y de spans que desborden `s32`, es un gate de T3 (cooker), no de este parser.
 
 El IR (`eng.tiled-ir`, versión 1) es un JSON con `map`, `tilesets`, `layers`, `objects`, `properties` y un bloque `diagnostics`. No es un formato de runtime: puede ser verboso y conservar toda la información necesaria para cocinar, comparar y explicar un rechazo.
 

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="0" height="0" tilewidth="16" tileheight="16" infinite="1" nextlayerid="2" nextobjectid="1">
+ <tileset firstgid="1" source="ortho.tsx"/>
+ <layer id="1" name="World" width="0" height="0">
+  <data encoding="csv">
+   <chunk x="-1" y="-1" width="2" height="2">1,2,3,4</chunk>
+   <chunk x="1" y="0" width="1" height="2">0,2147483650</chunk>
+  </data>
+ </layer>
+</map>

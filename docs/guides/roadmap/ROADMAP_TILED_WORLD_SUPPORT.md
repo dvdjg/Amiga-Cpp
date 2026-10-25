@@ -14,7 +14,8 @@ Plan de adopción para convertir proyectos de Tiled (`.tmx`/`.tsx` e imágenes) 
 
 ## 2. Estado de partida
 
-- `tools/ehb/parse-tmx.mjs` lee un subconjunto de TMX con expresiones regulares: mapas finitos/infinitos, CSV/XML/base64 gzip/zlib, resolución básica de TSX y limpieza de flips. No es un parser estructural y no lee grupos, propiedades, animaciones, objetos ni colecciones de imágenes.
+- `tools/tiled/parse-tmx.mjs` (**T1**) es el parser estructural: XML con anidamiento/entidades, TSX externos, atlas/colecciones, capas/grupos/objetos, propiedades, animaciones, CSV/XML/base64 gzip/zlib, chunks negativos, GID con flips y diagnósticos con línea/columna. Emite `eng.tiled-ir` v1 y tiene fixtures/autotest en `tools/tiled/`.
+- `tools/ehb/parse-tmx.mjs` es el extractor legacy con expresiones regulares: mapas finitos/infinitos, CSV/XML/base64 gzip/zlib, resolución básica de TSX y limpieza de flips. No lee grupos, propiedades, animaciones, objetos ni colecciones de imágenes; se conserva como compatibilidad hasta T9.
 - `tools/ehb/gid-to-bank.mjs` y `tools/ehb/pack-world.mjs` convierten **una capa** y **un tileset/banco** a `WorldMap`; hay round-trip host. El origen lógico se normaliza y no se conserva para objetos/cámara.
 - `engine/include/eng/assets/uaf.hpp` (`WorldView`) y `eng/field/world_layer.hpp` (`WorldLayerSource`, `WorldMapChunkLoader`) montan capas `WorldMap` sobre `SparseTileMap`/`StreamingWorldMap`/`TileMapView`.
 - `tools/amiga-tiles/amiga-tiles.mjs` cuantiza una imagen (2..255 colores, EHB, dither, dedupe) y genera tilebanks indexados/interleaved. No conoce Tiled ni cocina por capa/tileset.
@@ -57,17 +58,19 @@ La matriz detallada, con semántica y límites, está en [`TILED_MAP_RUNTIME.md`
 
 Cada fase termina con un gate reproducible. Las fases no se solapan en implementación: un cambio de formato o de contrato cierra antes de que la demo dependa de él.
 
-### T0 — Fixtures, IR y contrato de soporte
+### T0 — Fixtures, IR y contrato de soporte — **HECHO (fixtures/IR; golden render se cierra en T2)**
 
+- Entregado: `tools/tiled/xml.mjs`, `parse-tmx.mjs` con IR v1, fixtures en `tools/tiled/fixtures/` (ortogonal, infinito/negativo, iso, colección), `beginning-fields.cook-plan.json` y autotest `tools/tiled/test-parse-tmx.mjs` (integrado en `tools/run-host-tests.sh`). Golden renders con `tmxrasterizer` quedan como gate de T2 cuando exista cooker.
 - Fijar la versión de Tiled objetivo (1.10/1.11), la lista de funciones soportadas y la lista de rechazos con diagnóstico.
 - Definir el esquema `eng.tiled-ir` v1, el `cook-plan` y el manifiesto del bundle.
 - Crear fixtures deterministas: ortogonal finito, infinito con chunks negativos, isométrico de sala, grupo con opacidad, tile animado, colección de imágenes, flips H/V/D, objectgroup con polígonos, zstd (rechazo).
 - Inventariar `Beginning Fields` (capas, tilesets, animaciones, objetos, colisión) y escribir su `cook-plan`.
 - Usar `tmxrasterizer` del proyecto Tiled para golden renders completos y por capa.
-- **Gate**: los fixtures existen y están catalogados; el esquema IR/cook-plan está fijado; el golden render es reproducible; cada rechazo previsto tiene diagnóstico. La validación de parseo se cierra en T1.
+- **Gate**: los fixtures existen y están catalogados; el esquema IR/cook-plan está fijado; cada rechazo previsto tiene diagnóstico. La validación de parseo se cierra en T1; el golden render con `tmxrasterizer` se cierra en T2 junto al preview del cooker.
 
-### T1 — Parser estructural e IR
+### T1 — Parser estructural e IR — **HECHO**
 
+- Entregado: parser XML propio, resolución TSX, atlas/colecciones con IDs locales con huecos, capas/grupos/imágenes/objetos, propiedades tipadas/clase, animaciones, GID con flips, chunks negativos, validación de rangos/conteos y rechazos de zstd/hex/template. Integración local con `Beginning Fields`: 18 tilesets, 7 capas de tiles, 2 objectgroups, 169 objetos, 256 GID únicos, 0 errores/0 warnings.
 - Sustituir la extracción por regex por un parser XML estructural (host-only), con entidades, anidamiento y rutas relativas.
 - Resolver TSX externos e inline, atlas y colecciones, `firstgid`/`tilecount`/`columns`/`margin`/`spacing`/`tileoffset`/`objectalignment`.
 - Leer `layer`, `objectgroup`, `imagelayer` y `group` con visibilidad, opacidad, offsets, paralaje, propiedades y clases; preservar propiedades opacas. Resolver plantillas de objeto (`template`) en host o rechazarlas explícitamente.

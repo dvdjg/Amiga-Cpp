@@ -481,6 +481,16 @@ else
 			exit 1
 		fi
 	fi
+	# Parser Tiled (host-only): fixtures de IR, TSX, capas, objetos, codificaciones y GID.
+	# No compila C++: se ejecuta como autotest Node dentro de la pasada completa.
+	TILED_PARSER_TEST="$ROOT/tools/tiled/test-parse-tmx.mjs"
+	if [ -f "$TILED_PARSER_TEST" ] && command -v node >/dev/null 2>&1; then
+		echo "== tiled parser =="
+		if ! node "$TILED_PARSER_TEST"; then
+			echo "tiled parser fallo: revisar tools/tiled/test-parse-tmx.mjs" >&2
+			exit 1
+		fi
+	fi
 fi
 
 echo "Host tests finalizados."
