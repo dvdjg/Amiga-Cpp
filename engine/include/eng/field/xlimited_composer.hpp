@@ -136,7 +136,39 @@ public:
             m_copper_initialized = true;
             return true;
         }
-        if (!emit_full(view, hud)) return false;
+        if (!patch(view)) {
+            if (!emit_full(view, hud)) return false;
+        }
+        m_copper.flip();
+        return true;
+    }
+
+    /// **Camino caliente** de un campo simple: reescribe BPLCON1, punteros de
+    /// planos y POS/CTL de sprites en la lista inactiva. Solo se usa si la última
+    /// emisión registró una estructura simple (sin split/HUD/zonas de color y con
+    /// placements externos); si no, el llamador reemite.
+    [[nodiscard]] bool patch(const PlayfieldHardwareView& view) noexcept {
+        if (!m_ok || !m_patch_view || view.split_active) {
+            return false;
+        }
+        const eng::Span<u16> w = m_copper.inactive_span();
+        copper::patch_data(w, m_patch_bplcon1, view.bplcon1);
+        for (u8 p = 0u; p < view.planes; ++p) {
+            const Address<MemoryKind::Chip> base =
+                (view.bg_plane_base.valid() && p == view.parallax_plane)
+                    ? view.bg_plane_base
+                    : view.real_base;
+            const Address<MemoryKind::Chip> addr =
+                base + view.planeaddx +
+                p * view.bitmap_bytes_per_row;
+            copper::patch_data(w, m_patch_planes[p][0],
+                               (addr.value >> 16u));
+            copper::patch_data(w, m_patch_planes[p][1],
+                               (addr.value & 0xffffu));
+        }
+        if (!m_sprite_patch.patch(w, m_placements)) {
+            return false;
+        }
         m_copper.flip();
         return true;
     }
@@ -254,13 +286,38 @@ private:
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         emit_display_header(sched, view);
         emit_scroll_pointers(sched, view);
+        m_sprite_patch.reset();
+        m_patch_view = !view.split_active && !hud.valid() && m_cfg.color_zones.empty() &&
+                       !m_placements.empty() &&
+                       !(m_cfg.sprites.valid() && m_cfg.sprites->any_enabled());
+        if (m_patch_view) {
+            m_patch_bplcon1 = sched.move_at(copper::Register::BPLCON1, view.bplcon1);
+            for (u8 p = 0u; p < view.planes; ++p) {
+                const Address<MemoryKind::Chip> base =
+                    (view.bg_plane_base.valid() && p == view.parallax_plane)
+                        ? view.bg_plane_base
+                        : view.real_base;
+                const Address<MemoryKind::Chip> addr =
+                    base + view.planeaddx +
+                    p * view.bitmap_bytes_per_row;
+                m_patch_planes[p][0] = sched.move_at(
+                    copper::bitplane_pointer_high_register(p),
+                    (addr.value >> 16u));
+                m_patch_planes[p][1] = sched.move_at(
+                    copper::bitplane_pointer_low_register(p),
+                    (addr.value & 0xffffu));
+            }
+        }
         // Sprites hardware (delante de los playfields): SPRxCTL/POS/PT + paleta 16-31.
         // Van ANTES de los WAITs de raster (color zones/split/HUD) para no retroceder
         // la línea de espera; el armado de objetos usa un único WAIT temprano.
         if (!m_placements.empty()) {
             sched.emit_palette(m_cfg.palette, 16, 16); // paleta de sprites (COLOR16-31)
-            graphics::SpriteManager::emit_placements_into(sched, m_placements, 32u, {}, {},
-                                                          true);
+            if (!graphics::SpriteManager::emit_placements_patchable(
+                    sched, m_placements, 32u, m_sprite_patch)) {
+                graphics::SpriteManager::emit_placements_into(sched, m_placements, 32u, {},
+                                                              {}, true);
+            }
         } else if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
             sched.emit_palette(m_cfg.palette, 16, 16); // paleta de sprites (COLOR16-31)
             if (m_cfg.sprites_armed) {
@@ -301,7 +358,7 @@ private:
                                                                              : view.real_base;
                 const Address<MemoryKind::Chip> addr =
                     base + view.planeaddx + view.split_planeaddy +
-                    static_cast<u32>(p) * view.bitmap_bytes_per_row;
+                    p * view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, addr);
             }
         }
@@ -365,6 +422,10 @@ private:
     bool m_copper_initialized = false;
     bool m_setup_checked = false; ///< la validación de setup corre una vez (estructura fija)
     bool m_ok = false;
+    graphics::SpritePatchTable m_sprite_patch {};
+    copper::MoveSlot m_patch_bplcon1 {};
+    copper::MoveSlot m_patch_planes[6][2] {};
+    bool m_patch_view = false;
 };
 
 /// Compositor dual playfield (DPF 3+3) para dos `XLimitedPlayfield` (corkscrew).

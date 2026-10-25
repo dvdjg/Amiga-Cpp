@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-25T07:05:35.035Z
+- Fecha: 2026-10-25T07:24:34.198Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png, frame_006.png, frame_007.png, frame_008.png, frame_009.png, frame_010.png, frame_011.png (12)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png, frame_006.png, frame_007.png (8)
 - Secuencia: `out/run/500_caverna/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -17,30 +17,28 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Análisis de las imágenes:**
 
-Las seis imágenes muestran una secuencia de capturas de pantalla de un programa llamado "CAVERNA DEMO 500 v1.0.255". El fondo es negro y contiene varios elementos gráficos que permanecen estáticos en su posición relativa entre las imágenes, excepto por un pequeño cambio en la posición de un objeto.
+Las cuatro imágenes son idénticas en contenido visual y no muestran ningún cambio temporal ni animación. Se trata de una captura de pantalla estática de un programa llamado "CAVERNA DEMO 500 v1.0.259".
 
-**Elementos gráficos fijos:**
+**Elementos gráficos observables:**
 
-*   **Bloque de números:** En la parte inferior de la pantalla, hay un bloque rectangular compuesto por caracteres numéricos (2, 3, 4, 5, 6, 7) dispuestos en una cuadrícula de 6 filas por 30 columnas. Este bloque no cambia de posición ni de contenido entre las imágenes.
-*   **Cuadrados con el número "1":** Hay siete cuadrados verdes con el número "1" en su interior. Están distribuidos en la parte superior de la pantalla, en posiciones fijas: uno en la esquina superior derecha, uno en la parte superior central derecha, uno en la parte superior central izquierda, uno en la parte superior izquierda, uno en el centro superior, uno en la parte superior derecha (más a la derecha que el anterior), y uno en la parte superior derecha (más a la izquierda que el anterior). Todos estos cuadrados permanecen en sus posiciones en todas las imágenes.
-*   **Objetos móviles (píxeles):** Hay varios objetos pequeños que parecen estar en movimiento, pero su comportamiento es muy limitado y no se observa un cambio significativo entre las imágenes. Se pueden identificar:
-    *   Un píxel naranja en la parte superior izquierda, que se mueve hacia la derecha en pequeños saltos.
-    *   Un píxel rojo en la parte superior central, que también se mueve hacia la derecha en pequeños saltos.
-    *   Un píxel rojo en la parte superior derecha, que se mueve hacia la izquierda en pequeños saltos.
-    *   Un píxel marrón en la parte superior derecha, que permanece en la misma posición en todas las imágenes.
-    *   Un píxel naranja en el centro superior, que permanece en la misma posición en todas las imágenes.
+1.  **Texto en la parte superior:** En la esquina superior izquierda, se muestra el texto "CAVERNA DEMO 500 v1.0.259". A la derecha, se muestran valores que cambian ligeramente entre imágenes: en la primera imagen se lee "F88 640FPS | 496641J0", mientras que en las siguientes tres se lee "F128 44.5FPS | 496 G1 J0". Estos valores parecen indicar información de rendimiento del sistema (FPS, memoria, etc.).
 
-**Cambios observables:**
+2.  **Elemento principal (matriz numérica):** En la parte inferior de la pantalla, hay un bloque rectangular de 6 filas por 32 columnas, compuesto por dígitos del 2 al 7. Los dígitos están dispuestos en un patrón repetitivo y se muestran en color blanco sobre un fondo verde oscuro. El borde del bloque es de color verde claro.
 
-*   **Posición del píxel naranja en la parte superior izquierda:** En la primera imagen, el píxel naranja está en la posición más a la izquierda. En la segunda imagen, se ha desplazado una posición hacia la derecha. En la tercera imagen, se ha desplazado otra posición hacia la derecha. En la cuarta imagen, se ha desplazado otra posición hacia la derecha. En la quinta imagen, se ha desplazado otra posición hacia la derecha. En la sexta imagen, se ha desplazado otra posición hacia la derecha. Este es el único cambio significativo en la posición de los objetos entre las imágenes.
-*   **FPS (Frames Per Second):** El valor de FPS en la esquina superior izquierda cambia entre las imágenes, lo que indica que el programa está en ejecución y se está midiendo el rendimiento. Los valores observados son: 64.46, 64.45, 44.5, 44.5, 44.5, 44.5.
+3.  **Elementos flotantes (en la parte superior):** Sobre el bloque principal, hay varios elementos que parecen estar suspendidos en el aire:
+    *   **Cuadrados verdes con el número "1":** Hay cinco cuadrados de color verde claro con el número "1" en su interior. Están distribuidos en la parte superior derecha y central de la pantalla.
+    *   **Bloques de color:** Hay varios bloques pequeños de color naranja y rojo, algunos de los cuales están dentro de los cuadrados verdes. También hay un bloque marrón oscuro a la derecha.
 
-**Observaciones sobre la calidad de los elementos:**
+**Análisis de los elementos en movimiento (o falta de movimiento):**
 
-*   **Contorno de los objetos móviles:** Los contornos de los objetos móviles (los píxeles) son limpios y no presentan bandas, halos rectangulares ni píxeles cortados. No se observan restos de su posición anterior.
-*   **Fondo alrededor de los objetos:** El fondo negro permanece uniforme y no se ve afectado por los objetos móviles. No hay artefactos ni elementos superpuestos.
-*   **Elementos incompletos o extraños:** No se observan elementos incompletos, recortes o artefactos visibles en las imágenes.
+*   **No hay movimiento:** Todos los elementos permanecen en la misma posición en todas las imágenes. No hay animación, parpadeo ni cambio de posición.
+*   **Contorno de los objetos:** Los contornos de los objetos son limpios y definidos. No se observan bandas, halos, píxeles cortados ni restos de posiciones anteriores.
+*   **Fondo alrededor de los objetos:** El fondo negro permanece uniforme y no muestra artefactos ni cambios alrededor de los objetos. Los objetos tapan el fondo con un rectángulo de color uniforme (el color del objeto mismo).
 
-**Conclusión:**
+**Observaciones extrañas o incoherentes:**
 
-Las imágenes muestran una secuencia de capturas de pantalla de un programa "CAVERNA DEMO 500" en ejecución. La mayoría de los elementos gráficos son estáticos, pero hay un píxel naranja que se desplaza hacia la derecha en pequeños saltos entre las imágenes. El fondo es negro y los contornos de los objetos son limpios. El valor de FPS cambia entre las imágenes, lo que indica que el programa está en ejecución. No se observan artefactos, elementos incompletos ni superposiciones.
+*   **Consistencia visual:** Las cuatro imágenes son idénticas, lo que sugiere que no se trata de una secuencia de animación, sino de una sola captura de pantalla que se ha mostrado cuatro veces.
+*   **Posición de los elementos:** La disposición de los elementos es simétrica y ordenada, lo que puede ser intencional para el diseño del juego o demo.
+*   **Valores en la parte superior:** El cambio en los valores de la parte superior (FPS, memoria) entre la primera y las siguientes imágenes es inconsistente con la falta de movimiento en el resto de la pantalla, lo que podría indicar un error de captura o un cambio en el estado del sistema durante la captura.
+
+En resumen, las imágenes muestran una captura de pantalla estática de un programa llamado "CAVERNA DEMO 500", con una matriz numérica en la parte inferior y varios elementos gráficos suspendidos en la parte superior. No hay movimiento ni cambios entre las imágenes.

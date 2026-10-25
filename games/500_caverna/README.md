@@ -21,4 +21,4 @@ bash tools/build/build-demo.sh games/500_caverna --release
 bash tools/run/run-demo.sh games/500_caverna --config A500_release
 ```
 
-Medición: `2026-10-25`, A500_release, ventana de 20 s: **49,92 fps** emulados (49,86 host), 142102 ciclos/frame, 1,00159 campos/frame, `stable=true`.
+Medición: `2026-10-25`, A500_release, ventana de 20 s: **49,93 fps** emulados (49,89 host), 142073 ciclos/frame, 1,00139 campos/frame, `stable=true`.
