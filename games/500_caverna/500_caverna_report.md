@@ -47,3 +47,23 @@ Band-diff `check-elements` (frame_000 vs frame_005): cambios en el HUD (y=0..15)
 ### Prueba de salto
 
 `vision-jump.mjs out/run/500_caverna/A500_release/sequence --require` → `SALTO: NO`. La inyección de `--joy 1:up` no produce una subida/bajada que el VLM confirme; queda **NO VERIFICADO**.
+
+## Pasada 2026-10-25 (assets/audio + gameplay V1–V3)
+
+```text
+500_caverna/A500_release (estático)              | emulado=49,27 fps | host=49,22 | 143990 ciclos/frame | 1,015 campos/frame
+500_caverna/A500_release (joystick der., 2 px/f) | emulado=49,51 fps | host=49,38 | 143276 ciclos/frame | 1,010 campos/frame
+```
+
+- Manifiesto de assets generado por Node/prebuild: paleta, mapas, filas, cuatro hojas, P61 y cuatro SFX; escritura big-endian corregida.
+- `AssetTable` cambió a firma cruda (`data,size`) y `noinline`: el codegen m68k corrompía tamaños al pasar `Span` por valor inline.
+- Las hojas no entran en `AssetTable` (`register_sprites:false` en el manifiesto); se copian desde el blob al bloque Chip de la escena.
+- Audio verificado en runtime: M1/A1 (P61 + mixer), SFX de 256/384/128 B.
+- Plataformas flotantes, dead-zone, stomp, daño/vidas/score y auto-salto integrados.
+- Salto: seguimiento de píxeles del sprite naranja `y=226→196→186→...→226`; `vision-jump.mjs` sigue diciendo NO por confusión con enemigos naranjas.
+- `AssetTable`/`Assets` y los tests de host 386/485/497/498 pasan; HOST-498 lee el mapa big-endian.
+
+### Pendiente
+
+- latencia input→visible medida; confirmación VLM del salto con escena sin enemigos naranjas;
+- animación de dos poses (desactivada por coste: 44,4 fps con animación frente a 49,3 sin ella).

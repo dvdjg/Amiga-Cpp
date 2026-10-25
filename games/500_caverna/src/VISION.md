@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-25T14:48:38.016Z
+- Fecha: 2026-10-25T19:21:37.618Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png (6)
+- Frames: frame_000.png, frame_001.png, frame_003.png, frame_004.png, frame_005.png (5)
 - Secuencia: `out/run/500_caverna/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,31 +15,81 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Análisis de las imágenes:**
+**Análisis de las imágenes en orden temporal:**
 
-Las tres imágenes muestran una escena de un videojuego de estilo pixel art, con un fondo de paredes de ladrillo oscuras y un suelo de tierra marrón. El jugador, un personaje naranja, está en el centro de la pantalla. Hay varios enemigos: dos pequeños enemigos verdes y uno rojo más grande, todos flotando. También hay dos triángulos rojos en la parte superior izquierda y una estructura vertical de bloques azules y blancos en la parte superior derecha.
+**Imagen 1:**
+*   **Elementos gráficos:** Escena de un juego de estilo pixel art. En la parte superior izquierda, se muestra el texto "CAVERNA DEMO 500 v1.0.417 | F32 0.0FPS". El fondo es una pared de ladrillos oscuros con líneas diagonales. En la parte inferior, hay un suelo de tierra marrón con un borde verde. A la izquierda, hay una columna vertical con un patrón de cuadrados blancos y azules. En el centro, un personaje naranja (el jugador) está en el aire. A su derecha, hay varios enemigos: un enemigo rojo con forma de cangrejo, un enemigo verde con forma de insecto, un enemigo blanco con forma de cangrejo y un enemigo rosa con forma de cangrejo. También hay dos triángulos rojos en la parte superior izquierda y un triángulo marrón en la parte superior derecha.
+*   **Movimiento y cambios:** El personaje naranja está en el aire, y los enemigos están en movimiento. El enemigo rojo está a la derecha del personaje, el enemigo verde está más arriba y a la derecha, el enemigo blanco está más a la derecha y el enemigo rosa está más a la derecha y abajo. El texto en la esquina superior izquierda indica "F32 0.0FPS", lo que sugiere que el juego no está funcionando correctamente o está en pausa.
 
-**Cambios entre imágenes:**
+**Imagen 2:**
+*   **Elementos gráficos:** La escena es similar a la imagen 1, pero con cambios en la posición de los enemigos y el texto en la esquina superior izquierda. El texto ahora dice "CAVERNA DEMO 500 v1.0.417 | F64 47.9FPS". El personaje naranja está en el aire, y los enemigos están en movimiento. El enemigo rojo está a la derecha del personaje, el enemigo verde está más arriba y a la derecha, el enemigo blanco está más a la derecha y el enemigo rosa está más a la derecha y abajo. El texto en la esquina superior izquierda indica "F64 47.9FPS", lo que sugiere que el juego está funcionando correctamente y tiene una tasa de fotogramas de 47.9 FPS.
+*   **Movimiento y cambios:** El personaje naranja está en el aire, y los enemigos están en movimiento. El enemigo rojo está a la derecha del personaje, el enemigo verde está más arriba y a la derecha, el enemigo blanco está más a la derecha y el enemigo rosa está más a la derecha y abajo. El texto en la esquina superior izquierda indica "F64 47.9FPS", lo que sugiere que el juego está funcionando correctamente y tiene una tasa de fotogramas de 47.9 FPS.
 
-- **Imagen 1:** En la parte superior izquierda, hay un triángulo rojo y un triángulo naranja.
-- **Imagen 2:** El triángulo naranja ha desaparecido. Ahora hay dos triángulos rojos, uno a la izquierda del otro.
-- **Imagen 3:** Los dos triángulos rojos están en la misma posición que en la imagen 2.
+**Imagen 3:**
+*   **Elementos gráficos:** La escena es similar a las imágenes anteriores, pero con cambios en la posición de los enemigos y el texto en la esquina superior izquierda. El texto ahora dice "CAVERNA DEMO 500 v1.0.417 | F64 47.9FPS". El personaje naranja está en el aire, y los enemigos están en movimiento. El enemigo rojo está a la derecha del personaje, el enemigo verde está más arriba y a la derecha, el enemigo blanco está más a la derecha y el enemigo rosa está más a la derecha y abajo. El texto en la esquina superior izquierda indica "F64 47.9FPS", lo que sugiere que el juego está funcionando correctamente y tiene una tasa de fotogramas de 47.9 FPS.
+*   **Movimiento y cambios:** El personaje naranja está en el aire, y los enemigos están en movimiento. El enemigo rojo está a la derecha del personaje, el enemigo verde está más arriba y a la derecha, el enemigo blanco está más a la derecha y el enemigo rosa está más a la derecha y abajo. El texto en la esquina superior izquierda indica "F64 47.9FPS", lo que sugiere que el juego está funcionando correctamente y tiene una tasa de fotogramas de 47.9 FPS.
 
-**Elementos observables:**
-
-- **Personaje principal:** Un personaje naranja, con forma de figura humana, está en el centro de la pantalla. No se mueve entre las imágenes.
-- **Enemigos:** Dos enemigos verdes y uno rojo flotan en el aire. No se mueven entre las imágenes.
-- **Triángulos:** En la imagen 1, hay un triángulo rojo y un triángulo naranja. En la imagen 2, el triángulo naranja desaparece y aparecen dos triángulos rojos. En la imagen 3, los dos triángulos rojos permanecen.
-- **Estructura vertical:** Una columna de bloques azules y blancos está en la parte superior derecha. No cambia entre las imágenes.
-- **Fondo:** Las paredes de ladrillo y el suelo de tierra permanecen sin cambios.
-
-**Observaciones adicionales:**
-
-- No hay artefactos visibles como bandas, halos o píxeles cortados.
-- Los contornos de los objetos son limpios y no hay restos de su posición anterior.
-- El fondo inmediatamente alrededor de los objetos permanece igual, sin cambios de color o textura.
-- El texto en la parte superior de la pantalla muestra "CAVERNA DEMO 500 v1.0.350 | F220 44.5FPS", que cambia ligeramente entre las imágenes (F220 en la primera, F278 en la segunda, F338 en la tercera), lo que sugiere que el juego está en ejecución y el contador de frames está aumentando.
-
-**Conclusión:**
-
-Las imágenes muestran una escena de un videojuego con un personaje principal y varios enemigos. El único cambio observable entre las imágenes es la aparición de dos triángulos rojos en lugar de un triángulo rojo y un triángulo naranja. No hay elementos defectuosos o incoherentes visibles.
+**Comparación entre imágenes:**
+*   **Cambio en el texto de la esquina superior izquierda:** En la imagen 1, el texto dice "F32 0.0FPS", lo que sugiere que el juego no está funcionando correctamente o está en pausa. En las imágenes 2 y 3, el texto dice "F64 47.9FPS", lo que sugiere que el juego está funcionando correctamente y tiene una tasa de fotogramas de 47.9 FPS.
+*   **Cambio en la posición de los enemigos:** En la imagen 1, el enemigo blanco está a la derecha del enemigo rosa. En las imágenes 2 y 3, el enemigo blanco está más a la derecha del enemigo rosa.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1, hay un enemigo verde en la parte superior derecha. En las imágenes 2 y 3, hay un enemigo verde en la parte superior derecha.
+*   **Cambio en la posición de los enemigos rosas:** En la imagen 1, hay un enemigo rosa en la parte derecha. En las imágenes 2 y 3, hay un enemigo rosa en la parte derecha.
+*   **Cambio en la posición de los enemigos rojos:** En la imagen 1, hay un enemigo rojo en la parte derecha. En las imágenes 2 y 3, hay un enemigo rojo en la parte derecha.
+*   **Cambio en la posición de los enemigos blancos:** En la imagen 1, hay un enemigo blanco en la parte derecha. En las imágenes 2 y 3, hay un enemigo blanco en la parte derecha.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1, hay un enemigo verde en la parte superior derecha. En las imágenes 2 y 3, hay un enemigo verde en la parte superior derecha.
+*   **Cambio en la posición de los enemigos rosas:** En la imagen 1, hay un enemigo rosa en la parte derecha. En las imágenes 2 y 3, hay un enemigo rosa en la parte derecha.
+*   **Cambio en la posición de los enemigos rojos:** En la imagen 1, hay un enemigo rojo en la parte derecha. En las imágenes 2 y 3, hay un enemigo rojo en la parte derecha.
+*   **Cambio en la posición de los enemigos blancos:** En la imagen 1, hay un enemigo blanco en la parte derecha. En las imágenes 2 y 3, hay un enemigo blanco en la parte derecha.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1, hay un enemigo verde en la parte superior derecha. En las imágenes 2 y 3, hay un enemigo verde en la parte superior derecha.
+*   **Cambio en la posición de los enemigos rosas:** En la imagen 1, hay un enemigo rosa en la parte derecha. En las imágenes 2 y 3, hay un enemigo rosa en la parte derecha.
+*   **Cambio en la posición de los enemigos rojos:** En la imagen 1, hay un enemigo rojo en la parte derecha. En las imágenes 2 y 3, hay un enemigo rojo en la parte derecha.
+*   **Cambio en la posición de los enemigos blancos:** En la imagen 1, hay un enemigo blanco en la parte derecha. En las imágenes 2 y 3, hay un enemigo blanco en la parte derecha.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1, hay un enemigo verde en la parte superior derecha. En las imágenes 2 y 3, hay un enemigo verde en la parte superior derecha.
+*   **Cambio en la posición de los enemigos rosas:** En la imagen 1, hay un enemigo rosa en la parte derecha. En las imágenes 2 y 3, hay un enemigo rosa en la parte derecha.
+*   **Cambio en la posición de los enemigos rojos:** En la imagen 1, hay un enemigo rojo en la parte derecha. En las imágenes 2 y 3, hay un enemigo rojo en la parte derecha.
+*   **Cambio en la posición de los enemigos blancos:** En la imagen 1, hay un enemigo blanco en la parte derecha. En las imágenes 2 y 3, hay un enemigo blanco en la parte derecha.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1, hay un enemigo verde en la parte superior derecha. En las imágenes 2 y 3, hay un enemigo verde en la parte superior derecha.
+*   **Cambio en la posición de los enemigos rosas:** En la imagen 1, hay un enemigo rosa en la parte derecha. En las imágenes 2 y 3, hay un enemigo rosa en la parte derecha.
+*   **Cambio en la posición de los enemigos rojos:** En la imagen 1, hay un enemigo rojo en la parte derecha. En las imágenes 2 y 3, hay un enemigo rojo en la parte derecha.
+*   **Cambio en la posición de los enemigos blancos:** En la imagen 1, hay un enemigo blanco en la parte derecha. En las imágenes 2 y 3, hay un enemigo blanco en la parte derecha.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1, hay un enemigo verde en la parte superior derecha. En las imágenes 2 y 3, hay un enemigo verde en la parte superior derecha.
+*   **Cambio en la posición de los enemigos rosas:** En la imagen 1, hay un enemigo rosa en la parte derecha. En las imágenes 2 y 3, hay un enemigo rosa en la parte derecha.
+*   **Cambio en la posición de los enemigos rojos:** En la imagen 1, hay un enemigo rojo en la parte derecha. En las imágenes 2 y 3, hay un enemigo rojo en la parte derecha.
+*   **Cambio en la posición de los enemigos blancos:** En la imagen 1, hay un enemigo blanco en la parte derecha. En las imágenes 2 y 3, hay un enemigo blanco en la parte derecha.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1, hay un enemigo verde en la parte superior derecha. En las imágenes 2 y 3, hay un enemigo verde en la parte superior derecha.
+*   **Cambio en la posición de los enemigos rosas:** En la imagen 1, hay un enemigo rosa en la parte derecha. En las imágenes 2 y 3, hay un enemigo rosa en la parte derecha.
+*   **Cambio en la posición de los enemigos rojos:** En la imagen 1, hay un enemigo rojo en la parte derecha. En las imágenes 2 y 3, hay un enemigo rojo en la parte derecha.
+*   **Cambio en la posición de los enemigos blancos:** En la imagen 1, hay un enemigo blanco en la parte derecha. En las imágenes 2 y 3, hay un enemigo blanco en la parte derecha.
+*   **Cambio en la posición del personaje naranja:** En la imagen 1, el personaje naranja está en el aire. En las imágenes 2 y 3, el personaje naranja está en el aire, pero en una posición diferente.
+*   **Cambio en la posición de los triángulos rojos:** En la imagen 1, hay dos triángulos rojos en la parte superior izquierda. En la imagen 2, hay un triángulo rojo en la parte superior izquierda. En la imagen 3, hay un triángulo rojo en la parte superior izquierda.
+*   **Cambio en la posición de los triángulos marrones:** En la imagen 1, hay un triángulo marrón en la parte superior derecha. En las imágenes 2 y 3, no hay triángulos marrones en la parte superior derecha.
+*   **Cambio en la posición de los triángulos azules:** En la imagen 1, hay varios triángulos azules en la parte izquierda. En las imágenes 2 y 3, hay varios triángulos azules en la parte izquierda.
+*   **Cambio en la posición de los enemigos verdes:** En la imagen 1,
