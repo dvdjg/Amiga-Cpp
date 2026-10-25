@@ -15,7 +15,7 @@
 `node tools/debug/measure-fps.mjs 207_tiled_live_layers_animation A500_release --json`:
 
 ```json
-{"demo":"207_tiled_live_layers_animation","config":"A500_release","date":"2026-10-25","commit":"6ca35aa2","emulatedFps":49.97,"hostFps":49.89,"cyclesPerFrame":141961,"fieldsPerFrame":1.0006,"frames":1011,"cycles":143523020,"measurementMs":20265,"detail":"0x20700000","watchdog":null,"stable":true,"quantizedFields":1,"minFps":49.66,"maxFps":50.32}
+{"demo":"207_tiled_live_layers_animation","config":"A500_release","date":"2026-10-25","commit":"6fa0acdf","emulatedFps":49.97,"hostFps":49.89,"cyclesPerFrame":141961,"fieldsPerFrame":1.0006,"frames":1011,"cycles":143523020,"measurementMs":20265,"detail":"0x20700000","watchdog":null,"stable":true,"quantizedFields":1,"minFps":49.66,"maxFps":50.32}
 ```
 
 Regresión de la demo base: `206` sigue en **49,93 fps** (142 070 ciclos/frame) tras
