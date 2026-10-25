@@ -616,7 +616,8 @@ public:
 	/// `blitter_lines_begin`. `plane_ptr` es el inicio del plano; `d_base` permite el
 	/// truco del original de flatshade (`bltdpt = base del bitmap`) y `nullptr` deja el
 	/// destino en la propia línea (modo copia y wireframe).
-	void blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base);
+	void blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base,
+			       bool wait = true);
 
 	/// Relleno por **area fill XOR** (paint-bucket del Blitter), port de
 	/// `BitmapFillFast` de `flatshade-convex`: parte de la última palabra del bitmap

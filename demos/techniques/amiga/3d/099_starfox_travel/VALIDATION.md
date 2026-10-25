@@ -1,9 +1,24 @@
-# Validación — 099 Star Fox travel (Corneria, todo 3D)
+# Validación – 099 Star Fox travel
 
-## Estado
+## Estado actual (2026-10-25): router CPU / per-plane por objeto
+
+- Solo foreground 3D (Arwing, dos enemigos, arco y edificio); sin fondo.
+- **4 bitplanes de display, solo 0..2 renderizados**; 7 colores opacos 1..7; plano 3 a 0.
+- **3 pasadas de Blitter por objeto** (`fill_polygons_by_plane_dirty`), bbox por objeto.
+- Modo por defecto `K099_FILL_MODE=1` (per-plane por objeto): **3,76 fps**, 1.884.396 ciclos/frame, 13,28 campos/frame (ventanas 3,3-3,9).
+- Per-plane global: 3,26 fps, 2.177.713 ciclos. Router automático: 3,11 fps, 2.281.111 ciclos. CPU de referencia: 3,34 fps.
+- El router automático calibra CPU/planos con el coste real de frames anteriores; **no gana** en esta escena. La CPU por cara del edificio se cuelga; la de arco/naves es más lenta que per-plane.
+- `blitter_line_draw(..., false)` sigue aplicado; falta regresión de 088/090.
+- `VISION.md` describe movimiento ligero y contornos limpios.
+- Flicker (`flicker-check`, 8 frames): 7/7 pares con cambio, 7 candidatos y 102 bloques bajos; baseline 36/220, así que **pasa** el margen. El modelo de visión no ve anomalía.
+- `verify-3d-sequence` da área 0 en los primeros frames por el detector sobre fondo negro; no se usa como prueba única: el frame-diff y la visión sí detectan movimiento.
+- 088 y 090 con el cambio de línea: capturas limpias (`out/vision-review/088_line_nowait.png`, `090_line_nowait.png`).
+- Regresión `out/regression/20261025-130312/regression-report.md`: **OK** (incluye flicker). El gate genérico de análisis marca `yellow=0` porque no hay overlay/vision-points específicos; no invalida la demo.
+- 088/090 con `blitter_line_draw(..., false)`: capturas limpias; falta su regresión completa.
+- Decidido: per-plane por objeto como default; CPU/auto se conservan como modos de experimento. Sin commit.
+## Estado histórico: Corneria con fondo
 
 Escena Corneria con **objetos 3D** (Arwing, dos enemigos, arco y edificio) y fondo de cielo/terreno/agua con **tres variantes pre-rotadas** (-6°, 0°, +6°). Cámara con yaw/pitch/roll y trayectoria zigzagueante. **3,65 fps** en release A500; no cumple >6 fps. Es la excepción aceptada para tener arquitectura 3D real.
-
 ## Comandos
 
 ```bash

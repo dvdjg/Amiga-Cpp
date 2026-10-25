@@ -2,21 +2,17 @@
 // Demo 099 - Corneria rail travel (Star Fox style)
 // ============================================================================
 //
-// Traveling no jugable inspirado en Corneria (primer nivel de Star Fox SNES):
-// vuelo rasante sobre agua/terreno verde, cielo de dia, skyline, arco de
-// piedra, rocas, nubes y sol. El jugador lleva un Arwing de caras planas; dos
-// cazas enemigos entran por el fondo, hacen weave y disparan.
+// Laboratorio de relleno de poligonos por bitplane: solo foreground 3D
+// (Arwing, dos cazas, arco y edificio) sobre negro. No hay fondo.
 //
-// Render: 4 planos (16 colores) en 3 buffers. El fondo de Corneria se pinta
-// UNA vez en un buffer Chip (m_bg) y se copia al buffer trasero con Blitter;
-// el offset vertical de la copia sigue al pitch de camara. Las naves son los
-// unicos solidos 3D por frame: caras opacas de 4 bits con normal local rotada
-// y un sol comun. Los quads de las naves se triangulan y las normales se
-// orientan por el centro del modelo.
+// Render: 4 bitplanes de display en 3 buffers, pero SOLO se renderizan los
+// planos 0..2 con los 7 colores opacos 1..7; el plano 3 queda a 0. Cada frame
+// limpia esos 3 planos y hace UN unico fill por plano (3 pasadas de Blitter):
+// el contorno de cada plano es la union de las caras cuyo color tiene ese bit.
+// El HUD de las filas 208..255 se pinta una vez por buffer.
 //
-// La camara combina yaw/pitch/roll suaves con una trayectoria zigzagueante;
-// el jugador mece el rail con roll/pitch/yaw. Esta version congela el arco y
-// los edificios en el fondo para mantenerse por encima de 6 fps.
+// La camara mantiene yaw/pitch/roll; los quads de las naves se triangulan y
+// las normales se orientan por el centro del modelo.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/099_starfox_travel --release
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/099_starfox_travel --config A500_release
@@ -24,6 +20,7 @@
 #include <eng/api/3d.hpp>
 #include <eng/api/api.hpp>
 #include <eng/core/data/mesh3d.hpp>
+#include <eng/core/data/polygon.hpp>
 #include <eng/core/math/isqrt.hpp>
 #include <eng/debug/host_hud.hpp>
 #include <eng/debug/prof.hpp>
@@ -35,12 +32,14 @@
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/platform/amiga/entry.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
+#include <eng/platform/amiga/polygon_fill.hpp>
 #include <eng/retro/fixed_trig.hpp>
 #include <eng/retro/mesh_primitives.hpp>
 
 namespace {
 
 namespace comp = eng::graphics::composition;
+namespace copper = eng::copper;
 namespace math3d = eng::math3d;
 namespace scene3d = eng::scene3d;
 namespace retro = eng::retro;
@@ -56,22 +55,11 @@ constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
 constexpr u16 kRowBytes = kWidth / 8u; // 40
 constexpr u32 kPlaneBytes = static_cast<u32>(kRowBytes) * kHeight;
-constexpr u8 kPlanes = 4u;
+// 4 bitplanes de display; los objetos 3D usan SOLO 0..2 (7 colores opacos),
+// el plano 3 es un fondo estatico de 1 bit (color 8).
+constexpr u8 kFgPlanes = 3u;
+constexpr u8 kTotalPlanes = 4u;
 constexpr u8 kBuffers = 3u;
-
-// Fondo ancho: 384 px para poder desplazar la ventana de 320 px en X (yaw)
-// sin leer fuera de fila. El contenido se pinta con 32 px de margen a cada
-// lado.
-constexpr u16 kBgWidth = 384u;
-constexpr u16 kBgHeight = 208u; // solo filas de vuelo
-constexpr u16 kBgRowBytes = kBgWidth / 8u; // 48
-constexpr u32 kBgPlaneBytes = static_cast<u32>(kBgRowBytes) * kBgHeight;
-constexpr u32 kBgBytes = static_cast<u32>(kPlanes) * kBgPlaneBytes;
-constexpr s16 kBgX = 32;
-constexpr u16 kBgVariants = 3u;
-constexpr s16 kBgRoll[kBgVariants] = {-68, 0, 68}; // -6, 0, 6 grados
-constexpr u32 kBgBlockBytes = static_cast<u32>(kBgVariants) * kBgBytes;
-constexpr s16 kBgY = 16;
 
 // La franja inferior del HUD de bitplanes queda estatica; el resto de la
 // pantalla es el fondo de vuelo que se repinta cada frame.
@@ -88,25 +76,26 @@ constexpr s16 kNearZ = 48;
 constexpr s16 kHalfW = 160;
 constexpr s16 kHalfH = 104;
 
-// --- Paleta de dia (16 colores) ---------------------------------------------
-// 0..7: gamas de los solidos. 8..15: fondo, piedra, verde y HUD.
+// --- Paleta de 4 planos -----------------------------------------------------
+// 0..7: los SIETE colores de todos los poligonos 3D (0 = negro/transparente).
+// 8: fondo estatico (unico bit del plano 3). 9..15 sin uso.
 constexpr eng::Palette32 kPalette {{
-	0x000, // 0 negro
-	0xfff, // 1 blanco: Arwing, sol y nubes
-	0xccc, // 2 gris claro: Arwing / HUD
-	0x888, // 3 gris: sombra del Arwing
-	0x48f, // 4 azul: alas y motores
-	0x247, // 5 azul oscuro: agua / cielo profundo
-	0xf65, // 6 salmon: enemigo iluminado
-	0xa22, // 7 granate: enemigo en sombra
-	0xbbb, // 8 gris claro: edificios
-	0x667, // 9 gris azulado: edificios en sombra
-	0xba9, // 10 piedra clara
-	0x764, // 11 piedra oscura
-	0x5b3, // 12 verde claro: terreno
-	0x374, // 13 verde oscuro
-	0xadf, // 14 azul palido: horizonte
-	0x58f, // 15 azul medio: cielo
+	0x000, // 0 negro / fuera de objeto
+	0xfff, // 1 blanco
+	0xccc, // 2 gris claro
+	0x888, // 3 gris
+	0x48f, // 4 azul
+	0x247, // 5 azul oscuro
+	0xf65, // 6 salmon
+	0xa22, // 7 granate
+	0x123, // 8 fondo azul muy oscuro
+	0x000, // 9
+	0x000, // 10
+	0x000, // 11
+	0x000, // 12
+	0x000, // 13
+	0x000, // 14
+	0x000, // 15
 }};
 
 constexpr u8 kColorPlayerBase = 0u;
@@ -114,12 +103,6 @@ constexpr u8 kColorEnemyBase = 3u;
 constexpr u8 kColorEnemyBolt = 6u;
 constexpr u8 kColorPlayerBolt = 1u;
 constexpr u8 kColorEngine = 4u;
-constexpr u8 kColorGround = 12u;
-constexpr u8 kColorGroundDark = 13u;
-constexpr u8 kColorWater = 5u;
-constexpr u8 kColorSkyLow = 15u;
-constexpr u8 kColorSkyHigh = 5u;
-constexpr u8 kColorHorizon = 14u;
 constexpr u8 kColorHudTitle = 1u;
 constexpr u8 kColorHudSubtitle = 2u;
 
@@ -130,21 +113,28 @@ constexpr s16 kSunZ = -120;
 
 constexpr eng::debug::Version kVersion {1u, 0u};
 
-#ifndef K099_SKIP_BG
-#define K099_SKIP_BG 0
-#endif
+enum : u8 { kProfBg = 0u, kProfUpdate = 1u, kProfSolids = 2u,
+	   kProfGlow = 3u, kProfBolts = 4u, kProfHud = 5u,
+	   kProfShips = 13u, kProfScenery = 14u };
+
 #ifndef K099_SKIP_SOLIDS
 #define K099_SKIP_SOLIDS 0
 #endif
 #ifndef K099_SKIP_BOLTS
 #define K099_SKIP_BOLTS 0
 #endif
+// 0 = CPU exacto, 1 = per-plane Blitter, 2 = router automatico.
+#ifndef K099_FILL_MODE
+#define K099_FILL_MODE 1
+#endif
+enum : u8 { kRouteCpu = 0u, kRoutePlanes = 1u };
 
 // --- Limites de contenido ----------------------------------------------------
 constexpr u16 kEnemies = 2u;
 constexpr u16 kScenery = 2u;
 constexpr u16 kBoltSlots = 8u;
 constexpr u16 kMaxItems = 1u + kEnemies + kScenery;
+constexpr u16 kMaxDrawFaces = kMaxItems * 32u;
 
 constexpr s16 kPlayerZ = 300;
 constexpr s16 kPlayerY = 55;
@@ -168,6 +158,7 @@ constexpr Camera kCamera {CT::from_int(kFocal), kCx, kCy, CT::from_int(kNearZ),
 
 constexpr retro::Rect kFlightClip = retro::rect(0, 0, kWidth, kHudY);
 
+
 // --- Mallas ------------------------------------------------------------------
 constexpr u16 kMaxVerts = 32u;
 constexpr u16 kMaxIndices = 128u;
@@ -185,10 +176,10 @@ constexpr u8 kShade[8][3] = {
 	{5u, 4u, 4u},   // azul
 	{3u, 2u, 2u},   // cabina / gris oscuro
 	{7u, 6u, 6u},   // enemigo
-	{9u, 9u, 8u},   // edificio
-	{11u, 11u, 10u},// piedra
-	{13u, 13u, 12u},// verde
-	{5u, 5u, 4u},   // metal/agua
+	{3u, 3u, 2u},   // edificio
+	{2u, 2u, 1u},   // piedra
+	{4u, 4u, 2u},   // verde
+	{5u, 5u, 4u},   // metal
 };
 
 struct Rng {
@@ -440,6 +431,8 @@ struct RenderItem {
 	ModelHandle model {};
 	math3d::Vec3t<eng::coord> position {};
 	math3d::Mat3<> rotation {};
+	u8 id = 0;
+	bool allow_planes = false;
 };
 
 struct FaceDraw {
@@ -448,13 +441,21 @@ struct FaceDraw {
 	u8 color = 0;
 };
 
+struct ObjHist {
+	u32 cpu_cycles = 0;
+	u32 planes_cycles = 0;
+	u32 area = 0;
+	u8 phase = 0; // 0=muestra CPU, 1=muestra planos, 2=decidido
+	u8 route = 0; // 0=CPU, 1=planos
+};
+
 struct StarFoxTravel {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext& context) { // NOLINT
 		if (!backend.configure_memory({384u * 1024u, 8u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, kBootMemory);
 			return;
 		}
-		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
+		comp::SceneResources res = comp::planar(kWidth, kHeight, kTotalPlanes);
 		res.buffers = kBuffers;
 		if (!comp::compose(m_display, backend.memory_manager(), res, comp::ocs_a500,
 				   comp::display(res), comp::palette(kPalette, 0u, 16u))) {
@@ -466,34 +467,13 @@ struct StarFoxTravel {
 		m_display.takeover(backend);
 		m_canvas.set_rasterizer(&playfield::kBlitterRaster);
 
-		m_bg_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(
-			kBgBlockBytes);
-		if (!m_bg_block.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, kBootMemory);
-			return;
-		}
-		m_bg = m_bg_block.data();
-
-		// Tres fondos pre-rotados (roll -6/0/+6 grados). Se pintan una vez
-		// en Chip y se elige el mas cercano al roll de camara.
 		m_view_x = 0;
 		m_view_y = 0;
 		m_cam_roll_q12 = 0;
-		for (u8 v = 0u; v < kBgVariants; ++v) {
-			bind_background(v);
-			eng::PlaneBytes bg {m_bg + static_cast<u32>(v) * kBgBytes,
-					    kBgBytes};
-			(void)backend.blitter_clear(bg, kPlanes, kBgRowBytes,
-						    kBgPlaneBytes, kBgWidth, kHeight);
-			backend.wait_blitter();
-			draw_background_variant(backend, v);
-			backend.wait_blitter();
-		}
-
 		for (u8 b = 0u; b < m_display.buffer_count(); ++b) {
 			const eng::PlaneBytes buffer = m_display.buffer(b);
-			copy_background(backend, buffer);
 			bind_planes(buffer);
+			// El plano 3 no se renderiza: queda a 0. Solo foreground 3D.
 			draw_hud_band();
 			backend.wait_blitter();
 		}
@@ -512,7 +492,9 @@ struct StarFoxTravel {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) { // NOLINT
 		if (!m_ready) return;
 		m_display.commit();
-		const eng::PlaneBytes planes = m_display.back();
+		const eng::PlaneBytes buffer = m_display.back();
+		const eng::PlaneBytes fg {
+			buffer.data(), kFgPlanes * kPlaneBytes};
 		++m_frame;
 
 		update_player();
@@ -520,16 +502,17 @@ struct StarFoxTravel {
 		update_scenery();
 		update_view();
 
-#if !K099_SKIP_BG
-		copy_background(backend, planes);
-#endif
 #if !K099_SKIP_SOLIDS
-		draw_solids(planes);
-		draw_engine_glow(planes);
+		// Solo se limpian los 3 planos de foreground; el plano 3 (fondo
+		// estatico) y las filas del HUD no se tocan.
+		(void)backend.blitter_clear(fg, kFgPlanes, kRowBytes,
+					    kPlaneBytes, kWidth, kHudY);
+		draw_solids(backend, fg);
+		draw_engine_glow(fg);
 #endif
 #if !K099_SKIP_BOLTS
 		update_bolts();
-		draw_bolts(planes);
+		draw_bolts(fg);
 #endif
 
 		if ((m_frame & 15u) == 0u) {
@@ -554,55 +537,11 @@ struct StarFoxTravel {
 
 private:
 	void bind_planes(eng::PlaneBytes planes) noexcept {
-		(void)m_canvas.bind_raw(planes.data(), static_cast<u32>(planes.size()),
-					kWidth, kHeight, kPlanes, kPlaneBytes);
+		(void)m_canvas.bind_raw(planes.data(), kTotalPlanes * kPlaneBytes,
+				   kWidth, kHeight, kTotalPlanes, kPlaneBytes);
 	}
 
-	void bind_background(u8 variant) noexcept {
-		(void)m_canvas.bind_raw(m_bg + static_cast<u32>(variant) * kBgBytes,
-					kBgBytes, kBgWidth, kHeight, kPlanes,
-					kBgPlaneBytes);
-	}
 
-	/// Copia el fondo ancho al buffer trasero. La ventana de 320 px se
-	/// desplaza en X (yaw) dentro de los 384 px de m_bg; el pitch desplaza en
-	/// Y. El HUD se pinta por buffer y no se copia.
-	void copy_background(eng::amiga::AmigaBackend& backend,
-			     eng::PlaneBytes planes) noexcept {
-		using ChipAddr = eng::Address<eng::MemoryKind::Chip>;
-		const s16 dy = m_view_y;
-		const s16 yaw = static_cast<s16>((m_view_x / 16) * 16);
-		u8 variant = 0u;
-		s32 best = 32767;
-		for (u8 v = 0u; v < kBgVariants; ++v) {
-			const s32 d = static_cast<s32>(m_cam_roll_q12) - kBgRoll[v];
-			const s32 ad = d < 0 ? -d : d;
-			if (ad < best) { best = ad; variant = v; }
-		}
-		const u8* const src_base = m_bg + static_cast<u32>(variant) * kBgBytes;
-		s32 sx = kBgX - yaw;
-		if (sx < 0) sx = 0;
-		if (sx > static_cast<s32>(kBgWidth - kWidth)) sx = kBgWidth - kWidth;
-		const u32 src_row = static_cast<u32>(16 + dy) * kBgRowBytes +
-				    static_cast<u32>(sx / 8);
-		constexpr u16 kWords = kWidth / 16u; // 20 palabras
-		constexpr u16 kRows = 176u;
-		constexpr u16 kSMod = (kBgRowBytes - kRowBytes) / 2u; // 4
-		for (u8 p = 0u; p < kPlanes; ++p) {
-			const auto s = eng::graphics::BlitPtr {
-				ChipAddr::from_storage(src_base +
-					static_cast<u32>(p) * kBgPlaneBytes + src_row)};
-			const auto d = eng::graphics::BlitPtr {
-				ChipAddr::from_storage(planes.data() +
-					static_cast<u32>(p) * kPlaneBytes)};
-			(void)backend.blitter_copy_words_strided(
-				s, d, kWords, kRows, kSMod, 0u, false);
-		}
-		(void)backend.blitter_fill_rect(
-			planes.data(), kPlanes, kPlaneBytes, kRowBytes, kRowBytes,
-			kWidth, kHeight, 0, 176, kWidth, 32u, kColorWater, false);
-		backend.wait_blitter();
-	}
 	/// Balanceo de camara: roll alrededor del centro y offsets de yaw/pitch.
 	void apply_camera(s16& sx, s16& sy) const noexcept {
 		const s32 dx = static_cast<s32>(sx) - kCx;
@@ -680,71 +619,6 @@ private:
 		for (u32 i = b0 + 1u; i < b1; ++i) row[i] = 0u;
 		row[b1] = static_cast<u8>(row[b1] & ~m1);
 #endif
-	}
-
-	/// Rellena una cara convexa (3/4 vertices) con un color de 4 bits opaco.
-	void fill_face(const s16* fx, const s16* fy, u16 n, u8 color, u8* p0,
-		       u8* p1, u8* p2, u8* p3, u16 row_bytes, u16 max_x) noexcept {
-		s32 ymin = 32767;
-		s32 ymax = -32768;
-		for (u16 i = 0u; i < n; ++i) {
-			if (fy[i] < ymin) ymin = fy[i];
-			if (fy[i] > ymax) ymax = fy[i];
-		}
-		if (ymax < 0 || ymin > static_cast<s32>(kFlightBottom)) return;
-		const s32 y0 = ymin < 0 ? 0 : ymin;
-		const s32 y1 = ymax > 255 ? 255 : ymax;
-		for (s32 y = y0; y <= y1; ++y) {
-			m_l[y] = 32767;
-			m_r[y] = -32768;
-		}
-		for (u16 i = 0u; i < n; ++i) {
-			const u16 j = static_cast<u16>((i + 1u) % n);
-			s32 ya = fy[i];
-			s32 yb = fy[j];
-			if (ya == yb) continue;
-			s32 xa = fx[i];
-			s32 xb = fx[j];
-			if (ya > yb) {
-				const s32 t = ya;
-				ya = yb;
-				yb = t;
-				const s32 tx = xa;
-				xa = xb;
-				xb = tx;
-			}
-			const s32 step = ((xb - xa) << 16) / (yb - ya);
-			s32 x_fx = xa << 16;
-			for (s32 y = ya; y < yb; ++y) {
-				if (y >= y0 && y <= y1) {
-					const s32 x = x_fx >> 16;
-					if (x < m_l[y]) m_l[y] = static_cast<s16>(x);
-					if (x > m_r[y]) m_r[y] = static_cast<s16>(x);
-				}
-				x_fx += step;
-			}
-		}
-		const s32 first = ymin < 0 ? 0 : ymin;
-		const s32 last = (ymax - 1) > static_cast<s32>(kFlightBottom)
-					 ? static_cast<s32>(kFlightBottom)
-					 : (ymax - 1);
-		for (s32 y = first; y <= last; ++y) {
-			s32 xl = m_l[y];
-			s32 xr = m_r[y];
-			if (xl > xr) continue;
-			if (xl < 0) xl = 0;
-			if (xr >= static_cast<s32>(max_x)) xr = static_cast<s32>(max_x) - 1;
-			if (xl > xr) continue;
-			u8* const planes[4] = {p0, p1, p2, p3};
-			for (u8 p = 0u; p < 4u; ++p) {
-				if ((color & (1u << p)) != 0u) {
-					eng::graphics::detail::plane_or_span(planes[p], row_bytes, y,
-									     xl, xr, 0xffffu);
-				} else {
-					clear_span(planes[p], row_bytes, y, xl, xr);
-				}
-			}
-		}
 	}
 
 	[[nodiscard]] bool register_model(ModelHandle handle, const u8* groups,
@@ -990,31 +864,6 @@ private:
 		m_roll_cos = retro::kSinQ12[(static_cast<u16>(cam_roll) + 1024u) & 4095u];
 	}
 
-	void draw_background_variant(eng::amiga::AmigaBackend& backend, u8 variant) noexcept {
-		eng::playfield::Surface sky {m_canvas, eng::playfield::SurfaceRect {
-			0, 0, kBgWidth, static_cast<s16>(kHudY)}};
-		const s16 angle = kBgRoll[variant];
-		const s32 sv = retro::kSinQ12[static_cast<u16>(angle) & 4095u];
-		const s32 cv = retro::kSinQ12[(static_cast<u16>(angle) + 1024u) & 4095u];
-		const auto tilt = [&](s32 x) { return (sv * (x - 192)) / cv; };
-		const s16 h0 = static_cast<s16>(144 + tilt(0));
-		const s16 h1 = static_cast<s16>(144 + tilt(kBgWidth));
-		const s16 w0 = static_cast<s16>(194 + tilt(0));
-		const s16 w1 = static_cast<s16>(194 + tilt(kBgWidth));
-		(void)sky.fill_rect(0, 0, kBgWidth, kHudY, kColorSkyLow);
-		(void)sky.fill_rect(0, 16, kBgWidth, 55u, kColorSkyHigh);
-		(void)sky.fill_rect(0, 126, kBgWidth, 18u, kColorHorizon);
-		s16 gx[4] = {0, static_cast<s16>(kBgWidth), static_cast<s16>(kBgWidth), 0};
-		s16 gy[4] = {h0, h1, static_cast<s16>(kHudY), static_cast<s16>(kHudY)};
-		(void)sky.fill_polygon(gx, gy, 4u, kColorGround);
-		s16 wx[4] = {0, static_cast<s16>(kBgWidth), static_cast<s16>(kBgWidth), 0};
-		s16 wy[4] = {w0, w1, static_cast<s16>(kHudY), static_cast<s16>(kHudY)};
-		(void)sky.fill_polygon(wx, wy, 4u, kColorWater);
-		(void)sky.draw_line(0, h0, static_cast<s16>(kBgWidth - 1u), h1,
-				    kColorHorizon);
-		backend.wait_blitter();
-	}
-
 	void draw_hud_band() noexcept {
 		eng::playfield::Surface hud {m_canvas, eng::playfield::SurfaceRect {
 			0, static_cast<s16>(kHudY), kWidth, static_cast<s16>(kHudH)}};
@@ -1025,79 +874,115 @@ private:
 					  "RAIL RUN  CORNERIA  NO INPUT", kColorHudSubtitle);
 	}
 
-	/// Skyline, arco, rocas, nubes y sol como capa 2D movil. Se dibujan con
-	/// spans CPU (4 planos) en vez de Surface/Blitter: son pocas formas y el
-	/// setup por llamada del Blitter costaba mas que los pixeles.
-	void draw_background_features(eng::PlaneBytes planes) noexcept {
-		u8* const p0 = planes.data();
-		u8* const p1 = planes.data() + kBgPlaneBytes;
-		u8* const p2 = planes.data() + 2u * kBgPlaneBytes;
-		u8* const p3 = planes.data() + 3u * kBgPlaneBytes;
-		const auto poly = [&](s16* xs, s16* ys, u16 n, u8 c) {
-			for (u16 k = 0u; k < n; ++k) apply_camera(xs[k], ys[k]);
-			fill_face(xs, ys, n, c, p0, p1, p2, p3, kBgRowBytes, kBgWidth);
-		};
-		const auto box = [&](s16 x, s16 y, s16 w, s16 h, u8 c) {
-			s16 xs[4] = {x, static_cast<s16>(x + w - 1),
-				     static_cast<s16>(x + w - 1), x};
-			s16 ys[4] = {y, y, static_cast<s16>(y + h - 1),
-				     static_cast<s16>(y + h - 1)};
-			poly(xs, ys, 4u, c);
-		};
-		for (u8 i = 0u; i < 7u; ++i) {
-			const s16 x = static_cast<s16>(16 + i * 44 + kBgX);
-			box(x, 133, 18, 11, (i & 1u) != 0u ? 8u : 9u);
+	void fill_faces_cpu(const eng::graphics::PlanePolygon* faces, u32 n,
+			    eng::PlaneBytes fg) noexcept {
+		s32 vx[16] {};
+		s32 vy[16] {};
+		for (u32 f = 0u; f < n; ++f) {
+			const eng::graphics::PlanePolygon& face = faces[f];
+			if (face.count < 3u || face.count > 16u) continue;
+			for (u8 k = 0u; k < face.count; ++k) {
+				vx[k] = face.xs[k];
+				vy[k] = face.ys[k];
+			}
+			eng::math3d::convex_spans(
+				eng::Span<const s32>(vx, face.count),
+				eng::Span<const s32>(vy, face.count),
+				[&](s32 y, s32 xl, s32 xr) {
+					if (y < 0 || y >= static_cast<s32>(kHudY)) return;
+					if (xl < 0) xl = 0;
+					if (xr >= static_cast<s32>(kWidth))
+						xr = static_cast<s32>(kWidth) - 1;
+					if (xl > xr) return;
+					u8* const planes[3] = {
+						fg.data(), fg.data() + kPlaneBytes,
+						fg.data() + 2u * kPlaneBytes};
+					for (u8 p = 0u; p < kFgPlanes; ++p) {
+						if ((face.color & (1u << p)) != 0u) {
+							eng::graphics::detail::plane_or_span(
+								planes[p], kRowBytes, y, xl, xr,
+								0xffffu);
+						} else {
+							clear_span(planes[p], kRowBytes, y,
+								   xl, xr);
+						}
+					}
+				});
 		}
-		box(124 + kBgX, 138, 10, 24, 10);
-		box(178 + kBgX, 138, 10, 24, 10);
-		box(124 + kBgX, 132, 64, 8, 11);
-		for (u8 i = 0u; i < 3u; ++i) {
-			const s16 rcx = static_cast<s16>(58 + i * 92 + kBgX);
-			const s16 rby = 180;
-			const s16 s = static_cast<s16>(10 + i * 3);
-			s16 rx[5] = {rcx, static_cast<s16>(rcx + s),
-				     static_cast<s16>(rcx + (s / 2)),
-				     static_cast<s16>(rcx - (s / 2)),
-				     static_cast<s16>(rcx - s)};
-			s16 ry[5] = {rby, rby, static_cast<s16>(rby - s - 4),
-				     static_cast<s16>(rby - s), rby};
-			poly(rx, ry, 5u, 9u);
-		}
-		const s16 cx[8] = {60, 76, 92, 108, 96, 80, 64, 52};
-		const s16 cy[8] = {48, 40, 42, 50, 58, 60, 58, 52};
-		s16 cloud_x[8] {};
-		s16 cloud_y[8] {};
-		for (u8 i = 0u; i < 8u; ++i) {
-			cloud_x[i] = static_cast<s16>(cx[i] + kBgX);
-			cloud_y[i] = static_cast<s16>(cy[i] + 16);
-		}
-		poly(cloud_x, cloud_y, 8u, 1u);
-		s16 sun_x[8] {};
-		s16 sun_y[8] {};
-		for (u8 i = 0u; i < 8u; ++i) {
-			const s32 c = retro::kSinQ12[(i * 512u + 1024u) & 4095u];
-			const s32 s = retro::kSinQ12[(i * 512u) & 4095u];
-			sun_x[i] = static_cast<s16>(252 + kBgX + ((c * 11) >> 12));
-			sun_y[i] = static_cast<s16>(46 + ((s * 11) >> 12));
-		}
-		poly(sun_x, sun_y, 8u, 1u);
 	}
-	void draw_solids(eng::PlaneBytes planes) noexcept {
+
+	[[nodiscard]] u8 choose_route(const RenderItem& it, u32 area) noexcept {
+#if K099_FILL_MODE == 0
+		(void)it;
+		(void)area;
+		return kRouteCpu;
+#elif K099_FILL_MODE == 1
+		(void)it;
+		(void)area;
+		return kRoutePlanes;
+#else
+		if (!it.allow_planes || it.id >= kMaxItems) return kRouteCpu;
+		ObjHist& h = m_hist[it.id];
+		if (h.phase == 2u && h.area != 0u &&
+		    (area > h.area + h.area / 4u || area + area / 4u < h.area)) {
+			h.phase = 0u;
+			h.cpu_cycles = 0u;
+			h.planes_cycles = 0u;
+		}
+		h.area = area;
+		if (h.phase == 0u) return kRouteCpu;
+		if (h.phase == 1u) return kRoutePlanes;
+		return h.route;
+#endif
+	}
+
+	void record_route(u8 id, u8 route, u32 cycles) noexcept {
+#if K099_FILL_MODE == 2
+		if (id >= kMaxItems) return;
+		ObjHist& h = m_hist[id];
+		if (route == kRouteCpu) {
+			h.cpu_cycles = cycles;
+		} else {
+			h.planes_cycles = cycles;
+		}
+		if (h.phase == 0u) {
+			h.phase = 1u;
+		} else if (h.phase == 1u) {
+			h.phase = 2u;
+			h.route = (h.cpu_cycles != 0u && h.planes_cycles != 0u &&
+				   h.planes_cycles * 100u < h.cpu_cycles * 90u)
+					  ? kRoutePlanes
+					  : kRouteCpu;
+		}
+#else
+		(void)id;
+		(void)route;
+		(void)cycles;
+#endif
+	}
+
+	void draw_solids(eng::amiga::AmigaBackend& backend,
+			 eng::PlaneBytes fg) noexcept {
 		RenderItem items[kMaxItems] {};
 		u16 count = 0u;
-		items[count++] = RenderItem {m_player_model, m_player_pos, m_player_rot};
-#ifndef K099_DEBUG_ARWING
+		items[count++] = RenderItem {m_player_model, m_player_pos, m_player_rot,
+					    0u, false};
+#if !defined(K099_DEBUG_ARWING)
 		for (u16 i = 0u; i < kEnemies; ++i) {
 			if (!m_enemies[i].active) continue;
 			items[count++] = RenderItem {m_enemy_model, m_enemies[i].position,
-						     m_enemies[i].rot};
+						     m_enemies[i].rot,
+						     static_cast<u8>(1u + i), false};
 		}
 #endif
 		for (u16 i = 0u; i < kScenery; ++i) {
 			items[count++] = RenderItem {m_scenery[i].model,
 						     math3d::vec3(m_scenery[i].x, m_scenery[i].y,
 								  m_scenery[i].z),
-						     math3d::Mat3<>::identity()};
+						     math3d::Mat3<>::identity(),
+						     static_cast<u8>(1u + kEnemies + i),
+						     m_scenery[i].kind ==
+							     static_cast<u8>(Kind::Building)};
 		}
 		u16 order[kMaxItems] {};
 		for (u16 i = 0u; i < count; ++i) order[i] = i;
@@ -1166,26 +1051,55 @@ private:
 				}
 				faces[b] = key;
 			}
-			for (u8 a = 0u; a < nf; ++a) {
+			u8 np = 0u;
+			s16 bx0 = 32767;
+			s16 by0 = 32767;
+			s16 bx1 = -32768;
+			s16 by1 = -32768;
+			for (u8 a = 0u; a < nf && np < kMaxFaces; ++a) {
 				const eng::Span<const u16> ids =
 					mesh.face_indices(faces[a].face);
 				const u16 fn = static_cast<u16>(ids.size());
 				if (fn < 3u || fn > 4u) continue;
-				s16 fx[4] {};
-				s16 fy[4] {};
+				s16* const gx = m_draw_gx[np];
+				s16* const gy = m_draw_gy[np];
 				for (u16 k = 0u; k < fn; ++k) {
-					fx[k] = m_sx[ids[k]];
-					fy[k] = m_sy[ids[k]];
+					gx[k] = m_sx[ids[k]];
+					gy[k] = m_sy[ids[k]];
+					if (gx[k] < bx0) bx0 = gx[k];
+					if (gx[k] > bx1) bx1 = gx[k];
+					if (gy[k] < by0) by0 = gy[k];
+					if (gy[k] > by1) by1 = gy[k];
 				}
-				fill_face(fx, fy, fn, faces[a].color, planes.data(),
-					  planes.data() + kPlaneBytes,
-					  planes.data() + 2u * kPlaneBytes,
-					  planes.data() + 3u * kPlaneBytes, kRowBytes,
-					  kWidth);
+				m_draw_polys[np] = eng::graphics::PlanePolygon {
+					gx, gy, static_cast<u8>(fn), faces[a].color};
+				++np;
 			}
+			if (np == 0u) continue;
+			if (bx0 < 0) bx0 = 0;
+			if (by0 < 0) by0 = 0;
+			if (bx1 >= static_cast<s16>(kWidth))
+				bx1 = static_cast<s16>(kWidth - 1u);
+			if (by1 >= static_cast<s16>(kHudY))
+				by1 = static_cast<s16>(kHudY - 1u);
+			if (bx1 < bx0 || by1 < by0) continue;
+			const u32 area = static_cast<u32>(bx1 - bx0 + 1) *
+					 static_cast<u32>(by1 - by0 + 1);
+			const u8 route = choose_route(it, area);
+			const u32 t0 = eng::debug::prof_clock();
+			if (route == kRouteCpu) {
+				fill_faces_cpu(m_draw_polys, np, fg);
+			} else {
+				(void)backend.fill_polygons_by_plane_dirty(
+					m_draw_polys, np, fg, kRowBytes, kPlaneBytes,
+					kFgPlanes, kWidth, kHudY,
+					static_cast<u16>(bx0), static_cast<u16>(by0),
+					static_cast<u16>(bx1), static_cast<u16>(by1));
+			}
+			record_route(it.id, route,
+				     eng::debug::prof_clock() - t0);
 		}
 	}
-
 	void draw_engine_glow(eng::PlaneBytes planes) noexcept {
 		const math3d::Affine3<> model {m_player_rot, m_player_pos};
 		const math3d::Vec3t<eng::coord> local = math3d::vec3(0, 0, -10);
@@ -1196,13 +1110,12 @@ private:
 		if (!project_point(CT::to_int(exhaust.v[0]), CT::to_int(exhaust.v[1]),
 				   CT::to_int(exhaust.v[2]), sx, sy)) return;
 		if (sx < 0 || sx >= static_cast<s16>(kWidth)) return;
-		u8* const p[4] = {planes.data(), planes.data() + kPlaneBytes,
-				  planes.data() + 2u * kPlaneBytes,
-				  planes.data() + 3u * kPlaneBytes};
+		u8* const p[3] = {planes.data(), planes.data() + kPlaneBytes,
+				  planes.data() + 2u * kPlaneBytes};
 		for (s16 dy = -2; dy <= 3; ++dy) {
 			const s32 y = static_cast<s32>(sy) + dy;
 			if (y < 0 || y > static_cast<s32>(kFlightBottom)) continue;
-			for (u8 q = 0u; q < 4u; ++q) {
+			for (u8 q = 0u; q < kFgPlanes; ++q) {
 				if ((kColorEngine & (1u << q)) != 0u) {
 					eng::graphics::detail::plane_or_span(p[q], kRowBytes, y,
 									     sx, sx, 0xffffu);
@@ -1268,13 +1181,12 @@ private:
 			if (!project_point(b.x, b.y, b.z, sx, sy)) continue;
 			if (sx < 0 || sx >= static_cast<s16>(kWidth)) continue;
 			const s16 dir = b.dz > 0 ? 1 : -1;
-			u8* const p[4] = {planes.data(), planes.data() + kPlaneBytes,
-					  planes.data() + 2u * kPlaneBytes,
-					  planes.data() + 3u * kPlaneBytes};
+			u8* const p[3] = {planes.data(), planes.data() + kPlaneBytes,
+					  planes.data() + 2u * kPlaneBytes};
 			for (s16 d = 0; d <= 5; ++d) {
 				const s32 y = static_cast<s32>(sy) + static_cast<s32>(dir) * d;
 				if (y < 0 || y > static_cast<s32>(kFlightBottom)) continue;
-				for (u8 q = 0u; q < 4u; ++q) {
+				for (u8 q = 0u; q < kFgPlanes; ++q) {
 					if ((b.color & (1u << q)) != 0u) {
 						eng::graphics::detail::plane_or_span(
 							p[q], kRowBytes, y, sx, sx, 0xffffu);
@@ -1296,8 +1208,6 @@ private:
 	s16 m_cam_roll_q12 = 0;
 	comp::Scene m_display {};
 	eng::playfield::ContiguousPlayfield m_canvas {};
-	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bg_block {};
-	u8* m_bg = nullptr;
 
 	scene3d::ModelTable<16, kMaxVerts, kMaxIndices, kMaxFaces, 1> m_models {};
 	ModelHandle m_player_model {};
@@ -1316,11 +1226,14 @@ private:
 	Bolt m_bolts[kBoltSlots] {};
 	eng::debug::HostHud m_host_hud {};
 
+	s16 m_draw_gx[kMaxDrawFaces][4] {};
+	s16 m_draw_gy[kMaxDrawFaces][4] {};
+	eng::graphics::PlanePolygon m_draw_polys[kMaxDrawFaces] {};
+	ObjHist m_hist[kMaxItems] {};
+
 	math3d::Vec3t<eng::coord> m_world[kMaxVerts] {};
 	s16 m_sx[kMaxVerts] {};
 	s16 m_sy[kMaxVerts] {};
-	s16 m_l[256] {};
-	s16 m_r[256] {};
 };
 
 StarFoxTravel g_game {};

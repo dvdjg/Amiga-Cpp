@@ -1,52 +1,51 @@
-# 099 - Star Fox style rail travel
+# 099 - Star Fox style foreground 3D
 
-Traveling **no jugable** inspirado en Corneria (primer nivel de Star Fox SNES): vuelo rasante sobre agua y terreno verde, cielo de día, un Arwing blanco/azul, dos cazas enemigos rojos, un arco de piedra y un edificio. La cámara viaja por una trayectoria zigzagueante con yaw/pitch/roll suaves. No hay entrada, colisión, puntuación ni audio.
+Laboratorio de **relleno de poligonos por bitplane**: Arwing, dos cazas enemigos, un arco y un edificio 3D. No hay fondo de cielo/terreno: solo foreground sobre negro. La camara mantiene yaw/pitch/roll y el jugador zigzaguea; no hay entrada, colision, puntuacion ni audio.
 
 ```bash
 bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/099_starfox_travel --release
 bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/099_starfox_travel --config A500_release
 ```
 
-El número 099 se eligió para no ocupar el 097 que el plan de presentación 3D reserva para la demo de horizonte Copper.
+## Tecnica
 
-## Técnica
+- **4 bitplanes de display, solo 3 renderizados**: los objetos usan los planos 0..2 y los **7 colores opacos** 1..7. El plano 3 queda a 0 (negro); el color 8 no se usa.
+- Triple buffer. Cada frame se limpian solo los 3 planos de foreground.
+- **Ruta por defecto: per-plane por objeto**. Para cada objeto se calcula su lista de caras visibles, su bbox y se llama a `fill_polygons_by_plane_dirty` con **3 pasadas de Blitter**. El bbox por objeto (no el de toda la escena) es lo que da la mejora: menos clear y menos area fill.
+- Solo foreground: Arwing, enemigos, disparos, arco, edificio y HUD.
+- Arwing 23 vertices/31 triangulos; enemigo 11/14. Arco y edificio 3D con caras n-gon; painter por `z`, sin z-buffer.
+- El plano 3 no se toca en el render.
 
-Todos los **objetos** son 3D: Arwing, enemigos, arco y edificio. El cielo/terreno/agua son el fondo de la escena.
+### Modos de prueba
 
-- El fondo tiene **tres variantes pre-rotadas** (roll -6°, 0°, +6°) en Chip RAM. Se elige la más cercana al roll de cámara y se copia al buffer trasero con el Blitter; la ventana de 320 px se desplaza en X (yaw) y en Y (pitch). El horizonte se inclina de verdad, no solo se desplaza.
-- El Arwing usa 23 vértices/31 triángulos (morro, fuselaje, cabina elevada azul, alas y G-Diffusers); el enemigo, 11/14. Los quads se triangulan para que el relleno por scanlines sea convexo. Las normales se orientan por el centro del modelo, corrigiendo las alas izquierda/derecha.
-- El arco y el edificio son sólidos 3D con caras n-gon y sombreado por el sol común; se ordenan por `z` y se pintan con spans CPU opacos de 4 planos.
-- La cámara añade yaw/pitch en la copia del fondo, roll real en las tres variantes y roll/yaw/pitch en los objetos 3D. El jugador combina dos senos en X (zigzag) con una oscilación suave en Y.
-- El HUD de bitplanes (título y `NO INPUT`) queda fijo; el HUD de host se refresca cada 16 frames.
+`K099_FILL_MODE`:
 
-Para revisar el Arwing se puede compilar con `EXTRA_DEFINES=-DK099_DEBUG_ARWING=1`: coloca al jugador en vista 3/4, sin enemigos, para inspeccionar morro/cabina. Captura de referencia: `out/vision-review/099_arwing_3q.png`.
+- `0` = CPU exacto por cara (3 planos). **No usable todavia**: el edificio cuelga la medida.
+- `1` = per-plane por objeto (**por defecto**, el más rápido medido).
+- `2` = router automático con histórico CPU/planos y calibración de 2 frames.
 
-## Búsqueda previa
+El router se implementó y se probó. En esta escena **no gana**: la ruta CPU para arco/naves es más lenta que per-plane, y el CPU del edificio se bloquea. El histórico anterior/actual sirve para calibrar, pero el reparto “pequeño CPU / grande Blitter” no se cumple: el per-plane por objeto es mejor incluso para las naves.
 
-- `eng::graphics::detail::plane_or_span`: spans planares por palabras en Amiga big-endian y por bytes en host (HOST-217/474/479/481/482).
-- `eng::scene3d::ModelTable`/`Mesh`, `math3d::mesh_transform` y `project_camera_vertex`: malla, transformación y proyección reutilizadas.
-- `Surface::fill_polygon`/`fill_rect`: se usaron para generar los fondos pre-rotados. El repintado completo por frame costaba ~10M ciclos; la copia del fondo estático con variantes es la ruta actual.
-- La arquitectura 2D de versiones anteriores (arco/skyline/rocas pintados) se sustituyó por arco y edificio 3D. El coste medido es **3,65 fps**; se aceptó el intercambio por “todo 3D”.
+## Rendimiento
 
-## Rendimiento y validación
+- Release A500, modo 1 (per-plane por objeto): **3,76 fps**, 1.884.396 ciclos/frame, 13,28 campos/frame (ventanas 3,3-3,9).
+- Modo 2 (router auto): 3,11 fps, 2.281.111 ciclos.
+- Per-plane global (una pasada para toda la escena): 3,26 fps.
+- CPU de referencia anterior (4 planos con fondo): 3,34 fps.
+- **No cumple 6 fps.** El modo 1 sí supera al CPU y al per-plane global.
 
-- Release A500: **3,65 fps**, 1.943.341 ciclos/frame, 13,697 campos/frame; mínimo de ventana 3,1. **No cumple el objetivo >6 fps**; es la excepción aceptada para tener arco y edificio 3D reales. La variante con arquitectura estática medía 7,36 fps.
-- Secuencia de 8 frames: 7/7 cambios, 0 frames estáticos.
-- Flicker: gate OK; 0 candidatos, 166 bloques frente a baseline 220 (el movimiento de cámara/fondo es coherente).
-- Visión final: `src/VISION.md` (prompt canónico, `qwen3-vl`). El modelo ve el bloque/edificio gris, el arco, la nave azul/blanca, el horizonte inclinado y movimiento; contornos limpios.
-- Detalles y medidas: [`VALIDATION.md`](VALIDATION.md); intención: [`src/INTENT.md`](src/INTENT.md).
+## Validación
 
-## Archivos
+- `VISION.md` describe el Arwing, el portal/arco, el bloque gris y **movimiento** ligero entre frames; contornos limpios y fondo negro uniforme.
+- `verify-3d-sequence` sigue reportando “area 3D vacia” en los primeros frames por el detector de área sobre fondo negro; no se usa como prueba única.
+- `flicker-check`: 7/7 frames con cambio, 7 candidatos / 102 bloques bajos; baseline 36/220; pasa.
+- 088 y 090 con `blitter_line_draw(..., false)`: capturas limpias.\n- Regresión de 099 (`out/regression/20261025-130312/`): OK, incluido flicker. El gate de análisis genérico marca `yellow=0` por falta de overlay específico.
 
-- `src/main.cpp` - modelos 3D, fondos pre-rotados, cámara, disparos y HUD.
-- `src/INTENT.md` - qué se pretende ver y elementos esperados.
-- `src/VISION.md` - evaluación canónica del modelo de visión.
-- `VALIDATION.md` - medidas, secuencia, visión y conclusiones.
-- `flicker-baseline.json` - tolerancia calibrada con el movimiento legítimo.
+Vision: [`src/VISION.md`](src/VISION.md). Medidas: [`VALIDATION.md`](VALIDATION.md). Intención: [`src/INTENT.md`](src/INTENT.md).
 
-## Límites conocidos
+## Limites conocidos
 
-- **No cumple 6 fps**: 3,65 fps con dos objetos de arquitectura 3D. El renderer CPU por caras no da para más en este A500.
-- El cielo, el terreno y el agua son el fondo de la escena; el arco, el edificio y las naves son los objetos 3D. No hay terreno 3D poligonal.
-- Painter por objeto/cara, sin z-buffer. La escena mantiene los objetos separados.
-- Sin entrada ni colisión: es un traveling, no un juego.
+- El clear de bbox por objeto borra lo que haya detrás dentro del bbox; con fondo negro es aceptable, pero una API general necesita scratch+S.
+- El CPU por cara es más lento que per-plane en esta escena y el edificio CPU se cuelga.
+- El objetivo >6 fps sigue abierto.
+- Sin commit; el cambio de línea es de engine y falta regresión de 088/090.

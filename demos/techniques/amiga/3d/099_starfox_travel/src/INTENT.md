@@ -1,42 +1,29 @@
-# Intención de la demo 099 — Corneria rail travel
+# Intencion de la demo 099 - foreground 3D por bitplanes
 
-## Qué hace
+## Que hace
 
-Muestra un traveling **no jugable** inspirado en Corneria (primer nivel de Star Fox SNES): vuelo rasante sobre agua/terreno verde, cielo de día, un Arwing blanco/azul, dos cazas enemigos rojos, un arco de piedra y un edificio. La cámara viaja por una trayectoria zigzagueante con yaw/pitch/roll suaves. No hay entrada, colisión, puntuación ni audio.
+Muestra solo elementos de foreground en 3D sobre negro: Arwing, dos cazas, arco y edificio, con camara yaw/pitch/roll. No hay fondo, entrada, colision, puntuacion ni audio.
 
-## Qué pretende demostrar
+## Que pretende demostrar
 
-Que se puede montar una escena con **todos los objetos en 3D** (naves, arco y edificio) y un fondo de cielo/terreno con **roll real** por variantes pre-rotadas, aun a costa de bajar de 6 fps:
+El coste real de rellenar poligonos por bitplane en A500 con **4 bitplanes de display pero solo 3 renderizados** y **7 colores** (1..7; plano 3 a 0).
 
-- El fondo tiene tres variantes pre-rotadas (-6°, 0°, +6°) en Chip RAM; se elige la más cercana al roll de cámara y se copia con Blitter. La ventana de 320 px se desplaza en X (yaw) y en Y (pitch); el horizonte se inclina de verdad.
-- Arwing: 23 vértices/31 triángulos con cabina elevada azul; enemigo: 11/14. Los quads se triangulan y las normales se orientan por el centro del modelo.
-- El arco y el edificio son sólidos 3D con caras n-gon, culling y sombreado por el sol común. Se ordenan por `z` y se pintan con spans CPU opacos de 4 planos.
-- La cámara añade yaw/pitch en la copia del fondo, roll real de fondo por variantes y roll/yaw/pitch sobre los objetos. El jugador combina dos senos en X y una oscilación suave en Y.
-- El HUD de bitplanes queda fijo; el HUD de host se refresca cada 16 frames.
+- **Ruta por objeto**: por cada objeto se calculan caras visibles, bbox y se lanza un `fill_polygons_by_plane_dirty` con 3 pasadas de Blitter. El bbox por objeto reduce clear/area fill frente a una pasada global.
+- **Router de prueba** (`K099_FILL_MODE`): CPU exacto por cara, per-plane por objeto y automático con histórico de costes.
+- El histórico usa geometría del frame actual (área, caras visibles) y coste real del frame anterior; calibra CPU/planos durante dos frames y decide con margen.
+- El objetivo de la prueba es comprobar si “pequeño CPU / grande Blitter” merece la pena.
 
-## Elementos en pantalla
+## Resultado
 
-| Elemento | Color | Papel |
-|---|---|---|
-| Arwing del jugador | blanco/gris + alas azules, cabina azul | sólido 3D de 31 triángulos; oscila, rueda y cabecea |
-| Cazas enemigos (2) | salmon/granate | sólidos 3D de 14 triángulos; weave y reciclaje |
-| Arco | piedra clara/oscura | sólido 3D de 24 vértices; pasa por el centro |
-| Edificio | gris | caja 3D de 12 vértices a la izquierda |
-| Fondo | azul noche/medio, verde, azul agua | tres variantes pre-rotadas con horizonte inclinado |
-| Disparos | blanco/salmon | rastros de 6 px |
-| HUD de host | blanco | nombre + versión + frames + fps + `E2 B?` |
-| Rótulo de franja | blanco/gris | `099 STARFOX TRAVEL` y `RAIL RUN CORNERIA NO INPUT` |
+- Modo per-plane por objeto: **3,76 fps** (el mejor).
+- Per-plane global: 3,26 fps.
+- Router automático: 3,11 fps.
+- CPU de referencia: 3,34 fps.
+- El reparto pequeño-CPU no gana en esta escena: las naves también van mejor con per-plane por objeto. El CPU del edificio se cuelga.
+- `VISION.md` ve movimiento y contornos limpios; flicker 7/220 dentro de baseline; 088/090 con la línea sin espera tienen capturas limpias; falta regresión completa.
 
-## Evolución temporal
+## Límites
 
-- El jugador combina dos senos en X (zigzag), oscila en Y y aplica roll/pitch/yaw.
-- Los enemigos avanzan en `z`, hacen weave y se reciclan.
-- El arco y el edificio avanzan en `z`, se reciclan y pasan a los lados/centro.
-- La cámara elige la variante de fondo por roll (tres pasos), desplaza la ventana por yaw/pitch y aplica yaw/pitch/roll a los objetos.
-- Disparos del jugador cada 11 frames; enemigos cada 53; HUD de host cada 16.
-
-## Presupuesto y alcance
-
-- Build de referencia: `A500_release` (68000, OCS). Medido con `measure-fps`: **3,65 fps**, 1.943.341 ciclos/frame, 13,697 campos/frame, mínimo 3,1.
-- **No cumple >6 fps**. Es la excepción aceptada por el usuario para que el arco y el edificio sean 3D reales; la versión con arquitectura estática medía 7,36 fps.
-- Limitaciones: cielo/terreno/agua son fondo, no terreno poligonal 3D; painter sin z-buffer; dos objetos de arquitectura para no bajar aún más.
+- El clear de bbox por objeto no compone con objetos detrás dentro del bbox; con fondo negro se acepta.
+- El objetivo >6 fps sigue abierto.
+- Sin commit.
