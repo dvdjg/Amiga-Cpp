@@ -10,7 +10,7 @@ Fecha: 2026-09. Este fichero **reúne** los roadmaps/disposiciones dispersos y f
 | `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` | reglas vigentes | Pipeline tiles/EHB (reglas de oro, no romper el 100 %) |
 | `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | guía completa | Cuantizar → slice → emit → verificar (round-trip 100 %) |
 | `docs/guides/roadmap/PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md` | RESUELTO | Demos nuevas que quedaban en AmigaDOS |
-| `docs/guides/roadmap/TILED.md` | conocimiento preservado | Formato Tiled (.tmx/.tsx), a usar cuando haya metadatos |
+| `docs/guides/roadmap/TILED.md` | **vigente (subconjunto)** | Formato Tiled (.tmx/.tsx), importador actual y límites; modelo runtime y API `eng::Level` en `docs/engine/architecture/TILED_MAP_RUNTIME.md`; plan N0–N4 en `ROADMAP_TILED_WORLD_SUPPORT.md` |
 | `docs/engine/architecture/DPF_MIXTO_SPLIT_LINEAL.md` | (nuevo) | DPF: modos de Y por campo (split/lineal/mixto) |
 | `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` | **(nuevo) modelo objetivo** | Separación algoritmo/superficie/composición/máquina de playfields y scroll (contrato de refactor) |
 | `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md` | **(nuevo) roadmap vigente** | Fases para llevar el código actual al modelo objetivo; demos a adaptar (107/110/111/112/201/202) |
@@ -159,7 +159,7 @@ Opciones (no excluyentes, conviene priorizar):
 
 - **A. Capa de bobs/personajes en el FG lineal** (estilo Megatyphoon: escribir solo donde el bob no solapa a otros, sin releer pantalla). Aporta el “juego de plataformas” real sobre la base DPF.
 - **B. Varias capas de parallax** (BG mero fondo + FG plataformas 8-way, estilo Jim Powers): demostrar/validar con 2+ capas y Y por capa.
-- **C. Mapa/editor y metadatos**: retomar Tiled (metadatos, objetos, spawns) y el camino completo de pipeline hacia un nivel jugable.
+- **C. Mapa/editor y metadatos**: ejecutar el plan Tiled N0–N4 (`docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`, modelo `docs/engine/architecture/TILED_MAP_RUNTIME.md`): cooker host, capas `Baked`/`Base`/`Overlay`/`Occluder`, objetos/spawns, colisión e isométrico hacia un nivel jugable.
 - **D. Escenas/juego end-to-end**: elegir un caso de uso (plataformas o shooter 8 way) y construir la primera escena «de juego» encima del engine parametrizado, cerrando el F5 de forma real (harness por feature).
 - **E. Robustez/rendimiento**: telemetría con gate estricto 50 fps en las demos y presupuesto de Chip RAM por modo DPF (matriz de memoria documentada).
 - **F. Streaming de contenido y carga desde disco**: llevar `StreamingWorldMap`/`ChunkCache` a un `Loader` real que lea del disquete en segundo plano mientras se dibuja (patrón de loaders de juego). Formato de mundo: `docs/engine/architecture/WORLD_FORMAT.md`; diseño del Loader: `docs/engine/architecture/STREAMING_LOADER.md`; base de hardware (trackdisk vs. trackloader vs. HD): `docs/reference/amiga/techniques/trackloading.md`; pasos concretos en Fase 7 de `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.

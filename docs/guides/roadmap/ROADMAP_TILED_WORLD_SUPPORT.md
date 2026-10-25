@@ -1,256 +1,203 @@
 # Roadmap: soporte de mundos Tiled en el engine
 
-Plan para convertir proyectos de Tiled (`.tmx`/`.tsx` y assets referenciados) en mundos cocinados que
-el engine pueda montar y renderizar en Amiga sin parsear XML durante el juego. Parte del parser y
-packer de mundo existentes; no asume que todo el formato Tiled deba entrar en runtime.
+Plan de adopción para convertir proyectos de Tiled (`.tmx`/`.tsx` e imágenes) en mapas cocinados que el engine monta y renderiza en Amiga sin parsear XML en runtime. El **modelo runtime, los contratos internos y la API de intenciones** están en [`TILED_MAP_RUNTIME.md`](../../engine/architecture/TILED_MAP_RUNTIME.md); este documento fija el alcance, el orden de trabajo, los gates y las demos. El subconjunto que entiende el importador actual está en [`TILED.md`](TILED.md).
 
-## Objetivo y límites
+## 1. Objetivo y límites
 
-- Admitir mapas ortogonales e isométricos como contenido host-cocinado.
-- Usar `WorldMap`/`TileSource` como geometría y referencias lógicas, extendiendo el formato cuando
-  haga falta metadata, capas o IDs estables.
-- Cocinar tilesets e imágenes a paletas y bitplanes Amiga (OCS/ECS/AGA/EHB) en host.
-- Mantener separados el cache de chunks de mapa y el cache de tileset/tiles DMA residentes.
-- Seleccionar la estrategia de superficie/scroll adecuada: X-Limited para movimiento horizontal,
-  Y-Limited para vertical cuando exista una implementación eficiente, XY-Limited para ambas; un
-  juego iso usa proyección/render order propios y puede usar cualquiera de esas superficies según el
-  movimiento/cámara.
-- Permitir mundos mayores que Chip RAM con prefetch y eviction que no bloqueen el render.
-- No implementar Tiled en el Amiga: XML, TSX, imágenes, compresión de intercambio y propiedades se
-  resuelven en host; runtime consume chunks binarios versionados.
+- Admitir mapas **ortogonales** finitos e infinitos y, en una fase posterior, **isométricos** de sala y de scroll.
+- Soportar plataformas, *shooters* cenitales, CRPG top-down y CRPG/acción isométrica con un modelo de capas que no destruya el presupuesto del A500.
+- Cocinar tilesets, imágenes, paletas, animaciones, objetos y colisión en host; el runtime consume un bundle binario versionado y validado.
+- Mantener **IDs estables** de tile/capa/objeto: la residencia en Chip (páginas, chunks) no cambia el significado del mapa.
+- Ofrecer una **capa de intenciones de alto nivel** (`eng::Level`) como puerta principal para cargar, consultar y gestionar el mapa; los motores concretos quedan detrás.
+- Dejar abierta la composición de capas «tal cual» para prototipos y equipos que la pidan, pero el **perfil A500 por defecto** cuece las capas estáticas y solo mantiene vivas las necesarias.
+- No implementar Tiled en el Amiga: XML, TSX, PNG, cuantización y compresión de intercambio se resuelven en host.
 
-## Estado de partida
+## 2. Estado de partida
 
-- `tools/ehb/parse-tmx.mjs` lee un subconjunto de TMX con regex: mapas finitos/infinitos,
-  CSV/XML/base64 gzip/zlib y resolución básica de TSX.
-- `gid-to-bank.mjs` y `pack-world.mjs` convierten una capa a índices de banco y `WorldMap` disperso;
-  hay round-trip host.
-- `WORLD_FORMAT.md` y `WorldView` representan capas de tiles en chunks con directorio ordenado.
-- `TileSource`, `ChunkCache`, `StreamingWorldMap` y `TileMapView` dan acceso solo-residente y una
-  política de chunks de capacidad fija.
-- `slice-tiles.mjs`/`amiga-tiles` cuantizan imágenes y generan tilesets indexados; el banco
-  X-Limited interleaved es un caso especializado.
-- El soporte no equivale todavía a un pipeline Tiled general. `parse-tmx` es extractor de datos, no
-  parser XML robusto ni cooker de todos los tipos de capa, objetos y propiedades.
+- `tools/ehb/parse-tmx.mjs` lee un subconjunto de TMX con expresiones regulares: mapas finitos/infinitos, CSV/XML/base64 gzip/zlib, resolución básica de TSX y limpieza de flips. No es un parser estructural y no lee grupos, propiedades, animaciones, objetos ni colecciones de imágenes.
+- `tools/ehb/gid-to-bank.mjs` y `tools/ehb/pack-world.mjs` convierten **una capa** y **un tileset/banco** a `WorldMap`; hay round-trip host. El origen lógico se normaliza y no se conserva para objetos/cámara.
+- `engine/include/eng/assets/uaf.hpp` (`WorldView`) y `eng/field/world_layer.hpp` (`WorldLayerSource`, `WorldMapChunkLoader`) montan capas `WorldMap` sobre `SparseTileMap`/`StreamingWorldMap`/`TileMapView`.
+- `tools/amiga-tiles/amiga-tiles.mjs` cuantiza una imagen (2..255 colores, EHB, dither, dedupe) y genera tilebanks indexados/interleaved. No conoce Tiled ni cocina por capa/tileset.
+- `out/assets/beginning-fields/8c` contiene un banco de 8 colores extraído del **PNG de preview** del mapa (1180 tiles únicos), no de los TSX del proyecto. Es una referencia de calidad, no la salida objetivo del pipeline Tiled.
+- `XlimitedScene`/`XlimitedPlayfield`/`XlimitedScrollLayer` cubren un mapa por campo, single/DPF, lienzo FG y HUD; no tienen pila de capas de tiles, máscaras de overlay, parcheo de animación ni pase de oclusión tras actores.
+- `TileScroll`/`StripScrollLayer` cubren scroll de tiras con un `TilemapView`; `WorldTileMapView` adapta una capa de `scene::World` al contrato `TileMap`.
+- No existe todavía `eng::Level` ni un catálogo runtime `VisualId` → página/tile con caché de páginas separada del `ChunkCache` lógico.
 
-## Modelo de datos objetivo
+## 3. Decisiones de arquitectura
 
-```text
-Tiled source project
-  ├── map: orientation, dimensions, layers, chunks, properties, objects
-  ├── tileset catalog: firstgid, local tile id, image/collection, per-tile properties/animation
-  └── external source assets: images, TSX, object templates
-          │ host parser + cooker
-          ▼
-CookedWorld (UAF-R / chunks)
-  ├── WorldMap: sparse cell references + layer metadata
-  ├── TilesetCatalog: stable tileset id, tile geometry, palette/material, page table
-  ├── TilePages: indexed/palette-quantized assets in Amiga-ready layout
-  ├── Collision/Navigation metadata
-  ├── Objects/Triggers/Mechanisms
-  └── Animation/Properties needed at runtime
-          │
-          ├── map-chunk cache (CPU-visible logical cells)
-          └── tile-page cache (Chip-resident DMA images)
-```
+Las decisiones canónicas y su justificación están en [`TILED_MAP_RUNTIME.md`](../../engine/architecture/TILED_MAP_RUNTIME.md) §2. Resumen operativo para este roadmap:
 
-Las celdas deben almacenar una referencia estable, por ejemplo `{tileset_id, local_tile_id, flags}`
-o un `TileRef` global asignado por el cooker. No se almacena el índice de una ranura temporal del
-cache: una eviction/reload no puede cambiar el significado de las celdas. Las operaciones de flip
-son flags explícitos y se materializan por variante precocinada, transformación de la copia o
-pipeline; no se descartan silenciosamente.
+- **D1**: Tiled es autoría; el runtime no parsea TMX/TSX/PNG. Un cooker host produce UAF-R + manifiesto + informe.
+- **D2**: una sola tubería y una sola fuente de verdad; `png2amiga` solo como referencia de algoritmos host, no como segunda tubería.
+- **D3**: IDs estables (`VisualId`/`LayerId`/`ObjectId`); nunca slots de caché en las celdas.
+- **D4**: política de capas explícita (`Baked`, `Base`, `Overlay`, `Occluder`, `Parallax`, `CollisionOnly`); estáticas cocidas por defecto.
+- **D5**: XYLimited es el presenter ortogonal; el isométrico es un presenter aparte (sala cocida primero).
+- **D6**: base opaca + overlays enmascarados + pase de oclusión tras actores; DPF solo para un campo de paralaje cuando encaje.
+- **D7**: DMA tipado por banco (`Chip`); sin `Span` agnóstico en la frontera de render.
+- **D8**: perfiles de compilación para eliminar cachés/streaming cuando el mapa cabe residente.
 
-La metadata de mapa debe guardar orientación y convención de coordenadas. Para iso debe distinguir
-`tilewidth/tileheight` de tamaño de artwork, `objectalignment`, offsets, origen de chunk, elevation y
-orden de dibujo. La proyección isométrica convierte coordenadas lógicas para render; no debe
-mezclarse con los índices del mapa ni con el espacio de colisión.
+## 4. Matriz de soporte (resumen)
 
-## Pipeline host
+La matriz detallada, con semántica y límites, está en [`TILED_MAP_RUNTIME.md`](../../engine/architecture/TILED_MAP_RUNTIME.md) §1 y §11. Resumen:
 
-### T0 — Inventario y fixtures de conformidad
+| Función de Tiled | N0 | N1 | N2 | N3 | N4 | Notas |
+|---|---|---|---|---|---|---|
+| Ortogonal finito/infinito | Sí | Sí | Sí | — | Sí | Chunks negativos con origen lógico |
+| Isométrico de sala | Sí | — | — | Sí | — | N3a; scroll iso en N3b |
+| Capas `tile` | Sí | Sí | Sí | Sí | Sí | `Baked`/`Base`/`Overlay`/`Occluder` |
+| Capas `group`/`image` | Sí | Sí | Sí | Sí | Sí | Opacidad/tint se hornean o se rechazan |
+| Tilesets atlas/colección | Sí | Sí | Sí | Sí | Sí | Imágenes de colección como sprites |
+| Animación de tile | Sí | — | Sí | Sí | Sí | Parche por Blitter; frames agrupados |
+| Objectgroup / tile objects | Sí | Sí | Sí | Sí | Sí | Tipos + propiedades + colisión |
+| Colisión por tile/objeto | Sí | Sí | Sí | Sí | Sí | Bitset/materials + shapes |
+| Flips H/V/D | Sí | Sí | Sí | Sí | Sí | Variantes precocinadas; runtime como escape |
+| Hex/staggered/zstd | — | — | — | — | — | Rechazo explícito |
 
-- Crear fixtures mínimos exportados por versiones soportadas de Tiled: ortogonal finito, ortogonal
-  infinito con chunks negativos, iso finito/infinito, varios TSX, tile flip, tile animado,
-  objectgroup, properties y tileset de colección de imágenes.
-- Fijar versión Tiled, formatos soportados y rechazos explícitos.
-- Comparar los GID originales con la interpretación de flags usando una reconstrucción visual
-  determinista.
-- **Gate**: fixtures host reproducibles; errores de formato con path/capa/chunk identificados.
+## 5. Fases
 
-### T1 — Parser XML y modelo intermedio
+Cada fase termina con un gate reproducible. Las fases no se solapan en implementación: un cambio de formato o de contrato cierra antes de que la demo dependa de él.
 
-- Sustituir extracción por regex por parser XML estructural que respete jerarquía/nesting, entidades,
-  rutas relativas y errores de sintaxis.
-- Resolver TSX externos relativos al TMX, múltiples tilesets, intervalos `firstgid`, `tilecount`,
-  `columns`, imágenes, image collections, offsets y properties.
-- Soportar capas tile, object, image y group con visibilidad, opacidad, offset, parallax, tint y
-  propiedades; preservar en IR solo atributos seleccionados por el cooker.
-- Interpretar completamente los bits de GID: separar ID local de horizontal/vertical/diagonal y
-  rotación hexagonal donde aplique. Rechazar combinaciones no soportadas; no enmascarar flags como
-  si fueran parte del índice.
-- Validar tamaños y conteos decodificados frente a `width*height` o `chunk.width*chunk.height`;
-  validar que el base64 comprimido termina en longitudes coherentes.
-- **Gate**: IR canónico host más report de warnings/errors y render preview equivalente a Tiled para
-  los casos soportados.
+### T0 — Fixtures, IR y contrato de soporte
 
-### T2 — Cooker de tilesets y activos Amiga
+- Fijar la versión de Tiled objetivo (1.10/1.11), la lista de funciones soportadas y la lista de rechazos con diagnóstico.
+- Definir el esquema `eng.tiled-ir` v1, el `cook-plan` y el manifiesto del bundle.
+- Crear fixtures deterministas: ortogonal finito, infinito con chunks negativos, isométrico de sala, grupo con opacidad, tile animado, colección de imágenes, flips H/V/D, objectgroup con polígonos, zstd (rechazo).
+- Inventariar `Beginning Fields` (capas, tilesets, animaciones, objetos, colisión) y escribir su `cook-plan`.
+- Usar `tmxrasterizer` del proyecto Tiled para golden renders completos y por capa.
+- **Gate**: los fixtures existen y están catalogados; el esquema IR/cook-plan está fijado; el golden render es reproducible; cada rechazo previsto tiene diagnóstico. La validación de parseo se cierra en T1.
 
-- Decidir paleta por escena/tileset/layer según hardware y límite de playfields; cuantizar todos los
-  tiles que comparten una paleta contra la misma tabla.
-- Cortar, deduplicar y asignar IDs estables. Generar flips/variantes offline cuando ahorren trabajo
-  por frame y el uso de memoria sea aceptable.
-- Producir páginas (`TilePage`) con número fijo de tiles y disposición de DMA: planar separado,
-  interleaved o el layout especializado elegido por driver. Incluir máscara si hay transparencia,
-  padding/guarda requerido por shift y alineación de palabra.
-- Empaquetar píxeles indexados solo en el archivo de staging CPU si reduce almacenamiento; los tiles
-  publicados al Blitter deben estar expandidos a Chip en formato que el driver consuma directamente.
-- Si se usa EHB, exportar índices bases-primero y metadatos de paleta consistentes. No mezclar
-  tilesets con paletas incompatibles en un mismo playfield sin una regla de material/cambio Copper.
-- Cocinar animaciones de tile como secuencia de `TileRef` y duración fija, no como XML.
-- **Gate**: reconstrucción color-index exacta; estimación de bytes Chip por página/buffer/paleta;
-  comprobación de transparencias, shifts y alineación.
+### T1 — Parser estructural e IR
 
-### T3 — WorldMap multicapa y sparse
+- Sustituir la extracción por regex por un parser XML estructural (host-only), con entidades, anidamiento y rutas relativas.
+- Resolver TSX externos e inline, atlas y colecciones, `firstgid`/`tilecount`/`columns`/`margin`/`spacing`/`tileoffset`/`objectalignment`.
+- Leer `layer`, `objectgroup`, `imagelayer` y `group` con visibilidad, opacidad, offsets, paralaje, propiedades y clases; preservar propiedades opacas. Resolver plantillas de objeto (`template`) en host o rechazarlas explícitamente.
+- Interpretar GID completo: `id = gid & 0x1FFFFFFF`, flags H/V/D, rechazo de rotaciones hexagonales; conservar `origin` de mapas infinitos.
+- Validar conteos, longitudes, índices y rutas; emitir `diagnostics` con severidad y localización.
+- **Gate**: IR equivalente a Tiled en los fixtures; ningún atributo soportado se pierde en silencio; los rechazos son accionables.
 
-- Generalizar `WorldMap` para descriptores de capas con `TileRef`, orientación, flags, bounds y
-  referencia a tileset catalog; conservar modo compatible con mapas existentes de un único banco.
-- Mantener directorio sparse ordenado por `(cy,cx)`; chunks ausentes representan el valor vacío, no
-  memoria implícitamente reservada.
-- Admitir coordenadas negativas de Tiled mediante origen lógico explícito y conversión estable a
-  coordenadas de chunk con floor division, no truncamiento hacia cero.
-- Rechazar o segmentar spans extremos que hagan el bounding rectangle imposible de representar,
-  aunque haya pocos chunks poblados.
-- Separar datos por semántica: visual cells, collision/navigation flags y objetos/triggers pueden
-  estar en chunks paralelos y cargarse con distinta prioridad.
-- **Gate**: equivalencia de mapas finitos/infinitos, coordenadas negativas, chunk ausente, capas y
-  IDs de tileset estables en reordenamiento del catálogo.
+### T2 — Cooker de tilesets, paleta y páginas
 
-### T4 — Capas, orientación y scroll
+- Recolectar solo los tiles referenciados (capas + objetos + frames + flips usados).
+- Cuantizar contra una paleta global por campo (16/32/EHB/DPF) y medir la calidad con `compare-palettes.mjs` + visión.
+- Generar páginas de tiles con layout DMA, dedupe, máscara 1bpp para overlays y alineación/guarda; agrupar frames de animación.
+- Cocinar objetos de colección como sprites/BOBs con tamaño variable, anclaje y máscara.
+- Producir el informe de bytes Chip/Fast y el preview de reconstrucción.
+- **Gate**: reconstrucción índice a índice al 100 %; preview de contenido equivalente a Tiled con las diferencias de paleta documentadas; informe de página/paleta; sin tiles huérfanos ni duplicados.
 
-- **X-Limited**: mundo mayormente horizontal, cámara desplaza X, bandas/columnas entrantes; usar el
-  driver actual cuando sus límites/layout coincidan.
-- **Y-Limited**: mundo principalmente vertical (plataformas verticales, ascensores/torres). Diseñar
-  y medir filas entrantes, guarda vertical, coarse/fine y doble buffer; no asumir que activar un
-  booleano Y en XY-Limited produce el coste óptimo.
-- **XY-Limited**: movimiento en ambos ejes con anillo/corkscrew, staging y split de Copper; caso más
-  general y con presupuesto mayor.
-- **Isométrico**: el mapa lógico sigue siendo grid/chunks; el painter transforma y ordena por
-  profundidad. Definir vista rectangular/romboidal de celdas visibles y prefetch que incluya tiles
-  ocultos por el footprint de sprites/overhang de artwork.
-- Determinar por setup/plantilla el scroll mode y eliminar ramas/cálculos de estrategias no usadas.
-- **Gate**: demos comparativas X-only, Y-only, XY y iso; verificar costuras, paleta, regiones y
-  presupuesto Copper/Blitter.
+### T3 — Cooker de mapa y `MapBundle`
 
-## Tilesets grandes y streaming
+- Clasificar capas (`Baked`/`Base`/`Overlay`/`Occluder`/`Parallax`/`CollisionOnly`) desde propiedades + `cook-plan`.
+- Fundir las capas estáticas en el fondo base respetando orden, offsets, opacidad horneada y paleta.
+- Emitir `WorldMap` v1 para capas de banco único y `MapLayerCells` (o `WorldMap` v2) para capas con catálogo/páginas, más los chunks nuevos: `MapManifest`, `MapLayers`, `TileCatalog`, `TilePages`, `TileAnimations`, `MapObjects`, `Collision` (nombres; tipos/números se fijan al implementar).
+- Asignar `VisualId`, `LayerId`, `ObjectId`, `PageId` estables; conservar origen lógico y wrap; resolver coordenadas negativas con floor division.
+- Validar el bundle y el presupuesto; fallar si una capa `Occluder` se intenta hornear o si la paleta no encaja.
+- **Gate**: bundle determinista (hash), round-trip de mapa/capas/objetos, presupuesto declarado, preview por capa.
 
-Mapa disperso y tileset grande son problemas distintos y requieren caches distintos:
+### T4 — Runtime de contenido y catálogo
 
-```text
-TMX cells → map chunk cache (Fast/Slow o compacta, según lookup)
-TileRef   → catalog permanente pequeño (id → page/local id)
-visible TileRef → tile page cache en Chip → Blitter/bitplane DMA
-```
+- Añadir `eng::map::AssetView` (validación del bundle), `TileCatalog`/`TileResolver`, `LayerCellSource` residente y `MapRuntime`.
+- Adaptar `WorldLayerSource`/`WorldMapChunkLoader` para capas del bundle sin romper `WorldView`.
+- Añadir `TilePageCache` residente (sin LRU todavía) con pin por frame y vistas Chip tipadas.
+- Exponer consultas de celda/colisión y un `LevelStats` mínimo.
+- **Gate**: host tests de validación, catálogo, resolución de página, capas y pin; un mapa residente se monta sin heap ni XML.
 
-El `ChunkCache` existente almacena chunks lógicos en un pool aportado por el llamador. No resuelve
-por sí mismo la residency del bitmap del tileset en Chip. Para tilesets que no caben completos:
+### T5 — Presenter XYLimited extendido
 
-- Mantener catalog, page directory y mapeo `TileRef→page` residentes en Fast si existe; si no, usar
-  Slow/Chip según el coste y capacidad.
-- Mantener un cache LRU de páginas gráficas **Chip** con slots fijos y generaciones. Solo las
-  páginas residentes pueden ser origen DMA de `BlitJob`.
-- Precargar la unión de páginas necesarias por la ventana visible, guarda del scroll, capas visibles,
-  animaciones activas y overhang de artwork, más margen de varios frames.
-- Leer/descomprimir a staging CPU si el backend lo permite; copiar/cocinar a layout DMA en un buffer
-  Chip antes de marcar la página residente. Para trackloader tras takeover, el buffer de disco sigue
-  necesitando Chip y el decode debe coordinarse con el doble buffer de pista.
-- Pinnear páginas durante el frame/plan DMA en curso. No evictar una página referenciada por
-  `FramePlan`, Blitter activo o pantalla frontal; liberarla tras fence/fin de blit y salida de la
-  ventana de prefetch.
-- Mantener fallback si una página no está lista: placeholder, tile de error o retrasar la cámara/
-  animación según política. `tile_at`/render no debe bloquear esperando I/O.
-- Priorizar por distancia a la cámara, tiempo hasta visibilidad, capa, animación y dirección de
-  movimiento; agrupar lecturas contiguas por página/sector para reducir seeks.
-- Evitar tileset pages diminutas: la granularidad debe equilibrar fragmentación Chip, lectura
-  secuencial y el conjunto visible de la cámara.
+- `TileLayerStack`: base + overlays por banda entrante; cada overlay con su máscara y orden `z`.
+- Pase de animación `TileAnimator` con presupuesto de celdas visibles y parche enmascarado.
+- Pase `after_actors` para `Occluder`, con dirty rects de actores/cámara/animación.
+- Integración con `ScrollLayer`/`App`: un nivel se registra y el `App` lo conduce; visibilidad/modo validados contra el bundle.
+- DPF/paralaje: un segundo campo cuando la paleta y la prioridad lo permitan; sin prometer N campos.
+- **Gate**: demos 206/207/208; 50 fps sin tirones en el alcance medido; flicker; visión de secuencia; no regresión de 201–205.
 
-El mapa persistido debe referenciar IDs de tiles estables, nunca slots LRU. Una página expulsada
-puede volver a otra ranura sin reescribir el mundo; el resolver actualiza la residencia en el
-catálogo/cache y el render solo emite jobs para refs ya pinneadas.
+### T6 — Objetos, colisión y gameplay
 
-## T5 — Runtime, resolvers y caches
+- Emitir `MapObjects` tipados: spawn, trigger, collider, path, camera, door, mechanism, decor; propiedades y clases.
+- Resolver *tile objects* con `objectalignment`, `tileoffset`, flips y tamaño variable; convertirlos a `ActorDesc`/BOB o a decor cocido.
+- Extraer colisión de tiles y de objetos (polígonos de TSX) a bitsets/materials/shapes; consultas O(1).
+- Integrar con `scene::World`/`ActorStore` y con el planner de actores; el mapa no posee los actores.
+- **Gate**: host tests de anclaje/colisión; demo 208 con personaje que pasa por debajo de un occluder y colisiona con el escenario.
 
-- Añadir `TilesetCatalog`/`TileRef` que resuelva IDs globales estables a tileset, página, tile local,
-  material y flags de flip.
-- Añadir `TilePageCache` Chip independiente del `ChunkCache` lógico, con request/pending/ready,
-  ref/pin por frame, LRU y generación de slot.
-- Añadir `TileRequestSet` por región/capa, compactable en páginas contiguas y reusable entre frames.
-- Integrar con `BackgroundQueue`/VFS/resource pipeline; prefetch fuera del render y publicar
-  completions por mensaje.
-- Añadir dirty/cache invalidation para tile editado, tile animado, tileset reload y palette change.
-- **Gate**: tests de residency, pin durante blit, eviction/reload en otro slot, page miss no bloqueante
-  y recuperación tras error.
+### T7 — Isométrico
 
-## T6 — Assets y object layers
+- Implementar `IsoProjection` (forward/inverse), picking de rombo y `DepthKey` (`u+v`, elevación, sublayer, tie-break).
+- Cocer salas iso estáticas a bitmaps/bandas con la paleta elegida; actores ordenados por foot point; occluders como BOBs de primer plano.
+- Soportar `tileoffset`, `objectalignment` y flips/rotaciones precocinadas; informar del coste de variantes.
+- Dejar N3b (scroll iso continuo) como presenter separado con presupuesto medido; no forzarlo en XYLimited.
+- **Gate**: golden tests de proyección/picking/orden; demo 209 con sala, actores y oclusión; visión de secuencia.
 
-- Cocinar object layers como spawns, triggers, rutas, puertas, puntos de cámara y colisionadores.
-- Convertir properties a schema tipado por juego, preservando extensiones opacas permitidas.
-- Resolver tile objects y su origen/alineación antes de convertirlos a `ActorDesc`.
-- Traducir shapes de Tiled (rectángulo, polígono, polilínea, ellipse) a colliders/proxies del
-  subsistema gameplay, manteniendo coordenadas de mundo y offsets.
-- **Gate**: round-trip de metadata seleccionada y fixtures host para objetos/isométricos.
+### T8 — Streaming y mundos grandes
 
-## T7 — Isométrico y transformaciones Tiled
+- `TilePageCache` LRU con slots fijos, request/pending/ready, pin/fence y generación de slot.
+- `MapChunkCache`/`StreamingWorldMap` para celdas lógicas; prefetch de la ventana visible + guarda + overhang de objetos/arte.
+- Carga asíncrona desde `BackgroundQueue`/VFS; publicar completions por mensaje; nunca bloquear el render.
+- Invalidación por tile editado, animación, recarga de tileset y cambio de paleta.
+- **Gate**: tests de residencia, pin durante Blit, eviction/reload en otro slot, page miss no bloqueante y recuperación de error; demo 210 con mapa grande.
 
-- Interpretar `orientation`, `renderorder`, dimensiones de grid, `staggeraxis`, `staggerindex`,
-  `hexsidelength` y `objectalignment` solo en las orientaciones declaradas soportadas.
-- Convertir Tiled GID flips a flags de transformación. Para flips/rotaciones que el Blitter no hace
-  directamente, escoger variante precocinada o transformación en host, no una conversión por píxel
-  en el hot path.
-- Implementar `IsoProjection` para ortogonal isométrico y picking inverso, con enteros/fixed y
-  redondeo probado para coordenadas negativas.
-- Ordenar por foot-point/profundidad y sublayer; soportar artwork con overhang sin confundir tamaño
-  visual con tamaño lógico de tile.
-- **Gate**: golden images host para picking, orden visual, scroll diagonal y flips, además de demo
-  con capa iso sobre el renderer planar.
+### T9 — Cierre de API y endurecimiento
 
-## T8 — Coste, presupuestos y robustez
+- Consolidar `eng::Level` como fachada única: carga, cámara, capas, animación, objetos, colisión, presupuesto y stats.
+- Retirar el parser regex o declararlo legacy; actualizar `TILED.md` y los índices.
+- Completar `VALIDATION.md` de 206–210 con medidas, flicker y visión; registrar deuda restante.
+- **Gate**: un juego de ejemplo carga un mapa Tiled y usa `Level` sin nombrar tipos internos; demos verificadas; documentación enlazada.
 
-- Presupuesto separado: WorldMap/metadata, tileset catalog, páginas Chip residentes, staging,
-  copperlists, bitplanes y scratch.
-- Reportar page misses, prefetched pages, evictions, bytes pinned, hits de tile/chunk, seeks y
-  chunks/pages pendientes.
-- Limitar tamaños, conteos, offsets, inflación máxima y recursos por mapa al parsear/cocinar; el
-  host falla con diagnóstico preciso y runtime no construye vistas sobre datos truncados.
-- Tener modos compile-time: mapa residente sin VFS/cache; chunk streaming sin page streaming; ambos;
-  mapas vertical/horizontal/XY/iso. El perfil elimina sistemas no utilizados del binario.
-- Verificar ejecución DMA real y no inferir capacidad por tests host únicamente.
+## 6. Fixtures y demos
 
-## Criterios de aceptación global
+- **Fixture principal**: `Beginning Fields.tmx` (40×40, 16×16, 7 capas de tiles, 2 objectgroups, 18 tilesets, 169 objetos, animaciones de agua/flores/campfire, polígonos de colisión). El PNG `Beginning Fields.png` es el render plano del mapa y se usa como referencia visual; la fuente de tiles son los TSX y sus imágenes.
+- **Puente sintético**: capa `Occluder` sobre base + actor; mide el pase `after_actors` y la restauración al salir.
+- **Iso de sala**: mapa pequeño con objetos altos y picking; mide orden y oclusión.
+- **Infinito/negativo**: chunks con coordenadas negativas; mide origen lógico y floor division.
+- **Flips/colecciones**: tiles H/V/D y tileset de colección; mide catálogo y anclajes.
+- **Rechazos**: zstd, hex/staggered, opacidad no horneable, paleta incompatible, GID fuera de rango; cada uno con diagnóstico.
 
-1. Un proyecto Tiled soportado se convierte a assets cookeados deterministas sin requerir XML/parser
-   en Amiga.
-2. El cooker no pierde flags GID, capas, metadatos ni coordenadas negativas soportadas.
-3. Un tileset multibanco conserva la paleta/layout apropiados y reporta el presupuesto Chip.
-4. Un mundo sparse no reserva su bounding rectangle completo en runtime.
-5. Tile pages que faltan se precargan asíncronamente y el render nunca usa memoria no residente.
-6. La eviction no invalida IDs de tiles y respeta pages pinneadas por DMA/display.
-7. X/Y/XY/iso usan algoritmos declarados y cada perfil supera sus pruebas de equivalencia.
-8. Mapas estáticos que caben pueden eliminar completamente streaming/cache en compilación.
+Demos previstas (números a confirmar con `tools/check/next-number.mjs`):
 
-## Orden de implementación
+| Demo | Nivel | Gate |
+|---|---|---|
+| `206_tiled_beginning_fields_baked` | N1 | Cooker + base cocida + cámara X/Y + 50 fps + visión |
+| `207_tiled_live_layers_animation` | N2 | Overlays + agua/flores animadas + presupuesto de celdas |
+| `208_tiled_occlusion_objects` | N2 | Occluder tras actores + objetos + colisión + profundidad |
+| `209_tiled_iso_room` | N3a | Proyección/picking/orden iso + sala + actores |
+| `210_tiled_stream_world` | N4 | Chunks/páginas + prefetch/pin/eviction + mapa grande |
 
-T0 fixtures y especificación de soporte → T1 parser/IR → T2 tileset cooker → T3 WorldMap multicapa
-sparse → T4 drivers/orientaciones → T5 tile page cache y prefetch → T6 object layers y gameplay
-metadata → T7 iso/picking/transform flags → T8 budgets, stress y demos. El roadmap puede dividirse
-en hitos por backend de almacenamiento si trackloader o disco imponen restricciones adicionales.
+## 7. Criterios de aceptación global
 
-## Referencias
+1. Un proyecto Tiled soportado se convierte en un bundle determinista sin requerir XML/TSX/PNG ni cuantización en el Amiga.
+2. El cooker no pierde capas, flips, propiedades soportadas, animaciones, objetos ni coordenadas negativas; lo no soportado falla con diagnóstico.
+3. Las capas estáticas se cuecen por defecto; las vivas se limitan a animación/visibilidad/paralaje/oclusión y su coste se mide.
+4. Un `Occluder` se dibuja después de los actores y no se hornea; un puente/edificio tapa y destapa al personaje correctamente en secuencia.
+5. Los tiles animados se parchean por Blitter con presupuesto; no se recompone la capa completa cada frame.
+6. XYLimited ortogonal conserva sus invariantes y demos; el isométrico usa un presenter propio y no rompe el contrato de scroll.
+7. Un mundo grande no bloquea el render por un page miss; IDs estables y páginas pinneadas durante DMA.
+8. `eng::Level` permite a un juego cargar y gestionar el mapa sin nombrar `WorldView`, `TileCatalog`, `TilePageCache` ni registros.
+9. Las demos 206–210 quedan VERIFICADAS con fps/cadencia/flicker y visión de secuencia, o documentan su deuda y alcance no verificado.
+10. Los consumidores actuales (`WorldMap` v1, `XlimitedScene`, `TileScroll`, demos 201–205) siguen funcionando sin cambios de contrato.
 
-- [`TILED.md`](TILED.md)
-- [`WORLD_FORMAT.md`](../../engine/architecture/WORLD_FORMAT.md)
-- [`CONTENT_AND_TILEMAP.md`](../../engine/architecture/CONTENT_AND_TILEMAP.md)
-- [`PLAYFIELD_SCROLL_ARCHITECTURE.md`](../../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md)
-- [`XYLIMITED_ALGORITMO_GENERICO.md`](../../engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md)
-- [`STREAMING_LOADER.md`](../../engine/architecture/STREAMING_LOADER.md)
-- [`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](../../engine/architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md)
-- [`PIXEL_ART_2D_ISOMETRIC.md`](../../engine/architecture/PIXEL_ART_2D_ISOMETRIC.md)
+## 8. Riesgos y decisiones abiertas
+
+- **Calidad de paleta**: 16 colores puede ser insuficiente para los 18 tilesets de `Beginning Fields`; hay que comparar 16/32/EHB/DPF con visión antes de fijar el perfil. La decisión afecta a bytes y a la composición.
+- **Opacidad/tint de Tiled**: no hay blending alfa general en el camino caliente; se hornea contra la capa inferior o se rechaza. Falta decidir el comportamiento por defecto para grupos con opacidad.
+- **Objetos grandes**: las imágenes de colección (edificios de 175×128) no son tiles; decidir si se hornean, se convierten en BOBs o se comparten como sprites. Afecta a memoria y a profundidad.
+- **Máscaras**: la máscara 1bpp de overlay añade memoria y un fetch de Blitter; medir si conviene generarla para todos los tiles o solo para los que se usan en overlays.
+- **Oclusión**: el redibujado de occluders tras actores puede ser caro si el actor se mueve mucho; el presupuesto de dirty rects y la política de “solo intersección” deben validarse en la demo 208.
+- **Isométrico con scroll**: N3b no está dimensionado; puede requerir un presenter con anillo/proyección y un presupuesto distinto. No prometerlo hasta medirlo.
+- **`zstd`**: si un proyecto de Tiled lo usa, hace falta una dependencia host o un rechazo claro; decidir en T0.
+- **Licencia del tileset**: `The Fan-tasy Tileset (Free) 1.5.9` se lee de su ruta local; antes de copiar arte al repo hay que revisar la licencia y añadir trazabilidad en `assets/README.md`.
+- **Nombre/forma final de `eng::Level`**: la fachada objetivo está definida por intención; los parámetros de plantilla y el alias por defecto se cierran en T9 con un juego real.
+
+## 9. Orden de implementación
+
+T0 fixtures/IR → T1 parser estructural → T2 cooker de tilesets/paleta → T3 cooker de mapa/`MapBundle` → T4 runtime/catálogo → T5 presenter XYLimited extendido (demos 206–208) → T6 objetos/colisión → T7 isométrico (209) → T8 streaming (210) → T9 cierre de API. Cada fase actualiza `TILED_MAP_RUNTIME.md` solo si cambia un contrato; las notas de transición y los descartes van a `docs/debugging/` o a la bitácora, no al documento de referencia.
+
+## 10. Referencias
+
+- [`TILED_MAP_RUNTIME.md`](../../engine/architecture/TILED_MAP_RUNTIME.md) — modelo runtime, formato, contratos y API de intenciones.
+- [`TILED.md`](TILED.md) — subconjunto actual del importador y límites.
+- [`WORLD_FORMAT.md`](../../engine/architecture/WORLD_FORMAT.md) — `WorldMap` v1 y mapeo al runtime.
+- [`CONTENT_AND_TILEMAP.md`](../../engine/architecture/CONTENT_AND_TILEMAP.md) — contenido, tiles y mundo disperso.
+- [`PLAYFIELD_SCROLL_ARCHITECTURE.md`](../../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md) — algoritmo/superficie/composición/máquina.
+- [`SCROLL_VARIANTS.md`](../../engine/architecture/SCROLL_VARIANTS.md) — variantes y huecos de scroll.
+- [`XYLIMITED_ALGORITMO_GENERICO.md`](../../engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md) — invariantes del corkscrew.
+- [`PIXEL_ART_2D_ISOMETRIC.md`](../../engine/architecture/PIXEL_ART_2D_ISOMETRIC.md) — proyección, picking y profundidad iso.
+- [`PUBLIC_GAME_API.md`](../../engine/architecture/PUBLIC_GAME_API.md) y [`ROADMAP_GAME_API.md`](ROADMAP_GAME_API.md) — fachada por intenciones.
+- [`ROADMAP_UNIFICADO.md`](ROADMAP_UNIFICADO.md) — estado vigente del engine y las demos.

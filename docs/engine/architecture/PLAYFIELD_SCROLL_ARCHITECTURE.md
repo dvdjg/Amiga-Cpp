@@ -249,4 +249,5 @@ calculan registros.
 - Técnica RoboCod (soft DPF): `docs/reference/amiga/techniques/robocod-layered-scroll.md`.
 - Drivers gráficos por estrategia de composición: `GRAPHICS_DRIVERS.md`.
 - API pública (la aplicación no ve hardware): `PUBLIC_API.md`.
+- Mapas Tiled y pila de capas de tiles (`Base`/`Overlay`/`Occluder`): [`TILED_MAP_RUNTIME.md`](TILED_MAP_RUNTIME.md).
 - Plan de adopción: `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.

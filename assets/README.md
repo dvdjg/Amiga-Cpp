@@ -37,6 +37,7 @@ assets/
 | `amiga/sprites/abyss/abyss.bpl`, `abyss.pal`, `bob.bpl` | Assets de la demo clásica de Bartman/vscode-amiga-debug (`BartmanBasic`): imagen interleaved 320×256×5, paleta de 32 colores y hoja de 6 BOBs 32×16 enmascarados. Uso interno de prueba; la demo 213 los reproduce. |
 | `amiga/audio/testmod.p61` | Módulo P61 de ejemplo ("P61.testmod" de Skylord/Sector 7) usado por las demos de música; mismo fichero que el del ejemplo de Bartman. |
 | `amiga/hud/test_icons.png` | Hoja de prueba del pipeline de atlas del HUD (`tools/assets/hud-atlas.mjs`): 4 iconos 16×16 enmascarados (cuadrado, cruz, anillo, rombo) generados en el repo para validar el formato planar interleaved. Uso interno de prueba. |
+| `amiga/tiles-reference/Beginning Fields.png` | Render plano (640×640) del mapa «Beginning Fields» de *The Fan-tasy Tileset (Free) 1.5.9*; se usa como referencia visual del pipeline Tiled y banco de pruebas de tiles. Revisar la licencia del tileset antes de redistribuir el arte; el proyecto Tiled fuente se lee de su ruta local. |
 
 *Nota: `assets/amiga/tiles-reference` fue reubicado aquí en la reorganización; las
 tools leen de esta ruta canónica.*
