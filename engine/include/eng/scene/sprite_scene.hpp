@@ -173,31 +173,115 @@ public:
 		return r;
 	}
 
-	/// Actualiza solo X/Y de los placements de una escena **simple estable** (un
-	/// placement por actor, sin `attached`, plantilla ni BOB). Evita reordenar y
-	/// reasignar canales cuando el juego únicamente ha movido actores.
+	/// Actualiza X/Y, alto y **DATA del frame vigente** de una escena estable: actores
+	/// simples (uno o dos canales si el ancho pasa de 16 px) y pares *attached*. No
+	/// reordena ni reasigna canales; si la geometría del frame cambia de ancho o hay
+	/// BOB/CPU/plantillas, devuelve `false` y el llamador hace un `emit` completo.
+	///
+	/// La animación usa el mismo contrato que `emit`: `Visual::frame_stride` avanza
+	/// la DATA por `anim.index`. Un par *attached* se recocina solo cuando cambia la
+	/// fuente o el alto (`cook_actor_attached_pair`); si no, reutiliza sus estructuras.
 	/// \param ctx contexto de emisión; usa cámara y display_top como `emit`.
-	/// \return `false` si la escena no cumple el contrato simple; el llamador debe
-	///         hacer un `emit` completo.
+	/// \return `true` si todos los actores quedaron actualizados en su sitio;
+	///         `false` si hace falta recomponer (BOB, CPU, plantilla o cambio de ancho).
 	[[nodiscard]] bool refresh_simple_positions(const eng::scene::ActorEmitContext& ctx) noexcept {
 		const eng::u16 count = m_store.count();
-		if (count == 0u || m_result.sprites != count) {
+		if (count == 0u || m_result.sprites == 0u || !m_result.ok ||
+		    m_result.degraded != 0u || m_result.bobs != 0u || m_result.cpu != 0u) {
 			return false;
 		}
-		for (eng::u16 i = 0u; i < count; ++i) {
-			auto a = m_store.get(m_store.id_at(m_intent_actor[i]));
+		eng::util::BitSet<MaxActors> seen {};
+		for (eng::u16 i = 0u; i < m_result.sprites; ++i) {
+			const eng::u16 slot = m_intent_actor[i];
+			if (slot >= MaxActors) {
+				return false;
+			}
+			auto a = m_store.get(m_store.id_at(slot));
 			if (!a.valid() || a->desc.force_cpu || a->desc.force_bob ||
-			    !a->desc.sprite_template.empty() ||
-			    eng::graphics::visual_is_attached_pair(a->desc.visual)) {
+			    !a->desc.sprite_template.empty()) {
 				return false;
 			}
 			const eng::graphics::Frame f = actor_current_frame(*a);
 			const eng::graphics::DirtyRect rect =
 				actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+			// Mismo culling que `compose_sprites`: un actor fuera del clip no tiene
+			// placement que actualizar (y no debe impedir el refresh de los visibles).
+			if (ctx.clip.valid() &&
+			    (rect.right <= ctx.clip.left || rect.left >= ctx.clip.right ||
+			     rect.bottom <= ctx.clip.top || rect.top >= ctx.clip.bottom)) {
+				continue;
+			}
+			const bool first = !seen.test(slot);
+			seen.set(slot);
+			if (eng::graphics::visual_is_attached_pair(a->desc.visual)) {
+				if (!first) {
+					continue; // el líder actualiza los dos placements del par
+				}
+				if (static_cast<eng::u16>(i + 1u) >= m_result.sprites ||
+				    !m_intents[i + 1u].attach || m_intent_actor[i + 1u] != slot) {
+					return false; // par mal formado: recomponer
+				}
+				const eng::usize word_off = actor_frame_word_offset(*a);
+				const eng::scene::AttachedPairData pair =
+					eng::scene::cook_actor_attached_pair(
+					*a, f.h, word_off, m_cooked, m_cooked_used,
+					&m_cooked_pairs[slot]);
+				if (pair.even.empty() || pair.odd.empty()) {
+					return false; // hoja/pool insuficiente: recomponer
+				}
+				const eng::usize data_bytes =
+					static_cast<eng::usize>(f.h) * 4u + 4u;
+				eng::graphics::HwSpritePlacement& pe = m_placements[i];
+				pe.hpos = rect.left;
+				pe.vstart = rect.top;
+				pe.height = f.h;
+				pe.width_words = 1u;
+				pe.attach = false;
+				pe.data = pair.even.subview(4u, data_bytes);
+				eng::graphics::HwSpritePlacement& po = m_placements[i + 1u];
+				po.hpos = rect.left;
+				po.vstart = rect.top;
+				po.height = f.h;
+				po.width_words = 1u;
+				po.attach = true;
+				po.data = pair.odd.subview(4u, data_bytes);
+				continue;
+			}
+			const eng::u16 width_words =
+				static_cast<eng::u16>((f.w + 15u) / 16u);
 			eng::graphics::HwSpritePlacement& p = m_placements[i];
+			if (width_words != p.width_words || p.attach != (width_words > 1u)) {
+				return false; // el ancho del frame cambiaría canales: recomponer
+			}
 			p.hpos = rect.left;
 			p.vstart = rect.top;
 			p.height = f.h;
+			const eng::usize word_off = actor_frame_word_offset(*a);
+			p.data = eng::ChipView<eng::SpriteTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(
+					a->desc.visual.pixels.data() + word_off),
+				(a->desc.visual.pixels.size() - word_off) * 2u};
+		}
+		// Todos los actores vivos **visibles** deben haber quedado representados; si
+		// alguno no tiene placement (truncado), el refresh no puede dar la escena por
+		// buena. Los actores culled no cuentan.
+		for (eng::u16 i = 0u; i < MaxActors; ++i) {
+			if (!m_store.used(i) || seen.test(i)) {
+				continue;
+			}
+			auto a = m_store.get(m_store.id_at(i));
+			if (!a.valid()) {
+				return false;
+			}
+			const eng::graphics::Frame f = actor_current_frame(*a);
+			const eng::graphics::DirtyRect rect =
+				actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+			if (ctx.clip.valid() &&
+			    (rect.right <= ctx.clip.left || rect.left >= ctx.clip.right ||
+			     rect.bottom <= ctx.clip.top || rect.top >= ctx.clip.bottom)) {
+				continue;
+			}
+			return false;
 		}
 		return true;
 	}

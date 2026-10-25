@@ -134,7 +134,10 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 	}
 	const BobTarget& target = ctx.targets[a.desc.surface];
 	const Frame f = actor_current_frame(a);
-	const DirtyRect rect = actor_screen_rect(a, f, ctx.cam_x, ctx.cam_y);
+	// El BOB/CPU se dibuja sobre el bitmap del anillo: su Y visible se convierte
+	// en línea del anillo. El sprite HW no usa este offset (coordenadas de pantalla).
+	const DirtyRect rect = actor_screen_rect(
+		a, f, ctx.cam_x, static_cast<eng::s16>(ctx.cam_y - ctx.bob_y_offset));
 	if (!rect.valid()) {
 		return ActorEmitStatus::Nothing;
 	}
@@ -490,6 +493,14 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		}
 		const Frame f = actor_current_frame(*a);
 		const DirtyRect r = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+		// **Culling visible**: un actor completamente fuera del clip no consume canal,
+		// intent ni placement. Sin esto, los actores fuera de pantalla agotan canales
+		// (y fuerzan rearmes/BOB) aunque no se vean. `ctx.clip` vacío = sin culling.
+		if (ctx.clip.valid() &&
+		    (r.right <= ctx.clip.left || r.left >= ctx.clip.right ||
+		     r.bottom <= ctx.clip.top || r.top >= ctx.clip.bottom)) {
+			continue;
+		}
 		const eng::graphics::HwSpriteTemplateView tpl = a->desc.sprite_template;
 		if (!tpl.empty()) {
 			// **Plantilla de franjas**: proyección a intents encadenados (mismo canal).

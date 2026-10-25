@@ -61,6 +61,7 @@
 #include <eng/scene/display.hpp>
 #include <eng/scene/plan.hpp>
 #include <eng/scene/raster_plan.hpp>
+#include <eng/scene/sprite_layer.hpp>
 #include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
 
@@ -590,6 +591,21 @@ public:
 	}
 	[[nodiscard]] u8 scroll_layer_count() const noexcept { return m_scroll_count; }
 
+	/// **Registra una capa de sprites** (`SpriteLayer<Backend>`, p. ej.
+	/// `scene::SpriteDirectorLayer`): el `App` la arranca y la conduce **antes** que las
+	/// capas de scroll, de modo que sus placements y su plan de BOB estén listos cuando
+	/// la escena componga el frame. El juego no llama al motor de scroll para publicar
+	/// sprites. `false` si no cabe o el arranque falla.
+	/// \param layer  capa de sprites (la **posee** el juego; el `App` solo la conduce).
+	/// \return `true` si quedó registrada y arrancada.
+	[[nodiscard]] bool add_sprite_layer(eng::scene::SpriteLayer<Backend>& layer) noexcept {
+		if (m_sprite_count >= kMaxSpriteLayers) return false;
+		if (!layer.begin(m_backend.memory_manager(), m_backend)) return false;
+		m_sprite_layers[m_sprite_count++] = layer;
+		return true;
+	}
+	[[nodiscard]] u8 sprite_layer_count() const noexcept { return m_sprite_count; }
+
 	/// **Registra una capa de scroll con su rol y colocación** (planner §7): además de arrancarla y
 	/// conducirla, la **añade al plan de escena** del `App`, del que sale la **estrategia** de
 	/// composición. El **camino manual** (`add_scroll_layer(layer)`, sin rol) sigue disponible.
@@ -1005,12 +1021,21 @@ private:
 	static constexpr u8 kMaxBitmapOwners = graphics::FramePlan::kMaxDmaAssets;
 	static constexpr u16 kMaxScenes = 8u;
 	static constexpr u8 kMaxScrollLayers = 4u;
+	static constexpr u8 kMaxSpriteLayers = 4u;
 	/// Palabras de Copper para la copperlist que **posee** el `App` en el display por bandas
 	/// (`present_scene`): cabecera + punteros por tramo/paleta, con holgura.
 	static constexpr u32 kSceneCopperWords = 2048u;
 	static constexpr u32 kSizeLimit = 0xffffffffu;
 	static constexpr u16 kBitmapAlignmentBytes = 16u;
 	static constexpr u16 kWorldCoordinateLimit = 0x7fffu;
+
+	/// Conduce las capas de **sprites** registradas: compone/refresca actores y entrega
+	/// placements + plan de BOB a su host. Se llama **antes** de `pump_scroll_layers`.
+	void pump_sprite_layers() noexcept {
+		for (u8 i = 0u; i < m_sprite_count; ++i) {
+			if (m_sprite_layers[i].valid()) m_sprite_layers[i]->frame(m_backend);
+		}
+	}
 
 	/// Conduce las capas de scroll registradas por frame (pinta la tira y parchea el Copper). Se
 	/// llama tras el `update` del juego, para que este ya haya movido su cámara/scroll.
@@ -1044,7 +1069,9 @@ private:
 			} else {
 				self->m_game.update(*self); // el juego consume `port()` aquí
 			}
-			self->pump_scroll_layers(); // el juego ya movió su scroll: pintar tira + Copper
+			// Primero sprites (placements + plan de BOB), después scroll (compone con ellos).
+			self->pump_sprite_layers();
+			self->pump_scroll_layers();
 		}
 		void render(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
@@ -1146,6 +1173,9 @@ private:
 	/// Capas de scroll que conduce el `App` (**observadores no propietarios**: las posee el juego).
 	eng::Ref<eng::playfield::ScrollLayer<Backend>> m_scroll_layers[kMaxScrollLayers] {};
 	u8 m_scroll_count = 0u;
+	/// Capas de sprites conducidas antes del scroll (poseídas por el juego).
+	eng::Ref<eng::scene::SpriteLayer<Backend>> m_sprite_layers[kMaxSpriteLayers] {};
+	u8 m_sprite_count = 0u;
 	/// Plan de escena de las capas registradas **con rol** (planner §7); su estrategia la da
 	/// `scene_strategy()`. El camino manual (sin rol) no lo alimenta.
 	eng::scene::ScenePlan<kMaxScrollLayers> m_scene_plan {};

@@ -13,6 +13,7 @@ Cubre:
 - `SpriteLoadReport`: canales, scanline, BOB, Copper, paleta, emisores y coste.
 - `evaluate_static` en `constexpr`/`static_assert` con el mismo gap; presupuesto insuficiente marca aviso y `ok == false`.
 - `present` combinado: placements + paletas + cadenas opcionales; la copperlist se emite sin overflow.
+- `refresh_positions` con animación de dos frames: actualiza X/Y, alto y la DATA del frame vigente; un par *attached* se recocina al cambiar de frame y mantiene sus dos placements/ATTACH.
 
 ## Ejecución
 

@@ -46,6 +46,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
 #include <eng/core/util/noncopyable.hpp>
+#include <eng/field/actor_target.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_layer.hpp>
 #include <eng/field/scroll_plan.hpp>
@@ -538,6 +539,9 @@ public:
         m_phase_frame = 0;
         m_phase = cfg.path.start_phase; // fase inicial del ciclo (update_auto)
         if (cfg.hud.height != 0u) m_hud.clear(); // HUD limpio por defecto, sin trabajo del llamador
+        // Destino de los actores BOB/CPU sobre el anillo (PF1). La base y el alto no
+        // cambian con el scroll; la fila visible se corrige con `bob_y_offset`.
+        m_actor_target = make_actor_target(m_field[0].hardware_view());
         m_initialized = true;
         return {};
     }
@@ -811,11 +815,22 @@ public:
         return true;
     }
 
-    /// **Conduce la escena un frame**: avanza el scroll (`advance_layer`) → `compose` → `install`.
+    /// **Conduce la escena un frame**: avanza el scroll (`advance_layer`) → **BOB de
+    /// actores** → `compose` → `install`. El plan de BOB lo aporta la capa de sprites con
+    /// `attach_sprite_plan` (o `emit_sprite_director`); se ejecuta después del scroll y
+    /// antes de componer, para que el BOB caiga sobre el campo ya desplazado.
     /// Lo usa `App::add_scroll_layer` (la capa autónoma); el juego no lo llama.
     template <typename Backend>
     void frame_from_source(Backend& backend) noexcept {
         if (!advance_layer(backend)) return;
+        if (m_sprite_plan_ext != nullptr) {
+            if (m_sprite_plan_ext->blit_job_count() != 0u &&
+                !backend.execute_frame_plan(*m_sprite_plan_ext)) {
+                m_initialized = false;
+                return;
+            }
+            m_sprite_plan_ext->clear();
+        }
         if (!compose()) {
             m_initialized = false;
             return;
@@ -888,41 +903,61 @@ public:
     /// Words mutables del bloque DATA de sprites (setup del arte).
     [[nodiscard]] auto sprite_words() noexcept { return m_sprites.sprite_words(); }
 
-    /// Compone un frame de `SpriteDirector` y publica sus placements en la
-    /// copperlist de la escena. `SpriteDirector` es la fachada publica; la
-    /// escena no expone `SpriteManager` al juego.
-    ///
-    /// El contexto se rellena con el display de esta escena (sin camara de
-    /// actores: los `SpriteDesc` ya usan coordenadas de pantalla). Los BOB
-    /// degradados no se dibujan en esta ruta: el reporte los marca y el juego
-    /// debe mantener la escena dentro de los canales/placement disponibles.
+    /// **Contexto de emisión de sprites/actores de esta escena**: display, anillo y
+    /// destino BOB. Los `SpriteDesc` usan coordenadas de pantalla; el BOB necesita la
+    /// fila del anillo (`display_offset`) y el bitmap del playfield como destino.
+    /// \return contexto con `targets` (PF1), `display_top`, `ring_height`, `bob_y_offset`
+    ///         y `clip` del anillo. El `Span` apunta a un miembro de la escena: válido
+    ///         mientras la escena viva.
+    [[nodiscard]] eng::scene::ActorEmitContext sprite_context() const noexcept {
+        eng::scene::ActorEmitContext ctx {};
+        ctx.targets = eng::Span<const graphics::BobTarget> {&m_actor_target, 1u};
+        ctx.display_top = xlimited_detail::kDiwStrt >> 8u;
+        ctx.ring_height = m_cfg.display_height;
+        ctx.bob_y_offset = static_cast<eng::s16>(m_field[0].display_offset());
+        ctx.clip = graphics::DirtyRect {0, 0, static_cast<eng::s16>(m_field[0].viewport_w()),
+                                        static_cast<eng::s16>(m_field[0].display_height())};
+        return ctx;
+    }
+
+    /// **Liga el plan de BOB del frame**: la capa de sprites emite a él y la escena lo
+    /// ejecuta entre el scroll y `compose` (`frame_from_source`). El plan lo posee el
+    /// llamador y debe sobrevivir hasta el final del frame; se limpia tras ejecutarlo.
+    /// \param plan  plan de blits con los BOB degradados/forzados del frame.
+    void attach_sprite_plan(graphics::FramePlan& plan) noexcept { m_sprite_plan_ext = &plan; }
+    /// Suelta el plan externo (p. ej. al desmontar la capa de sprites).
+    void detach_sprite_plan() noexcept { m_sprite_plan_ext = nullptr; }
+
+    /// Compone un frame de `SpriteDirector` y publica sus placements en la copperlist.
+    /// `SpriteDirector` es la fachada pública; la escena no expone `SpriteManager`.
+    /// Los BOB degradados/forzados se añaden al plan interno y se ejecutan en
+    /// `frame_from_source` (tras el scroll, antes de componer).
     /// \tparam Director fachada de sprites (`SpriteDirector`); debe ofrecer
     ///         `emit(FramePlan&, ActorEmitContext&)` y `placements()`.
     template <class Director>
     auto emit_sprite_director(Director& director) noexcept {
-        eng::scene::ActorEmitContext ctx {};
-        ctx.display_top = xlimited_detail::kDiwStrt >> 8u;
-        ctx.ring_height = m_cfg.display_height;
         m_sprite_plan.clear();
-        auto report = director.emit(m_sprite_plan, ctx);
+        auto report = director.emit(m_sprite_plan, sprite_context());
         set_sprite_placements(director.placements());
+        attach_sprite_plan(m_sprite_plan);
         return report;
     }
 
-    /// Actualiza posiciones de sprites simples sin reemitir la composición.
+    /// Actualiza posiciones (y DATA animada) de sprites simples sin reemitir la
+    /// composición. Limpia el plan de BOB del frame anterior: si el refresh falla, el
+    /// llamador hace `emit_sprite_director` y ese plan lo sustituye.
     /// \tparam Director fachada con `refresh_positions(ctx)` y `placements()`.
     /// \param director fachada con `refresh_positions(ctx)` y `placements()`.
     /// \return `false` si la escena no admite actualización solo-posición; el
     ///         llamador debe usar `emit_sprite_director`.
     template <class Director>
     [[nodiscard]] bool refresh_sprite_director(Director& director) noexcept {
-        eng::scene::ActorEmitContext ctx {};
-        ctx.display_top = xlimited_detail::kDiwStrt >> 8u;
-        ctx.ring_height = m_cfg.display_height;
-        if (!director.refresh_positions(ctx)) {
+        m_sprite_plan.clear();
+        if (!director.refresh_positions(sprite_context())) {
             return false;
         }
         set_sprite_placements(director.placements());
+        attach_sprite_plan(m_sprite_plan);
         return true;
     }
 
@@ -978,7 +1013,9 @@ private:
     CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
     graphics::SpriteManager m_sprites {};
     eng::Span<const graphics::HwSpritePlacement> m_sprite_placements {};
-    eng::graphics::FramePlan m_sprite_plan {};
+    eng::graphics::FramePlan m_sprite_plan {}; ///< plan interno de `emit_sprite_director`
+    graphics::BobTarget m_actor_target {};      ///< destino BOB/CPU del anillo (PF1)
+    graphics::FramePlan* m_sprite_plan_ext = nullptr; ///< plan de BOB de la capa de sprites
     XlimitedTileBank m_tiles[2] {};
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};
