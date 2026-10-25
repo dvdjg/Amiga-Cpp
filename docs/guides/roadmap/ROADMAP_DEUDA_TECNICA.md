@@ -625,7 +625,7 @@ Conclusión parcial: el detonante está en la rotación periódica combinada con
 
 Referencias: `docs/debugging/investigaciones/consultas/consulta-224-intena-vertb-takeover-en.md` (triaje de Grok), `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`, `demos/techniques/amiga/sprites/224_sprite_reuse_carousel/VALIDATION.md`.
 
-## DT-046 - 500_caverna: actores a 16 frames y arte de placeholder - ABIERTA
+## DT-046 - 500_caverna: actores a 16 frames y arte de placeholder - CERRADA
 
 **Síntoma (usuario):** los sprites aparecen como rectángulos de un color y los enemigos no se mueven con fluidez. La demo no transmite la capacidad de la máquina.
 
@@ -634,3 +634,5 @@ Referencias: `docs/debugging/investigaciones/consultas/consulta-224-intena-vertb
 **Plan:** (1) actualizar la posición visible de los 8 actores cada frame con velocidad fija/subpíxel; (2) desacoplar la animación de arte del movimiento; (3) sustituir el patrón de prueba por sprites 16x16 legibles y paletas diferenciadas, con fondo estructurado y trayectorias X/Y; (4) medir 50 fps, capturar secuencia por paso de frame y validar con visión + diff. Hasta entonces la demo queda **NO VERIFICADA** como demo de capacidades (la validación técnica de compositor/telemetría se mantiene en su alcance).
 
 **Referencias:** `games/500_caverna/VALIDATION.md`, `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` 6.1.1.
+
+**Cierre (2026-10-25):** la demo usa arte procedural (`caverna_art.cpp`), ocho enemigos con tipos y poses diferenciadas, posición cada frame y animación de arte desacoplada cada 8 frames; `SpriteDirectorPass` conduce el director desde el `App`. Medición: **49,92 fps** estático (142102 ciclos/frame) y **49,82 fps** en movimiento a 1 px/frame (142384 ciclos/frame); a 2 px/frame baja a 40,80 fps, por lo que la velocidad de juego es 1 px/frame. Secuencia de 6 frames con `vision-final` + band-diff (`check-elements`) y contornos limpios. Durante la validación se corrigió el bloque de terreno en la parte alta al scrollear: el walk horizontal lee hasta la fila de staging 17 y las filas 14..19 del mapa PF2 no deben tener contenido visible (`caverna_art.cpp` las deja vacías; anillo `viewport_h + 2·tile`). Queda fuera de este DT, como deuda independiente, la sonda automática de salto (`vision-jump` sigue `SALTO: NO`) y la latencia input→visible.

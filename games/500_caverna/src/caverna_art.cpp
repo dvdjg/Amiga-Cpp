@@ -122,8 +122,13 @@ void build_map() {
 								     ((x / 4u) & 1u));
 				} else if (y < 13u) {
 					tile = static_cast<eng::u16>(4u + ((x / 3u + y) & 3u));
-				} else {
+				} else if (y == 13u) {
 					tile = static_cast<eng::u16>(8u + ((x / 2u + y * 3u) & 3u));
+				} else {
+					// Filas 14..19: sólo las lee la banda de staging del walk
+					// horizontal. Con `y_mode=Off` nunca son visibles y deben quedar
+					// vacías; si no, el walk las revela como un bloque en la parte alta.
+					tile = 0u;
 				}
 			}
 			g_cells[static_cast<eng::u32>(y) * kMapWidth + x] = tile;

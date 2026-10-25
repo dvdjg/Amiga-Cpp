@@ -31,13 +31,17 @@ namespace playfield = eng::playfield;
 constexpr eng::u16 kTile = caverna_art::kTile;
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 208u;
+// El anillo necesita 2 tiles de staging para el walk horizontal: el copiado de
+// cada columna escribe 16 filas de tile y las sobrantes deben caer fuera de la
+// ventana visible. Con 208 (13 tiles) se veían como un bloque de terreno arriba.
+constexpr eng::u16 kRingHeight = static_cast<eng::u16>(kHeight + 2u * kTile);
 constexpr eng::u16 kMapWidth = caverna_art::kMapWidth;
 constexpr eng::u16 kMapHeight = caverna_art::kMapHeight;
 constexpr eng::u8 kPlanes = caverna_art::kPlanes;
 constexpr eng::u16 kTilesetCount = 128u;
 
 constexpr playfield::ScrollConsts kScroll {
-	kTile, kTile, kHeight, static_cast<eng::u32>(kHeight) * kPlanes, kPlanes};
+	kTile, kTile, kRingHeight, static_cast<eng::u32>(kRingHeight) * kPlanes, kPlanes};
 using MapView = eng::playfield::FixedTileLayerMap<kMapWidth>;
 using Profile = playfield::ScrollProgressive;
 
@@ -100,11 +104,12 @@ struct CavernaGame {
 	using Director = eng::scene::SpriteDirector<static_cast<eng::u16>(kActorCount),
 					    static_cast<eng::u16>(kActorCount), 1u, 1u, 16u, 4u>;
 	Director m_dir {};
-	// Capa de sprites que conduce el `App` antes del scroll: emite/refresca los actores
-	// y entrega placements + plan de BOB a la escena. El juego no publica sprites a mano.
-	using SpriteLayer = eng::scene::SpriteDirectorLayer<Director, decltype(scene),
-							    eng::amiga::AmigaBackend>;
-	SpriteLayer m_sprite_layer {m_dir, scene};
+	// Pasada de sprites que conduce el `App` antes del scroll: emite/refresca los actores
+	// y entrega placements + plan de BOB a la escena. No es una capa visual: el director
+	// decide HW/BOB/CPU y la prioridad PF es `SpriteHint::sprite_priority` por actor.
+	using SpritePass = eng::scene::SpriteDirectorPass<Director, decltype(scene),
+							   eng::amiga::AmigaBackend>;
+	SpritePass m_sprite_pass {m_dir, scene};
 	eng::scene::SpriteId m_actor_ids[kSpriteCount] {};
 	eng::Span<eng::u16> m_sprite_words {};
 	eng::s16 m_player_sx = -1;
@@ -162,7 +167,7 @@ struct CavernaGame {
 				return;
 			}
 		}
-		m_sprite_layer.request_emit();
+		m_sprite_pass.request_emit();
 	}
 
 	/// Mantiene al jugador en una posición estable de pantalla y desplaza el
@@ -243,7 +248,7 @@ struct CavernaGame {
 		bg.tile_w = kTile;
 		bg.tile_h = kTile;
 		bg.planes = kPlanes;
-		bg.display_height = kHeight;
+		bg.display_height = kRingHeight;
 		bg.tilemap.palette = eng::PaletteWords {caverna_art::palette().data(), 32u};
 		playfield::ScrollPlan fg = bg;
 		eng::scene::ScenePlan<2u> plan {};
@@ -282,7 +287,7 @@ struct CavernaGame {
 			return;
 		}
 		init_sprites();
-		if (!app.add_sprite_layer(m_sprite_layer)) {
+		if (!app.add_sprite_pass(m_sprite_pass)) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
@@ -320,8 +325,10 @@ struct CavernaGame {
 				}
 			}
 		}
+		// 1 px/frame: con DPF 3+3 y ocho actores, 2 px/frame hacía que el frame
+		// rozara el límite del campo (medido 40,8 fps); 1 px mantiene 50 fps.
 		const eng::s16 dx =
-			static_cast<eng::s16>((joy_right ? 2 : 0) - (joy_left ? 2 : 0) + mouse_dx);
+			static_cast<eng::s16>((joy_right ? 1 : 0) - (joy_left ? 1 : 0) + mouse_dx);
 		const bool jump_down = (joy_fire != 0u) || ((mouse_buttons & 1u) != 0u) || joy_up;
 		if (jump_down && !jump_prev && on_ground) {
 			player_vy = kJump;

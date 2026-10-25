@@ -10,7 +10,7 @@ Es evolutivo: se escribe para lo disponible y se adapta cuando lleguen los módu
 
 ## 0. Estado actual: camino por intenciones
 
-Para un juego 2D nuevo, el camino recomendado está ya cubierto por `App` (`init/update/render`), `SpriteDirector` (actores/`SpriteHint`), `SpriteBank` (slots y DATA con ownership explícito) y `XlimitedScene`/`ScrollLayer` (display y scroll). El tutorial completo, con la tabla de capacidades de plantilla y el mapa de implementación interna, es [`INTENTION_API_TUTORIAL.md`](../../guides/INTENTION_API_TUTORIAL.md).
+Para un juego 2D nuevo, el camino recomendado está ya cubierto por `App` (`init/update/render`), `SpriteDirector` (actores/`SpriteHint`), `SpriteDirectorPass` (el `App` conduce el director antes del scroll), `SpriteBank` (slots y DATA con ownership explícito) y `XlimitedScene`/`ScrollLayer` (display y scroll). El tutorial completo, con la tabla de capacidades de plantilla y el mapa de implementación interna, es [`INTENTION_API_TUTORIAL.md`](../../guides/INTENTION_API_TUTORIAL.md).
 
 La ruta de alto nivel **no escribe registros**: declara `VisualId`/`SpriteDesc`, cámara y contenido; el director resuelve canales/placements, el compositor emite o parchea POS/CTL y `App` conduce el frame. `SpriteDirector::refresh_positions` evita el `emit` completo cuando solo cambian actores simples; el parcheo del compositor dual está activo y el single tiene un camino limitado con fallback. La documentación de abajo conserva el diagnóstico histórico y el mapeo desde las piezas internas, por lo que debe leerse **después** del tutorial.
 
@@ -32,7 +32,7 @@ construye materialización en la app. El diagnóstico actualizado está en
 | Blitter/efectos | `FramePlan` (jobs), `graphics::blitter_state` (`OrBob`/`LineEor`/`C2p4`) | Efectos como concepto (`world.add_effect`) |
 | Copper chunky | `composition::CopperChunkyLayer` (`attach`/`begin_frame`/`row`/`end_frame`) | Efecto de alto nivel |
 | Paleta | `eng::Palette32` | — |
-| Actores/sprites | `eng::scene::SpriteDirector` + `SpriteBank`; `ActorStore`/`Actor` como implementación interna | Representación elegida por el engine y control explícito de slots/DATA |
+| Actores/sprites | `eng::scene::SpriteDirector` + `SpriteDirectorPass` + `SpriteBank`; `ActorStore`/`Actor` como implementación interna | Representación elegida por el engine y control explícito de slots/DATA; la pasada no es una capa visual |
 | Audio | `App::audio()` y `AudioSystem` | Fachada actual expone el `AudioSystem` de backend; simplificar selección/recursos en otro bloque |
 | UI | Documentada (`GUI_LIBRARY.md`), sin implementar | `eng::ui` |
 

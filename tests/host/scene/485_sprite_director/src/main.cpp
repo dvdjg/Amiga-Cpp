@@ -22,6 +22,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/memory_manager.hpp>
 #include <eng/scene/sprite_director.hpp>
+#include <eng/scene/sprite_pass.hpp>
 
 namespace {
 
@@ -463,12 +464,70 @@ void test_refresh_animation() {
 	check(odd1[0] == 0x6666u, "refresh: par recocinado al frame 1 (impar)");
 }
 
+/// La `SpriteDirectorPass` es orquestación, no una capa: entrega los placements y el
+/// plan de BOB al host y usa el camino rápido de refresh cuando solo cambian posiciones.
+void test_sprite_pass_forwarding() {
+	struct Host {
+		eng::scene::ActorEmitContext ctx {};
+		eng::Span<const eng::graphics::HwSpritePlacement> placements {};
+		eng::graphics::FramePlan* plan = nullptr;
+		[[nodiscard]] eng::scene::ActorEmitContext sprite_context() const { return ctx; }
+		void set_sprite_placements(
+			eng::Span<const eng::graphics::HwSpritePlacement> p) { placements = p; }
+		void attach_sprite_plan(eng::graphics::FramePlan& p) { plan = &p; }
+	};
+
+	using Director = eng::scene::SpriteDirector<2u, 2u, 1u, 1u, 8u, 4u>;
+	Director dir {};
+	Host host {};
+	const eng::graphics::BobTarget target = make_target();
+	host.ctx.targets = eng::Span<const eng::graphics::BobTarget> {&target, 1u};
+	host.ctx.display_top = eng::copper::kPalVisibleFirstLine;
+
+	eng::u16 pixels[32] {};
+	for (eng::u16& w : pixels) w = 0xffffu;
+	eng::graphics::Visual visual = make_visual(8u, 2u, 32u);
+	visual.pixels = eng::Span<const eng::u16> {pixels, 32u};
+	const auto visual_id = dir.add_visual(visual);
+	eng::scene::SpriteDesc desc {};
+	desc.content = eng::scene::SpriteVisualRef::simple(visual_id);
+	desc.hint.policy = eng::scene::SpritePolicy::Sprite;
+	desc.transparency = eng::scene::TransparencyMode::Opaque;
+	desc.x = 40;
+	desc.y = 40;
+	const auto actor = dir.add(desc);
+	check(actor.valid(), "pass: alta del actor");
+
+	eng::MemoryManager mem = make_memory();
+	int backend = 0; // la pasada no usa el backend: el host materializa
+	eng::scene::SpriteDirectorPass<Director, Host, int> pass {dir, host};
+	check(pass.begin(mem, backend), "pass: begin");
+	pass.frame(backend);
+	check(host.placements.size() == 1u, "pass: placements reenviados");
+	check(host.plan != nullptr && host.plan->blit_job_count() == 0u,
+	      "pass: plan de BOB ligado (vacío sin degradados)");
+	check(pass.emit_count() == 1u && pass.refresh_count() == 0u, "pass: primer frame emite");
+	check(pass.last_report().hw == 1u, "pass: reporte del director");
+
+	check(dir.set_position(actor, 60, 40), "pass: mover actor");
+	pass.frame(backend);
+	check(pass.emit_count() == 1u && pass.refresh_count() == 1u, "pass: segundo frame refresca");
+	check(host.placements.size() == 1u &&
+		      host.placements[0].hpos == 60u + eng::graphics::kSpriteScreenXOrigin,
+	      "pass: placement actualizado por refresh");
+
+	pass.request_emit();
+	pass.frame(backend);
+	check(pass.emit_count() == 2u, "pass: request_emit fuerza emisión");
+}
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-485 sprite_director ==\n");
 	test_run();
 	test_refresh_animation();
+	test_sprite_pass_forwarding();
 	test_band_and_deadline_contracts();
 	if (g_fail == 0) {
 		std::printf("OK: SpriteDirector, reporte, banda y preflight estatico validados.\n");
