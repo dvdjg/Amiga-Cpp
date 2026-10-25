@@ -24,7 +24,7 @@ y estaba roto en plena animación (el fondo desaparecía al scrollear).
 - **Anima en los ejes que importan.** "Área mayor que la pantalla" ⇒ **movimiento en ese eje**
   (o rebote) para que se note; un scroll en un solo eje no lo demuestra.
 - **Objetos reconocibles.** Mejor un motivo/forma legible (plataformas, un personaje) que un
-  ruido de píxeles: comunica la capacidad del chipset de un vistazo.
+  ruido de píxeles: comúnica la capacidad del chipset de un vistazo.
 - **Lo especial, visible.** Si hay un truco (parallax, bitplane extra, raster colors), que se vea
   **sin explicación**; si solo se ve en el código, la demo falla.
 
@@ -138,6 +138,16 @@ Estas reglas son de obligado cumplimiento y `AGENTS.md` enruta aquí. Complement
 - **Color y contexto**: paletas ricas (degradados reales, EHB, transparencias) y un fondo con contexto; no un par de colores planos ni una rampa de grises «de test».
 - **Legibilidad**: debe verse de un vistazo qué efecto se está implementando (plasma, fuego, rotozoom, túnel, scroll, etc.) y, si procede, un rótulo/texto que lo nombre.
 - Estas condiciones **sustituyen** al antiguo criterio de aceptación «compila, llega a Ready y el pixel-assert pasa»: ese gate sigue siendo necesario, pero **no suficiente**.
+
+### 6.1.1 Fluidez, variedad y capacidad (reglas duras)
+
+- **El movimiento visible se actualiza cada frame.** La posición de un actor se pinta en todos los frames de 50 Hz, con velocidad fija o subpíxel. Actualizar una posición visible solo cada 16 frames y mover 2 px de golpe **no es una optimización aceptable** para un juego ni para una demo: es un tirón. Si la simulación o la IA van a menor frecuencia, el render debe **interpolar** y se documenta.
+- **La animación de arte se desacopla del movimiento.** Cambiar el frame de dibujo cada 4-8 frames es correcto; cambiar la posición solo en ese instante, no. Un sprite puede cambiar de pose a 6-12 fps y desplazarse suavemente a 50 fps.
+- **Prohibido el arte de placeholder como contenido.** Un rectángulo macizo, una barra `0x03c0`, un fondo negro liso o un único color no son una demo; son un smoke test interno. Se permite el placeholder solo en una sonda explícita y marcada, nunca en una demo candidata a VERIFICADA.
+- **Variedad mínima**: fondo con estructura/color, varios actores con silueta/paleta distintas, animación, trayectorias en X e Y, y al menos una transición o cambio de fase. Si la técnica lo permite, parallax, profundidad, partículas o cambios de paleta. Una escena con un solo elemento o un solo eje no demuestra la capacidad de la máquina.
+- **La técnica debe verse**: sprites/multiplexado, Copper, Blitter, DPF/EHB, scroll, etc. deben ser identificables de un vistazo; si solo existen en el código, la demo falla.
+- **Todo en 50 fps**: la variedad y la fluidez no autorizan a salir del presupuesto de un field; si no cabe, se reduce el trabajo real, no la cadencia visible.
+- **Gate**: una secuencia por paso de frame debe mostrar movimiento continuo (diff/bbox/visión) y el arte debe ser legible. Un actor que solo cambia cada 16 frames, o una escena de rectángulos de un color, deja la demo **NO VERIFICADA**.
 
 ### 6.2 Validación visual con visión local
 

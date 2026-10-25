@@ -1,5 +1,7 @@
 # VALIDATION - 500 Caverna
 
+> **Demo de capacidades: NO VERIFICADA (DT-046).** Los actores usan un rectángulo de prueba (0x03c0) y los enemigos actualizan posición cada 16 frames; no cumple las reglas de fluidez/atractivo. La validación de compositor y fps de abajo se refiere solo al mecanismo, no a la calidad visual final.
+
 ## Medición
 
 ```text
