@@ -67,7 +67,19 @@ inline bool emit_bob(FramePlan& plan, const Actor& a, const Frame& f, eng::s16 x
 	if (ctx.ring_height != 0u) {
 		return eng::graphics::bob_draw_ring(plan, b, 0u, x, y, ctx.ring_height, target);
 	}
-	return eng::graphics::bob_draw(plan, b, 0u, x, y, target);
+	if (eng::graphics::bob_draw(plan, b, 0u, x, y, target)) {
+		return true;
+	}
+	// BOB parcialmente fuera del destino: el Blitter exige la caja entera, pero la
+	// copia CPU ya recorta contra el target. Se usa como degradación visible en bordes.
+	const eng::graphics::CpuBlitResult cpu =
+		eng::graphics::cpu_draw_bob(target, b, 0u, x, y);
+	if (cpu.ok) {
+		plan.add_dirty_rect(eng::graphics::DirtyRect {
+			x, y, static_cast<eng::s16>(x + b.width), static_cast<eng::s16>(y + b.height)});
+		return true;
+	}
+	return false;
 }
 
 /// Vista del frame `f` para la copia CPU: mismo recorte de hoja que `emit_bob`, pero
@@ -95,11 +107,25 @@ inline ActorEmitStatus emit_cpu(FramePlan& plan, Actor& a, const Frame& f,
 				const DirtyRect& rect, const ActorEmitContext& ctx,
 				const BobTarget& target) {
 	const BackgroundPolicy policy = resolve_background(a.desc.background, f.w, f.h);
-	if (policy == BackgroundPolicy::SaveUnder) {
-		return ActorEmitStatus::Full;
-	}
 	const DirtyRect& prev = a.prev[ctx.buffer];
-	if (policy == BackgroundPolicy::ClearRect && prev.valid()) {
+	if (policy == BackgroundPolicy::SaveUnder) {
+		const eng::ChipView<eng::BobTag> save = a.desc.save[ctx.buffer];
+		if (save.empty()) {
+			return ActorEmitStatus::Full;
+		}
+		if (prev.valid() &&
+		    !eng::graphics::cpu_restore_box(target, prev.left, prev.top, prev.width(),
+						    prev.height(), save,
+						    a.desc.save_words_per_row,
+						    a.desc.save_height)) {
+			return ActorEmitStatus::Full;
+		}
+		if (!eng::graphics::cpu_save_box(target, rect.left, rect.top, rect.width(),
+						 rect.height(), save,
+						 a.desc.save_words_per_row, a.desc.save_height)) {
+			return ActorEmitStatus::Full;
+		}
+	} else if (policy == BackgroundPolicy::ClearRect && prev.valid()) {
 		if (!eng::graphics::cpu_clear_box(target, prev.left, prev.top, prev.width(),
 						  prev.height())) {
 			return ActorEmitStatus::Full;

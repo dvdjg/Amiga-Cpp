@@ -127,6 +127,55 @@ void test_actor_emit_cpu() {
 	check(plane0[0] == 0x001fu && plane0[1] == 0xffe0u, "nueva ventana CPU x=11");
 }
 
+void test_cpu_clip() {
+	clear_screen();
+	Visual v = make_visual();
+	BobTarget target = make_target();
+	const eng::graphics::Bob bob = eng::scene::bob_from_visual(
+		v, eng::graphics::BobLayout::Planar, TransparencyMode::Opaque);
+	const auto left = eng::graphics::cpu_draw_bob(target, bob, 0u, -4, 0);
+	check(left.ok, "clip CPU izquierda");
+	const eng::u16* row0 = reinterpret_cast<const eng::u16*>(g_screen);
+	check(row0[0] == 0xfff0u, "clip CPU deja la parte visible");
+	clear_screen();
+	const auto top = eng::graphics::cpu_draw_bob(target, bob, 0u, 0, -4);
+	check(top.ok, "clip CPU superior");
+	check(row0[0] == 0xffffu, "clip CPU pinta desde fila 0");
+	const eng::u16* row4 = reinterpret_cast<const eng::u16*>(g_screen + 4u * kRowBytes);
+	check(row4[0] == 0u, "clip CPU no pinta la parte recortada");
+}
+
+void test_cpu_save_under() {
+	clear_screen();
+	alignas(16) eng::u16 save_words[32] {};
+	for (eng::u16& w : save_words) w = 0u;
+
+	ActorDesc d {};
+	d.visual = make_visual();
+	d.force_cpu = true;
+	d.x = 10;
+	d.y = 4;
+	d.transparency = TransparencyMode::Opaque;
+	d.background = BackgroundPolicy::SaveUnder;
+	d.save[0] = chip_view<eng::BobTag>(save_words);
+	d.save_words_per_row = 2u;
+	d.save_height = 8u;
+	ActorStore<1> store;
+	const auto id = store.add(d);
+	check(id.valid(), "save-under: alta CPU");
+	BobTarget target = make_target();
+	ActorEmitContext ctx {};
+	ctx.targets = eng::Span<const BobTarget> {&target, 1u};
+	FramePlan plan;
+	check(eng::scene::actor_emit(plan, *store.get(id), ctx) == ActorEmitStatus::Ok,
+	      "save-under: primer frame");
+	store.get(id)->desc.x = 30;
+	check(eng::scene::actor_emit(plan, *store.get(id), ctx) == ActorEmitStatus::Ok,
+	      "save-under: segundo frame");
+	const eng::u16* old_row = reinterpret_cast<const eng::u16*>(g_screen + 4u * kRowBytes);
+	check(old_row[0] == 0u, "save-under restaura el fondo anterior");
+}
+
 void test_cookie_cut() {
 	clear_screen();
 	for (eng::u16 i = 0; i < 16u; ++i) {
@@ -230,6 +279,8 @@ void test_director_cpu() {
 int main() {
 	fill_art();
 	test_actor_emit_cpu();
+	test_cpu_clip();
+	test_cpu_save_under();
 	test_cookie_cut();
 	test_compact_bob_sheet();
 	test_director_cpu();

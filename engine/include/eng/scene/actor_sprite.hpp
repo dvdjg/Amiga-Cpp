@@ -141,6 +141,10 @@ struct SpriteComposeScratch {
 	eng::Span<eng::u16> sort_actor {};
 	eng::Span<eng::u16> y_offsets {};
 	eng::Span<AttachedCookedCache> cooked_pairs {};
+	/// Canal asignado en el frame anterior, indexado por slot de actor (0xff = sin
+	/// preferencia). Permite conservar el reparto al insertar/quitar actores sin reasignar
+	/// los canales de los actores que ya estaban.
+	eng::Span<const eng::u8> prev_channels {};
 };
 
 /// Compone los sprites del frame a partir de los actores:
@@ -257,6 +261,14 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			}
 		}
 		s.prev_count = pc;
+	}
+	if (!s.prev_channels.empty()) {
+		for (eng::u16 i = 0u; i < n; ++i) {
+			const eng::u16 slot = s.intent_actor[i];
+			if (slot < s.prev_channels.size() && s.prev_channels[slot] < SpriteAllocator::kChannels) {
+				s.intents[i].channel = s.prev_channels[slot];
+			}
+		}
 	}
 	SpriteAllocator{}.assign(s.intents.first(n), s.slots, ledger);
 	// La fachada por intención puede pedir BOB explícitamente (`force_bob`): se marca

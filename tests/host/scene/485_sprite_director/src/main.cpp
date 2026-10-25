@@ -138,6 +138,7 @@ void test_run() {
 	d.transparency = eng::scene::TransparencyMode::Opaque;
 	d.x = 40;
 	d.y = 40;
+	d.hint.sprite_priority = 2u;
 	const auto s1 = dir.add(d);
 	check(s1.valid(), "add simple 1");
 
@@ -267,6 +268,17 @@ void test_run() {
 		check(found_a && found_b && ca != cb, "gap: contiguos no comparten canal");
 	}
 
+	{
+		bool found = false;
+		for (const auto& p : dir.placements()) {
+			if (p.vstart == 40u) {
+				found = true;
+				check(p.priority == 2u, "BPLCON2: prioridad del actor");
+			}
+		}
+		check(found, "BPLCON2: actor con prioridad publicado");
+	}
+
 	// La banda se emitió como PaletteLine relativa/absoluta en el Plan.
 	check(copper.intent_count() >= 1u, "Plan recibe PaletteLine de banda");
 	copper.materialize();
@@ -297,6 +309,50 @@ void test_run() {
 	check(dir.remove(s2), "remove simple 2");
 	check(!dir.valid(s2), "id de entidad viejo invalido");
 	check(dir.count() == 6u, "conteo tras remove");
+}
+
+void test_stable_channels() {
+	using Director = eng::scene::SpriteDirector<4u, 4u, 1u, 1u, 8u, 4u>;
+	Director dir {};
+	eng::u16 pixels[32] {};
+	for (eng::u16& w : pixels) w = 0xffffu;
+	eng::graphics::Visual visual = make_visual(8u, 2u, 32u);
+	visual.pixels = eng::Span<const eng::u16> {pixels, 32u};
+	const auto id_visual = dir.add_visual(visual);
+	check(id_visual.valid(), "stable: visual");
+
+	auto add_actor = [&](eng::s16 x, eng::s16 y) {
+		eng::scene::SpriteDesc d {};
+		d.content = eng::scene::SpriteVisualRef::simple(id_visual);
+		d.x = x;
+		d.y = y;
+		d.transparency = eng::scene::TransparencyMode::Opaque;
+		return dir.add(d);
+	};
+	const auto a = add_actor(40, 40);
+	const auto b = add_actor(80, 44);
+	check(a.valid() && b.valid(), "stable: actores");
+	const eng::graphics::BobTarget target = make_target();
+	const eng::graphics::BobTarget targets[1] {target};
+	eng::scene::ActorEmitContext ctx {};
+	ctx.targets = eng::Span<const eng::graphics::BobTarget> {targets, 1u};
+	ctx.display_top = eng::copper::kPalVisibleFirstLine;
+	eng::graphics::FramePlan plan {};
+	plan.clear();
+	check(dir.emit(plan, ctx).ok, "stable: emit 1");
+	eng::u8 ch_a = 0xffu;
+	for (const auto& p : dir.placements()) {
+		if (p.vstart == 40u) ch_a = p.channel;
+	}
+	check(ch_a != 0xffu, "stable: A publicado");
+	check(dir.set_position(a, 40, 48), "stable: mover A");
+	plan.clear();
+	check(dir.emit(plan, ctx).ok, "stable: emit 2");
+	eng::u8 ch_a2 = 0xffu;
+	for (const auto& p : dir.placements()) {
+		if (p.vstart == 48u) ch_a2 = p.channel;
+	}
+	check(ch_a2 == ch_a, "stable: A conserva canal al reordenar Y");
 }
 
 void test_band_and_deadline_contracts() {
@@ -519,6 +575,19 @@ void test_sprite_pass_forwarding() {
 	pass.request_emit();
 	pass.frame(backend);
 	check(pass.emit_count() == 2u, "pass: request_emit fuerza emisión");
+
+	eng::scene::SpriteDesc late = desc;
+	late.x = 100;
+	late.y = 80;
+	const auto late_actor = dir.add(late);
+	check(late_actor.valid(), "pass: alta dinámica");
+	pass.frame(backend);
+	check(pass.emit_count() == 3u, "pass: alta dinámica fuerza emisión");
+	check(host.placements.size() == 2u, "pass: alta dinámica publica placements");
+	check(dir.remove(late_actor), "pass: baja dinámica");
+	pass.frame(backend);
+	check(pass.emit_count() == 4u && host.placements.size() == 1u,
+	      "pass: baja dinámica publica el conjunto nuevo");
 }
 
 /// El culling debe comparar el rect de pantalla, no el HSTART del sprite. Un actor a
@@ -562,6 +631,7 @@ int main() {
 	test_refresh_animation();
 	test_sprite_pass_forwarding();
 	test_cull_hstart();
+	test_stable_channels();
 	test_band_and_deadline_contracts();
 	if (g_fail == 0) {
 		std::printf("OK: SpriteDirector, reporte, banda y preflight estatico validados.\n");

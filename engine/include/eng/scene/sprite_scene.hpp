@@ -101,7 +101,9 @@ public:
 	/// \return id del actor, o `ActorId{}` si no se pudo dar de alta.
 	[[nodiscard]] eng::scene::ActorId add(const eng::scene::ActorDesc& desc) noexcept {
 		invalidate_cooked_cache();
-		return m_store.add(desc);
+		const eng::scene::ActorId id = m_store.add(desc);
+		if (id.valid() && id.index < MaxActors) m_actor_channels[id.index] = 0xffu;
+		return id;
 	}
 	/// Alias historico de `add`; la materializacion real la decide la composicion.
 	/// \param desc descripcion del actor.
@@ -114,7 +116,10 @@ public:
 	/// \return `true` si se quitó el actor.
 	[[nodiscard]] bool remove(eng::scene::ActorId id) noexcept {
 		const bool removed = m_store.remove(id);
-		if (removed) invalidate_cooked_cache();
+		if (removed) {
+			if (id.index < MaxActors) m_actor_channels[id.index] = 0xffu;
+			invalidate_cooked_cache();
+		}
 		return removed;
 	}
 	/// \return nº de actores vivos.
@@ -122,6 +127,7 @@ public:
 	/// Vacía el almacén (todos los actores).
 	void clear() noexcept {
 		m_store.reset();
+		m_channels_ready = false;
 		invalidate_cooked_cache();
 	}
 
@@ -155,10 +161,21 @@ public:
 		sc.sort_actor = eng::Span<eng::u16> {m_sort_actor, kMaxIntents};
 		sc.y_offsets = eng::Span<eng::u16> {m_y_offsets, kRasterLines};
 		sc.cooked_pairs = eng::Span<eng::scene::AttachedCookedCache> {m_cooked_pairs, MaxActors};
+		sc.prev_channels = m_channels_ready
+					   ? eng::Span<const eng::u8> {m_actor_channels, MaxActors}
+					   : eng::Span<const eng::u8> {};
 		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper,
 						       ledger);
 		m_result.cpu = eng::scene::emit_cpu_actors(plan, m_store, ctx);
 		m_prev_count = sc.prev_count; // la secuencia de este frame queda para el siguiente
+		eng::u8 next_channels[MaxActors] {};
+		for (eng::u16 i = 0u; i < MaxActors; ++i) next_channels[i] = 0xffu;
+		for (eng::u16 i = 0u; i < m_result.sprites && i < static_cast<eng::u16>(kMaxIntents); ++i) {
+			const eng::u16 slot = m_intent_actor[i];
+			if (slot < MaxActors) next_channels[slot] = m_slots[i].channel;
+		}
+		for (eng::u16 i = 0u; i < MaxActors; ++i) m_actor_channels[i] = next_channels[i];
+		m_channels_ready = true;
 		m_cooked_used = sc.cooked_used;
 		eng::scene::SpriteLoadReport r {};
 		r.hw = m_result.sprites;
@@ -360,6 +377,8 @@ private:
 	eng::graphics::SpriteChainBudget m_chain_budget {};       ///< presupuesto del selector
 	eng::u8 m_stable_channels = 0u;                           ///< bits de canales persistentes
 	eng::scene::SpriteComposeResult m_result {};
+	eng::u8 m_actor_channels[MaxActors] {}; ///< canal estable por actor
+	bool m_channels_ready = false;          ///< hay una asignación previa válida
 };
 
 } // namespace eng
