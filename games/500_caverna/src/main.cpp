@@ -325,10 +325,11 @@ struct CavernaGame {
 				}
 			}
 		}
-		// 1 px/frame: con DPF 3+3 y ocho actores, 2 px/frame hacía que el frame
-		// rozara el límite del campo (medido 40,8 fps); 1 px mantiene 50 fps.
+		// 2 px/frame: el parcheo por placement (incluidos los rearmes de un canal
+		// multiplexado) mantiene el frame dentro del campo; medido 49,87 fps con
+		// entrada real sostenida.
 		const eng::s16 dx =
-			static_cast<eng::s16>((joy_right ? 1 : 0) - (joy_left ? 1 : 0) + mouse_dx);
+			static_cast<eng::s16>((joy_right ? 2 : 0) - (joy_left ? 2 : 0) + mouse_dx);
 		const bool jump_down = (joy_fire != 0u) || ((mouse_buttons & 1u) != 0u) || joy_up;
 		if (jump_down && !jump_prev && on_ground) {
 			player_vy = kJump;

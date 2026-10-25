@@ -6,6 +6,7 @@
 //
 // Uso:
 //   node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME] [--json] [--duration-ms N]
+//        [--joy <port:dir[,port:dir]>]  (mantiene la entrada durante la ventana medida)
 //        [--require-stable]   (sale con código 3 si la cadencia no es estable o cuantiza)
 //
 // --json imprime, como última línea, un objeto JSON con el resultado (demo, config,
@@ -43,6 +44,10 @@ const argValue = (name, fallback = '') => {
   const i = ARGV.indexOf(name);
   return i >= 0 && ARGV[i + 1] !== undefined ? ARGV[i + 1] : fallback;
 };
+const JOY_SPECS = argValue('--joy', '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => value !== '');
 const WATCHDOG_ENABLED = ARGV.includes('--watchdog') || argValue('--watchdog-address') !== '' || process.env.ENG_RUN_WATCHDOG === '1';
 const WATCHDOG_ADDRESS_ARG = argValue('--watchdog-address');
 const WATCHDOG_TIMEOUT_FRAMES = Math.max(1, parseInt(argValue('--watchdog-timeout-frames', '600'), 10));
@@ -273,6 +278,20 @@ if (readyStatus?.state !== RUN_STATE_READY) {
 }
 console.log(`[fps] READY en frame=${readyStatus.frame}; comienza la ventana de medida`);
 
+// Entrada sostenida durante la medida (misma ruta que `run-demo --joy`): permite medir
+// el coste real de scroll/movimiento sin instrumentar la demo.
+const heldJoy = [];
+for (const spec of JOY_SPECS) {
+  const [portText, dir] = spec.split(':').map((v) => v.trim());
+  const port = parseInt(portText, 10);
+  if (Number.isNaN(port) || !dir) continue;
+  await p.sendMonitorCommand(`input joy ${port} ${dir} 1`, 5000);
+  heldJoy.push({ port, dir });
+}
+if (heldJoy.length > 0) {
+  console.log(`[fps] entrada mantenida: ${heldJoy.map((j) => `${j.port}:${j.dir}`).join(',')}`);
+}
+
 let watchdogArmed = false;
 if (WATCHDOG_ENABLED) {
   const explicit = WATCHDOG_ADDRESS_ARG === '' ? null : parseInt(WATCHDOG_ADDRESS_ARG, 0);
@@ -318,6 +337,9 @@ for (let i = 0; i < SAMPLE_COUNT; ++i) {
   prev = now;
 }
 const t1 = Date.now();
+for (const j of heldJoy) {
+  await p.sendMonitorCommand(`input joy ${j.port} ${j.dir} 0`, 5000);
+}
 let watchdogStatus = null;
 if (watchdogArmed) {
   const wd = await sideChannelCommand('watchdog status', SIDE_PORT, 3000);

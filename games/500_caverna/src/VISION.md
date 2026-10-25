@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-25T14:33:24.566Z
+- Fecha: 2026-10-25T14:48:38.016Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png (6)
 - Secuencia: `out/run/500_caverna/A500_release/sequence`
@@ -17,20 +17,29 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Análisis de las imágenes:**
 
-Las tres imágenes muestran una escena de un videojuego en estilo pixel art, con un fondo de paredes oscuras y una base de tierra marrón. El jugador controla un personaje naranja en el centro de la pantalla. Hay varios objetos en el entorno: dos triángulos rojos en la parte superior izquierda, dos triángulos naranjas más abajo, un objeto verde en la parte superior derecha, y un objeto rosa en la parte izquierda.
+Las tres imágenes muestran una escena de un videojuego de estilo pixel art, con un fondo de paredes de ladrillo oscuras y un suelo de tierra marrón. El jugador, un personaje naranja, está en el centro de la pantalla. Hay varios enemigos: dos pequeños enemigos verdes y uno rojo más grande, todos flotando. También hay dos triángulos rojos en la parte superior izquierda y una estructura vertical de bloques azules y blancos en la parte superior derecha.
 
 **Cambios entre imágenes:**
 
-*   **Imagen 1 vs. Imagen 2:** El objeto rosa en la parte izquierda se ha desplazado ligeramente hacia la izquierda. El resto de los elementos permanece en la misma posición.
-*   **Imagen 2 vs. Imagen 3:** El objeto rosa ha desaparecido completamente. El resto de los elementos permanece en la misma posición.
+- **Imagen 1:** En la parte superior izquierda, hay un triángulo rojo y un triángulo naranja.
+- **Imagen 2:** El triángulo naranja ha desaparecido. Ahora hay dos triángulos rojos, uno a la izquierda del otro.
+- **Imagen 3:** Los dos triángulos rojos están en la misma posición que en la imagen 2.
 
-**Observaciones sobre los elementos:**
+**Elementos observables:**
 
-*   **Contorno de los objetos:** Los contornos de todos los objetos (incluyendo el personaje naranja, los triángulos y el objeto verde) son limpios y bien definidos. No hay bandas, halos ni píxeles cortados.
-*   **Fondo alrededor de los objetos:** El fondo inmediatamente alrededor de los objetos permanece igual, sin artefactos visibles. El objeto rosa parece desaparecer de forma instantánea, sin dejar rastro en el fondo.
-*   **Posiciones:** Las posiciones de los objetos fijos (triángulos, objeto verde) son consistentes en todas las imágenes. El objeto rosa se mueve horizontalmente en la primera imagen y desaparece en la segunda.
-*   **Elementos extraños o defectuosos:** No se observan elementos superpuestos, recortes, artefactos o cosas incoherentes. La escena es coherente y los objetos se mueven de forma natural.
+- **Personaje principal:** Un personaje naranja, con forma de figura humana, está en el centro de la pantalla. No se mueve entre las imágenes.
+- **Enemigos:** Dos enemigos verdes y uno rojo flotan en el aire. No se mueven entre las imágenes.
+- **Triángulos:** En la imagen 1, hay un triángulo rojo y un triángulo naranja. En la imagen 2, el triángulo naranja desaparece y aparecen dos triángulos rojos. En la imagen 3, los dos triángulos rojos permanecen.
+- **Estructura vertical:** Una columna de bloques azules y blancos está en la parte superior derecha. No cambia entre las imágenes.
+- **Fondo:** Las paredes de ladrillo y el suelo de tierra permanecen sin cambios.
+
+**Observaciones adicionales:**
+
+- No hay artefactos visibles como bandas, halos o píxeles cortados.
+- Los contornos de los objetos son limpios y no hay restos de su posición anterior.
+- El fondo inmediatamente alrededor de los objetos permanece igual, sin cambios de color o textura.
+- El texto en la parte superior de la pantalla muestra "CAVERNA DEMO 500 v1.0.350 | F220 44.5FPS", que cambia ligeramente entre las imágenes (F220 en la primera, F278 en la segunda, F338 en la tercera), lo que sugiere que el juego está en ejecución y el contador de frames está aumentando.
 
 **Conclusión:**
 
-Las imágenes muestran una secuencia de un juego donde un objeto rosa se mueve horizontalmente y luego desaparece. El resto del entorno permanece estático. Todos los elementos gráficos tienen contornos limpios y no presentan artefactos visibles.
+Las imágenes muestran una escena de un videojuego con un personaje principal y varios enemigos. El único cambio observable entre las imágenes es la aparición de dos triángulos rojos en lugar de un triángulo rojo y un triángulo naranja. No hay elementos defectuosos o incoherentes visibles.

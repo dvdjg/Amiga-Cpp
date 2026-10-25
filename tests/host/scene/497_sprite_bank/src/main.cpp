@@ -106,6 +106,36 @@ int main() {
 	const eng::Span<const eng::graphics::HwSpritePlacement> changed {&changed_data, 1u};
 	check(!patch_table.patch(words, changed), "DATA distinta exige reemisión");
 
+	// --- Canal reutilizado por multiplexado vertical ------------------------
+	// Dos placements en el MISMO canal deben caber en la tabla de parcheo: el
+	// compositor dual usa este camino con nueve actores y sin multiplexar volvería
+	// a reemitir la copperlist entera cada frame.
+	eng::graphics::HwSpritePlacement reused[2] {};
+	reused[0].channel = 3u;
+	reused[0].data = chip_view(g_pixels);
+	reused[0].hpos = 0x8au;
+	reused[0].vstart = 40u;
+	reused[0].height = 16u;
+	reused[0].width_words = 1u;
+	reused[1] = reused[0];
+	reused[1].vstart = 80u;
+	eng::graphics::SpritePatchTable reused_table {};
+	RecordingScheduler reused_sched {};
+	const eng::Span<const eng::graphics::HwSpritePlacement> two {reused, 2u};
+	check(eng::graphics::SpriteManager::emit_placements_patchable(
+		      reused_sched, two, 32u, reused_table),
+	      "emite dos placements del mismo canal");
+	const eng::Span<eng::u16> reused_words {reused_sched.words, reused_sched.used};
+	check(reused_table.patch(reused_words, two), "parchea un canal reutilizado");
+	reused[1].vstart = 96u;
+	check(reused_table.patch(reused_words, two), "parchea el rearme del mismo canal");
+	const eng::graphics::SpritePosCtl moved =
+		eng::graphics::encode_sprite_pos_ctl(reused[1].hpos, reused[1].vstart,
+						     reused[1].height, reused[1].attach);
+	check(reused_words[reused_table.slot[1].pos.data_word()] == moved.pos &&
+		      reused_words[reused_table.slot[1].ctl.data_word()] == moved.ctl,
+	      "rearme del canal reutilizado actualizado");
+
 	// --- SpriteDirector::set_position --------------------------------------
 	using Director = eng::scene::SpriteDirector<4u, 1u, 1u, 1u, 8u, 4u>;
 	Director director {};
