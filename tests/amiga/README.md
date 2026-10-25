@@ -18,6 +18,7 @@ Cada test es una app del flujo normal (`tools/build/build-demo.sh`) con su `veri
 | `l1_backend/003_plane_fill_bounds` (L1-003) | Relleno por plano del Blitter con caras que tocan el borde (x=320, x=-1, y=232): recorte al rectángulo seguro del contorno (margen de 1 px por el desfase del trazador) y comparación CPU | `detail=0x1ff`: nueve bits de límites, interiores, cobertura ±2 px, fila 0 y juntas rectas/diagonales entre planos |
 | `l1_backend/004_actors_cost` (L1-004) | Coste por vértice del pipeline 3D de CPU (`mesh_transform`, test de frustum, proyección) en una sonda estática, para A/B antes de optimizar | `detail` con ciclos/vértice (/4) de las tres fases |
 | `l1_backend/005_render3d_corners` (L1-005) | Cuatro esquinas 3D frente a CPU; modo `--edge-stress` reproduce una pose animada congelada y compara el shared-edge del recorte fijo en ambos sentidos | Default: 6 bits de esquinas/cobertura ±2/HUD/caras; estrés: máscara de color, CPU/Blitter ±2, excepciones de borde y contador exacto de diferencias por plano |
+| `l1_backend/006_director_state` (L1-006) | `SpriteDirector`: alta de 8 entidades, persistencia de `count()` tras `init` y canarios alrededor del director | `detail=0xbeef0801`: 8 entidades, checks OK y magic `0xBEEF` |
 
 ## Ejecución
 
@@ -28,6 +29,7 @@ bash tests/amiga/l1_backend/003_plane_fill_bounds/verify.sh
 bash tests/amiga/l1_backend/004_actors_cost/verify.sh
 bash tests/amiga/l1_backend/005_render3d_corners/verify.sh
 bash tests/amiga/l1_backend/005_render3d_corners/verify.sh --edge-stress
+bash tests/amiga/l1_backend/006_director_state/verify.sh
 ```
 
 `--skip-build` reutiliza el binario ya compilado. Los puertos del emulador son los de `docs/debugging/system/debug-winuae-v2-guide.md` (`WINUAE_GDB_PORT`/`WINUAE_SIDE_CHANNEL_PORT`).

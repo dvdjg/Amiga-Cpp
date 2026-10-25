@@ -108,6 +108,12 @@ int main() {
 		check(small.truncated(), "TextLine trunca");
 		check(small.view() == eu::StringView("abc"), "TextLine conserva lo que cabe");
 
+		eu::TextLine<8> clipped; // capacidad 7
+		clipped << "abcdefghij";
+		check(clipped.truncated(), "TextLine trunca una vista larga");
+		check(clipped.view() == eu::StringView("abcdefg"),
+		      "TextLine conserva el prefijo de una vista larga");
+
 		eu::TextLine<48> controls;
 		controls << "S " << eu::dec(7u, 3u) << " V " << eu::fixed(Q12(6144), 2u)
 			 << " P " << eu::scaled(5960u, 2u);

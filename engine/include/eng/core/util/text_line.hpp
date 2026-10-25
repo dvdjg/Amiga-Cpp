@@ -6,8 +6,8 @@
 /// Es la fachada de composición de HUD/diagnóstico: el llamador encadena texto, enteros
 /// y `hex(v, dígitos)`/`dec(v, ancho)`/`fixed(valor, decimales)`; por dentro usa
 /// `StaticString`/`to_chars`/`to_chars_hex`, sin heap,
-/// sin iostream y sin excepciones. Si una escritura no cabe, `truncated()` queda a `true`
-/// y las siguientes no tocan memoria (el texto se trunca, nunca desborda).
+/// sin iostream y sin excepciones. Si una escritura no cabe, copia el prefijo que quepa,
+/// `truncated()` queda a `true` y las siguientes no tocan memoria (nunca desborda).
 ///
 /// ```cpp
 /// eng::util::TextLine<96> line;
@@ -222,11 +222,18 @@ public:
 	}
 
 private:
-	/// Añade una vista; si no cabe, marca truncado y no escribe parcialmente.
+	/// Añade una vista; si no cabe, marca truncado y recorta lo que cabe.
 	/// \param text vista de origen (no propietaria).
 	constexpr void add(StringView text) noexcept {
-		if (!m_truncated && !m_text.append(text)) {
+		if (m_truncated) {
+			return;
+		}
+		const usize room = m_text.capacity() - m_text.size();
+		if (text.size() > room) {
+			(void)m_text.append(text.substr(0u, room));
 			m_truncated = true;
+		} else {
+			(void)m_text.append(text);
 		}
 	}
 

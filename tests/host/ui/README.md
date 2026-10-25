@@ -37,3 +37,4 @@ Categoría `ui` de la batería host (L1). El índice de categorías está en [..
 | HOST-472 | [hud_crpg](472_hud_crpg/README.md) | HUD H5 (`eng/hud` + `eng/rpg/hud_bridge.hpp`): `VerbBar`, `Tooltip`/`Toast`, `Panel` y puente inventario/equipo → `HudSlotView`. |
 | HOST-484 | [hud_budget](484_hud_budget/README.md) | HUD H4 (`eng/hud/budget.hpp`): coste de backing, conflicto de canales, escalera de degradación, telemetría y `hud_budget_check`. |
 | HOST-494 | [minimal_game_api](494_minimal_game_api/README.md) | Contrato de compilación del juego mínimo: `App` + `Screen` + `input` + `present`, sin planos/FramePlan/memoria. |
+| HOST-496 | [host_hud_bounds](496_host_hud_bounds/README.md) | `HostHud` con nombre/telemetría largos: truncado seguro de `TextLine`, canarios intactos y texto acotado por `kTextCapacity`. |
