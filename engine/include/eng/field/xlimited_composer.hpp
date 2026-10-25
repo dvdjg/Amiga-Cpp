@@ -551,6 +551,7 @@ public:
         } else if (m_sprite_patch.valid) {
             return false;
         }
+        ++m_patch_hits;
         m_copper.flip();
         return true;
     }
