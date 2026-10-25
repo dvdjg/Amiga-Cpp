@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="4" height="3" tilewidth="16" tileheight="16" infinite="0" nextlayerid="8" nextobjectid="6" class="TestMap">
+ <properties>
+  <property name="level" type="int" value="1"/>
+  <property name="config" type="class" propertytype="MapConfig">
+   <properties>
+    <property name="speed" type="int" value="3"/>
+   </properties>
+  </property>
+ </properties>
+ <tileset firstgid="1" source="ortho.tsx"/>
+ <tileset firstgid="5" source="collection.tsx"/>
+ <layer id="1" name="Ground" width="4" height="3">
+  <data encoding="csv">
+1,2,3,4,
+0,2147483649,5,0,
+4,4,4,4
+</data>
+ </layer>
+ <group id="2" name="Decor" opacity="0.5" parallaxx="0.5" parallaxy="0.75">
+  <layer id="3" name="Overlay" width="4" height="3">
+   <data encoding="csv">0,0,0,0,0,0,0,0,0,0,0,0</data>
+  </layer>
+ </group>
+ <layer id="4" name="Hidden" width="4" height="3" visible="0">
+  <data encoding="csv">0,0,0,0,0,0,0,0,0,0,0,0</data>
+ </layer>
+ <objectgroup id="5" name="Objects" draworder="topdown">
+  <object id="1" name="hero" type="spawn" x="16" y="32" width="16" height="16"/>
+  <object id="2" name="zone" class="trigger" x="4" y="4">
+   <polygon points="0,0 20,0 20,10"/>
+  </object>
+  <object id="3" name="icon" gid="5" x="32" y="48" width="16" height="16"/>
+  <object id="4" name="marker" x="8" y="8"><point/></object>
+  <object id="5" name="label" x="24" y="8" width="64" height="16"><text wrap="1" fontfamily="sans" pixelsize="8">Hello &amp; Tiled</text></object>
+ </objectgroup>
+ <imagelayer id="6" name="Sky" offsetx="0" offsety="0" repeatx="1">
+  <image source="../../../assets/amiga/hud/test_icons.png" width="32" height="32"/>
+ </imagelayer>
+</map>

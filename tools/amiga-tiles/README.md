@@ -41,8 +41,7 @@ comentado en español.
 
 ## Uso rápido con el asset de ejemplo
 
-El repositorio incluye `assets/Beginning Fields.png` (un atlas 640×640 = 40×40 tiles
-de 16×16 sacado de *The Fan-tasy Tileset*). Con él:
+El repositorio incluye `assets/Beginning Fields.png` (un render plano de 640×640, 40×40 celdas de 16×16, del mapa homónimo de *The Fan-tasy Tileset*; el pipeline de pruebas lo corta en tiles). Con él:
 
 ```bash
 # EHB (64 = 32 base + half), paleta kmeans half-aware, dedupe.

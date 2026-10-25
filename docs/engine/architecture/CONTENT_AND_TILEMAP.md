@@ -70,26 +70,14 @@ WorldMap (disperso)
 
 ### 2.1 Compatibilidad con Tiled (.tmx/.tsx)
 
-Hay una ruta preliminar de importación Tiled; no implica que el engine consuma todo el formato. El
-roadmap de soporte completo está en `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`. El modelo
-runtime del mundo sigue siendo independiente del editor:
-- **Tilesets** (`firstgid`): `gid - firstgid` da el índice en el `Tileset`; los bits de flip de Tiled
-  (29–31: horizontal/vertical/diagonal) deben separarse del id local. El extractor actual los limpia
-  sin conservarlos como flags; su soporte visual queda pendiente del roadmap.
-- **Mapas infinitos por chunks**: los `<chunk x y width height>` de Tiled, con el mismo tamaño de
-  chunk que `WorldMap`, se cargan tal cual; los chunks ausentes son `empty_tile`.
-- **Capas** (`<layer>` Ground/Road/Water): cada capa es un `TileSource` de la escena; separan
-  material.
-- **Object layers** (`<objectgroup>`): spawns, triggers y colisiones van a los **metadatos del
-  chunk** (`Meta`), no son tiles.
-- El extractor preliminar es `tools/ehb/parse-tmx.mjs`: acepta las codificaciones de Tiled (CSV, XML
-  `<tile>` y base64 con gzip/zlib), mapas **finitos** (matriz `gids`) e **infinitos**
-  (`<chunk x y width height>`, con coordenadas posibles negativas), quita los bits de flip del GID
-  pero aún no materializa sus transformaciones, y resuelve `.tsx` externos con `--resolve-tsx`. La
-  conversión de `gid` a índice de banco la hace
-  `tools/ehb/gid-to-bank.mjs`.
-- Referencia del subconjunto actual: `docs/guides/roadmap/TILED.md`; soporte/cooker completo,
-  orientación isométrica y streaming de páginas: `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`.
+Tiled es un formato de **autoría**, no de runtime. El proyecto se cuece en host y el Amiga consume un bundle binario versionado; el modelo objetivo, los contratos y la API de intenciones están en [`TILED_MAP_RUNTIME.md`](TILED_MAP_RUNTIME.md) y las fases/gates en [`ROADMAP_TILED_WORLD_SUPPORT.md`](../../guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md). El modelo runtime del mundo sigue siendo independiente del editor:
+
+- **Tilesets** (`firstgid`): `id = gid & 0x1FFFFFFF`; los bits 29–31 (flip horizontal/vertical/diagonal) se preservan como transformación y no se descartan. El cooker asigna un `VisualId` estable por combinación usada y materializa la variante o la transformación de Blitter declarada.
+- **Mapas infinitos por chunks**: los `<chunk x y width height>` se conservan con su origen lógico; los chunks ausentes son `empty_tile`. El cooker no normaliza perdiendo coordenadas negativas.
+- **Capas** (`<layer>`/`<group>`): cada capa declara un modo de composición (`Baked`, `Base`, `Overlay`, `Occluder`, `Parallax`, `CollisionOnly`). Las estáticas se cuecen en el fondo base; las vivas se limitan a animación, visibilidad, paralaje u oclusión. El perfil «todas vivas» queda como escape para prototipos, con su coste.
+- **Object layers** (`<objectgroup>`): los *tile objects*, rectángulos, polígonos y puntos se cuecen en registros tipados (`MapObjects`) y colisión; no son tiles visuales ni se reducen a los metadatos de chunk.
+- **Animaciones**: los frames de `.tsx` se convierten en grupos con duración en ticks; el runtime parchea por Blitter las celdas visibles, no recompone la capa completa.
+- El extractor actual `tools/ehb/parse-tmx.mjs` es un subconjunto regex (CSV/XML/base64, finitos/infinitos, TSX externos); no lee grupos, objetos, propiedades ni animaciones y limpia los flips. Se conserva como compatibilidad hasta que T1 cierre el parser estructural. Referencia del subconjunto: [`TILED.md`](../../guides/roadmap/TILED.md).
 
 ## 3. Sprites y animaciones
 

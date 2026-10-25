@@ -918,7 +918,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 				LineEorParams eor;
 				if (blitter_line_eor_prepare(eor, row_bytes, edges[e].x0, edges[e].y0,
 							     edges[e].x1, edges[e].y1)) {
-					blitter_line_draw(eor, plane.data(), line_d_base);
+					blitter_line_draw(eor, plane.data(), line_d_base, false);
 				}
 			}
 		} else {
@@ -940,7 +940,7 @@ bool AmigaBackend::fill_polygons_by_plane_patterns(const graphics::PlanePolygon*
 					LineEorParams eor;
 					if (blitter_line_eor_prepare(eor, row_bytes, cx[i], cy[i], cx[j],
 								     cy[j])) {
-						blitter_line_draw(eor, plane.data(), line_d_base);
+						blitter_line_draw(eor, plane.data(), line_d_base, false);
 					}
 				}
 			}
@@ -1221,9 +1221,10 @@ bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s
 	return line_prepare_impl(out, row_bytes, x0, y0, x1, y1, /*eor=*/true);
 }
 
-void AmigaBackend::blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base) {
+void AmigaBackend::blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base,
+				     bool wait) {
 	u8* data = plane_ptr + p.row_offset;
-	wait_blitter();
+	if (wait) wait_blitter();
 	// Pares de registros CONTIGUOS en un solo acceso de 32 bits (mismo patron que
 	// `write_custom_pointer` y las emisiones del engine): `BLTCON0/1` (0x40/0x42) y
 	// `BLTBMOD/AMOD` (0x62/0x64). Con ~57 lineas-plano por frame ahorra 2 escrituras

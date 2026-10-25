@@ -1,0 +1,21 @@
+{
+  "profile": "a500-ocs",
+  "palette": { "mode": "global", "colors": 32 },
+  "tile": { "w": 16, "h": 16, "page_tiles": 128, "mask": "auto" },
+  "chunk": { "cells": 16 },
+  "layers": {
+    "Ground": "baked",
+    "Road": "baked",
+    "Shadows": "baked",
+    "RockSlopes_Auto": "baked",
+    "Water": "overlay",
+    "Flowers": "overlay"
+  },
+  "objects": {
+    "Object Layer 1": "decor",
+    "Object Shadows": "bake"
+  },
+  "animations": { "mode": "patch", "max_visible_cells": 48 },
+  "flips": "prebake-used",
+  "opacity": "bake"
+}

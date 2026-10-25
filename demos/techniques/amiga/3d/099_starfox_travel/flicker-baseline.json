@@ -1,0 +1,5 @@
+{
+  "max_candidates": 36,
+  "max_blocks_low": 220,
+  "note": "Calibrado con la secuencia release de 8 frames de Corneria. El par con mas bloques bajos corresponde al desplazamiento global del fondo con yaw/pitch de camara; es movimiento coherente, no flicker. Los candidatos deterministas son 0 en la secuencia de referencia. Recalibrar si cambia el numero/tamano de naves o el fondo."
+}

@@ -18,7 +18,7 @@ docs/guides/
 │   ├── ROADMAP_HUD.md                → HUD de juego (eng::hud): medidores, contadores, rejillas, slots, drag & drop y regiones con presupuesto
 │   ├── REFACTOR_PLAYFIELD_SCROLL.md  → plan por fases del refactor playfield/scroll
 │   ├── REGLAS_PIPELINE_TILES.md      → reglas de oro del pipeline de tiles
-│   ├── ROADMAP_TILED_WORLD_SUPPORT.md → Tiled: parser/cooker, tilesets, capas, orientación y streaming
+│   ├── ROADMAP_TILED_WORLD_SUPPORT.md → Tiled por niveles N0–N4: cooker, MapBundle, capas, objetos/colisión, isométrico y streaming
 │   ├── ROADMAP_JUEGO_SPRITES_BOBS.md → adecuación de sprites HW/BOBs para juego: compuestos, trayectorias y mecanismos
 │   ├── ROADMAP_SPRITES_COMPLETO.md   → evaluación de la consulta y plan detallado de las fases abiertas de sprites
 │   ├── ROADMAP_3D_BLITTER.md          → renderer 3D de bajo nivel: clip, proyección, painter y rutas de relleno Amiga
@@ -38,7 +38,7 @@ docs/guides/
 - Guías de estilo de código: `docs/engine/architecture/CODING_STYLE.md`.
 - Guías de optimización: `docs/guides/optimization/`.
 - Roadmaps y planes: `docs/guides/roadmap/` (marcar su estado en el `README.md` de la carpeta). La tabla única de destino de un documento nuevo está en `docs/README.md`.
-- Soporte Tiled y pipeline de mundo/tilesets: `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`.
+- Soporte Tiled y pipeline de mundo/tilesets: `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md` (plan), `docs/engine/architecture/TILED_MAP_RUNTIME.md` (modelo y API) y `docs/guides/roadmap/TILED.md` (subconjunto actual).
 - Runbooks de agentes y metodología: `docs/guides/methodology/`.
 
 ## Tutoriales

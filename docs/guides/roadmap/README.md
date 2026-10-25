@@ -28,7 +28,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_ADVENTURE_IMPORT.md](ROADMAP_ADVENTURE_IMPORT.md) | **ACTIVO** | Pipeline host de importación de aventuras clásicas (SCUMM V5/V6 → SIM → C++ de `eng::adv`): extractores, traducción semiautomática con IA opcional offline, cocina de assets, previewer Amiga-aware, informe de presupuesto y enriquecimiento por capas (I0–I5 pendientes). |
 | [ROADMAP_GAME_AI.md](ROADMAP_GAME_AI.md) | **ACTIVO** | IA de juego (`eng::ai`): GOAP, decisión, navegación, steering y percepción; fases G1–G7. |
 | [ROADMAP_PROCEDURAL_WORLDS.md](ROADMAP_PROCEDURAL_WORLDS.md) | **ACTIVO** | Generación procedural de mundos metroidvania (W0–W12): biomas, grafos, gating, geometría. |
-| [ROADMAP_TILED_WORLD_SUPPORT.md](ROADMAP_TILED_WORLD_SUPPORT.md) | **ACTIVO** | Soporte completo de Tiled: parser/cooker, tilesets, capas y streaming de mundos grandes. |
+| [ROADMAP_TILED_WORLD_SUPPORT.md](ROADMAP_TILED_WORLD_SUPPORT.md) | **ACTIVO** | Soporte de mapas Tiled por niveles N0–N4: parser estructural (T0–T1 hechos), cooker de tilesets/paletas, `MapBundle`, capas `Baked`/`Base`/`Overlay`/`Occluder`, objetos/colisión, isométrico y streaming; API de intenciones `eng::Level`. |
 | [ROADMAP_UTIL_LIBRARY.md](ROADMAP_UTIL_LIBRARY.md) | **ACTIVO** | Crecimiento de la librería de utilidades (`eng::util`): stats, color, colisión, texto, grid… |
 | [ROADMAP_TIPOS_Y_CASTS.md](ROADMAP_TIPOS_Y_CASTS.md) | **ACTIVO** | Corrección de tipos y retirada de casts forzados, con fases y medición. |
 | [ROADMAP_JUEGO_SPRITES_BOBS.md](ROADMAP_JUEGO_SPRITES_BOBS.md) | **ACTIVO** | Adecuación de sprites HW/BOBs para juego: compuestos, trayectorias, mecanismos (F1–F8). |
@@ -57,5 +57,5 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_ENGINE_CPP_AMIGA500.md](ROADMAP_ENGINE_CPP_AMIGA500.md) | **HISTÓRICO** | Hoja de ruta inicial del engine (fases 0–12) y libreta de diseño (§20). |
 | [XLIMITED_8WAY_EHB_201.md](XLIMITED_8WAY_EHB_201.md) | **HISTÓRICO** | Roadmap original del 8-way EHB (201→202), completado; superado por el roadmap vigente. |
 | [BITACORA_SCROLL_TILES.md](BITACORA_SCROLL_TILES.md) | **HISTÓRICO** | Bitácora del scroll por tiles (estado, correcciones y lecciones de 2026-08). |
-| [TILED.md](TILED.md) | **HISTÓRICO** | Conocimiento preservado del formato Tiled (.tmx/.tsx) previo al soporte nativo. |
+| [TILED.md](TILED.md) | **ACTIVO** | Subconjunto actual del importador Tiled (.tmx/.tsx), límites y estrategia de cocción host; complementa el modelo runtime. |
 | [PORT_PROMPT_1A1.md](PORT_PROMPT_1A1.md) | **HISTÓRICO** | Método de porte 1:1 desde `demoscene-repo-orig` (cita nombres antiguos de la API). |
