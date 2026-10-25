@@ -125,7 +125,7 @@ void build_tile_rows() {
 
 constexpr eng::u8 kActorCount = 8u;
 
-struct CavernaGame : eng::scene::GameView<kActorCount> {
+struct CavernaGame : eng::scene::SpriteBank<kActorCount> {
 	playfield::XlimitedScene<kScroll, MapView, Profile> scene {};
 	// Adapta la escena a la interfaz `ScrollLayer` que conduce el `App` (tipada, sin `void*`).
 	playfield::XlimitedScrollLayer<playfield::XlimitedScene<kScroll, MapView, Profile>,

@@ -6,7 +6,7 @@ Estado actual: **esqueleto jugable V0/V1/V2/V3**. El fondo es un `FixedTileLayer
 
 ## Deuda de sprites
 
-Caverna usa ya `SpriteDirector` con ocho actores y canales fijos: `refresh_simple_positions` recalcula solo X/Y y `XlimitedDualComposer` parchea POS/CTL en la copperlist. `SpriteBank`/`SpriteGameView` siguen aportando DATA y el banco de slots; `SpriteDirector` mantiene el contrato de estado. La ruta lenta por `emit` completo queda para cambios estructurales (alta/baja o cambio de DATA).
+Caverna usa ya `SpriteDirector` con ocho actores y canales fijos: `refresh_simple_positions` recalcula solo X/Y y `XlimitedDualComposer` parchea POS/CTL en la copperlist. `SpriteBank` sigue aportando DATA y el banco de slots; `SpriteDirector` mantiene el contrato de estado. La ruta lenta por `emit` completo queda para cambios estructurales (alta/baja o cambio de DATA).
 
 ## Controles
 
