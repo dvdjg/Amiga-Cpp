@@ -48,4 +48,4 @@ Vision: [`src/VISION.md`](src/VISION.md). Medidas: [`VALIDATION.md`](VALIDATION.
 - El clear de bbox por objeto borra lo que haya detrás dentro del bbox; con fondo negro es aceptable, pero una API general necesita scratch+S.
 - El CPU por cara es más lento que per-plane en esta escena y el edificio CPU se cuelga.
 - El objetivo >6 fps sigue abierto.
-- Sin commit; el cambio de línea es de engine y falta regresión de 088/090.
+- Commit `362b8246`; el cambio de línea es de engine y falta la regresión completa de 088/090.

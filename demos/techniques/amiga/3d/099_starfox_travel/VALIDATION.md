@@ -15,7 +15,7 @@
 - 088 y 090 con el cambio de línea: capturas limpias (`out/vision-review/088_line_nowait.png`, `090_line_nowait.png`).
 - Regresión `out/regression/20261025-130312/regression-report.md`: **OK** (incluye flicker). El gate genérico de análisis marca `yellow=0` porque no hay overlay/vision-points específicos; no invalida la demo.
 - 088/090 con `blitter_line_draw(..., false)`: capturas limpias; falta su regresión completa.
-- Decidido: per-plane por objeto como default; CPU/auto se conservan como modos de experimento. Sin commit.
+- Decidido: per-plane por objeto como default; CPU/auto se conservan como modos de experimento. Commit `362b8246`.
 ## Estado histórico: Corneria con fondo
 
 Escena Corneria con **objetos 3D** (Arwing, dos enemigos, arco y edificio) y fondo de cielo/terreno/agua con **tres variantes pre-rotadas** (-6°, 0°, +6°). Cámara con yaw/pitch/roll y trayectoria zigzagueante. **3,65 fps** en release A500; no cumple >6 fps. Es la excepción aceptada para tener arquitectura 3D real.

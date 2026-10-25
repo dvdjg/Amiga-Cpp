@@ -26,4 +26,4 @@ El coste real de rellenar poligonos por bitplane en A500 con **4 bitplanes de di
 
 - El clear de bbox por objeto no compone con objetos detrás dentro del bbox; con fondo negro se acepta.
 - El objetivo >6 fps sigue abierto.
-- Sin commit.
+- Commit `362b8246`.
