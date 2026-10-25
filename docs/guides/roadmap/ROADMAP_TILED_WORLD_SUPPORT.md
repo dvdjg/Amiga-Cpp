@@ -111,7 +111,7 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 
 ### T5 — Presenter XYLimited extendido — **PARCIAL (demo 206)**
 
-- Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,92 fps, 142 102 ciclos/frame, flicker OK y visión de secuencia sin artefactos. `VALIDATION.md` recoge el alcance.
+- Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,89 fps, 142 191 ciclos/frame, flicker OK y visión de secuencia sin artefactos. `VALIDATION.md` recoge el alcance.
 - Pendiente: `TileLayerStack`, overlays enmascarados, `TileAnimator` y `after_actors` (demos 207/208).
 - `TileLayerStack`: base + overlays por banda entrante; cada overlay con su máscara y orden `z`.
 - Pase de animación `TileAnimator` con presupuesto de celdas visibles y parche enmascarado.

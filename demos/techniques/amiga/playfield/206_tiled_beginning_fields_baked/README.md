@@ -39,5 +39,5 @@ Se reutiliza la familia existente en vez de crear un renderer nuevo: `playfield:
 
 ## Alcance
 
-- **Verificado**: scroll horizontal continuo, 49,92 fps en A500_debug, imagen EHB coherente con el bake de Tiled.
+- **Verificado**: scroll horizontal continuo, 49,89 fps en A500_debug, imagen EHB coherente con el bake de Tiled.
 - **No incluido aún**: capas `Overlay`/`Occluder` en runtime, animación de tiles por Blitter, objetos como actores y MapBundle/UAF-R. Esas fases son T5/T6 y se validarán en las demos 207/208.
