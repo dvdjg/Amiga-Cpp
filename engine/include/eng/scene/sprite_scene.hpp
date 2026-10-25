@@ -173,6 +173,35 @@ public:
 		return r;
 	}
 
+	/// Actualiza solo X/Y de los placements de una escena **simple estable** (un
+	/// placement por actor, sin `attached`, plantilla ni BOB). Evita reordenar y
+	/// reasignar canales cuando el juego únicamente ha movido actores.
+	/// \param ctx contexto de emisión; usa cámara y display_top como `emit`.
+	/// \return `false` si la escena no cumple el contrato simple; el llamador debe
+	///         hacer un `emit` completo.
+	[[nodiscard]] bool refresh_simple_positions(const eng::scene::ActorEmitContext& ctx) noexcept {
+		const eng::u16 count = m_store.count();
+		if (count == 0u || m_result.sprites != count) {
+			return false;
+		}
+		for (eng::u16 i = 0u; i < count; ++i) {
+			auto a = m_store.get(m_store.id_at(m_intent_actor[i]));
+			if (!a.valid() || a->desc.force_cpu || a->desc.force_bob ||
+			    !a->desc.sprite_template.empty() ||
+			    eng::graphics::visual_is_attached_pair(a->desc.visual)) {
+				return false;
+			}
+			const eng::graphics::Frame f = actor_current_frame(*a);
+			const eng::graphics::DirtyRect rect =
+				actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+			eng::graphics::HwSpritePlacement& p = m_placements[i];
+			p.hpos = rect.left;
+			p.vstart = rect.top;
+			p.height = f.h;
+		}
+		return true;
+	}
+
 	/// Colocaciones de sprite hardware del **último** `emit` (válidas las `result().sprites`
 	/// primeras). Para el caso normal el juego no las necesita: usa `present`.
 	[[nodiscard]] eng::Span<const eng::scene::HwSpritePlacement> placements() const noexcept {

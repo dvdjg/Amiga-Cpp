@@ -416,6 +416,27 @@ public:
 		return m_deadline;
 	}
 
+	/// Actualiza las posiciones de entidades simples **sin recomponer** canales,
+	/// paletas ni el reporte. Solo válido para directores sin compuestos y con una
+	/// entidad simple por placement (el caso de actores de juego en canales fijos).
+	/// \param ctx contexto de emisión (cámara/display) usado para recalcular X/Y.
+	/// \return `false` si hay compuestos o la escena no es simple estable.
+	[[nodiscard]] bool refresh_positions(const eng::scene::ActorEmitContext& ctx) noexcept {
+		if (m_composites.count() != 0u ||
+		    !m_simple.refresh_simple_positions(ctx)) {
+			return false;
+		}
+		m_place_count = 0u;
+		const auto ps = m_simple.placements();
+		for (eng::usize i = 0u; i < ps.size(); ++i) {
+			if (m_place_count >= MaxPlacements) {
+				return false;
+			}
+			m_placements[m_place_count++] = ps[i];
+		}
+		return true;
+	}
+
 	/// **Compone el frame**. Los BOB (degradados o política `Bob`) van al `plan`; los
 	/// Sprite HW a `placements()`, y las paletas de banda a `copper` (si se aporta).
 	/// \param plan  plan de blits del frame; recibe los BOB y sus dirty rects.

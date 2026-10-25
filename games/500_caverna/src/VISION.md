@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-25T06:31:38.162Z
+- Fecha: 2026-10-25T07:05:35.035Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png, frame_006.png, frame_007.png (8)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png, frame_006.png, frame_007.png, frame_008.png, frame_009.png, frame_010.png, frame_011.png (12)
 - Secuencia: `out/run/500_caverna/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -17,26 +17,30 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Análisis de las imágenes:**
 
-Las cuatro imágenes muestran una secuencia de capturas de pantalla de un juego o demo gráfico titulado "CAVERNA DEMO 500 v1.0.243". El fondo es negro y los elementos gráficos son de estilo pixel art.
+Las seis imágenes muestran una secuencia de capturas de pantalla de un programa llamado "CAVERNA DEMO 500 v1.0.255". El fondo es negro y contiene varios elementos gráficos que permanecen estáticos en su posición relativa entre las imágenes, excepto por un pequeño cambio en la posición de un objeto.
 
-**Elementos fijos:**
-- **Grilla numérica inferior:** Una estructura rectangular compuesta por números (2, 3, 4, 5, 6, 7) dispuestos en un patrón repetitivo. Está ubicada en la parte inferior de la pantalla y permanece completamente inmóvil en todas las imágenes.
-- **Cuadros con el número "1":** Seis cuadros verdes con el número "1" en su interior están distribuidos en la parte superior de la pantalla. Sus posiciones relativas no cambian entre las imágenes.
+**Elementos gráficos fijos:**
 
-**Elementos móviles:**
-- **Objetos de color naranja y rojo:** Hay varios objetos pequeños que se mueven horizontalmente sobre la grilla numérica.
-  - **Objeto naranja:** Aparece en la imagen 1, en la columna 2 de la grilla (segundo número de la fila superior). En la imagen 2, se ha desplazado hacia la derecha, ocupando la columna 3. En la imagen 3, se ha desplazado hacia la derecha, ocupando la columna 4. En la imagen 4, se ha desplazado hacia la derecha, ocupando la columna 5.
-  - **Objetos rojos:** Hay dos objetos rojos. Uno está en la columna 3 de la grilla en la imagen 1, y se desplaza hacia la derecha en las siguientes imágenes. El otro está en la columna 5 de la grilla en la imagen 1, y se desplaza hacia la derecha en las siguientes imágenes.
-  - **Objeto marrón:** Un objeto marrón aparece en la imagen 1, en la columna 6 de la grilla. En la imagen 2, se ha desplazado hacia la derecha, ocupando la columna 7. En la imagen 3, se ha desplazado hacia la derecha, ocupando la columna 8. En la imagen 4, se ha desplazado hacia la derecha, ocupando la columna 9.
+*   **Bloque de números:** En la parte inferior de la pantalla, hay un bloque rectangular compuesto por caracteres numéricos (2, 3, 4, 5, 6, 7) dispuestos en una cuadrícula de 6 filas por 30 columnas. Este bloque no cambia de posición ni de contenido entre las imágenes.
+*   **Cuadrados con el número "1":** Hay siete cuadrados verdes con el número "1" en su interior. Están distribuidos en la parte superior de la pantalla, en posiciones fijas: uno en la esquina superior derecha, uno en la parte superior central derecha, uno en la parte superior central izquierda, uno en la parte superior izquierda, uno en el centro superior, uno en la parte superior derecha (más a la derecha que el anterior), y uno en la parte superior derecha (más a la izquierda que el anterior). Todos estos cuadrados permanecen en sus posiciones en todas las imágenes.
+*   **Objetos móviles (píxeles):** Hay varios objetos pequeños que parecen estar en movimiento, pero su comportamiento es muy limitado y no se observa un cambio significativo entre las imágenes. Se pueden identificar:
+    *   Un píxel naranja en la parte superior izquierda, que se mueve hacia la derecha en pequeños saltos.
+    *   Un píxel rojo en la parte superior central, que también se mueve hacia la derecha en pequeños saltos.
+    *   Un píxel rojo en la parte superior derecha, que se mueve hacia la izquierda en pequeños saltos.
+    *   Un píxel marrón en la parte superior derecha, que permanece en la misma posición en todas las imágenes.
+    *   Un píxel naranja en el centro superior, que permanece en la misma posición en todas las imágenes.
 
-**Cambio entre imágenes:**
-- El único cambio observable es el desplazamiento horizontal de los objetos naranja, rojos y marrón hacia la derecha en cada imagen, lo que sugiere un movimiento continuo en la secuencia temporal.
-- El texto en la esquina superior izquierda cambia de "F264046B5PS" en la imagen 1 a "F126 44.5FPS" en la imagen 2, y luego a "F106 44.5FPS" en las imágenes 3 y 4. Esto indica que el juego está en ejecución y que el texto muestra información de rendimiento (FPS).
+**Cambios observables:**
 
-**Observaciones:**
-- Los contornos de los objetos móviles son limpios y no presentan halos, bandas o píxeles cortados.
-- El fondo inmediatamente alrededor de los objetos móviles es negro, y no hay artefactos visibles.
-- No hay elementos superpuestos o incompletos.
-- La grilla numérica y los cuadros con el número "1" permanecen completamente estables en todas las imágenes.
+*   **Posición del píxel naranja en la parte superior izquierda:** En la primera imagen, el píxel naranja está en la posición más a la izquierda. En la segunda imagen, se ha desplazado una posición hacia la derecha. En la tercera imagen, se ha desplazado otra posición hacia la derecha. En la cuarta imagen, se ha desplazado otra posición hacia la derecha. En la quinta imagen, se ha desplazado otra posición hacia la derecha. En la sexta imagen, se ha desplazado otra posición hacia la derecha. Este es el único cambio significativo en la posición de los objetos entre las imágenes.
+*   **FPS (Frames Per Second):** El valor de FPS en la esquina superior izquierda cambia entre las imágenes, lo que indica que el programa está en ejecución y se está midiendo el rendimiento. Los valores observados son: 64.46, 64.45, 44.5, 44.5, 44.5, 44.5.
 
-**Conclusión:** Las imágenes muestran una secuencia de capturas de pantalla de un juego o demo gráfico en ejecución, donde los objetos móviles se desplazan horizontalmente hacia la derecha en cada imagen, mientras que los elementos fijos permanecen inmóviles. El texto en la esquina superior izquierda cambia para reflejar el rendimiento del juego.
+**Observaciones sobre la calidad de los elementos:**
+
+*   **Contorno de los objetos móviles:** Los contornos de los objetos móviles (los píxeles) son limpios y no presentan bandas, halos rectangulares ni píxeles cortados. No se observan restos de su posición anterior.
+*   **Fondo alrededor de los objetos:** El fondo negro permanece uniforme y no se ve afectado por los objetos móviles. No hay artefactos ni elementos superpuestos.
+*   **Elementos incompletos o extraños:** No se observan elementos incompletos, recortes o artefactos visibles en las imágenes.
+
+**Conclusión:**
+
+Las imágenes muestran una secuencia de capturas de pantalla de un programa "CAVERNA DEMO 500" en ejecución. La mayoría de los elementos gráficos son estáticos, pero hay un píxel naranja que se desplaza hacia la derecha en pequeños saltos entre las imágenes. El fondo es negro y los contornos de los objetos son limpios. El valor de FPS cambia entre las imágenes, lo que indica que el programa está en ejecución. No se observan artefactos, elementos incompletos ni superposiciones.
