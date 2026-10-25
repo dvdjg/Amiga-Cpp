@@ -395,19 +395,44 @@ function buildMeshDemo(): Buffer {
 function main() {
 	const out = process.argv[2];
 	if (!out || out.startsWith('--')) {
-		console.error('Uso: uaf-pack.js <out.uafr> [--mesh | --world <world.bin>]');
+		console.error('Uso: uaf-pack.js <out.uafr> [--mesh | --world <world.bin> [--tiles <tiles.bin>] [--palette <palette.bin>]]');
 		process.exit(2);
 	}
 	const worldIdx = process.argv.indexOf('--world');
+	const tilesIdx = process.argv.indexOf('--tiles');
+	const paletteIdx = process.argv.indexOf('--palette');
 	let blob: Buffer;
 	if (worldIdx >= 0) {
 		const worldPath = process.argv[worldIdx + 1];
 		if (!worldPath || worldPath.startsWith('--')) {
-			console.error('Uso: uaf-pack.js <out.uafr> --world <world.bin>');
+			console.error('Uso: uaf-pack.js <out.uafr> --world <world.bin> [--tiles <tiles.bin>] [--palette <palette.bin>]');
 			process.exit(2);
 		}
 		const payload = new Uint8Array(fs.readFileSync(worldPath));
-		blob = packUaf([{ type: UafChunkType.WorldMap, count: 1, data: worldChunkData(payload) }]);
+		const chunks: any[] = [];
+		let paletteChunk = 0;
+		let tilesChunk = 0;
+		if (paletteIdx >= 0) {
+			const p = new Uint8Array(fs.readFileSync(process.argv[paletteIdx + 1]));
+			paletteChunk = chunks.length;
+			chunks.push({ type: UafChunkType.Palette, count: p.length / 2, data: p });
+		}
+		if (tilesIdx >= 0) {
+			const t = new Uint8Array(fs.readFileSync(process.argv[tilesIdx + 1]));
+			tilesChunk = chunks.length;
+			chunks.push({ type: UafChunkType.Tiles, count: 1, data: t });
+		}
+		if (payload.length >= 16 && (paletteChunk || tilesChunk)) {
+			const patched = Uint8Array.from(payload);
+			patched[6] = (tilesChunk >> 8) & 0xff;
+			patched[7] = tilesChunk & 0xff;
+			patched[8] = (paletteChunk >> 8) & 0xff;
+			patched[9] = paletteChunk & 0xff;
+			chunks.push({ type: UafChunkType.WorldMap, count: 1, data: worldChunkData(patched) });
+		} else {
+			chunks.push({ type: UafChunkType.WorldMap, count: 1, data: worldChunkData(payload) });
+		}
+		blob = packUaf(chunks);
 	} else {
 		blob = process.argv.includes('--mesh') ? buildMeshDemo() : buildDemo();
 	}
