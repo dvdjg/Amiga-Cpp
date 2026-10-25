@@ -9,6 +9,7 @@
 #include <eng/core/util/bitset.hpp>
 #include <eng/graphics/bob_ring.hpp>
 #include <eng/graphics/cpu_blit.hpp>
+#include <eng/graphics/sprite_limits.hpp>
 #include <eng/scene/actor_types.hpp>
 
 namespace eng::scene {
@@ -455,6 +456,21 @@ inline bool stable_sort_sprite_intents_by_top(eng::Span<SpriteIntent> intents,
 	return true;
 }
 
+/// **Rect para culling en coordenadas de pantalla**: el actor HW lleva `desc.x` con
+/// `kSpriteScreenXOrigin` (HSTART), pero el clip del host está en píxeles de pantalla.
+/// Se descuenta el origen solo en ese camino; BOB/CPU ya usan coordenadas de pantalla.
+/// \param a actor a proyectar.
+/// \param r rect del actor en la escala del emisor (HSTART para HW).
+[[nodiscard]] inline DirtyRect actor_cull_rect(const Actor& a, const DirtyRect& r) noexcept {
+	DirtyRect c = r;
+	if (!a.desc.force_bob && !a.desc.force_cpu) {
+		const s16 origin = static_cast<s16>(eng::graphics::kSpriteScreenXOrigin);
+		c.left = static_cast<s16>(c.left - origin);
+		c.right = static_cast<s16>(c.right - origin);
+	}
+	return c;
+}
+
 /// Construye las `SpriteIntent` de los actores (en el orden dado) y las ordena por `top`,
 /// que es el contrato de `SpriteAllocator::assign`. Un actor normal produce una intención;
 /// un actor con **par *attached*** (contenido de 4 planos y 16 px, derivado por
@@ -496,9 +512,11 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		// **Culling visible**: un actor completamente fuera del clip no consume canal,
 		// intent ni placement. Sin esto, los actores fuera de pantalla agotan canales
 		// (y fuerzan rearmes/BOB) aunque no se vean. `ctx.clip` vacío = sin culling.
+		// El rect HW lleva HSTART; el clip está en pantalla (`actor_cull_rect`).
+		const DirtyRect cull = actor_cull_rect(*a, r);
 		if (ctx.clip.valid() &&
-		    (r.right <= ctx.clip.left || r.left >= ctx.clip.right ||
-		     r.bottom <= ctx.clip.top || r.top >= ctx.clip.bottom)) {
+		    (cull.right <= ctx.clip.left || cull.left >= ctx.clip.right ||
+		     cull.bottom <= ctx.clip.top || cull.top >= ctx.clip.bottom)) {
 			continue;
 		}
 		const eng::graphics::HwSpriteTemplateView tpl = a->desc.sprite_template;

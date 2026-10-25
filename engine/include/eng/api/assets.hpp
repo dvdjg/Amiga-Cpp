@@ -135,8 +135,7 @@ public:
 			release_to_bank(block.view.data(), res::DomainAsset<Tag>::kind);
 			return eng::util::unexpected(eng::Result::HardwareLimit);
 		}
-		if (!m_table.template add<Tag>(name,
-						       eng::Span<const eng::u8> {block.view.as_const().data(), size})) {
+		if (!m_table.template add<Tag>(name, block.view.as_const().data(), size)) {
 			release_tracked(block.view.data());
 			return eng::util::unexpected(eng::Result::HardwareLimit);
 		}
@@ -266,9 +265,23 @@ public:
 		return {};
 	}
 
+	/// **Vista tipada** de un asset registrado con `add<Tag>` (mapa, filas, audio…).
+	/// \tparam Tag etiqueta de dominio del asset.
+	/// \param name nombre del manifiesto.
+	/// \return vista de bytes con el banco del dominio (vacía si no existe).
+	template <class Tag>
+	[[nodiscard]] eng::ByteView<Tag> view(eng::util::StringView name) const noexcept {
+		return m_table.template get<Tag>(name);
+	}
+
 	/// **Bytes** de un asset (p. ej. el bitmap de fondo) por nombre.
 	[[nodiscard]] eng::Span<const eng::u8> bytes(eng::util::StringView name) const noexcept {
 		return m_table.template get<eng::PlaneTag>(name).raw();
+	}
+
+	/// **Muestra de audio** por nombre (8-bit con signo, múltiplo del mínimo del mixer).
+	[[nodiscard]] eng::Span<const eng::u8> audio(eng::util::StringView name) const noexcept {
+		return m_table.template get<eng::AudioTag>(name).raw();
 	}
 
 	/// **Paleta** (palabras COLOR) por nombre. Los blobs se registran como bytes; aquí se releen

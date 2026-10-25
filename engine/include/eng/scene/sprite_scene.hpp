@@ -205,10 +205,12 @@ public:
 			const eng::graphics::DirtyRect rect =
 				actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
 			// Mismo culling que `compose_sprites`: un actor fuera del clip no tiene
-			// placement que actualizar (y no debe impedir el refresh de los visibles).
+			// placement que actualizar. El rect HW lleva HSTART; el clip está en pantalla.
+			const eng::graphics::DirtyRect cull =
+				eng::scene::actor_cull_rect(*a, rect);
 			if (ctx.clip.valid() &&
-			    (rect.right <= ctx.clip.left || rect.left >= ctx.clip.right ||
-			     rect.bottom <= ctx.clip.top || rect.top >= ctx.clip.bottom)) {
+			    (cull.right <= ctx.clip.left || cull.left >= ctx.clip.right ||
+			     cull.bottom <= ctx.clip.top || cull.top >= ctx.clip.bottom)) {
 				continue;
 			}
 			const bool first = !seen.test(slot);
@@ -276,9 +278,11 @@ public:
 			const eng::graphics::Frame f = actor_current_frame(*a);
 			const eng::graphics::DirtyRect rect =
 				actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+			const eng::graphics::DirtyRect cull =
+				eng::scene::actor_cull_rect(*a, rect);
 			if (ctx.clip.valid() &&
-			    (rect.right <= ctx.clip.left || rect.left >= ctx.clip.right ||
-			     rect.bottom <= ctx.clip.top || rect.top >= ctx.clip.bottom)) {
+			    (cull.right <= ctx.clip.left || cull.left >= ctx.clip.right ||
+			     cull.bottom <= ctx.clip.top || cull.top >= ctx.clip.bottom)) {
 				continue;
 			}
 			return false;
