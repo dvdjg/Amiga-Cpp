@@ -9,6 +9,7 @@
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/100_hotline --config A500_release
 
 #include <eng/api/api.hpp>
+#include <eng/core/data/polygon.hpp>
 #include <eng/core/math/isqrt.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/debug/version.hpp>
@@ -108,20 +109,18 @@ struct Box3 {
 /// brazo o una pierna girados conservan su forma y no se convierten en una caja
 /// envolvente axis-aligned.
 struct Part3 {
-	s16 x[8] {};
-	s16 y[8] {};
-	s16 z[8] {};
+	s16 x[16] {};
+	s16 y[16] {};
+	s16 z[16] {};
 	s16 fz = 0;
 	u8 color = kRed;
+	u8 n = 0;
 };
 
-/// Pieza de la malla única del personaje. `bone` identifica el hueso que la
-/// transforma; todas las piezas comparten un solo presupuesto de vértices y un
-/// solo dibujo de personaje.
-struct RigPart {
-	s16 x0 = 0, y0 = 0, z0 = 0;
-	s16 x1 = 0, y1 = 0, z1 = 0;
-	u8 color = kRed;
+/// Vértice de la piel continua. `bone` es el hueso rígido que lo transforma;
+/// el color lo aporta el grupo de dibujo para no repetirlo 55 veces.
+struct MeshVertex {
+	s16 x = 0, y = 0, z = 0;
 	u8 bone = 0;
 };
 
@@ -136,6 +135,113 @@ struct BoneFrame {
 	s16 s = 0;
 };
 
+/// Malla única de 55 vértices. Es la misma para los tres personajes; cada
+/// vértice pertenece a un solo hueso (skinning rígido). Y arriba, X derecha,
+/// Z delante; el render invierte Z para que la cara mire a la cámara.
+static constexpr MeshVertex kBody[55] = {
+	// Cabeza (neck)
+	{0, 58, 4, 1}, {5, 56, 2, 1}, {-5, 56, 2, 1}, {5, 56, -3, 1},
+	{-5, 56, -3, 1}, {0, 50, 3, 1}, {4, 50, 0, 1}, {-4, 50, 0, 1},
+	{0, 52, -4, 1},
+	// Visor (neck)
+	{3, 55, 5, 1}, {-3, 55, 5, 1}, {3, 52, 5, 1}, {-3, 52, 5, 1},
+	// Torso (root)
+	{7, 46, 4, 0}, {-7, 46, 4, 0}, {7, 46, -3, 0}, {-7, 46, -3, 0},
+	{8, 32, 4, 0}, {-8, 32, 4, 0}, {8, 32, -3, 0}, {-8, 32, -3, 0},
+	{6, 20, 3, 0}, {-6, 20, 3, 0}, {6, 20, -2, 0}, {-6, 20, -2, 0},
+	// Brazo L (arm_L)
+	{-10, 45, 1, 2}, {-18, 40, 1, 2}, {-18, 36, 1, 2}, {-24, 30, 1, 2},
+	{-24, 28, 1, 2}, {-10, 43, -1, 2}, {-18, 38, -1, 2}, {-24, 29, -1, 2},
+	// Brazo R (arm_R)
+	{10, 45, 1, 3}, {18, 40, 1, 3}, {18, 36, 1, 3}, {24, 30, 1, 3},
+	{24, 28, 1, 3}, {10, 43, -1, 3}, {18, 38, -1, 3}, {24, 29, -1, 3},
+	// Pierna L (leg_L)
+	{-5, 18, 2, 4}, {-6, 10, 2, 4}, {-6, 10, -1, 4}, {-5, 0, 3, 4},
+	{-5, 0, -2, 4}, {-3, 18, -1, 4}, {-4, 10, 0, 4},
+	// Pierna R (leg_R)
+	{5, 18, 2, 5}, {6, 10, 2, 5}, {6, 10, -1, 5}, {5, 0, 3, 5},
+	{5, 0, -2, 5}, {3, 18, -1, 5}, {4, 10, 0, 5},
+};
+
+/// Caras triangulares de la piel. `base` conserva la intención del modelo:
+/// 1..3 son rojos (cabeza/torso/visor) y 4..5 grises (brazos/piernas).
+struct BodyFace {
+	u8 a = 0;
+	u8 b = 0;
+	u8 c = 0;
+	u8 base = 2;
+};
+
+static constexpr BodyFace kBodyFaces[] = {
+	// Cabeza
+	{0, 1, 2, 1}, {0, 2, 5, 1}, {1, 3, 0, 1}, {2, 0, 4, 1},
+	{1, 6, 3, 1}, {2, 4, 7, 1}, {3, 8, 4, 1}, {5, 6, 1, 1},
+	{5, 2, 7, 1}, {6, 8, 3, 1}, {7, 4, 8, 1}, {5, 7, 8, 1},
+	{5, 8, 6, 1},
+	// Visor
+	{9, 10, 12, 3}, {9, 12, 11, 3},
+	// Torso
+	{13, 14, 18, 2}, {13, 18, 17, 2}, {15, 19, 20, 2}, {15, 20, 16, 2},
+	{13, 17, 19, 2}, {13, 19, 15, 2}, {14, 16, 20, 2}, {14, 20, 18, 2},
+	{17, 18, 22, 2}, {17, 22, 21, 2}, {19, 23, 24, 2}, {19, 24, 20, 2},
+	{17, 21, 23, 2}, {17, 23, 19, 2}, {18, 20, 24, 2}, {18, 24, 22, 2},
+	// Unión cuello-torso
+	{6, 13, 7, 2}, {7, 13, 14, 2}, {6, 15, 13, 2}, {7, 14, 16, 2},
+	// Brazo L
+	{25, 26, 31, 4}, {25, 31, 30, 4}, {26, 27, 31, 4}, {27, 28, 32, 4},
+	{27, 32, 31, 4}, {28, 29, 32, 4}, {14, 25, 30, 4}, {14, 30, 16, 4},
+	// Brazo R
+	{33, 38, 39, 4}, {33, 39, 34, 4}, {34, 39, 35, 4}, {35, 39, 40, 4},
+	{35, 40, 36, 4}, {36, 40, 37, 4}, {13, 15, 38, 4}, {13, 38, 33, 4},
+	// Pierna L
+	{41, 42, 47, 5}, {41, 47, 46, 5}, {42, 44, 47, 5}, {42, 43, 45, 5},
+	{42, 45, 44, 5}, {43, 47, 45, 5}, {22, 41, 46, 5}, {22, 46, 24, 5},
+	// Pierna R
+	{48, 53, 54, 5}, {48, 54, 49, 5}, {49, 54, 51, 5}, {49, 50, 52, 5},
+	{49, 52, 51, 5}, {50, 54, 52, 5}, {21, 23, 53, 5}, {21, 53, 48, 5},
+};
+constexpr u16 kBodyFaceCount = static_cast<u16>(sizeof(kBodyFaces) / sizeof(kBodyFaces[0]));
+
+/// Peso secundario por vértice en los hombros/caderas. El primero es el hueso
+/// primario de `MeshVertex`; este reparte el vértice para suavizar la unión.
+struct SkinWeight {
+	u8 secondary = 0xFF;
+	u8 weight = 0; // 0..256
+};
+
+[[nodiscard]] static constexpr SkinWeight skin_weight(u8 i) noexcept {
+	switch (i) {
+	case 5: case 6: case 7: case 8:
+		return {0, 80}; // base de cuello hacia root
+	case 13: case 15:
+		return {3, 80}; // hombro derecho hacia arm_R
+	case 14: case 16:
+		return {2, 80}; // hombro izquierdo hacia arm_L
+	case 25: case 30:
+		return {0, 96}; // arranque brazo L hacia root
+	case 33: case 38:
+		return {0, 96}; // arranque brazo R hacia root
+	case 21: case 23:
+		return {5, 80}; // cintura derecha hacia leg_R
+	case 22: case 24:
+		return {4, 80}; // cintura izquierda hacia leg_L
+	case 41: case 46:
+		return {0, 96}; // cadera L hacia root
+	case 48: case 53:
+		return {0, 96}; // cadera R hacia root
+	default:
+		return {};
+	}
+}
+
+struct FaceDraw {
+	Pt p[3] {};
+	s16 fz = 0;
+	u8 color = kRed;
+};
+// Origen rest de cada hueso en espacio del personaje (pies en y=0).
+static constexpr s16 kBoneRestX[6] = {0, 0, -12, 12, -5, 5};
+static constexpr s16 kBoneRestY[6] = {16, 30, 28, 28, 16, 16};
 struct Game {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext& context) { // NOLINT
 		if (!backend.configure_memory({384u * 1024u, 8u * 1024u, 8u * 1024u})) {
@@ -159,6 +265,13 @@ struct Game {
 			eng::debug::mark_failed(g_eng_run_status, kBootMemory);
 			return;
 		}
+		m_masks_block = backend.memory_manager().chip().reserve<eng::MaskTag>(
+			5u * static_cast<u32>(kRowBytes) * kHudY + 16u, 16);
+		if (!m_masks_block.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, kBootMemory);
+			return;
+		}
+		m_masks = m_masks_block.data();
 		m_fill.backend = &backend;
 		m_fill.mask = m_mask.view;
 		m_canvas.set_polygon_fill_sink(m_fill.sink());
@@ -169,6 +282,7 @@ struct Game {
 			return;
 		}
 		m_bg = m_bg_block.data();
+		build_face_colors();
 
 		for (u8 v = 0u; v < kViews; ++v) draw_background(v);
 
@@ -403,14 +517,15 @@ private:
 		s32 cx = 0;
 		s32 cy = 0;
 		s32 cz = 0;
-		for (u8 i = 0u; i < 8u; ++i) {
+		if (p.n == 0u) return false;
+		for (u8 i = 0u; i < p.n; ++i) {
 			cx += p.x[i];
 			cy += p.y[i];
 			cz += p.z[i];
 		}
 		s16 sx = 0, sy = 0;
-		return project3(static_cast<s16>(cx / 8), static_cast<s16>(cy / 8),
-				static_cast<s16>(cz / 8), sx, sy, fz);
+		return project3(static_cast<s16>(cx / p.n), static_cast<s16>(cy / p.n),
+				static_cast<s16>(cz / p.n), sx, sy, fz);
 	}
 
 	static void part_from_box(const Box3& b, Part3& p) noexcept {
@@ -423,17 +538,18 @@ private:
 			p.z[i] = zs[i];
 		}
 		p.color = b.color;
+		p.n = 8u;
 	}
 
 	void draw_part(const Part3& p) noexcept {
-		Pt pts[8] {};
-		for (u8 i = 0u; i < 8u; ++i) {
+		Pt pts[16] {};
+		for (u8 i = 0u; i < p.n; ++i) {
 			s16 fz = 0;
 			if (!project3(p.x[i], p.y[i], p.z[i], pts[i].x, pts[i].y, fz))
 				return;
 		}
 		Pt hull_pts[16] {};
-		const u8 hn = hull(pts, 8u, hull_pts);
+		const u8 hn = hull(pts, p.n, hull_pts);
 		if (hn < 3u) return;
 		s16 hx[16] {};
 		s16 hy[16] {};
@@ -446,41 +562,6 @@ private:
 		(void)s.fill_polygon(hx, hy, hn, p.color);
 	}
 
-	void draw_world() noexcept {
-		Part3 items[32] {};
-		u8 n = 0u;
-		for (u8 i = 0u; i < 2u; ++i) {
-			Part3 p {};
-			part_from_box(cover_box(i), p);
-			s16 fz = 0;
-			if (part_visible(p, fz) && n < 32u) {
-				p.fz = fz;
-				items[n++] = p;
-			}
-		}
-		for (u8 e = 0u; e < kEnemies; ++e) {
-			if (!m_enemies[e].alive) continue;
-			Part3 parts[7] {};
-			enemy_mesh(m_enemies[e], parts);
-			for (u8 p = 0u; p < 7u && n < 32u; ++p) {
-				s16 fz = 0;
-				if (part_visible(parts[p], fz)) {
-					parts[p].fz = fz;
-					items[n++] = parts[p];
-				}
-			}
-		}
-		for (u8 i = 1u; i < n; ++i) {
-			const Part3 key = items[i];
-			u8 j = i;
-			while (j > 0u && items[j - 1u].fz < key.fz) {
-				items[j] = items[j - 1u];
-				--j;
-			}
-			items[j] = key;
-		}
-		for (u8 i = 0u; i < n; ++i) draw_part(items[i]);
-	}
 	[[nodiscard]] static Box3 cover_box(u8 i) noexcept {
 		if (i == 0u) return Box3 {76, 0, 160, 104, 34, 184, kGrayDark};
 		return Box3 {156, 0, 160, 184, 34, 184, kGrayLight};
@@ -495,19 +576,78 @@ private:
 			static_cast<s16>(parent.z + pz), c, s};
 	}
 
-	/// Malla única del personaje: todas las piezas se transforman con el mismo
-	/// esqueleto y se dibujan como un solo cuerpo. Los brazos y piernas giran en
-	/// el plano de la cámara; la fase `Enemy::anim` avanza con cada tick de tiempo.
-	void enemy_mesh(const Enemy& e, Part3* out) const noexcept {
-		static constexpr RigPart kRig[7] = {
-			{-8, 0, -5, 8, 28, 5, kRed, 0},       // torso
-			{-5, 0, -5, 5, 10, 5, kRedLight, 1},  // cabeza
-			{-4, 3, -6, 4, 7, -5, kRedDark, 1},   // visor
-			{-5, -24, -4, 0, 0, 4, kGrayLight, 2},// brazo izquierdo
-			{0, -24, -4, 5, 0, 4, kGrayLight, 3}, // brazo derecho
-			{-4, -26, -4, 0, 0, 4, kGrayDark, 4}, // pierna izquierda
-			{0, -26, -4, 4, 0, 4, kGrayDark, 5},  // pierna derecha
-		};
+	/// Color por cara calculado UNA vez desde la normal de rest y una luz fija.
+	/// No hay iluminación por frame: los tres rojos (oscuro/medio/claro) y los
+	/// dos grises quedan fijados con coherencia espacial.
+	void build_face_colors() noexcept {
+		for (u16 i = 0u; i < kBodyFaceCount; ++i) {
+			const BodyFace& f = kBodyFaces[i];
+			const MeshVertex& a = kBody[f.a];
+			const MeshVertex& b = kBody[f.b];
+			const MeshVertex& c = kBody[f.c];
+			const s32 ux = b.x - a.x;
+			const s32 uy = b.y - a.y;
+			const s32 uz = b.z - a.z;
+			const s32 vx = c.x - a.x;
+			const s32 vy = c.y - a.y;
+			const s32 vz = c.z - a.z;
+			s32 nx = uy * vz - uz * vy;
+			s32 ny = uz * vx - ux * vz;
+			s32 nz = ux * vy - uy * vx;
+			const s32 fcx = (a.x + b.x + c.x) / 3;
+			const s32 fcy = (a.y + b.y + c.y) / 3;
+			const s32 fcz = (a.z + b.z + c.z) / 3;
+			const s32 bcx = (kBoneRestX[a.bone] + kBoneRestX[b.bone] +
+					 kBoneRestX[c.bone]) / 3;
+			const s32 bcy = (kBoneRestY[a.bone] + kBoneRestY[b.bone] +
+					 kBoneRestY[c.bone]) / 3;
+			const bool flip = nx * (fcx - bcx) + ny * (fcy - bcy) +
+						  nz * fcz <
+					  0;
+			m_face_swap[i] = flip;
+			if (flip) {
+				nx = -nx;
+				ny = -ny;
+				nz = -nz;
+			}
+			const s32 ax = nx < 0 ? -nx : nx;
+			const s32 ay = ny < 0 ? -ny : ny;
+			const s32 az = nz < 0 ? -nz : nz;
+			const s32 mag = ax > ay ? (ax > az ? ax : az)
+						: (ay > az ? ay : az);
+			const s32 light = mag == 0
+				? 0
+				: ((2 * ny - nx + nz) * 256) / mag;
+			u8 color = kRed;
+			if (f.base >= 4u) {
+				color = light > 0 ? kGrayLight : kGrayDark;
+			} else if (f.base == 1u) {
+				// Cabeza: el tono más claro, arriba y hacia la luz.
+				color = kRedLight;
+			} else if (f.base == 3u) {
+				// Visor: el rojo más oscuro, en la zona de sombra.
+				color = kRedDark;
+			} else {
+				// Torso: rojo medio; los grises conservan su
+				// gradación estática por normal.
+				color = kRed;
+			}
+			m_face_color[i] = color;
+		}
+	}
+
+	void pose_vertex(const BoneFrame* f, u8 bone, const MeshVertex& v,
+			 s16& x, s16& y, s16& z) const noexcept {
+		const BoneFrame& b = f[bone];
+		const s16 lx = static_cast<s16>(v.x - kBoneRestX[bone]);
+		const s16 ly = static_cast<s16>(v.y - kBoneRestY[bone]);
+		x = static_cast<s16>(b.x + ((lx * b.c - ly * b.s) >> 8));
+		y = static_cast<s16>(b.y + ((lx * b.s + ly * b.c) >> 8));
+		// El modelo usa +Z como delante; la cámara mira desde -Z.
+		z = static_cast<s16>(b.z - v.z);
+	}
+
+	void pose_enemy_vertices(const Enemy& e, s16* xs, s16* ys, s16* zs) const noexcept {
 		static constexpr s16 kSwingC[8] = {
 			256, 247, 222, 247, 256, 247, 222, 247};
 		static constexpr s16 kSwingS[8] = {
@@ -515,39 +655,181 @@ private:
 		const u8 phase = static_cast<u8>(e.anim & 7u);
 		const s16 c = kSwingC[phase];
 		const s16 s = kSwingS[phase];
+		const s16 swing = s < 0 ? static_cast<s16>(-s) : s;
+		const bool aim = e.aim != 0u;
+		const s16 arm_c = aim ? 181 : c;
+		const s16 arm_l_s = aim ? static_cast<s16>(-181) : s;
+		const s16 arm_r_s = aim ? 181 : s;
 		const s16 bob = (phase == 1u || phase == 2u || phase == 5u ||
 				 phase == 6u)
 					? 1
 					: 0;
-		const s16 swing = s < 0 ? static_cast<s16>(-s) : s;
-		const s16 arm_c = e.aim != 0u ? 181 : c;
-		const s16 arm_s = e.aim != 0u ? 181 : swing;
 		BoneFrame f[6] {};
-		f[0] = BoneFrame {e.x, static_cast<s16>(26 + bob), e.z, 256, 0};
-		f[1] = child_frame(f[0], 0, 28, 0, 256, 0);
-		f[2] = child_frame(f[0], -8, 24, 0, arm_c,
-				   static_cast<s16>(-arm_s));
-		f[3] = child_frame(f[0], 8, 24, 0, arm_c, arm_s);
-		f[4] = child_frame(f[0], -4, 0, 0, c,
+		f[0] = BoneFrame {e.x, static_cast<s16>(16 + bob), e.z, 256, 0};
+		f[1] = child_frame(f[0], 0, 14, 0, 256, 0);
+		f[2] = child_frame(f[0], -12, 12, 0, arm_c, arm_l_s);
+		f[3] = child_frame(f[0], 12, 12, 0, arm_c, arm_r_s);
+		f[4] = child_frame(f[0], -5, 0, 0, c,
 				   static_cast<s16>(-swing));
-		f[5] = child_frame(f[0], 4, 0, 0, c, swing);
-		for (u8 i = 0u; i < 7u; ++i) {
-			const RigPart& r = kRig[i];
-			const BoneFrame& b = f[r.bone];
-			const s16 px[8] = {r.x0, r.x1, r.x1, r.x0,
-					   r.x0, r.x1, r.x1, r.x0};
-			const s16 py[8] = {r.y0, r.y0, r.y1, r.y1,
-					   r.y0, r.y0, r.y1, r.y1};
-			const s16 pz[8] = {r.z0, r.z0, r.z0, r.z0,
-					   r.z1, r.z1, r.z1, r.z1};
-			for (u8 v = 0u; v < 8u; ++v) {
-				out[i].x[v] = static_cast<s16>(
-					b.x + ((px[v] * b.c - py[v] * b.s) >> 8));
-				out[i].y[v] = static_cast<s16>(
-					b.y + ((px[v] * b.s + py[v] * b.c) >> 8));
-				out[i].z[v] = static_cast<s16>(b.z + pz[v]);
+		f[5] = child_frame(f[0], 5, 0, 0, c, swing);
+		for (u8 i = 0u; i < 55u; ++i) {
+			const MeshVertex& v = kBody[i];
+			s16 x = 0, y = 0, z = 0;
+			pose_vertex(f, v.bone, v, x, y, z);
+			const SkinWeight sw = skin_weight(i);
+			if (sw.secondary != 0xFFu && sw.weight != 0u) {
+				s16 sx = 0, sy = 0, sz = 0;
+				pose_vertex(f, sw.secondary, v, sx, sy, sz);
+				const s32 w = sw.weight;
+				x = static_cast<s16>(((x * (256 - w)) + sx * w) >> 8);
+				y = static_cast<s16>(((y * (256 - w)) + sy * w) >> 8);
+				z = static_cast<s16>(((z * (256 - w)) + sz * w) >> 8);
 			}
-			out[i].color = r.color;
+			xs[i] = x;
+			ys[i] = y;
+			zs[i] = z;
+		}
+	}
+
+	/// Rasteriza la malla exacta en un buffer de color por píxel (pintor por
+	/// cara, de lejos a cerca), y luego materializa cada color con una sola
+	/// máscara + un cookie-cut por plano.
+	void draw_characters(eng::amiga::AmigaBackend& backend) noexcept {
+		u8* skin = m_skin;
+		for (u32 i = 0u; i < static_cast<u32>(kWidth) * kHudY; ++i)
+			skin[i] = 0u;
+		FaceDraw faces[kBodyFaceCount * kEnemies] {};
+		u16 n = 0u;
+		for (u8 e = 0u; e < kEnemies; ++e) {
+			if (!m_enemies[e].alive) continue;
+			s16 xs[55] {};
+			s16 ys[55] {};
+			s16 zs[55] {};
+			pose_enemy_vertices(m_enemies[e], xs, ys, zs);
+			for (u16 fi = 0u; fi < kBodyFaceCount; ++fi) {
+				const BodyFace& f = kBodyFaces[fi];
+				const u8 ia = f.a;
+				const u8 ib = m_face_swap[fi] ? f.c : f.b;
+				const u8 ic = m_face_swap[fi] ? f.b : f.c;
+				s16 fz[3] {};
+				bool ok = true;
+				FaceDraw fd {};
+				for (u8 k = 0u; k < 3u; ++k) {
+					const u8 vi = k == 0u ? ia : (k == 1u ? ib : ic);
+					s16 fzv = 0;
+					if (!project3(xs[vi], ys[vi], zs[vi], fd.p[k].x,
+						      fd.p[k].y, fzv)) {
+						ok = false;
+						break;
+					}
+					fz[k] = fzv;
+				}
+				if (!ok) continue;
+				const s32 ux = static_cast<s32>(xs[ib]) - xs[ia];
+				const s32 uy = static_cast<s32>(ys[ib]) - ys[ia];
+				const s32 uz = static_cast<s32>(zs[ib]) - zs[ia];
+				const s32 vx = static_cast<s32>(xs[ic]) - xs[ia];
+				const s32 vy = static_cast<s32>(ys[ic]) - ys[ia];
+				const s32 vz = static_cast<s32>(zs[ic]) - zs[ia];
+				const s32 nx = uy * vz - uz * vy;
+				const s32 ny = uz * vx - ux * vz;
+				const s32 nz = ux * vy - uy * vx;
+				const s32 fcx = (static_cast<s32>(xs[ia]) + xs[ib] +
+						 xs[ic]) /
+						3;
+				const s32 fcy = (static_cast<s32>(ys[ia]) + ys[ib] +
+						 ys[ic]) /
+						3;
+				const s32 fcz = (static_cast<s32>(zs[ia]) + zs[ib] +
+						 zs[ic]) /
+						3;
+				if (nx * (static_cast<s32>(m_px) - fcx) +
+					    ny * (kEyeY - fcy) +
+					    nz * (static_cast<s32>(m_pz) - fcz) <=
+				    0)
+					continue;
+				fd.fz = static_cast<s16>(
+					(static_cast<s32>(fz[0]) + fz[1] + fz[2]) / 3);
+				fd.color = m_face_color[fi];
+				faces[n++] = fd;
+			}
+		}
+		for (u16 i = 1u; i < n; ++i) {
+			const FaceDraw key = faces[i];
+			u16 j = i;
+			while (j > 0u && faces[j - 1u].fz < key.fz) {
+				faces[j] = faces[j - 1u];
+				--j;
+			}
+			faces[j] = key;
+		}
+		for (u16 i = 0u; i < n; ++i) {
+			const FaceDraw& fd = faces[i];
+			const s32 px[3] = {fd.p[0].x, fd.p[1].x, fd.p[2].x};
+			const s32 py[3] = {fd.p[0].y, fd.p[1].y, fd.p[2].y};
+			eng::math3d::convex_spans(
+				eng::Span<const s32>(px, 3u),
+				eng::Span<const s32>(py, 3u),
+				[&](s32 y, s32 xl, s32 xr) {
+					if (y < 0 || y >= static_cast<s32>(kHudY)) return;
+					if (xl < 0) xl = 0;
+					if (xr >= static_cast<s32>(kWidth))
+						xr = static_cast<s32>(kWidth) - 1;
+					if (xl > xr) return;
+					u8* row = skin + static_cast<u32>(y) * kWidth;
+					for (s32 x = xl; x <= xr; ++x)
+						row[x] = fd.color;
+				});
+		}
+		static constexpr u8 kColors[5] = {kRedLight, kRed, kRedDark,
+						  kGrayLight, kGrayDark};
+		const u32 mask_bytes = static_cast<u32>(kRowBytes) * kHudY;
+		for (u8 ci = 0u; ci < 5u; ++ci) {
+			for (u32 i = 0u; i < mask_bytes; ++i)
+				m_masks[static_cast<u32>(ci) * mask_bytes + i] = 0u;
+		}
+		s16 bx0[5] = {32767, 32767, 32767, 32767, 32767};
+		s16 by0[5] = {32767, 32767, 32767, 32767, 32767};
+		s16 bx1[5] = {-1, -1, -1, -1, -1};
+		s16 by1[5] = {-1, -1, -1, -1, -1};
+		for (u16 y = 0u; y < kHudY; ++y) {
+			const u8* row = skin + static_cast<u32>(y) * kWidth;
+			for (u16 x = 0u; x < kWidth; ++x) {
+				const u8 col = row[x];
+				if (col == 0u) continue;
+				u8 ci = 0u;
+				for (; ci < 5u; ++ci) {
+					if (kColors[ci] == col) break;
+				}
+				if (ci >= 5u) continue;
+				if (x < bx0[ci]) bx0[ci] = x;
+				if (x > bx1[ci]) bx1[ci] = x;
+				if (y < by0[ci]) by0[ci] = y;
+				if (y > by1[ci]) by1[ci] = y;
+				m_masks[static_cast<u32>(ci) * mask_bytes + static_cast<u32>(y) * kRowBytes +
+					     (x >> 3)] |= static_cast<u8>(
+					0x80u >> (x & 7u));
+			}
+		}
+		for (u8 ci = 0u; ci < 5u; ++ci) {
+			if (bx1[ci] < bx0[ci]) continue;
+			(void)m_fill.backend->blit_fill_from_mask(
+				eng::MaskBytes(m_masks + static_cast<u32>(ci) * mask_bytes, mask_bytes),
+				m_draw_planes, kPlanes, kRowBytes, kPlaneBytes, bx0[ci], by0[ci],
+				static_cast<u16>(bx1[ci] - bx0[ci] + 1),
+				static_cast<u16>(by1[ci] - by0[ci] + 1), kColors[ci]);
+		}
+	}
+
+	void draw_covers() noexcept {
+		for (u8 i = 0u; i < 2u; ++i) {
+			Part3 p {};
+			part_from_box(cover_box(i), p);
+			s16 fz = 0;
+			if (part_visible(p, fz)) {
+				p.fz = fz;
+				draw_part(p);
+			}
 		}
 	}
 	[[nodiscard]] bool los_blocked(s16 ex, s16 ez) const noexcept {
@@ -575,7 +857,8 @@ private:
 			eng::PlaneBytes buffer) noexcept {
 		bind_planes(buffer);
 		m_draw_planes = buffer;
-		draw_world();
+		draw_characters(backend);
+		draw_covers();
 		for (u16 i = 0u; i < kBulletSlots; ++i) draw_bullet(backend, m_bullets[i]);
 		draw_gun_and_crosshair();
 		draw_hud();
@@ -778,6 +1061,11 @@ private:
 	eng::PlaneBytes m_draw_planes {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bg_block {};
 	u8* m_bg = nullptr;
+	u8 m_skin[static_cast<u32>(kWidth) * kHudY] {};
+	eng::Block<eng::MaskTag, eng::MemoryKind::Chip> m_masks_block {};
+	u8* m_masks = nullptr;
+	u8 m_face_color[kBodyFaceCount] {};
+	bool m_face_swap[kBodyFaceCount] {};
 	Enemy m_enemies[kEnemies] {};
 	Bullet m_bullets[kBulletSlots] {};
 	eng::input::InputAggregator m_in {};
