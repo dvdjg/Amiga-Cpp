@@ -55,6 +55,7 @@
 #include <eng/res/budget.hpp>
 #include <eng/res/load.hpp>
 #include <eng/scene/actor.hpp>
+#include <eng/scene/sprite_bank.hpp>
 #include <eng/scene/sprite_director.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/scene/world.hpp>

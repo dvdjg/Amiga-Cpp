@@ -19,6 +19,7 @@
 #include <eng/platform/amiga/input_poll.hpp>
 #include <eng/scene/dpf_plan.hpp>
 #include <eng/scene/plan.hpp>
+#include <eng/scene/sprite_bank.hpp>
 
 namespace {
 
@@ -122,7 +123,9 @@ void build_tile_rows() {
 	}
 }
 
-struct DemoGame {
+constexpr eng::u8 kActorCount = 8u;
+
+struct CavernaGame : eng::scene::GameView<kActorCount> {
 	playfield::XlimitedScene<kScroll, MapView, Profile> scene {};
 	// Adapta la escena a la interfaz `ScrollLayer` que conduce el `App` (tipada, sin `void*`).
 	playfield::XlimitedScrollLayer<playfield::XlimitedScene<kScroll, MapView, Profile>,
@@ -136,14 +139,12 @@ struct DemoGame {
 	eng::s16 player_vy = 0;
 	bool on_ground = true;
 	bool jump_prev = false;
-	static constexpr eng::u8 kEnemyCount = 4u;
-	eng::s16 enemy_x[kEnemyCount] {32, 96, 168, 264};
-	eng::s16 enemy_y[kEnemyCount] {80, 64, 88, 72};
-	eng::s8 enemy_dx[kEnemyCount] {1, -1, 1, -1};
-	static constexpr eng::u8 kSpriteCount = 1u + kEnemyCount;
+	static constexpr eng::u8 kEnemyCount = 7u;
+	eng::s16 enemy_x[kEnemyCount] {32, 96, 168, 264, 320, 384, 448};
+	eng::s16 enemy_y[kEnemyCount] {80, 64, 88, 72, 56, 96, 64};
+	eng::s8 enemy_dx[kEnemyCount] {1, -1, 1, -1, 1, -1, 1};
+	static constexpr eng::u8 kSpriteCount = kActorCount;
 	static constexpr eng::u16 kSpriteBytes = 64u;
-	eng::graphics::SpriteConfig m_sprites[kSpriteCount] {};
-	eng::ChipView<eng::SpriteTag> m_sprite_data {};
 	bool joy_left = false;
 	bool joy_right = false;
 	bool joy_up = false;
@@ -163,7 +164,9 @@ struct DemoGame {
 		return static_cast<eng::s16>(enemy_x[i] - cam_x);
 	}
 
-	/// DATA de sprite: 16 lineas de DAT/DATB por slot; el jugador y cuatro enemigos.
+	/// DATA de sprite: 16 lineas de DAT/DATB por slot; jugador y siete enemigos.
+	void publish_sprites() { this->publish(scene); }
+
 	void init_sprites() {
 		m_sprite_data = scene.sprites().sprite_data_view();
 		auto words = scene.sprites().sprite_words();
@@ -192,7 +195,7 @@ struct DemoGame {
 		}
 		scene.sprites().set(0u, m_sprites[0]);
 		animate_enemies(0u);
-		scene.invalidate_composition();
+		publish_sprites();
 	}
 
 	/// Mantiene al jugador en una posicion estable de pantalla y desplaza el
@@ -215,7 +218,7 @@ struct DemoGame {
 		m_sprites[0].vstart = vstart;
 		m_sprites[0].vstop = static_cast<eng::u16>(vstart + 16u);
 		scene.sprites().set(0u, m_sprites[0]);
-		scene.invalidate_composition();
+		publish_sprites();
 	}
 
 	/// Alterna el ancho del bloque de los enemigos cada 16 frames. Se escribe
@@ -260,7 +263,7 @@ struct DemoGame {
 			}
 			scene.sprites().set(slot, m_sprites[slot]);
 		}
-		scene.invalidate_composition();
+		publish_sprites();
 	}
 
 	/// Resuelve el contacto jugador/enemigo con una reaccion minima: invierte
@@ -438,6 +441,6 @@ int main() {
 	display.width = kWidth;
 	display.height = kHeight;
 	display.color_depth = 1u;
-	DemoGame game {};
+	CavernaGame game {};
 	return eng::amiga::run_demo(game, display, eng::amiga::VblankWait::Polling);
 }
