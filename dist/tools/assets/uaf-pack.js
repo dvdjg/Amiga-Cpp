@@ -45,6 +45,7 @@ export var UafChunkType;
     UafChunkType[UafChunkType["RasterPattern"] = 17] = "RasterPattern";
     UafChunkType[UafChunkType["Animation3D"] = 18] = "Animation3D";
     UafChunkType[UafChunkType["Collider3D"] = 19] = "Collider3D";
+    UafChunkType[UafChunkType["NestedUaf"] = 20] = "NestedUaf";
 })(UafChunkType || (UafChunkType = {}));
 /** Cabecera de bitplanes (igual que `eng::assets::BitplanesView`). */
 export const BITPLANES_HEADER_BYTES = 10;

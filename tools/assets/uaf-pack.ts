@@ -46,6 +46,7 @@ export enum UafChunkType {
 	RasterPattern = 17,
 	Animation3D = 18,
 	Collider3D = 19,
+	NestedUaf = 20,
 }
 
 /** Chunk lógico antes de empaquetar. */
