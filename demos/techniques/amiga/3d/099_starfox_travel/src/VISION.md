@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-24T23:48:18.606Z
+- Fecha: 2026-10-25T06:59:06.723Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_004.png, frame_007.png (3)
 - Secuencia: `out/run/099_starfox_travel/A500_release/sequence`
@@ -19,33 +19,23 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Elementos gráficos observables:**
 
-*   **Fondo:** Un espacio negro con pequeños puntos de luz (estrellas) dispersos.
-*   **Objetos en el centro:**
-    *   Un objeto principal de forma triangular, de color azul claro con un borde más oscuro, que parece estar en movimiento hacia abajo.
-    *   Dos objetos más pequeños, de forma triangular y color rojizo, situados a la izquierda y derecha del objeto principal, que también parecen estar en movimiento.
-*   **Elementos en la parte inferior:**
-    *   Una franja horizontal de color púrpura oscuro.
-    *   Sobre esta franja, varios objetos de forma irregular (parecidos a rocas o montañas) en tonos grises y púrpura.
-*   **Texto en la parte inferior:**
-    *   "099 STARFOX TRAVEL"
-    *   "RAIL RUN SECTOR 7"
-    *   "NO INPUT"
-*   **Texto en la parte superior:**
-    *   "099 STARFOX TRAVEL v1.0.6501 | F45 81.6FPS | E2 2B2" (en la primera imagen)
-    *   "099 STARFOX TRAVEL v1.0.6501 | F61 21.4FPS | E2 B1" (en la segunda imagen)
+*   **Fondo:** Un paisaje pixelado compuesto por tres bandas horizontales: una superior de color azul oscuro, una media de azul claro y una inferior de verde. Una franja de agua azul oscuro ocupa la parte inferior de la pantalla, separada del terreno verde por una línea diagonal.
+*   **Objetos en el terreno:**
+    *   A la izquierda: Un bloque rectangular gris.
+    *   Al centro: Una estructura de arco de color marrón claro, con un pequeño triángulo rojo en su interior, apuntando hacia arriba.
+    *   En el centro, frente al arco: Un objeto que parece ser un vehículo o nave espacial, con forma de triángulo azul y un cuerpo blanco con un detalle azul en la parte superior.
+*   **Texto en la parte inferior:** Una línea de texto en blanco sobre fondo negro que dice: `099 STARFOX TRAVEL` en la primera línea y `RAIL RUN CORNERIA NO INPUT` en la segunda.
 
-**Cambios entre imágenes:**
+**Diferencias entre las imágenes:**
 
-*   **Posición de los objetos:** Los objetos triangulares (principal y secundarios) han cambiado ligeramente de posición respecto a la primera imagen, lo que sugiere movimiento.
-*   **Texto en la parte superior:** El texto cambia de "F45 81.6FPS | E2 2B2" a "F61 21.4FPS | E2 B1". Esto indica un cambio en el estado del programa, probablemente en el marco de tiempo o en la memoria.
-*   **FPS:** El valor de FPS cambia de 81.6 a 21.4, lo que sugiere una variación en el rendimiento del programa o un cambio en la configuración de renderizado.
+*   **Posición del objeto central:** En la primera imagen, el objeto azul y blanco está posicionado justo debajo del arco, con su parte frontal apuntando hacia la derecha. En la segunda imagen, el objeto ha avanzado ligeramente hacia la derecha, ahora parcialmente superpuesto al arco, con su parte frontal aún apuntando hacia la derecha.
+*   **Contorno del objeto:** En ambas imágenes, el contorno del objeto es limpio, sin bandas ni halos rectangulares. No hay píxeles cortados ni colgando en los bordes.
+*   **Fondo alrededor del objeto:** El fondo inmediatamente alrededor del objeto permanece igual en ambas imágenes. No hay artefactos visibles ni cambios en el fondo.
+*   **Otras partes de la imagen:** El resto de la escena, incluyendo el fondo, los bloques y el texto, permanece completamente inalterado entre las dos imágenes.
 
-**Observaciones sobre la calidad gráfica:**
+**Observaciones:**
 
-*   **Contornos de los objetos:** Los contornos de los objetos triangulares son limpios y no presentan bandas, halos rectangulares ni píxeles cortados. No hay restos de su posición anterior.
-*   **Fondo alrededor de los objetos:** El fondo negro permanece uniforme y no se ve afectado por los objetos, lo que sugiere que los objetos no tapan el fondo con un rectángulo de color uniforme, sino que se superponen directamente sobre él.
-*   **Elementos en la parte inferior:** Los objetos en la franja inferior permanecen estacionarios y su apariencia es consistente en ambas imágenes.
-
-**Conclusión:**
-
-Las imágenes muestran una escena de un juego o simulador de espacio con un objeto principal y dos secundarios en movimiento. El texto en la parte superior cambia entre las imágenes, indicando un cambio en el estado del programa. La calidad gráfica es consistente, con contornos limpios y fondo uniforme. No se observan artefactos, recortes o elementos superpuestos.
+*   La única diferencia observable es el desplazamiento del objeto central hacia la derecha en la segunda imagen.
+*   El texto en la parte inferior es idéntico en ambas imágenes.
+*   No hay elementos superpuestos ni recortes visibles.
+*   La escena parece ser una captura de pantalla de un videojuego, posiblemente de estilo retro o de simulación, donde el objeto se mueve en una trayectoria lineal.
