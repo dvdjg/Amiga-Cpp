@@ -68,6 +68,14 @@ resume
 vivir en `.data`, no en `.text`; el runner resuelve la direccion runtime usando el
 mapa del linker y los hunks reales reportados por WinUAE-DBG.
 
+Para resolver un simbolo sin repetir esa aritmetica:
+
+```bash
+node tools/debug/runtime-symbols.mjs 006_director_state g_guarded --config A500_debug
+```
+
+El resolvedor alinea las secciones `SHF_ALLOC` del ELF con `state.sections` del `run-report.json`; no usa `baseText + offset` para `.data`/`.bss`. Acepta `--report` para un reporte ya capturado, `--json` y sufijos unicos de simbolo.
+
 Las ordenes con efectos laterales no se ejecutan en el hilo TCP. Se encolan y se
 procesan desde `vsync_pre()` dentro del ciclo de emulacion, para no llamar al
 renderer, input ni profiler desde un hilo ajeno a WinUAE. Devuelven primero:

@@ -22,6 +22,15 @@ Cada test es una app del flujo normal (`tools/build/build-demo.sh`) con su `veri
 
 ## Ejecución
 
+Regresión on-target completa (descubre todos los `verify.sh`):
+
+```bash
+bash tools/test-on-target.sh
+bash tools/test-on-target.sh --test tests/amiga/l1_backend/006_director_state/verify.sh
+```
+
+Test concreto:
+
 ```bash
 bash tests/amiga/l1_backend/001_app_display_teardown/verify.sh
 bash tests/amiga/l1_backend/002_audio_leases/verify.sh

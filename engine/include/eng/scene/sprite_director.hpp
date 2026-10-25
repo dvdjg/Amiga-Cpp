@@ -250,6 +250,41 @@ public:
 		return (e.valid() && !e->is_composite) ? m_simple.store().get(e->actor) : nullptr;
 	}
 
+	/// Mueve una entidad en coordenadas de **pantalla** (no HSTART ni mundo).
+	/// Actualiza la posición pública de la entidad y el `ActorDesc`/`CompositeState`
+	/// interno sin exponer el detalle de hardware. Para sprites suma
+	/// `kSpriteScreenXOrigin`; para BOB/CPU usa la X tal cual.
+	/// \param id entidad viva.
+	/// \param x  X de pantalla en píxeles low-res (puede ser negativa).
+	/// \param y  Y de pantalla en líneas raster.
+	/// \return `true` si el id existe y se actualizó.
+	[[nodiscard]] bool set_position(SpriteId id, eng::s16 x, eng::s16 y) noexcept {
+		eng::Ref<Entity> e = m_entities.get(to_handle(id));
+		if (!e.valid()) {
+			return false;
+		}
+		e->desc.x = x;
+		e->desc.y = y;
+		if (e->is_composite) {
+			eng::Ref<eng::scene::CompositeState> st = m_composites.state(e->composite);
+			if (!st.valid()) {
+				return false;
+			}
+			st->x = x;
+			st->y = y;
+			return true;
+		}
+		eng::Ref<eng::scene::Actor> a = m_simple.store().get(e->actor);
+		if (!a.valid()) {
+			return false;
+		}
+		a->desc.x = (a->desc.force_bob || a->desc.force_cpu)
+				    ? x
+				    : x + eng::graphics::kSpriteScreenXOrigin;
+		a->desc.y = y;
+		return true;
+	}
+
 	/// Estado de un compuesto (posición, secuencia, frame, espejo).
 	/// \param id entidad; debe ser compuesta.
 	/// \return vista mutable, o vacía si el id no existe o es simple.

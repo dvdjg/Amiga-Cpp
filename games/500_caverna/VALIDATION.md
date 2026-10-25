@@ -3,12 +3,12 @@
 ## Medición
 
 ```text
-500_caverna/A500_release | emulado=49,94 fps | 142033 ciclos/frame | 1,00111 campos/frame | stable=true
+500_caverna/A500_release | emulado=49,92 fps | 142102 ciclos/frame | 1,00159 campos/frame | stable=true
 ```
 
-Ventana de 20 s; `measure-fps`. La media es 49,84 fps (host) y las muestras individuales oscilan entre 49,60 y 50,32 fps por la cuantización de frames por ventana. La medición es en reposo, sin entrada sostenida; no se ha medido el coste de un salto o desplazamiento continuo.
+Ventana de 20 s; `measure-fps`. La media es 49,86 fps (host) y las muestras individuales oscilan entre 49,63 y 50,32 fps por la cuantización de frames por ventana. La medición es en reposo, sin entrada sostenida; no se ha medido el coste de un salto o desplazamiento continuo.
 
-El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El display es **DPF 3+3** de 320×208; el jugador y los cuatro enemigos son sprites hardware (5 canales).
+El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El display es **DPF 3+3** de 320×208; el jugador y los siete enemigos son sprites hardware (8 canales).
 
 ## Alcance verificado
 
@@ -16,7 +16,8 @@ El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El d
 - mapa fijo, scroll horizontal, jugador visible y cámara que sigue al jugador;
 - colisión de la caja 16×16 del jugador contra los tiles sólidos del mapa (suelo y pilares);
 - gravedad, salto con botón izquierdo del ratón, fuego del joystick o arriba; el jugador vuelve a aterrizar en el suelo;
-- cuatro enemigos con patrulla y animación de DATA alterna, sin canales de sprite adicionales;
+- ocho actores hardware (jugador + siete enemigos) en los ocho canales, con patrulla y animación de DATA alterna;
+- `SpriteBank`/`SpriteGameView` publican los ocho slots y `SpriteDirector` mantiene el contrato de estado (L1-006);
 - HUD de host con `CAVERNA DEMO 500`, versión, frame y fps;
 - sin audio ni pitidos;
 - ratón y joystick procesados como mensajes del mini-OS (`MouseMove`/`MouseButton`/`Joystick`), no por sondeo directo de `JOY0DAT`.
@@ -25,7 +26,6 @@ El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El d
 
 - plataformas de tilemap más ricas y colisión del jugador contra todas las caras de un tile (hoy la resolución es de caja contra celdas sólidas, con el suelo y los pilares actuales);
 - colisión completa con enemigos y reacción de juego (hoy se invierte la patrulla y se revierte el movimiento horizontal);
-- ocho actores y animación de dos frames por actor;
 - latencia input→visible automatizada;
 - manifiesto de assets y presupuesto completo de la slice;
 - audio: **diferido por decisión del usuario**, sin tono provisional.

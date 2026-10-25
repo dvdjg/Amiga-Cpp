@@ -56,6 +56,15 @@ bash ./tools/run-host-tests.sh tests/host/graphics/016_ham_scene
 
 Los tests on-target usan el flujo común de demos/tests:
 
+La regresión on-target descubre y ejecuta todos los `verify.sh`:
+
+```bash
+bash ./tools/test-on-target.sh
+bash ./tools/test-on-target.sh --test tests/amiga/l1_backend/006_director_state/verify.sh
+```
+
+Equivalente manual:
+
 ```bash
 bash ./tools/build/build-demo.sh tests/amiga/l0_bare_metal/010_display_320x240 --debug
 bash ./tools/run/run-demo.sh tests/amiga/l0_bare_metal/010_display_320x240
