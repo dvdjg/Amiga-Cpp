@@ -27,6 +27,8 @@ Regresión on-target completa (descubre todos los `verify.sh`):
 ```bash
 bash tools/test-on-target.sh
 bash tools/test-on-target.sh --test tests/amiga/l1_backend/006_director_state/verify.sh
+# o dentro de la regresión general:
+bash tools/test-regression.sh --on-target
 ```
 
 Test concreto:

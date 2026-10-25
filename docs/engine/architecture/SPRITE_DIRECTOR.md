@@ -43,6 +43,12 @@ const eng::scene::SpriteId id = director.add({
 
 El gap vertical de 1 línea lo exige `SpriteAllocator` (y `SpriteDmaChain`). El reporte cuenta `gap_violations` si una combinación externa lo rompe o si un hint pide `gap_lines < kSpriteVerticalGapLines`.
 
+## Parcheo POS/CTL y handles
+
+Cuando la lista de placements es estable (un sprite por canal, DATA fija y sin rearmes), el compositor dual captura los `MoveSlot` de `SPRxPOS`/`SPRxCTL` con `SpriteManager::emit_placements_patchable` y guarda un `SpritePatchTable`. Cada frame reescribe solo la palabra de dato de esos dos MOVEs en la lista inactiva (`copper::patch_data`) y hace el flip; no reemite display, paleta, scroll ni HUD. La tabla incluye la dirección de DATA, el ancho y el canal como **identidad estructural**; además valida el opcode esperado antes de escribir. Si la lista se regeneró con otra disposición, `patch` devuelve `false` y el compositor hace una emisión completa.
+
+No se usa un puntero crudo al elemento como handle: el compositor mantiene dos listas de Copper y el índice de `MoveSlot` es común a ambas; validar el opcode y la identidad es más barato y evita aplicar un índice viejo a otra zona. La `SpritePatchTable` es el handle semántico que sobrevive a los frames y solo se invalida cuando cambia la estructura.
+
 ## Paletas por banda
 
 `BandPalette { top, height, sprites, playfield, scroll_y }` se evalúa cada frame en `top + scroll_y`. El playfield se añade al `copper::Plan` como `PaletteLine`; los sprites se devuelven como `SpritePaletteEvent` (registros `COLOR16..31`) para que el emisor los fusione con los rearmes. `emit_band_palettes` avisa de bandas fuera de rango o solapadas (`BandOutOfRange`/`BandOverlap`). `CopperCue` es la forma genérica `{line, first, colors}`.

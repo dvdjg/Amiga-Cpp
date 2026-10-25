@@ -477,6 +477,13 @@ public:
                 copper::patch_data(w, m_patch_split_pf2[i][1], static_cast<u16>(s2 & 0xffffu));
             }
         }
+        if (!m_placements.empty()) {
+            if (!m_sprite_patch.patch(w, m_placements)) {
+                return false;
+            }
+        } else if (m_sprite_patch.valid) {
+            return false;
+        }
         m_copper.flip();
         return true;
     }
@@ -547,6 +554,7 @@ private:
     }
 
     bool emit_full(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
+        m_sprite_patch.reset();
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         const u8 total = static_cast<u8>(m_cfg.planes_per_field * 2u);
         // Constructor único de BPLCON0: modo doble playfield (bit DBLPF + COLOR + BPU).
@@ -595,7 +603,12 @@ private:
         }
         if (!m_placements.empty()) {
             sched.emit_palette(m_cfg.palette, 16, 16); // sprites COLOR16-31
-            graphics::SpriteManager::emit_placements_into(sched, m_placements, 32u, {}, {}, true);
+            m_sprite_patch.reset();
+            if (!graphics::SpriteManager::emit_placements_patchable(
+                    sched, m_placements, 32u, m_sprite_patch)) {
+                graphics::SpriteManager::emit_placements_into(sched, m_placements, 32u, {}, {},
+                                                              true);
+            }
         } else if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
             sched.emit_palette(m_cfg.palette, 16, 16); // sprites COLOR16-31
             if (m_cfg.sprites_armed) {
@@ -672,6 +685,7 @@ private:
     bool m_ok = false;
     // Slots de parcheo (`MoveSlot`/`WaitSlot`) de los punteros BPLxPT y del fine scroll,
     // guardados por `emit_full` con `move_at`/`wait_line` y reescritos por `patch` sin re-emitir.
+    graphics::SpritePatchTable m_sprite_patch {};
     copper::MoveSlot m_patch_pf1[6][2] {};
     copper::MoveSlot m_patch_pf2[6][2] {};
     copper::MoveSlot m_patch_split_pf1[6][2] {};
