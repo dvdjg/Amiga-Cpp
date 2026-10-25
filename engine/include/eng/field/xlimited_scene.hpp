@@ -899,7 +899,6 @@ public:
         m_sprite_plan.clear();
         auto report = director.emit(m_sprite_plan, ctx);
         set_sprite_placements(director.placements());
-        invalidate_composition();
         return report;
     }
 

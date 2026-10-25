@@ -6,7 +6,7 @@ Estado actual: **esqueleto jugable V0/V1/V2/V3**. El fondo es un `FixedTileLayer
 
 ## Deuda de sprites
 
-Caverna conserva temporalmente el camino directo de `XlimitedScene`/`SpriteManager`: la migración a `SpriteDirector` está preparada en la escena (`emit_sprite_director`) pero el cambio de placements obliga a reemitir la copperlist completa y baja a ~44 fps con varios actores. La migración definitiva requiere el parcheo de sprites en la copperlist (o F3); hasta entonces este juego **no es el patrón** para sprites. La fachada pública es `SpriteDirector`; la composición de los 8 slots se hace con `SpriteBank`/`SpriteGameView`.
+Caverna conserva temporalmente el camino directo de `XlimitedScene`/`SpriteManager`: la migración a `SpriteDirector` está preparada en la escena (`emit_sprite_director`) pero la ruta director mide ~47 fps por el coste de `SpriteDirector::emit`, aunque el compositor dual ya parchea POS/CTL; hasta entonces este juego **no es el patrón** para sprites. La fachada pública es `SpriteDirector`; la composición de los 8 slots se hace con `SpriteBank`/`SpriteGameView`.
 
 ## Controles
 

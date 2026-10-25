@@ -14,6 +14,7 @@
 #       [--build-all]                                      (barrido de compilacion de TODAS las demos)
 #       [--protect <target>,<block|set:0xVALUE>,<size>]   (repetible; WinUAE-DBG v2.1)
 #       [--fps-gate] [--fps-warn-only] [--fps-threshold <n>]  (gate de fps, opt-in)
+#       [--on-target]                                      (incluye tests/amiga/verify.sh)
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -42,6 +43,7 @@ PROTECTS=()
 FPS_GATE=0
 FPS_WARN_ONLY=0
 FPS_THRESHOLD=""
+ON_TARGET=0
 
 next_arg() {
 	if [ -z "${2:-}" ]; then
@@ -73,6 +75,7 @@ while [ "$#" -gt 0 ]; do
 		--fps-gate) FPS_GATE=1; shift ;;
 		--fps-warn-only) FPS_GATE=1; FPS_WARN_ONLY=1; shift ;;
 		--fps-threshold) next_arg "$1" "$2"; FPS_THRESHOLD="$2"; shift 2 ;;
+		--on-target) ON_TARGET=1; shift ;;
 		*) echo "Argumento desconocido: $1" >&2; exit 2 ;;
 	esac
 done
@@ -109,6 +112,14 @@ fi
 if [ ${#DEMO_DIRS[@]} -eq 0 ]; then
 	echo "No se encontraron demos para ejecutar." >&2
 	exit 1
+fi
+
+if [ "$ON_TARGET" -eq 1 ]; then
+	echo "== on-target =="
+	if ! bash "$ROOT/tools/test-on-target.sh"; then
+		echo "Regresion on-target fallo." >&2
+		exit 1
+	fi
 fi
 
 if [ "$PIXEL_ASSERT_SELFTEST" -eq 1 ]; then
