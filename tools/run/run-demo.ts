@@ -1369,6 +1369,11 @@ const sequenceCameraX = sequenceCameraXArg === ''
   : sequenceCameraXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 255);
 const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0'), 10));
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
+const watchdogEnabled = hasArg('--watchdog') || argValue('--watchdog-address', '') !== '';
+const watchdogAddressText = argValue('--watchdog-address', '');
+const watchdogTimeoutFrames = Math.max(1, parseInt(argValue('--watchdog-timeout-frames', '600'), 10));
+const watchdogMode = argValue('--watchdog-mode', 'latch') === 'pause' ? 'pause' : 'latch';
+const hardTimeoutMs = Math.max(0, parseInt(argValue('--hard-timeout-ms', '0'), 10));
 const warpEnabled = hasArg('--warp');
 const immediateBlits = hasArg('--immediate-blits');
 // --cd32: WinUAE presenta un **pad CD32** en el puerto 2 (en vez de joystick), para verificar
@@ -1476,6 +1481,17 @@ const config = {
 };
 
 const conn = new WinUAEConnection(config);
+let hardTimeout: NodeJS.Timeout | null = null;
+if (hardTimeoutMs > 0) {
+  hardTimeout = setTimeout(() => {
+    console.error(`[run-demo] hard timeout (${hardTimeoutMs} ms); abortando emulador`);
+    void Promise.resolve()
+      .then(() => conn.disconnect(true))
+      .catch(() => {})
+      .finally(() => process.exit(124));
+  }, hardTimeoutMs);
+  hardTimeout.unref?.();
+}
 const report: Record<string, any> = {
   demo: demoName,
   executable: builtExe,
@@ -1645,6 +1661,31 @@ try {
   } else {
     console.log(`[run-demo] fallback wait ${waitMs} ms`);
     await sleep(waitMs);
+  }
+
+  let watchdogArmed = false;
+  let watchdogAddress: number | null = null;
+  if (watchdogEnabled) {
+    const explicit = watchdogAddressText === '' ? null : parseInt(watchdogAddressText, 0);
+    watchdogAddress = explicit !== null && Number.isFinite(explicit)
+      ? explicit
+      : (report.sideChannel?.runtimeAddress ? report.sideChannel.runtimeAddress + 8 : null);
+    if (watchdogAddress === null) {
+      console.log('[run-demo] aviso: --watchdog sin direccion y sin run-status runtime; se omite');
+    } else {
+      const arm = await sendSideChannelCommand(
+        sideChannelPort,
+        `watchdog arm 0x${watchdogAddress.toString(16)} 4 ${watchdogTimeoutFrames} ${watchdogMode}`,
+      );
+      report.watchdog = {
+        address: `0x${watchdogAddress.toString(16)}`,
+        timeoutFrames: watchdogTimeoutFrames,
+        mode: watchdogMode,
+        arm,
+      };
+      watchdogArmed = true;
+      console.log(`[run-demo] watchdog arm 0x${watchdogAddress.toString(16)} ${watchdogTimeoutFrames} campos (${watchdogMode})`);
+    }
   }
 
   // (La lectura de `--read-debugperiph` va **despues** de inyectar la entrada: los
@@ -1868,13 +1909,18 @@ try {
   }
 
   // --joy: inyecta direcciones/botones de joystick (`input joy <port> <dir|button> <1|0>`); a
-  // diferencia del teclado, el monitor usa nombres de evento (`INPUTEVENT_JOY1_LEFT`...), así que es
+  // diferencia del teclado, el monitor usa nombres de evento (`INPUTEVENT_JOY1_LEFT`...), as� que es
   // fiable. Spec: `port:dir` separado por comas, p. ej. `--joy 1:left` (joystick del puerto 2) o
   // `--joy 1:up,1:fire`. port 0 = joystick 1, port 1 = joystick 2.
+  // Con `--joy-through-sequence`, la pulsacion se mantiene durante la captura de secuencia y se
+  // suelta al terminar: asi el frame capturado muestra el efecto (salto/movimiento) en vez de
+  // capturar despues del release, que en juegos con fisica corta ya ha vuelto al reposo.
   const joySpecs = argValue('--joy', '')
     .split(',')
     .map((value) => value.trim())
     .filter((value) => value !== '');
+  const joyThroughSequence = hasArg('--joy-through-sequence') && sequenceFrames > 0;
+  const heldJoySpecs: string[] = [];
   if (joySpecs.length > 0) {
     const keyHoldMs = Math.max(10, parseInt(argValue('--joy-hold-ms', '200'), 10));
     console.log(`[run-demo] injecting ${joySpecs.length} joystick input(s)`);
@@ -1884,12 +1930,21 @@ try {
       const port = parseInt(portText, 10);
       if (Number.isNaN(port) || !dir) continue;
       await protocol.sendMonitorCommand(`input joy ${port} ${dir} 1`, 5000);
+      if (joyThroughSequence) {
+        heldJoySpecs.push(spec);
+        joyCount++;
+        continue;
+      }
       await sleep(keyHoldMs);
       await protocol.sendMonitorCommand(`input joy ${port} ${dir} 0`, 5000);
       await sleep(keyHoldMs);
       joyCount++;
     }
-    report.joy = { count: joyCount, specs: joySpecs };
+    report.joy = {
+      count: joyCount,
+      specs: joySpecs,
+      heldThroughSequence: joyThroughSequence ? heldJoySpecs : undefined,
+    };
   }
 
   // --key-scan <from>-<to>: calibra el mapeo `event id -> rawkey` **contra el binario en marcha**
@@ -2069,6 +2124,16 @@ if (index !== injectSample - 1) return;
     } : undefined;
   }
 
+  if (heldJoySpecs.length > 0) {
+    console.log(`[run-demo] releasing ${heldJoySpecs.length} joystick input(s) held through sequence`);
+    for (const spec of heldJoySpecs) {
+      const [portText, dir] = spec.split(':').map((v) => v.trim());
+      const port = parseInt(portText, 10);
+      if (Number.isNaN(port) || !dir) continue;
+      await protocol.sendMonitorCommand(`input joy ${port} ${dir} 0`, 5000);
+    }
+  }
+
   // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
   // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB.
   const telemetrySymbol = findMapSymbol(builtMap, 'g_eng_frame_telemetry');
@@ -2142,12 +2207,33 @@ if (index !== injectSample - 1) return;
       report.finalSideChannel = { ok: false, error: err.message };
     }
   }
-  report.status = fs.existsSync(screenshotPath) ? 'ok' : 'missing_screenshot';
+  if (watchdogArmed) {
+    try {
+      const raw = await sendSideChannelCommand(sideChannelPort, 'watchdog status');
+      const status = JSON.parse(raw);
+      report.watchdog = { ...(report.watchdog ?? {}), status };
+      if (status?.fired) {
+        console.log(
+          `[run-demo] watchdog fired: reason=${status.reason ?? '?'} pc=${status.firedPc ?? '?'} frame=${status.firedFrame ?? '?'}`,
+        );
+        report.status = 'watchdog_timeout';
+      }
+    } catch (err) {
+      report.watchdog = { ...(report.watchdog ?? {}), statusError: err.message };
+    }
+  }
+  if (report.status !== 'watchdog_timeout') {
+    report.status = fs.existsSync(screenshotPath) ? 'ok' : 'missing_screenshot';
+  }
 
   fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
   console.log(`[run-demo] screenshot ${screenshotPath}`);
   console.log(`[run-demo] ${report.status}`);
 } finally {
+  if (hardTimeout !== null) {
+    clearTimeout(hardTimeout);
+    hardTimeout = null;
+  }
   try {
     await conn.disconnect(stopEmulator);
     if (!stopEmulator && (conn as any).process && typeof (conn as any).process.unref === 'function') {

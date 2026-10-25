@@ -290,6 +290,28 @@ bash ./tools/run/run-demo.sh demos/features/ui/amiga/306_hud_crpg \
 
 Ajustes: `--mouse-arc 0.18` (curvatura), `--mouse-ease inout|linear`, `--mouse-steps-per-segment 24`, `--mouse-step-delay-ms 16`, `--mouse-button 0|1`. El modo antiguo (`--mouse-from/--mouse-to` con `--mouse-control`, `--mouse-drag`, `--mouse-click`) sigue disponible.
 
+## Watchdog de heartbeat (`--watchdog`)
+
+`run-demo` puede armar el watchdog del canal lateral despues de READY. Sin
+`--watchdog-address`, vigila `g_eng_run_status.frame` (offset 8): si deja de
+avanzar durante N campos, marca `watchdog_timeout` y devuelve exit 1.
+
+```bash
+./tools/run/run-demo.sh games/500_caverna \
+  --watchdog --watchdog-timeout-frames 300
+```
+
+Opciones:
+
+- `--watchdog`: activa el watchdog sobre el frame de `g_eng_run_status`.
+- `--watchdog-address 0x...`: vigila una direccion concreta (4 bytes).
+- `--watchdog-timeout-frames N`: campos sin cambio antes de disparar (def. 600).
+- `--watchdog-mode latch|pause`: solo aviso o parada en GDB (si hay cliente).
+- `--hard-timeout-ms N`: timeout externo del proceso; aborta aunque WinUAE no responda.
+
+El estado aparece en `run-report.json` (`watchdog.status`) y en el canal lateral
+(`state.watchdog` / `watchdog status`).
+
 ## Protect/cheat de memoria durante el run (`--protect`, WinUAE-DBG v2.1)
 
 El runner aplica reglas `monitor protect` (bloquear escrituras o forzar valor)

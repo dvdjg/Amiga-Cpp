@@ -13,6 +13,10 @@
 #       [--mouse-from X1,Y1
 #       --mouse-to X2,Y2] [--mouse-click] [--mouse-click-at dX,dY] [--screenshot ruta]
 #       [--protect target,block|set:0xVALUE,size] ...
+#       [--watchdog] [--watchdog-address 0xADDR] [--watchdog-timeout-frames N]
+#       [--watchdog-mode latch|pause] [--hard-timeout-ms N]
+# --watchdog vigila que g_eng_run_status.frame cambie (o la direccion indicada) y marca
+# watchdog_timeout si se estanca; --hard-timeout-ms aborta tambien si WinUAE no responde.
 # --mouse-click-at mueve el raton **relativo** (+dX,+dY) y hace click: deterministico en
 # demos que leen el raton por deltas (JOYxDAT), sin depender de la posicion absoluta.
 # --protect se puede repetir; target es un simbolo del .map (se reloca tras
