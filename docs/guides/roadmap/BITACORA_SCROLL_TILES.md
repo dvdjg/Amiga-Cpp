@@ -67,6 +67,7 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `096_silhouette_swarm` | `A500_release` | 27,01 | 262 642 | 0x0 | 2026-10-24 | `fe01d8b9` | 547 | 143 665 122 |
 | `093_rigid_anim` | `A500_release` | 28,90 | 245 437 | 0x0 | 2026-10-24 | local | 586 | 143 826 052 |
 | `093_rigid_anim` | `A500_debug` | 26,54 | 267 268 | 0x0 | 2026-10-24 | local | 537 | 143 523 020 |
+| `206_tiled_beginning_fields_baked — Tiled bake EHB 1183 tiles` | `A500_debug` | 49,87 | 142 243 | 0x20600000 | 2026-10-25 | `9d73de45` | 1010 | 143 665 122 |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 
