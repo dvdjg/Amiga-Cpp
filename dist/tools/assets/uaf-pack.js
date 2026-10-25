@@ -46,6 +46,12 @@ export var UafChunkType;
     UafChunkType[UafChunkType["Animation3D"] = 18] = "Animation3D";
     UafChunkType[UafChunkType["Collider3D"] = 19] = "Collider3D";
     UafChunkType[UafChunkType["NestedUaf"] = 20] = "NestedUaf";
+    UafChunkType[UafChunkType["MapManifest"] = 21] = "MapManifest";
+    UafChunkType[UafChunkType["MapLayers"] = 22] = "MapLayers";
+    UafChunkType[UafChunkType["TileCatalog"] = 23] = "TileCatalog";
+    UafChunkType[UafChunkType["TilePages"] = 24] = "TilePages";
+    UafChunkType[UafChunkType["TileAnimations"] = 25] = "TileAnimations";
+    UafChunkType[UafChunkType["MapObjects"] = 26] = "MapObjects";
 })(UafChunkType || (UafChunkType = {}));
 /** Cabecera de bitplanes (igual que `eng::assets::BitplanesView`). */
 export const BITPLANES_HEADER_BYTES = 10;

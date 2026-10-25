@@ -47,6 +47,12 @@ export enum UafChunkType {
 	Animation3D = 18,
 	Collider3D = 19,
 	NestedUaf = 20,
+	MapManifest = 21,
+	MapLayers = 22,
+	TileCatalog = 23,
+	TilePages = 24,
+	TileAnimations = 25,
+	MapObjects = 26,
 }
 
 /** Chunk lógico antes de empaquetar. */

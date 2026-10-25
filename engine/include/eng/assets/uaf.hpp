@@ -65,6 +65,13 @@ enum class ChunkType : u16 {
 	/// general transporte un formato específico (p. ej. un bundle Tiled) sin que el
 	/// runtime conozca sus chunks internos.
 	NestedUaf = 20,
+	/// **MapBundle Tiled** (reservados; esquema en `TILED_MAP_RUNTIME.md`).
+	MapManifest = 21,
+	MapLayers = 22,
+	TileCatalog = 23,
+	TilePages = 24,
+	TileAnimations = 25,
+	MapObjects = 26,
 };
 
 /// Referencia validada a un chunk dentro del blob.
