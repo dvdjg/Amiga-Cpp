@@ -12,6 +12,8 @@ solo a través de un `Allocator` que se le pase) y sin virtuals. El vocabulario 
 el espacio de nombres `eng::util`; las matemáticas de escalares (`Fixed`,
 `MiniFloat16`, `lerp`…) siguen en `eng::math`.
 
+Las **plantillas de juego** (`SpriteDirector`, `SpriteBank`/`SpriteGameView`, `TileScroll`, `XlimitedScene`, `TextLine`) siguen la misma regla: capacidad en compilación, sin heap y con arrays fijos. La tabla de parámetros, defaults, coste y fallback está en [INTENTION_API_TUTORIAL.md](../../guides/INTENTION_API_TUTORIAL.md) §5; no duplicar aquí los valores de capacidad de cada juego.
+
 ## 1. Encaje con lo que ya existe
 
 La librería **complementa** el núcleo de `eng/core/`, no lo duplica:

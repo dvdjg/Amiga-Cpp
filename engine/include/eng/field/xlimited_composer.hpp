@@ -169,6 +169,7 @@ public:
         if (!m_sprite_patch.patch(w, m_placements)) {
             return false;
         }
+        ++m_patch_hits;
         m_copper.flip();
         return true;
     }
@@ -192,6 +193,8 @@ public:
     }
 
     constexpr bool ok() const { return m_ok; }
+    [[nodiscard]] constexpr eng::u32 debug_full_emits() const noexcept { return m_full_emits; }
+    [[nodiscard]] constexpr eng::u32 debug_patch_hits() const noexcept { return m_patch_hits; }
     constexpr u16 copper_words() const { return m_copper_words; }
     /// Depuración: puntero al bloque de copper activo.
     const u16* debug_active_copper() const {
@@ -283,6 +286,7 @@ private:
     }
 
     bool emit_full(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud = {}) {
+        ++m_full_emits;
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         emit_display_header(sched, view);
         emit_scroll_pointers(sched, view);
@@ -423,6 +427,8 @@ private:
     bool m_setup_checked = false; ///< la validación de setup corre una vez (estructura fija)
     bool m_ok = false;
     graphics::SpritePatchTable m_sprite_patch {};
+    eng::u32 m_full_emits = 0u;
+    eng::u32 m_patch_hits = 0u;
     copper::MoveSlot m_patch_bplcon1 {};
     copper::MoveSlot m_patch_planes[6][2] {};
     bool m_patch_view = false;
@@ -568,6 +574,8 @@ public:
     }
 
     constexpr bool ok() const { return m_ok; }
+    [[nodiscard]] constexpr eng::u32 debug_full_emits() const noexcept { return m_full_emits; }
+    [[nodiscard]] constexpr eng::u32 debug_patch_hits() const noexcept { return m_patch_hits; }
     constexpr u16 copper_words() const { return m_copper_words; }
     /// Depuración: puntero al bloque de copper activo (lo que ejecuta el Copper). Es
     /// la vía correcta para trazar el display: NO leer `COP1LC` (write-only/PC).
@@ -615,6 +623,7 @@ private:
     }
 
     bool emit_full(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
+        ++m_full_emits;
         m_sprite_patch.reset();
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         const u8 total = static_cast<u8>(m_cfg.planes_per_field * 2u);
@@ -744,6 +753,8 @@ private:
     bool m_copper_initialized = false;
     bool m_setup_checked = false; ///< la validación de setup corre una vez (estructura fija)
     bool m_ok = false;
+    eng::u32 m_full_emits = 0u;
+    eng::u32 m_patch_hits = 0u;
     // Slots de parcheo (`MoveSlot`/`WaitSlot`) de los punteros BPLxPT y del fine scroll,
     // guardados por `emit_full` con `move_at`/`wait_line` y reescritos por `patch` sin re-emitir.
     graphics::SpritePatchTable m_sprite_patch {};

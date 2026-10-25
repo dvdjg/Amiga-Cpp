@@ -8,6 +8,12 @@ Es evolutivo: se escribe para lo disponible y se adapta cuando lleguen los módu
 > Este documento fija el **objetivo** y el **mapeo** desde el API interno actual; es la referencia
 > para «¿cómo lo pediría un juego?» al tocar cada módulo.
 
+## 0. Estado actual: camino por intenciones
+
+Para un juego 2D nuevo, el camino recomendado está ya cubierto por `App` (`init/update/render`), `SpriteDirector` (actores/`SpriteHint`), `SpriteBank`/`SpriteGameView` (slots y DATA con ownership explícito) y `XlimitedScene`/`ScrollLayer` (display y scroll). El tutorial completo, con la tabla de capacidades de plantilla y el mapa de implementación interna, es [`INTENTION_API_TUTORIAL.md`](../../guides/INTENTION_API_TUTORIAL.md).
+
+La ruta de alto nivel **no escribe registros**: declara `VisualId`/`SpriteDesc`, cámara y contenido; el director resuelve canales/placements, el compositor emite o parchea POS/CTL y `App` conduce el frame. `SpriteDirector::refresh_positions` evita el `emit` completo cuando solo cambian actores simples; el parcheo del compositor dual está activo y el single tiene un camino limitado con fallback. La documentación de abajo conserva el diagnóstico histórico y el mapeo desde las piezas internas, por lo que debe leerse **después** del tutorial.
+
 ## 1. Estado contrastado: fachada útil, objetivo de juego pendiente
 
 La tabla distingue piezas **disponibles en la fachada** de la experiencia final del API de juego.
@@ -26,7 +32,7 @@ construye materialización en la app. El diagnóstico actualizado está en
 | Blitter/efectos | `FramePlan` (jobs), `graphics::blitter_state` (`OrBob`/`LineEor`/`C2p4`) | Efectos como concepto (`world.add_effect`) |
 | Copper chunky | `composition::CopperChunkyLayer` (`attach`/`begin_frame`/`row`/`end_frame`) | Efecto de alto nivel |
 | Paleta | `eng::Palette32` | — |
-| Actores/sprites | `eng::scene::ActorStore`/`Actor` | Representación elegida por el engine |
+| Actores/sprites | `eng::scene::SpriteDirector` + `SpriteBank`/`SpriteGameView`; `ActorStore`/`Actor` como implementación interna | Representación elegida por el engine y control explícito de slots/DATA |
 | Audio | `App::audio()` y `AudioSystem` | Fachada actual expone el `AudioSystem` de backend; simplificar selección/recursos en otro bloque |
 | UI | Documentada (`GUI_LIBRARY.md`), sin implementar | `eng::ui` |
 
@@ -93,7 +99,7 @@ s.circle(160, 128, 80, color);              // contorno (punto medio), clip del 
 s.pixel(10, 10, color);                     // píxel suelto (dominio)
 s.text(4, 4, "hola", color);
 s.text_words(0, 248, "HUD v1.0 F 123", 1u); // HUD 1 bpp por palabras (2 glifos/16 px)
-s.sprite(...);            // cuando exista el sistema de objetos
+s.sprite(...);            // sprites/objetos cuando el caso lo requiera
 app.present();            // ejecuta el plan del frame y publica
 ```
 

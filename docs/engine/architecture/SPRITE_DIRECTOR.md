@@ -49,6 +49,10 @@ Cuando la lista de placements es estable (un sprite por canal, DATA fija y sin r
 
 No se usa un puntero crudo al elemento como handle: el compositor mantiene dos listas de Copper y el índice de `MoveSlot` es común a ambas; validar el opcode y la identidad es más barato y evita aplicar un índice viejo a otra zona. La `SpritePatchTable` es el handle semántico que sobrevive a los frames y solo se invalida cuando cambia la estructura.
 
+## Actualización solo-posición
+
+`SpriteDirector::refresh_positions` cubre el caso de actores simples con un placement estable por actor: recalcula X/Y desde los `ActorDesc` y copia los placements sin volver a ordenar ni ejecutar el allocator. `SpriteScene::refresh_simple_positions` rechaza compuestos, `attached`, plantillas o BOB; en esos casos el llamador usa `emit`. `XlimitedScene::refresh_sprite_director` aplica el resultado al compositor sin invalidar toda la copperlist. Es el camino que mantiene Caverna a 50 fps con ocho actores.
+
 ## Paletas por banda
 
 `BandPalette { top, height, sprites, playfield, scroll_y }` se evalúa cada frame en `top + scroll_y`. El playfield se añade al `copper::Plan` como `PaletteLine`; los sprites se devuelven como `SpritePaletteEvent` (registros `COLOR16..31`) para que el emisor los fusione con los rearmes. `emit_band_palettes` avisa de bandas fuera de rango o solapadas (`BandOutOfRange`/`BandOverlap`). `CopperCue` es la forma genérica `{line, first, colors}`.
