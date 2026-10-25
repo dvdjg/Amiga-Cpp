@@ -1,0 +1,21 @@
+{
+  "namespace": "caverna_assets",
+  "generated": true,
+  "register_sprites": false,
+  "assets": [
+    { "name": "pal", "kind": "palette", "path": "out/assets/caverna/palette.bin", "colors": 32 },
+    { "name": "player", "kind": "sprite", "path": "out/assets/caverna/player.bin", "width": 16, "height": 16, "planes": 2, "frames": 2, "frame_stride": 64, "layout": "interleaved", "draw": "cookie_cut", "mask_pack": "none" },
+    { "name": "bat", "kind": "sprite", "path": "out/assets/caverna/bat.bin", "width": 16, "height": 16, "planes": 2, "frames": 2, "frame_stride": 64, "layout": "interleaved", "draw": "cookie_cut", "mask_pack": "none" },
+    { "name": "slime", "kind": "sprite", "path": "out/assets/caverna/slime.bin", "width": 16, "height": 16, "planes": 2, "frames": 2, "frame_stride": 64, "layout": "interleaved", "draw": "cookie_cut", "mask_pack": "none" },
+    { "name": "crab", "kind": "sprite", "path": "out/assets/caverna/crab.bin", "width": 16, "height": 16, "planes": 2, "frames": 2, "frame_stride": 64, "layout": "interleaved", "draw": "cookie_cut", "mask_pack": "none" },
+    { "name": "map_pf1", "kind": "bytes", "tag": "map", "path": "out/assets/caverna/map_pf1.bin" },
+    { "name": "map_pf2", "kind": "bytes", "tag": "map", "path": "out/assets/caverna/map_pf2.bin" },
+    { "name": "cave_rows", "kind": "bytes", "tag": "work", "path": "out/assets/caverna/cave_rows.bin" },
+    { "name": "terrain_rows", "kind": "bytes", "tag": "work", "path": "out/assets/caverna/terrain_rows.bin" },
+    { "name": "mod", "kind": "music", "path": "assets/amiga/audio/testmod.p61" },
+    { "name": "sfx_jump", "kind": "audio", "path": "out/assets/caverna/sfx_jump.raw" },
+    { "name": "sfx_stomp", "kind": "audio", "path": "out/assets/caverna/sfx_stomp.raw" },
+    { "name": "sfx_damage", "kind": "audio", "path": "out/assets/caverna/sfx_damage.raw" },
+    { "name": "sfx_land", "kind": "audio", "path": "out/assets/caverna/sfx_land.raw" }
+  ]
+}
