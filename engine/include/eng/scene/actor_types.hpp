@@ -400,6 +400,11 @@ struct ActorEmitContext {
 	/// cajas salen como hasta dos trabajos lineales). `0` = sin anillo: camino lineal
 	/// exacto, con una única comparación extra por operación (`bob_ring.hpp`).
 	eng::u16 ring_height = 0u;
+	/// Offset que convierte una Y **visible** en línea del anillo para los caminos
+	/// BOB/CPU (`actor_emit`): se resta de `cam_y` solo al calcular el rect de esos
+	/// actores, no en los placements de sprite. En un corcóscru es
+	/// `PlayfieldHardwareView::display_offset`; en un destino lineal, 0.
+	eng::s16 bob_y_offset = 0;
 };
 
 /// Proyecta el actor sobre el camino de SPRITE hardware (cuando el allocator lo

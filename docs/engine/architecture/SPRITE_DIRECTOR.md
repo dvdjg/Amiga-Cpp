@@ -45,13 +45,21 @@ El gap vertical de 1 línea lo exige `SpriteAllocator` (y `SpriteDmaChain`). El 
 
 ## Parcheo POS/CTL y handles
 
-Cuando la lista de placements es estable (un sprite por canal, DATA fija y sin rearmes), el compositor dual captura los `MoveSlot` de `SPRxPOS`/`SPRxCTL` con `SpriteManager::emit_placements_patchable` y guarda un `SpritePatchTable`. Cada frame reescribe solo la palabra de dato de esos dos MOVEs en la lista inactiva (`copper::patch_data`) y hace el flip; no reemite display, paleta, scroll ni HUD. La tabla incluye la dirección de DATA, el ancho y el canal como **identidad estructural**; además valida el opcode esperado antes de escribir. Si la lista se regeneró con otra disposición, `patch` devuelve `false` y el compositor hace una emisión completa.
+Cuando la lista de placements es estable (DATA fija y misma disposición), el compositor dual captura los `MoveSlot` de `SPRxPOS`/`SPRxCTL` con `SpriteManager::emit_placements_patchable` y guarda un `SpritePatchTable` **por placement**, no por canal: un canal reutilizado por multiplexado vertical tiene varios `POS`/`CTL` (rearmes) y todos se parchean. Cada frame reescribe solo la palabra de dato de esos MOVEs en la lista inactiva (`copper::patch_data`) y hace el flip; no reemite display, paleta, scroll ni HUD. La tabla incluye la dirección de DATA y el ancho como **identidad estructural**; además valida el opcode esperado antes de escribir. Si la lista se regeneró con otra disposición, `patch` devuelve `false` y el compositor hace una emisión completa.
 
 No se usa un puntero crudo al elemento como handle: el compositor mantiene dos listas de Copper y el índice de `MoveSlot` es común a ambas; validar el opcode y la identidad es más barato y evita aplicar un índice viejo a otra zona. La `SpritePatchTable` es el handle semántico que sobrevive a los frames y solo se invalida cuando cambia la estructura.
 
 ## Actualización solo-posición
 
-`SpriteDirector::refresh_positions` cubre el caso de actores simples con un placement estable por actor: recalcula X/Y desde los `ActorDesc` y copia los placements sin volver a ordenar ni ejecutar el allocator. `SpriteScene::refresh_simple_positions` rechaza compuestos, `attached`, plantillas o BOB; en esos casos el llamador usa `emit`. `XlimitedScene::refresh_sprite_director` aplica el resultado al compositor sin invalidar toda la copperlist. Es el camino que mantiene Caverna a 50 fps con ocho actores.
+`SpriteDirector::refresh_positions` cubre actores simples con placements estables: recalcula X/Y y el alto del frame, y **actualiza la DATA del frame vigente** (`Visual::frame_stride` + `Animation`), sin volver a ordenar ni ejecutar el allocator. Admite actores de uno o dos canales y pares *attached*: el par se recocina solo cuando cambia la fuente o el alto (`cook_actor_attached_pair`); si no, reutiliza sus dos estructuras DMA y conserva el `ATTACH` del canal impar. `SpriteScene::refresh_simple_positions` rechaza compuestos, BOB, CPU, plantillas o un cambio de ancho que alteraría los canales; en esos casos el llamador usa `emit`. Los actores fuera del `clip` se culled y no impiden el refresh de los visibles. `XlimitedScene::refresh_sprite_director` aplica el resultado al compositor sin invalidar toda la copperlist. Es el camino que mantiene Caverna a 50 fps con los actores visibles.
+
+## Pasada de sprites en `App` (no es una capa)
+
+`eng::scene::SpriteDirectorPass` (`engine/include/eng/scene/sprite_pass.hpp`) es la pieza que **conduce** el director por frame cuando se usa la fachada `App`; **no es una capa de render**. `App::add_sprite_pass` la registra y `pump_sprite_passes` la ejecuta **antes** que las capas de scroll: la pasada hace `emit` (o `refresh_positions`) y entrega al host los `HwSpritePlacement` y el `FramePlan` de BOB/CPU. La capa de scroll ejecuta ese plan entre el avance del scroll y `compose`, y compone con los placements ya publicados.
+
+La pasada **no decide** canales, *attached*, paletas, z-order ni playfield. El `SpriteDirector` materializa cada actor como sprite HW, BOB, CPU o playfield según `SpriteHint` y el reparto; la pasada solo transporta el resultado. La prioridad frente a playfields es **por actor** (`SpriteHint::sprite_priority` → `BPLCON2`), no una propiedad de capa; un BOB se rasteriza en bitplanes y tampoco tiene z-order de capa.
+
+Contrato del host: `sprite_context()`, `set_sprite_placements(...)` y `attach_sprite_plan(...)`. `XlimitedScene` lo implementa; otro motor puede hacerlo sin tocar el director ni el juego. El nombre `pass` evita la colisión con `eng::effects::SpriteLayer`, que sí es una capa visual de fondo basada en sprites.
 
 ## Paletas por banda
 
@@ -80,5 +88,5 @@ No se usa un puntero crudo al elemento como handle: el compositor mantiene dos l
 
 ## Tests y demos
 
-- HOST-485: handles, simple+compuesto, attached, tira, BOB forzado, gap, banda con scroll, reporte, `evaluate_static` y `present`.
+- HOST-485: handles, simple+compuesto, attached, tira, BOB forzado, gap, banda con scroll, reporte, `evaluate_static`, `present` y `refresh_positions` con animación de dos frames (simple y par *attached*).
 - Demo de estrés: `demos/techniques/amiga/sprites/225_sprite_director_stress`.

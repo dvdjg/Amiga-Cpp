@@ -22,6 +22,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/memory_manager.hpp>
 #include <eng/scene/sprite_director.hpp>
+#include <eng/scene/sprite_pass.hpp>
 
 namespace {
 
@@ -329,11 +330,204 @@ void test_band_and_deadline_contracts() {
 	      "deadline: ventana invertida");
 }
 
+/// `refresh_positions` debe actualizar la DATA del frame vigente (no solo X/Y) y
+/// soportar pares *attached* recocinando el par cuando cambia el frame.
+void test_refresh_animation() {
+	using Director = eng::scene::SpriteDirector<2u, 2u, 1u, 1u, 8u, 4u>;
+	Director dir {};
+	eng::MemoryManager mem = make_memory();
+	const eng::graphics::BobTarget target = make_target();
+	const eng::graphics::BobTarget targets[1] {target};
+	eng::scene::ActorEmitContext ctx {};
+	ctx.targets = eng::Span<const eng::graphics::BobTarget> {targets, 1u};
+	ctx.display_top = eng::copper::kPalVisibleFirstLine;
+
+	// --- Simple animado: 2 frames de 16x8 y 2 planos (16 words/frame). ---
+	eng::u16 simple_pixels[32] {};
+	for (eng::u16 i = 0u; i < 16u; ++i) simple_pixels[i] = 0xffffu;
+	for (eng::u16 i = 16u; i < 32u; ++i) simple_pixels[i] = 0xaaaau;
+	eng::graphics::Visual simple {};
+	simple.pixels = eng::Span<const eng::u16> {simple_pixels, 32u};
+	simple.w = 16u;
+	simple.h = 8u;
+	simple.bitplanes = 2u;
+	simple.frame_count = 2u;
+	simple.frame_stride = 32u; // 16 words por frame
+
+	constexpr eng::graphics::Frame kSimpleFrames[2] {
+		{0u, 0u, 16u, 8u, 1u, 0u},
+		{0u, 0u, 16u, 8u, 1u, 0u},
+	};
+	const eng::graphics::Animation simple_anim {
+		eng::Span<const eng::graphics::Frame> {kSimpleFrames, 2u}, true};
+
+	const auto simple_id = dir.add_visual(simple);
+	eng::scene::SpriteDesc ds {};
+	ds.content = eng::scene::SpriteVisualRef::simple(simple_id);
+	ds.hint.policy = eng::scene::SpritePolicy::Sprite;
+	ds.x = 40;
+	ds.y = 40;
+	ds.animation = &simple_anim;
+	const auto actor = dir.add(ds);
+	check(actor.valid(), "refresh: alta simple animado");
+
+	eng::graphics::FramePlan plan {};
+	plan.clear();
+	const auto first = dir.emit(plan, ctx);
+	check(first.ok && first.hw == 1u, "refresh: emit simple");
+	check(dir.placements().size() == 1u, "refresh: un placement simple");
+	const auto* data0 = reinterpret_cast<const eng::u16*>(
+		dir.placements()[0].data.address(0).cptr());
+	check(data0 == simple_pixels, "refresh: DATA del frame 0");
+
+	dir.tick(1u); // avanza el estado de animación (no devuelve valor)
+	check(dir.set_position(actor, 52, 44), "refresh: mover simple");
+	check(dir.refresh_positions(ctx), "refresh: simple animado soportado");
+	check(dir.placements()[0].hpos == 52u + eng::graphics::kSpriteScreenXOrigin,
+	      "refresh: X actualizada");
+	check(dir.placements()[0].vstart == 44u, "refresh: Y actualizada");
+	const auto* data1 = reinterpret_cast<const eng::u16*>(
+		dir.placements()[0].data.address(0).cptr());
+	check(data1 == simple_pixels + 16u, "refresh: DATA del frame 1");
+
+	dir.tick(1u); // vuelve al frame 0 (2 frames en bucle)
+	check(dir.refresh_positions(ctx), "refresh: segundo refresh");
+	const auto* data0b = reinterpret_cast<const eng::u16*>(
+		dir.placements()[0].data.address(0).cptr());
+	check(data0b == simple_pixels, "refresh: DATA vuelve al frame 0");
+
+	// --- Par attached animado: 2 frames de 16x8 y 4 planos (planar, 32 words/frame). ---
+	eng::u16 pair_pixels[64] {};
+	for (eng::u16 plane = 0u; plane < 4u; ++plane) {
+		for (eng::u16 row = 0u; row < 8u; ++row) {
+			pair_pixels[plane * 8u + row] = static_cast<eng::u16>(0x1111u * (plane + 1u));
+			pair_pixels[32u + plane * 8u + row] =
+				static_cast<eng::u16>(0x2222u * (plane + 1u));
+		}
+	}
+	eng::graphics::Visual pair {};
+	pair.pixels = eng::Span<const eng::u16> {pair_pixels, 64u};
+	pair.w = 16u;
+	pair.h = 8u;
+	pair.bitplanes = 4u;
+	pair.frame_count = 2u;
+	pair.frame_stride = 64u; // 32 words por frame
+
+	constexpr eng::graphics::Frame kPairFrames[2] {
+		{0u, 0u, 16u, 8u, 1u, 0u},
+		{0u, 0u, 16u, 8u, 1u, 0u},
+	};
+	const eng::graphics::Animation pair_anim {
+		eng::Span<const eng::graphics::Frame> {kPairFrames, 2u}, true};
+
+	Director pair_dir {};
+	pair_dir.set_cooked_pool(mem.chip().reserve<eng::SpriteTag>(2048u, 16u).mem_view());
+	const auto pair_id = pair_dir.add_visual(pair);
+	eng::scene::SpriteDesc dp {};
+	dp.content = eng::scene::SpriteVisualRef::simple(pair_id);
+	dp.hint.policy = eng::scene::SpritePolicy::Sprite;
+	dp.x = 80;
+	dp.y = 60;
+	dp.animation = &pair_anim;
+	const auto pair_actor = pair_dir.add(dp);
+	check(pair_actor.valid(), "refresh: alta par attached");
+
+	eng::graphics::FramePlan pair_plan {};
+	pair_plan.clear();
+	const auto pair_first = pair_dir.emit(pair_plan, ctx);
+	check(pair_first.ok && pair_first.attached_pairs == 1u, "refresh: emit par");
+	check(pair_dir.placements().size() == 2u, "refresh: dos placements del par");
+	const auto* even0 = reinterpret_cast<const eng::u16*>(
+		pair_dir.placements()[0].data.address(0).cptr());
+	const auto* odd0 = reinterpret_cast<const eng::u16*>(
+		pair_dir.placements()[1].data.address(0).cptr());
+	check(even0[0] == 0x1111u, "refresh: par frame 0 (canal par)");
+	check(odd0[0] == 0x3333u, "refresh: par frame 0 (canal impar)");
+
+	pair_dir.tick(1u); // avanza el par al frame 1
+	check(pair_dir.set_position(pair_actor, 96, 68), "refresh: mover par");
+	check(pair_dir.refresh_positions(ctx), "refresh: par attached soportado");
+	check(pair_dir.placements().size() == 2u, "refresh: sigue habiendo dos placements");
+	check(pair_dir.placements()[0].hpos == 96u + eng::graphics::kSpriteScreenXOrigin,
+	      "refresh: par X");
+	check(pair_dir.placements()[1].hpos == 96u + eng::graphics::kSpriteScreenXOrigin,
+	      "refresh: par X (impar)");
+	check(pair_dir.placements()[0].vstart == 68u, "refresh: par Y");
+	check(pair_dir.placements()[1].vstart == 68u, "refresh: par Y (impar)");
+	check(!pair_dir.placements()[0].attach && pair_dir.placements()[1].attach,
+	      "refresh: ATTACH del canal impar");
+	const auto* even1 = reinterpret_cast<const eng::u16*>(
+		pair_dir.placements()[0].data.address(0).cptr());
+	const auto* odd1 = reinterpret_cast<const eng::u16*>(
+		pair_dir.placements()[1].data.address(0).cptr());
+	check(even1[0] == 0x2222u, "refresh: par recocinado al frame 1 (par)");
+	check(odd1[0] == 0x6666u, "refresh: par recocinado al frame 1 (impar)");
+}
+
+/// La `SpriteDirectorPass` es orquestación, no una capa: entrega los placements y el
+/// plan de BOB al host y usa el camino rápido de refresh cuando solo cambian posiciones.
+void test_sprite_pass_forwarding() {
+	struct Host {
+		eng::scene::ActorEmitContext ctx {};
+		eng::Span<const eng::graphics::HwSpritePlacement> placements {};
+		eng::graphics::FramePlan* plan = nullptr;
+		[[nodiscard]] eng::scene::ActorEmitContext sprite_context() const { return ctx; }
+		void set_sprite_placements(
+			eng::Span<const eng::graphics::HwSpritePlacement> p) { placements = p; }
+		void attach_sprite_plan(eng::graphics::FramePlan& p) { plan = &p; }
+	};
+
+	using Director = eng::scene::SpriteDirector<2u, 2u, 1u, 1u, 8u, 4u>;
+	Director dir {};
+	Host host {};
+	const eng::graphics::BobTarget target = make_target();
+	host.ctx.targets = eng::Span<const eng::graphics::BobTarget> {&target, 1u};
+	host.ctx.display_top = eng::copper::kPalVisibleFirstLine;
+
+	eng::u16 pixels[32] {};
+	for (eng::u16& w : pixels) w = 0xffffu;
+	eng::graphics::Visual visual = make_visual(8u, 2u, 32u);
+	visual.pixels = eng::Span<const eng::u16> {pixels, 32u};
+	const auto visual_id = dir.add_visual(visual);
+	eng::scene::SpriteDesc desc {};
+	desc.content = eng::scene::SpriteVisualRef::simple(visual_id);
+	desc.hint.policy = eng::scene::SpritePolicy::Sprite;
+	desc.transparency = eng::scene::TransparencyMode::Opaque;
+	desc.x = 40;
+	desc.y = 40;
+	const auto actor = dir.add(desc);
+	check(actor.valid(), "pass: alta del actor");
+
+	eng::MemoryManager mem = make_memory();
+	int backend = 0; // la pasada no usa el backend: el host materializa
+	eng::scene::SpriteDirectorPass<Director, Host, int> pass {dir, host};
+	check(pass.begin(mem, backend), "pass: begin");
+	pass.frame(backend);
+	check(host.placements.size() == 1u, "pass: placements reenviados");
+	check(host.plan != nullptr && host.plan->blit_job_count() == 0u,
+	      "pass: plan de BOB ligado (vacío sin degradados)");
+	check(pass.emit_count() == 1u && pass.refresh_count() == 0u, "pass: primer frame emite");
+	check(pass.last_report().hw == 1u, "pass: reporte del director");
+
+	check(dir.set_position(actor, 60, 40), "pass: mover actor");
+	pass.frame(backend);
+	check(pass.emit_count() == 1u && pass.refresh_count() == 1u, "pass: segundo frame refresca");
+	check(host.placements.size() == 1u &&
+		      host.placements[0].hpos == 60u + eng::graphics::kSpriteScreenXOrigin,
+	      "pass: placement actualizado por refresh");
+
+	pass.request_emit();
+	pass.frame(backend);
+	check(pass.emit_count() == 2u, "pass: request_emit fuerza emisión");
+}
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-485 sprite_director ==\n");
 	test_run();
+	test_refresh_animation();
+	test_sprite_pass_forwarding();
 	test_band_and_deadline_contracts();
 	if (g_fail == 0) {
 		std::printf("OK: SpriteDirector, reporte, banda y preflight estatico validados.\n");

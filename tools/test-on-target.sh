@@ -3,7 +3,7 @@
 # Regresión on-target: descubre tests/amiga/*/*/verify.sh y los ejecuta.
 #
 # Uso:
-#   tools/test-on-target.sh [--skip-build] [--test <ruta>]... [--list]
+#   tools/test-on-target.sh [--skip-build] [--no-watchdog] [--test <ruta>]... [--list]
 #
 # --skip-build reutiliza los binarios ya compilados.
 # --test limita la ejecución a una ruta concreta (repetible).
@@ -14,11 +14,13 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKIP_BUILD=0
 LIST_ONLY=0
+WATCHDOG=1
 TESTS=()
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 		--skip-build) SKIP_BUILD=1; shift ;;
+		--no-watchdog) WATCHDOG=0; shift ;;
 		--list) LIST_ONLY=1; shift ;;
 		--test)
 			if [ -z "${2:-}" ]; then
@@ -47,6 +49,10 @@ fi
 if [ "$LIST_ONLY" -eq 1 ]; then
 	printf '%s\n' "${TESTS[@]}"
 	exit 0
+fi
+
+if [ "$WATCHDOG" -eq 1 ]; then
+	export ENG_RUN_WATCHDOG=1
 fi
 
 FAILED=0

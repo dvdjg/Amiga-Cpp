@@ -39,6 +39,82 @@ struct AttachedCookedCache {
 	bool valid = false;                     ///< falso hasta completar la primera cocción
 };
 
+/// **Frame vigente de la DATA de un sprite**: desplazamiento en words dentro de
+/// `Visual::pixels` para el frame actual de la animación. Sin animación o sin
+/// `frame_stride` es 0 (la base). Si el stride no cabe en la hoja se cae a la base
+/// (rechazo controlado; nunca lee fuera del `Span`).
+/// \param a actor con `visual` y estado de animación.
+/// \return offset en words desde `visual.pixels.data()`.
+[[nodiscard]] inline eng::usize actor_frame_word_offset(const Actor& a) noexcept {
+	if (a.desc.visual.frame_stride == 0u || !a.desc.animation.valid()) {
+		return 0u;
+	}
+	eng::usize byte_off = a.anim.index;
+	byte_off *= a.desc.visual.frame_stride;
+	return (byte_off / 2u < a.desc.visual.pixels.size()) ? byte_off / 2u : 0u;
+}
+
+/// Resultado de la cocción de un par *attached* para el frame vigente.
+struct AttachedPairData {
+	eng::ChipView<eng::SpriteTag> even {}; ///< estructura del canal par (planos 0–1)
+	eng::ChipView<eng::SpriteTag> odd {};  ///< estructura del canal impar (planos 2–3 + ATTACH)
+};
+
+/// **Cocina/reutiliza el par *attached* del frame vigente**. La caché por actor
+/// evita recomponer las dos estructuras DMA si la fuente y el alto no cambian; si
+/// cambia el frame (`source`) o el alto, se recocina en las mismas vistas. Sin
+/// caché o sin sitio en el pool devuelve vistas vacías (rechazo controlado).
+/// \param a         actor con `Visual` de 4 planos y 16 px de ancho.
+/// \param h         alto del frame vigente en filas.
+/// \param word_off  offset del frame dentro de `visual.pixels` (words).
+/// \param pool      pool Chip del llamador para estructuras DMA.
+/// \param used      cursor del pool (in/out); avanza si reserva estructuras nuevas.
+/// \param cache     caché por actor (puede ser nula).
+/// \return las dos vistas cocinadas, o vacías si la hoja/pool no alcanzan.
+[[nodiscard]] inline AttachedPairData cook_actor_attached_pair(
+	const Actor& a, eng::u16 h, eng::usize word_off, eng::ChipView<eng::SpriteTag> pool,
+	eng::usize& used, AttachedCookedCache* cache) noexcept {
+	AttachedPairData out {};
+	const eng::usize src_words = static_cast<eng::usize>(h) * 4u;
+	if (word_off > a.desc.visual.pixels.size() ||
+	    a.desc.visual.pixels.size() - word_off < src_words) {
+		return out;
+	}
+	const eng::usize struct_bytes =
+		static_cast<eng::usize>(eng::graphics::attached_pair_structure_words(h)) * 2u;
+	const eng::Span<const eng::u16> source =
+		a.desc.visual.pixels.subspan(word_off, src_words);
+	bool cook_needed = true;
+	if (cache != nullptr && cache->valid && cache->even.size() >= struct_bytes &&
+	    cache->odd.size() >= struct_bytes) {
+		out.even = cache->even.subview(0u, struct_bytes);
+		out.odd = cache->odd.subview(0u, struct_bytes);
+		cook_needed = cache->source != source.data() || cache->height != h;
+	}
+	if (out.even.empty() || out.odd.empty()) {
+		if (pool.empty() || used > pool.size() ||
+		    pool.size() - used < struct_bytes * 2u) {
+			return {};
+		}
+		out.even = pool.subview(used, struct_bytes);
+		out.odd = pool.subview(used + struct_bytes, struct_bytes);
+		used += struct_bytes * 2u;
+	}
+	if (cook_needed && !eng::graphics::cook_attached_pair(
+				   source, h, eng::graphics::kSpriteOffPos,
+				   eng::graphics::kSpriteOffCtl, out.even, out.odd)) {
+		return {};
+	}
+	if (cache != nullptr) {
+		cache->even = out.even;
+		cache->odd = out.odd;
+		cache->source = source.data();
+		cache->height = h;
+		cache->valid = true;
+	}
+	return out;
+}
+
 /// Buffers del llamador para `compose_sprites` (capacidad fija, sin heap).
 struct SpriteComposeScratch {
 	eng::Span<ActorId> order {};           ///< orden de emisión (tamaño = aforo)
@@ -332,14 +408,7 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		// la del **frame vigente** de la animación, igual que un BOB animado: `base + índice *
 		// frame_stride` (bytes). Sin stride (0) o sin animación, la base. Si la hoja no cubre
 		// ese frame, se cae a la base (rechazo controlado, nunca lectura fuera de rango).
-		eng::usize word_off = 0u;
-		if (a->desc.visual.frame_stride != 0u && a->desc.animation.valid()) {
-			eng::usize byte_off = a->anim.index; // u16 -> usize (sin cast)
-			byte_off *= a->desc.visual.frame_stride;
-			if (byte_off / 2u < a->desc.visual.pixels.size()) {
-				word_off = byte_off / 2u;
-			}
-		}
+		const eng::usize word_off = actor_frame_word_offset(*a);
 		const eng::u16 h = static_cast<eng::u16>(s.intents[i].bottom - s.intents[i].top);
 		if (h == 0u) {
 			return r;
@@ -362,52 +431,16 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			if (static_cast<eng::u16>(r.sprites + 2u) > s.placements.size()) {
 				return r; // sin sitio para publicar los dos canales del par
 			}
-			const eng::usize src_words = static_cast<eng::usize>(h) * 4u;
-			if (word_off > a->desc.visual.pixels.size() ||
-			    a->desc.visual.pixels.size() - word_off < src_words) {
-				return r; // la hoja no cubre los 4 planos del frame
-			}
-			const eng::usize struct_bytes =
-				static_cast<eng::usize>(
-					eng::graphics::attached_pair_structure_words(h)) * 2u;
-			const eng::Span<const eng::u16> source =
-				a->desc.visual.pixels.subspan(word_off, src_words);
 			const eng::usize cache_slot =
 				s.cooked_pairs.size() > slot ? slot : s.cooked_pairs.size();
-			const bool has_cache = cache_slot < s.cooked_pairs.size();
-			eng::ChipView<eng::SpriteTag> even {};
-			eng::ChipView<eng::SpriteTag> odd {};
-			bool cook_needed = true;
-			if (has_cache && s.cooked_pairs[cache_slot].valid &&
-			    s.cooked_pairs[cache_slot].even.size() >= struct_bytes &&
-			    s.cooked_pairs[cache_slot].odd.size() >= struct_bytes) {
-				even = s.cooked_pairs[cache_slot].even.subview(0u, struct_bytes);
-				odd = s.cooked_pairs[cache_slot].odd.subview(0u, struct_bytes);
-				cook_needed = s.cooked_pairs[cache_slot].source != source.data() ||
-					      s.cooked_pairs[cache_slot].height != h;
+			AttachedCookedCache* cache = cache_slot < s.cooked_pairs.size()
+							     ? &s.cooked_pairs[cache_slot]
+							     : nullptr;
+			const AttachedPairData pair = cook_actor_attached_pair(
+				*a, h, word_off, s.cooked, s.cooked_used, cache);
+			if (pair.even.empty() || pair.odd.empty()) {
+				return r; // hoja/pool insuficiente: rechazo controlado
 			}
-		if (even.empty() || odd.empty()) {
-			if (s.cooked.empty() || s.cooked_used > s.cooked.size() ||
-			    s.cooked.size() - s.cooked_used < struct_bytes * 2u) {
-				return r; // sin pool/sitio para las dos estructuras del par
-			}
-			even = s.cooked.subview(s.cooked_used, struct_bytes);
-			odd = s.cooked.subview(s.cooked_used + struct_bytes, struct_bytes);
-			s.cooked_used += struct_bytes * 2u;
-		}
-		if (cook_needed && !eng::graphics::cook_attached_pair(
-				   source, h, eng::graphics::kSpriteOffPos,
-				   eng::graphics::kSpriteOffCtl, even, odd)) {
-			return r;
-		}
-		if (has_cache) {
-			AttachedCookedCache& cache = s.cooked_pairs[cache_slot];
-			cache.even = even;
-			cache.odd = odd;
-			cache.source = source.data();
-			cache.height = h;
-			cache.valid = true;
-		}
 			// `SPRxPT` apunta a la DATA (tras la cabecera POS/CTL) y el canal termina en
 			// el par de ceros: misma vista que consume `SpriteManager::arm_object`.
 			const eng::usize data_bytes = static_cast<eng::usize>(h) * 4u + 4u;
@@ -420,7 +453,7 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			pe.height = h;
 			pe.width_words = 1u;
 			pe.attach = false;
-			pe.data = even.subview(4u, data_bytes);
+			pe.data = pair.even.subview(4u, data_bytes);
 			++r.sprites;
 			HwSpritePlacement& po = s.placements[r.sprites];
 			po = HwSpritePlacement {};
@@ -431,7 +464,7 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			po.height = h;
 			po.width_words = 1u;
 			po.attach = true; // canal impar del par: une los 4 bits sobre COLOR16-31
-			po.data = odd.subview(4u, data_bytes);
+			po.data = pair.odd.subview(4u, data_bytes);
 			++r.sprites;
 			continue;
 		}

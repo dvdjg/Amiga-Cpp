@@ -140,13 +140,14 @@ Regla práctica: no dimensionar `SpriteDirector` al máximo si el juego usa ocho
 - `SpriteDirector::add` crea una entidad y da de alta el actor en `SpriteScene` o `CompositeScene`.
 - `SpriteScene::emit` ordena actores por superficie/`z`, construye `SpriteIntent`, `SpriteAllocator` reparte los ocho canales y se publican `HwSpritePlacement`.
 - `SpriteDirector::emit` combina compuestos y simples con un ledger de canales, ordena placements/paletas y calcula `SpriteLoadReport`.
+- `App::add_sprite_pass` registra una `SpriteDirectorPass`: el `App` ejecuta el director **antes** del scroll y el host materializa los placements y el plan de BOB/CPU. La pasada **no es una capa visual**: la representación HW/BOB/CPU la decide el director y la prioridad frente a playfields es `SpriteHint::sprite_priority` por actor.
 - `XlimitedDualComposer` recibe los placements y emite la copperlist. Si la estructura es estable, registra `MoveSlot` de `SPRxPOS`/`SPRxCTL` y parchea solo esos datos por frame; si cambia la estructura, reemite.
-- `XlimitedScene::refresh_sprite_director` actualiza solo posiciones simples; no reordena canales ni vuelve a ejecutar el allocator.
+- `SpriteDirector::refresh_positions` actualiza posiciones, alto y DATA animada; admite pares *attached* (recocinando solo si cambia el frame). No reordena canales ni vuelve a ejecutar el allocator.
 - `SpriteScene`/`CompositeScene` son **implementación avanzada**: no se incluyen desde `api.hpp` y no son la elección de un juego nuevo.
 
 ## 7. Niveles de acceso
 
-**Nivel A — juego normal:** `App`, `Screen`, `World`, `SpriteDirector`, `SpriteBank`, `TextLine`, `HostHud`.
+**Nivel A — juego normal:** `App`, `Screen`, `World`, `SpriteDirector`, `SpriteDirectorPass`, `SpriteBank`, `TextLine`, `HostHud`.
 
 **Nivel B — control de escena:** `XlimitedScene`, `XlimitedScrollLayer`, `ScenePlan`, `ScrollPlan`, `Camera2D`, `SpriteBudget`, `FramePlan`.
 

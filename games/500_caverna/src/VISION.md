@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-25T07:24:34.198Z
+- Fecha: 2026-10-25T14:48:38.016Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png, frame_006.png, frame_007.png (8)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png (6)
 - Secuencia: `out/run/500_caverna/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -17,28 +17,29 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Análisis de las imágenes:**
 
-Las cuatro imágenes son idénticas en contenido visual y no muestran ningún cambio temporal ni animación. Se trata de una captura de pantalla estática de un programa llamado "CAVERNA DEMO 500 v1.0.259".
+Las tres imágenes muestran una escena de un videojuego de estilo pixel art, con un fondo de paredes de ladrillo oscuras y un suelo de tierra marrón. El jugador, un personaje naranja, está en el centro de la pantalla. Hay varios enemigos: dos pequeños enemigos verdes y uno rojo más grande, todos flotando. También hay dos triángulos rojos en la parte superior izquierda y una estructura vertical de bloques azules y blancos en la parte superior derecha.
 
-**Elementos gráficos observables:**
+**Cambios entre imágenes:**
 
-1.  **Texto en la parte superior:** En la esquina superior izquierda, se muestra el texto "CAVERNA DEMO 500 v1.0.259". A la derecha, se muestran valores que cambian ligeramente entre imágenes: en la primera imagen se lee "F88 640FPS | 496641J0", mientras que en las siguientes tres se lee "F128 44.5FPS | 496 G1 J0". Estos valores parecen indicar información de rendimiento del sistema (FPS, memoria, etc.).
+- **Imagen 1:** En la parte superior izquierda, hay un triángulo rojo y un triángulo naranja.
+- **Imagen 2:** El triángulo naranja ha desaparecido. Ahora hay dos triángulos rojos, uno a la izquierda del otro.
+- **Imagen 3:** Los dos triángulos rojos están en la misma posición que en la imagen 2.
 
-2.  **Elemento principal (matriz numérica):** En la parte inferior de la pantalla, hay un bloque rectangular de 6 filas por 32 columnas, compuesto por dígitos del 2 al 7. Los dígitos están dispuestos en un patrón repetitivo y se muestran en color blanco sobre un fondo verde oscuro. El borde del bloque es de color verde claro.
+**Elementos observables:**
 
-3.  **Elementos flotantes (en la parte superior):** Sobre el bloque principal, hay varios elementos que parecen estar suspendidos en el aire:
-    *   **Cuadrados verdes con el número "1":** Hay cinco cuadrados de color verde claro con el número "1" en su interior. Están distribuidos en la parte superior derecha y central de la pantalla.
-    *   **Bloques de color:** Hay varios bloques pequeños de color naranja y rojo, algunos de los cuales están dentro de los cuadrados verdes. También hay un bloque marrón oscuro a la derecha.
+- **Personaje principal:** Un personaje naranja, con forma de figura humana, está en el centro de la pantalla. No se mueve entre las imágenes.
+- **Enemigos:** Dos enemigos verdes y uno rojo flotan en el aire. No se mueven entre las imágenes.
+- **Triángulos:** En la imagen 1, hay un triángulo rojo y un triángulo naranja. En la imagen 2, el triángulo naranja desaparece y aparecen dos triángulos rojos. En la imagen 3, los dos triángulos rojos permanecen.
+- **Estructura vertical:** Una columna de bloques azules y blancos está en la parte superior derecha. No cambia entre las imágenes.
+- **Fondo:** Las paredes de ladrillo y el suelo de tierra permanecen sin cambios.
 
-**Análisis de los elementos en movimiento (o falta de movimiento):**
+**Observaciones adicionales:**
 
-*   **No hay movimiento:** Todos los elementos permanecen en la misma posición en todas las imágenes. No hay animación, parpadeo ni cambio de posición.
-*   **Contorno de los objetos:** Los contornos de los objetos son limpios y definidos. No se observan bandas, halos, píxeles cortados ni restos de posiciones anteriores.
-*   **Fondo alrededor de los objetos:** El fondo negro permanece uniforme y no muestra artefactos ni cambios alrededor de los objetos. Los objetos tapan el fondo con un rectángulo de color uniforme (el color del objeto mismo).
+- No hay artefactos visibles como bandas, halos o píxeles cortados.
+- Los contornos de los objetos son limpios y no hay restos de su posición anterior.
+- El fondo inmediatamente alrededor de los objetos permanece igual, sin cambios de color o textura.
+- El texto en la parte superior de la pantalla muestra "CAVERNA DEMO 500 v1.0.350 | F220 44.5FPS", que cambia ligeramente entre las imágenes (F220 en la primera, F278 en la segunda, F338 en la tercera), lo que sugiere que el juego está en ejecución y el contador de frames está aumentando.
 
-**Observaciones extrañas o incoherentes:**
+**Conclusión:**
 
-*   **Consistencia visual:** Las cuatro imágenes son idénticas, lo que sugiere que no se trata de una secuencia de animación, sino de una sola captura de pantalla que se ha mostrado cuatro veces.
-*   **Posición de los elementos:** La disposición de los elementos es simétrica y ordenada, lo que puede ser intencional para el diseño del juego o demo.
-*   **Valores en la parte superior:** El cambio en los valores de la parte superior (FPS, memoria) entre la primera y las siguientes imágenes es inconsistente con la falta de movimiento en el resto de la pantalla, lo que podría indicar un error de captura o un cambio en el estado del sistema durante la captura.
-
-En resumen, las imágenes muestran una captura de pantalla estática de un programa llamado "CAVERNA DEMO 500", con una matriz numérica en la parte inferior y varios elementos gráficos suspendidos en la parte superior. No hay movimiento ni cambios entre las imágenes.
+Las imágenes muestran una escena de un videojuego con un personaje principal y varios enemigos. El único cambio observable entre las imágenes es la aparición de dos triángulos rojos en lugar de un triángulo rojo y un triángulo naranja. No hay elementos defectuosos o incoherentes visibles.

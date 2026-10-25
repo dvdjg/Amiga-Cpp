@@ -1,6 +1,6 @@
 # Build y ejecucion de demos
 
-El engine usa un sistema de demos independientes para evitar mezclar el codigo nuevo
+El engine usa un sistema de demos independientes para evitar mezclar el código nuevo
 con el ejemplo C historico del workspace.
 
 ## Requisitos
@@ -91,7 +91,7 @@ bash ./tools/build/build-all-demos.sh --strict   # falla tambien por asset ausen
 ```
 
 Clasifica cada demo en `OK` / `ASSET` (falta un asset generado en `out/`, p. ej. un `.raw`
-de audio o un header del pipeline de tiles) / `FAIL` (rotura de codigo). Devuelve 1 si hay
+de audio o un header del pipeline de tiles) / `FAIL` (rotura de código). Devuelve 1 si hay
 `FAIL`; con `--strict` tambien si hay `ASSET`. Detalle en `out/tmp/build-all.log`.
 
 La regresion puede incluir el barrido estricto con `--build-all`:
@@ -139,7 +139,7 @@ El runner:
 - fuerza opciones anti-captura del raton para que WinUAE no atrape el puntero
   del sistema durante pruebas automatizadas;
 - desactiva `warp` por defecto para que las demos que esperan VBlank se vean a
-  ritmo real y permitan juzgar suavidad de scroll/animacion;
+  ritmo real y permitan juzgar suavidad de scroll/animación;
 - escribe un `startup-sequence` temporal;
 - resuelve el emulador en este orden: `WINUAE_GDB_DIR` → **nuestro** `../WinUAE-DBG/bin` (el fork
   con canal lateral y parches GDB) → la extension `bartmanabyss.amiga-debug-*` (su WinUAE stock).
@@ -171,14 +171,14 @@ out\run\<demo>\run-report.json
 ## Telemetria de ejecucion
 
 Las demos modernas definen un simbolo global `g_eng_run_status` con magia
-`ENGR`. El runner resuelve su direccion desde el `.map`, consulta las secciones
+`ENGR`. El runner resuelve su dirección desde el `.map`, consulta las secciones
 runtime que expone WinUAE-DBG por el canal lateral y espera estados cortos:
 
 - `InitStarted`: la demo entro en `init`.
 - `Ready`: la demo instalo sus recursos y ya esta renderizando frames.
-- `Failed`: la demo fallo de forma controlada y deja un codigo `detail`.
+- `Failed`: la demo fallo de forma controlada y deja un código `detail`.
 
-Esto evita usar capturas como unica senal de vida. Las capturas siguen siendo la
+Esto evita usar capturas como única senal de vida. Las capturas siguen siendo la
 evidencia visual final, pero el runner ya sabe si el programa llego a READY antes
 de pedir la imagen.
 
@@ -210,7 +210,7 @@ sin pasar por el menu.
 
 `--warp` existe solo como opcion explicita para pruebas de rendimiento bruto o
 diagnostico. No se usa por defecto porque acelera los VBlank del emulador y puede
-hacer que una animacion correcta parezca demasiado rapida.
+hacer que una animación correcta parezca demasiado rapida.
 
 La demo `040_palette_cycle_effect` usa ademas `run-report.json` como evidencia:
 su analizador comprueba que `g_eng_run_status.detail` contiene la marca
@@ -218,15 +218,15 @@ su analizador comprueba que `g_eng_run_status.detail` contiene la marca
 
 ### Convencion de `detail` (telemetria de juego)
 
-Ademas del codigo de estado, `detail` (u32) transporta telemetria que el runner decodifica
-sin conocer la demo. La unica parte que el runner interpreta de forma general es **`cameraX`
+Ademas del código de estado, `detail` (u32) transporta telemetria que el runner decodifica
+sin conocer la demo. La única parte que el runner interpreta de forma general es **`cameraX`
 en los bits 16-23** (`detail >>> 16 & 0xff`); el resto de campos son de la demo:
 
 | bits | campo | uso |
 |---|---|---|
 | 24-31 | base / marca | identifica el tipo de estado (p. ej. `0x11` en la 101, `0x04` en la 040) |
-| 16-23 | `cameraX` | posicion horizontal de camara (0-255) del ultimo `update`; **lo lee el runner** |
-| 8-15 | `cameraY` | posicion vertical (0-255), si la demo la publica |
+| 16-23 | `cameraX` | posición horizontal de camara (0-255) del ultimo `update`; **lo lee el runner** |
+| 8-15 | `cameraY` | posición vertical (0-255), si la demo la publica |
 | 4-7 | flags / trabajos | p. ej. `tile_jobs` o `prefetch_flags` |
 | 0-3 | verificacion | bits de checks propios de la demo |
 
@@ -290,6 +290,25 @@ bash ./tools/run/run-demo.sh demos/features/ui/amiga/306_hud_crpg \
 
 Ajustes: `--mouse-arc 0.18` (curvatura), `--mouse-ease inout|linear`, `--mouse-steps-per-segment 24`, `--mouse-step-delay-ms 16`, `--mouse-button 0|1`. El modo antiguo (`--mouse-from/--mouse-to` con `--mouse-control`, `--mouse-drag`, `--mouse-click`) sigue disponible.
 
+## Watchdog de heartbeat (`--watchdog`)
+
+`run-demo` puede armar el watchdog del canal lateral después de READY. Sin `--watchdog-address`, vigila `g_eng_run_status.frame` (offset 8): si deja de avanzar durante N campos, marca `watchdog_timeout` y devuelve exit 1. `ENG_RUN_WATCHDOG=1` activa el mismo watchdog para scripts que invocan `run-demo`; `tools/test-on-target.sh` lo activa por defecto (opt-out `--no-watchdog`), `tools/test-regression.sh --watchdog` lo activa en barridos normales y `tools/debug/measure-fps.mjs --watchdog` lo arma y devuelve exit 4 si dispara.
+
+```bash
+./tools/run/run-demo.sh games/500_caverna \
+  --watchdog --watchdog-timeout-frames 300
+```
+
+Opciones:
+
+- `--watchdog`: activa el watchdog sobre el frame de `g_eng_run_status`.
+- `--watchdog-address 0x...`: vigila una dirección concreta (4 bytes).
+- `--watchdog-timeout-frames N`: campos sin cambio antes de disparar (def. 600).
+- `--watchdog-mode latch|pause`: solo aviso o parada en GDB (si hay cliente).
+- `--hard-timeout-ms N`: timeout externo del proceso; aborta aunque WinUAE no responda.
+
+El estado aparece en `run-report.json` (`watchdog.status`) y en el canal lateral (`state.watchdog` / `watchdog status`); `status all` devuelve `watchdogs`.
+
 ## Protect/cheat de memoria durante el run (`--protect`, WinUAE-DBG v2.1)
 
 El runner aplica reglas `monitor protect` (bloquear escrituras o forzar valor)
@@ -301,8 +320,8 @@ tras alcanzar READY, antes de las capturas. Sintaxis (repetible):
   --protect 0x40000,block,16
 ```
 
-- `target`: simbolo del `.map` (se reloca a direccion runtime via canal lateral)
-  o direccion hex `0x...`.
+- `target`: simbolo del `.map` (se reloca a dirección runtime via canal lateral)
+  o dirección hex `0x...`.
 - `mode`: `block` (impide escrituras) o `set:0xVALUE` (fuerza el valor).
 - `size`: 8|16|32 (default 16).
 
@@ -347,7 +366,7 @@ La regresion descubre las carpetas dentro de `demos`, y para cada una ejecuta:
 Si la demo incluye `analyze-sequence.sh`, tambien ejecuta esa comprobacion y el
 informe muestra una columna `Sequence`.
 
-Para validacion determinista por pixel en secuencias (sin IA visual), ver:
+Para validación determinista por pixel en secuencias (sin IA visual), ver:
 
 ```text
 docs/testing/PIXEL_FRAME_ASSERTIONS.md

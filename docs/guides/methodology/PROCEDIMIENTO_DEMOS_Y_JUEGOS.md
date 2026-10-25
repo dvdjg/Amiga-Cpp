@@ -32,7 +32,7 @@ F0 Diseño -> F1 Esqueleto -> F2 Implementación por etapas -> F3 Gates técnico
    -> F4 Validación visual (visión + ojo del agente) -> F5 Cierre y registro
 ```
 
-- **F0 · Diseño.** Escribir la **intención**: qué se pretende ver y un **criterio de éxito visual**. Definir los **elementos esperados** (cuántos y de qué color/forma; al menos un elemento de color único con trayectoria observable). Presupuesto de ciclos estimado.
+- **F0 · Diseño.** Escribir la **intención**: qué se pretende ver y un **criterio de éxito visual**. Definir los **elementos esperados** (cuántos y de qué color/forma; al menos un elemento de color único con trayectoria observable). Presupuesto de ciclos estimado. **Contrato visual mínimo**: todos los actores visibles se actualizan cada frame (o interpolados), nunca con un gate de posición de 16 frames; al menos un fondo estructurado, varios actores con forma/paleta distintas y trayectorias en X e Y; nada de rectángulos planos como arte final.
 - **F1 · Esqueleto.** `build → run → analyze` en verde desde el primer commit. Telemetría en `g_eng_run_status.detail` (p. ej. cámara) y su `analyze-sequence.sh` propio con `--expect-animated`. Si el arranque/display falla, no se sigue.
 - **F2 · Implementación por etapas.** Respetar `PROTOCOLO_ETAPAS_GRAFICOS.md` (CPU como referencia primero; parar tras 3–4 intentos). Cada etapa deja el frame **en presupuesto**; no se acumula deuda de rendimiento para "arreglarla al final".
 - **F3 · Gates técnicos** (todos, cada uno con su salida como evidencia):
@@ -41,7 +41,8 @@ F0 Diseño -> F1 Esqueleto -> F2 Implementación por etapas -> F3 Gates técnico
   3. `bash tools/test-regression.sh --flicker --require-flicker-ok --demo <ruta>` → 0 candidatos; **declarar `flicker-baseline.json` solo después de F4**.
   4. Tests host del dominio (`docs/testing/README.md`) y gates globales (`tools/run-host-tests.sh`).
   5. **Presupuesto por elemento y peor caso**: desglose por elemento del bucle (incluidas las rutas no frecuentes que causan tirones) con la medida que lo respalda. Para atribuir coste cuando el perfil por secciones no esté disponible: **ablación** (desactivar un elemento, medir y comparar).
-  6. **Presencia de elementos**: `node tools/analyze/check-elements.mjs <seq> <colores> --expect <color>=<min>` — falla si un elemento esperado desaparece o queda a medias en algún frame.
+  6. **Fluidez y atractivo visual**: secuencia por paso de frame; movimiento visible en cada frame, diff/bbox/visión sin saltos; arte legible (no rectángulos de un color); variedad de actores/trayectorias/fondo. Un fallo de fluidez o de contenido visual es bloqueante.
+  7. **Presencia de elementos**: `node tools/analyze/check-elements.mjs <seq> <colores> --expect <color>=<min>` — falla si un elemento esperado desaparece o queda a medias en algún frame.
 - **F4 · Validación visual** (obligatoria; no sustituible por F3):
   - Capturar **secuencia determinista por paso de frame**: `run-demo.sh <demo> --sequence-step-frames N` (un frame de juego entre capturas, `eng_debug_ready_probe`); el modo por intervalo (`--sequence-frames/--sequence-interval-ms`) solo para vistazos. Cubrir las **transiciones internas** (arranque, rebotes, envolturas, cambios de fase).
   - Aplicar el **protocolo de prompts** de `DEMO_VISUAL_DEBUG.md` §6.4: (A) **inventario sin contexto**, (B) **dinámica/seguimiento**, (C) **verificación dirigida** con los elementos esperados.
@@ -95,6 +96,7 @@ F0 Diseño -> F1 Esqueleto -> F2 Implementación por etapas -> F3 Gates técnico
 [ ] F1: build/run/analyze verdes + telemetría detail + analyze-sequence --expect-animated
 [ ] F2: por etapas (CPU primero) y cada etapa en presupuesto
 [ ] F3: test-regression + measure-fps (50 fps / 1 field) + flicker + tests host
+[ ] F3: fluidez por frame (sin gates de posición a 16 frames) + arte final (no placeholder)
 [ ] F3: presupuesto por elemento (worst-case de rutas no frecuentes) medido
 [ ] F4: secuencia densa + prompts A/B/C + ojo del agente + check-elements/band-diff
 [ ] F5: VALIDATION.md (prompts, respuestas crudas, medidas, conclusiones, excepciones) + README

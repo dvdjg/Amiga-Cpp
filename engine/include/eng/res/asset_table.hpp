@@ -28,19 +28,28 @@ public:
 
 	/// Registra vistas no propietarias de nombre y bytes; quien llama mantiene vivos ambos rangos.
 	template <class Tag>
-	bool add(eng::util::StringView name, eng::Span<const eng::u8> data) noexcept {
-		if (name.empty() || data.empty() || m_count >= kMaxAssets || find(name) != kNotFound) {
+	__attribute__((noinline)) bool add(eng::util::StringView name, const eng::u8* data,
+					   eng::usize size) noexcept {
+		if (name.empty() || data == nullptr || size == 0u || m_count >= kMaxAssets ||
+		    find(name) != kNotFound) {
 			return false;
 		}
-		m_entries[m_count++] = Entry {name, data};
+		Entry& entry = m_entries[m_count++];
+		entry.name = name;
+		entry.data = data;
+		entry.size = size;
 		return true;
+	}
+	template <class Tag>
+	bool add(eng::util::StringView name, eng::Span<const eng::u8> data) noexcept {
+		return add<Tag>(name, data.data(), data.size());
 	}
 
 	/// Vista de dominio del asset `name`; vacía si no existe.
 	template <class Tag>
 	[[nodiscard]] ByteView<Tag> get(eng::util::StringView name) const noexcept {
 		const eng::u8 i = find(name);
-		return i != kNotFound ? ByteView<Tag>(m_entries[i].data.data(), m_entries[i].data.size())
+		return i != kNotFound ? ByteView<Tag>(m_entries[i].data, m_entries[i].size)
 				      : ByteView<Tag> {};
 	}
 	/// `true` si la vista sigue señalando los mismos bytes del registro; sirve para auditar tablas
@@ -48,8 +57,8 @@ public:
 	[[nodiscard]] bool valid_view(eng::util::StringView name,
 				      eng::Span<const eng::u8> data) const noexcept {
 		const eng::u8 i = find(name);
-		return i != kNotFound && m_entries[i].data.data() == data.data() &&
-			m_entries[i].data.size() == data.size();
+		return i != kNotFound && m_entries[i].data == data.data() &&
+			m_entries[i].size == data.size();
 	}
 
 	/// `true` si el asset `name` está registrado.
@@ -61,7 +70,8 @@ private:
 
 	struct Entry {
 		eng::util::StringView name {};
-		eng::Span<const eng::u8> data {};
+		const eng::u8* data = nullptr;
+		eng::usize size = 0u;
 	};
 
 	/// Índice del asset `name` (`kNotFound` si no está). Devuelve índice (no puntero).

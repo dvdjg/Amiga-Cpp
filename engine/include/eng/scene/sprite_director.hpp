@@ -416,10 +416,12 @@ public:
 		return m_deadline;
 	}
 
-	/// Actualiza las posiciones de entidades simples **sin recomponer** canales,
-	/// paletas ni el reporte. Solo válido para directores sin compuestos y con una
-	/// entidad simple por placement (el caso de actores de juego en canales fijos).
-	/// \param ctx contexto de emisión (cámara/display) usado para recalcular X/Y.
+	/// Actualiza X/Y, alto y **DATA del frame vigente** de entidades simples sin
+	/// recomponer canales, paletas ni el reporte. Admite actores de 1 o 2 canales y
+	/// pares *attached* (recocina el par solo si cambia el frame o el alto). Solo es
+	/// válido para directores sin compuestos y con placements estables; si hay BOB,
+	/// CPU, plantillas o cambia el ancho del frame, devuelve `false`.
+	/// \param ctx contexto de emisión (cámara/display) usado para recalcular el rect.
 	/// \return `false` si hay compuestos o la escena no es simple estable.
 	[[nodiscard]] bool refresh_positions(const eng::scene::ActorEmitContext& ctx) noexcept {
 		if (m_composites.count() != 0u ||

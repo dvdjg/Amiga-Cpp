@@ -78,14 +78,22 @@ struct SpritePatchSlot {
 	copper::MoveSlot ctl {};       ///< MOVE de `SPRxCTL`
 };
 
-/// Tabla de parcheo POS/CTL de los 8 canales.
+/// Tabla de parcheo POS/CTL de los placements del frame.
 ///
 /// `MoveSlot` es un índice de palabra, no un puntero: sirve para las dos listas del
-/// doble buffer. La tabla valida la estructura (canal, DATA y ancho) antes de
-/// parchear; si la lista se regeneró con otra disposición, `patch` devuelve `false`
-/// y el compositor reemite. Así un índice no se aplica a ciegas sobre otra zona.
+/// doble buffer. La tabla valida la estructura (DATA y ancho) **por placement**, no por
+/// canal: un canal reutilizado por multiplexado vertical tiene varios `POS`/`CTL` en la
+/// lista y todos se parchean. `channel[]` conserva la vista por canal del primer
+/// placement (compatibilidad y diagnóstico). Si la lista se regeneró con otra
+/// disposición, `patch` devuelve `false` y el compositor reemite.
 struct SpritePatchTable {
-	SpritePatchSlot channel[kSpriteChannels] {};
+	/// Máximo de placements que caben en la tabla de parcheo (el compositor cae a
+	/// reemisión completa si el frame trae más).
+	static constexpr eng::u16 kMaxPlacements = 16u;
+
+	SpritePatchSlot channel[kSpriteChannels] {}; ///< primer placement de cada canal
+	SpritePatchSlot slot[kMaxPlacements] {};     ///< un slot por placement del frame
+	eng::u16 count = 0u;                          ///< placements capturados (0..kMaxPlacements)
 	bool valid = false;
 
 	/// Invalida la tabla (tras una reemisión completa).
@@ -93,39 +101,38 @@ struct SpritePatchTable {
 		for (auto& c : channel) {
 			c = SpritePatchSlot {};
 		}
+		for (auto& s : slot) {
+			s = SpritePatchSlot {};
+		}
+		count = 0u;
 		valid = false;
 	}
 
 	/// Comprueba que los placements actuales conservan la estructura capturada.
 	[[nodiscard]] bool matches(eng::Span<const HwSpritePlacement> placements) const noexcept {
-		if (!valid || placements.empty()) {
+		if (!valid || placements.empty() || placements.size() > kMaxPlacements ||
+		    count != placements.size()) {
 			return false;
 		}
-		bool used[kSpriteChannels] {};
 		for (eng::u16 i = 0u; i < placements.size(); ++i) {
 			const HwSpritePlacement& p = placements[i];
 			if (p.channel >= kSpriteChannels || p.data.empty() || p.height == 0u ||
-			    p.width_words != 1u || used[p.channel]) {
+			    p.width_words != 1u) {
 				return false;
 			}
-			const SpritePatchSlot& slot = channel[p.channel];
-			if (!slot.present || slot.data != p.data.address(0).value ||
-			    slot.width_words != p.width_words) {
-				return false;
-			}
-			used[p.channel] = true;
-		}
-		for (u8 c = 0u; c < kSpriteChannels; ++c) {
-			if (channel[c].present != used[c]) {
+			const SpritePatchSlot& s = slot[i];
+			if (!s.present || s.data != p.data.address(0).value ||
+			    s.width_words != p.width_words) {
 				return false;
 			}
 		}
 		return true;
 	}
 
-	/// Escribe solo los datos de `SPRxPOS`/`SPRxCTL` en la lista inactiva.
+	/// Escribe solo los datos de `SPRxPOS`/`SPRxCTL` de todos los placements en la
+	/// lista inactiva (incluidos los rearmes de un canal reutilizado).
 	/// \param words  palabras de la copperlist inactiva.
-	/// \param placements placements del frame actual.
+	/// \param placements placements del frame actual, en el mismo orden que `emit`.
 	/// \return `false` si la estructura cambió; el llamador debe reemitir.
 	[[nodiscard]] bool patch(eng::Span<u16> words,
 				 eng::Span<const HwSpritePlacement> placements) const noexcept {
@@ -134,20 +141,20 @@ struct SpritePatchTable {
 		}
 		for (eng::u16 i = 0u; i < placements.size(); ++i) {
 			const HwSpritePlacement& p = placements[i];
-			const SpritePatchSlot& slot = channel[p.channel];
+			const SpritePatchSlot& s = slot[i];
 			// Validación de identidad: si la lista se regeneró con otra
 			// disposición, el índice puede apuntar a otra instrucción. El opcode
 			// esperado evita aplicar el parche a ciegas.
-			if (words[slot.pos.opcode_word()] !=
+			if (words[s.pos.opcode_word()] !=
 				    copper::sprite_pos_register(p.channel).offset ||
-			    words[slot.ctl.opcode_word()] !=
+			    words[s.ctl.opcode_word()] !=
 				    copper::sprite_ctl_register(p.channel).offset) {
 				return false;
 			}
 			const SpritePosCtl e =
 			    encode_sprite_pos_ctl(p.hpos, p.vstart, p.height, p.attach);
-			copper::patch_data(words, slot.pos, e.pos);
-			copper::patch_data(words, slot.ctl, e.ctl);
+			copper::patch_data(words, s.pos, e.pos);
+			copper::patch_data(words, s.ctl, e.ctl);
 		}
 		return true;
 	}
@@ -405,12 +412,15 @@ public:
         Sched& sched, eng::Span<const HwSpritePlacement> placements, u16 arm_line,
         SpritePatchTable& out) {
         out.reset();
-        if (placements.empty()) return false;
+        if (placements.empty() ||
+            placements.size() > SpritePatchTable::kMaxPlacements) {
+            return false;
+        }
         bool used[kSpriteChannels] {};
         for (eng::u16 i = 0u; i < placements.size(); ++i) {
             const HwSpritePlacement& p = placements[i];
             if (p.channel >= kSpriteChannels || p.data.empty() || p.height == 0u ||
-                p.width_words != 1u || used[p.channel]) {
+                p.width_words != 1u) {
                 return false;
             }
             used[p.channel] = true;
@@ -423,11 +433,42 @@ public:
                 sched.move(copper::sprite_pointer_low_register(c), 0u);
             }
         }
+        // Primera config de cada canal: en la línea temprana. Un canal puede tener
+        // varios placements (multiplexado vertical): los rearmes se emiten después,
+        // cada uno en su `vstart`, y todos entran en la tabla de parcheo.
+        bool first[kSpriteChannels] {};
         for (eng::u16 i = 0u; i < placements.size(); ++i) {
             const HwSpritePlacement& p = placements[i];
+            if (first[p.channel]) {
+                continue;
+            }
+            first[p.channel] = true;
             const SpritePosCtl e =
                 encode_sprite_pos_ctl(p.hpos, p.vstart, p.height, p.attach);
-            SpritePatchSlot& slot = out.channel[p.channel];
+            SpritePatchSlot& slot = out.slot[i];
+            slot.present = true;
+            slot.data = p.data.address(0).value;
+            slot.width_words = p.width_words;
+            slot.pos = sched.move_at(copper::sprite_pos_register(p.channel), e.pos);
+            slot.ctl = sched.move_at(copper::sprite_ctl_register(p.channel), e.ctl);
+            sched.move(copper::sprite_pointer_high_register(p.channel),
+                       (slot.data >> 16u));
+            sched.move(copper::sprite_pointer_low_register(p.channel),
+                       (slot.data & 0xffffu));
+            out.channel[p.channel] = slot;
+        }
+        // Rearmes de los placements posteriores del mismo canal. La lista viene
+        // ordenada por `vstart` (contrato de `compose_sprites`), así que los WAIT
+        // avanzan y no envuelven al frame siguiente.
+        for (eng::u16 i = 0u; i < placements.size(); ++i) {
+            if (out.slot[i].present) {
+                continue;
+            }
+            const HwSpritePlacement& p = placements[i];
+            sched.wait_line(static_cast<u8>(p.vstart & 0xffu));
+            const SpritePosCtl e =
+                encode_sprite_pos_ctl(p.hpos, p.vstart, p.height, p.attach);
+            SpritePatchSlot& slot = out.slot[i];
             slot.present = true;
             slot.data = p.data.address(0).value;
             slot.width_words = p.width_words;
@@ -438,6 +479,7 @@ public:
             sched.move(copper::sprite_pointer_low_register(p.channel),
                        (slot.data & 0xffffu));
         }
+        out.count = static_cast<eng::u16>(placements.size());
         out.valid = true;
         return true;
     }
