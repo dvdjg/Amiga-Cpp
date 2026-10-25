@@ -828,6 +828,13 @@ public:
     constexpr u16 copper_words() const {
         return m_cfg.dpf.enabled ? m_dual.copper_words() : m_single.copper_words();
     }
+    /// Telemetría del compositor: emisiones completas y parcheos aceptados.
+    [[nodiscard]] constexpr eng::u32 debug_full_emits() const noexcept {
+        return m_cfg.dpf.enabled ? m_dual.debug_full_emits() : m_single.debug_full_emits();
+    }
+    [[nodiscard]] constexpr eng::u32 debug_patch_hits() const noexcept {
+        return m_cfg.dpf.enabled ? m_dual.debug_patch_hits() : m_single.debug_patch_hits();
+    }
     /// Depuración: puntero al copper activo y palabras usadas. En DPF devuelve el
     /// bloque del composer dual (vía correcta para trazar el display; NO leer COP1LC).
     const u16* debug_active_copper() const {

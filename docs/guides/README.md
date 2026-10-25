@@ -43,6 +43,8 @@ docs/guides/
 
 ## Tutoriales
 
+- [INTENTION_API_TUTORIAL.md](INTENTION_API_TUTORIAL.md): API 2D de alto nivel por intenciones (`App`/`Game`, `SpriteDirector`, `SpriteBank`/`GameView`, plantillas y coste), con el mapa de la implementación interna para bajar de nivel.
+
 - [3D_GAME_TUTORIAL.md](3D_GAME_TUTORIAL.md): como montar un juego 3D con primitivas o modelos cocinados, relleno Blitter, fisica de esferas/partes y presupuesto de 25 fps.
 
 - [3D_HIGH_PERFORMANCE_GAMEPLAY.md](3D_HIGH_PERFORMANCE_GAMEPLAY.md): rutas de render medidas, física desacoplada en el hueco del Blitter, fixed y presupuesto de 25 fps para juegos 3D en A500.

@@ -18,3 +18,5 @@ El **3D de juego** tiene su propia fachada, [`3d.hpp`](3d.hpp) (`eng::scene3d`),
 Las fachadas directas `scene/sprite_scene.hpp` (`SpriteScene`) y `scene/composite_scene.hpp` (`CompositeScene`) son **legacy avanzado**: no se incluyen desde `api.hpp` y no deben usarse en codigo nuevo; la via canonica es `scene::SpriteDirector`.
 
 Estado y decisiones de consolidación: `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md`.
+
+El camino 2D de alto nivel basado en intenciones se documenta en [INTENTION_API_TUTORIAL.md](../../../docs/guides/INTENTION_API_TUTORIAL.md): SpriteDirector (actores/intenciones), SpriteBank/SpriteGameView (slots y DATA) y el compositor/parcheo interno. Las cabeceras tecnicas siguen disponibles para control avanzado.

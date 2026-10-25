@@ -56,13 +56,13 @@ public:
 		return m_sprite_data.subview(offset, bytes);
 	}
 
-	/// Configuración mutable de un slot (posición/DATA/tamaño).
-	[[nodiscard]] eng::graphics::SpriteConfig& config(eng::u16 index) noexcept {
-		return m_sprites[index < MaxSprites ? index : (MaxSprites - 1u)];
+	/// Configuración mutable de un slot; vacía si el índice no existe.
+	[[nodiscard]] eng::Ref<eng::graphics::SpriteConfig> config(eng::u16 index) noexcept {
+		return index < MaxSprites ? &m_sprites[index] : nullptr;
 	}
-	/// Configuración de solo lectura de un slot.
-	[[nodiscard]] const eng::graphics::SpriteConfig& config(eng::u16 index) const noexcept {
-		return m_sprites[index < MaxSprites ? index : (MaxSprites - 1u)];
+	/// Configuración de solo lectura de un slot; vacía si el índice no existe.
+	[[nodiscard]] eng::Ref<const eng::graphics::SpriteConfig> config(eng::u16 index) const noexcept {
+		return index < MaxSprites ? &m_sprites[index] : nullptr;
 	}
 
 	/// Publica todas las configuraciones en el `SpriteManager` (no toca hardware).

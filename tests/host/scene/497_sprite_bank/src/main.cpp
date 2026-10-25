@@ -75,15 +75,18 @@ int main() {
 	const auto slot0 = bank.slot_data(0u, 64u);
 	check(slot0.size() == 64u, "rebanada del slot 0");
 	check(bank.slot_data(4u, 64u).empty(), "slot fuera de capacidad");
-	bank.config(0u).enabled = true;
-	bank.config(0u).data = slot0;
-	bank.config(0u).width_words = 1u;
-	bank.config(0u).height = 16u;
+	auto bank_cfg = bank.config(0u);
+	check(bank_cfg.valid(), "config válida");
+	bank_cfg->enabled = true;
+	bank_cfg->data = slot0;
+	bank_cfg->width_words = 1u;
+	bank_cfg->height = 16u;
+	check(!bank.config(4u).valid(), "config fuera de rango vacía");
 
 	FakeScene scene {};
 	eng::scene::SpriteGameView<4u> view {};
 	check(view.bind_data(chip_view(g_pixels)), "GameView bind DATA");
-	view.config(0u) = bank.config(0u);
+	if (auto view_cfg = view.config(0u)) *view_cfg = *bank_cfg;
 	view.publish(scene);
 	check(scene.sprites().any_enabled(), "GameView publica el canal");
 	check(scene.invalidated, "GameView invalida la composición");
