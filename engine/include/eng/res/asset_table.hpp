@@ -27,6 +27,9 @@ public:
 	static constexpr eng::u8 kMaxAssets = 16u;
 
 	/// Registra vistas no propietarias de nombre y bytes; quien llama mantiene vivos ambos rangos.
+	///
+	/// La firma cruda y `noinline` evitan un fallo de codegen de GCC 8/15 m68k: pasar un
+	/// `Span` por valor a este `add` inline corrompía el tamaño de algunas entradas.
 	template <class Tag>
 	__attribute__((noinline)) bool add(eng::util::StringView name, const eng::u8* data,
 					   eng::usize size) noexcept {

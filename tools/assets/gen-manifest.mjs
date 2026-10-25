@@ -66,7 +66,11 @@ function blobBytes(p) {
   }
   return fs.statSync(abs).size;
 }
+// Los manifiestos `generated: true` producen sus blobs en `src/prebuild.sh`; el
+// gate `--check` valida entonces el header (texto) sin exigir que exista `out/`.
+const skipBlobs = check && manifest.generated === true;
 for (const a of manifest.assets) {
+  if (skipBlobs) continue;
   const bytes = blobBytes(a.path);
   const expected = a.bytes;
   if (expected !== undefined && expected !== bytes) {
@@ -91,7 +95,12 @@ for (const a of manifest.assets) {
       console.error(`[gen-manifest] ${a.name}: sprite ${frames} frames × ${stride} B ≠ ${bytes} B.`);
       process.exit(1);
     }
-  } else if (a.kind !== 'music') {
+  } else if (a.kind === 'bytes') {
+    if (bytes === 0 || (bytes & 1) !== 0) {
+      console.error(`[gen-manifest] ${a.name}: bytes debe ser u16 y no vacío (${bytes} B).`);
+      process.exit(1);
+    }
+  } else if (a.kind !== 'music' && a.kind !== 'audio') {
     console.error(`[gen-manifest] ${a.name}: kind desconocido "${a.kind}".`);
     process.exit(2);
   }
@@ -101,7 +110,8 @@ for (const a of manifest.assets) {
 const LAYOUT = { interleaved: 'eng::graphics::PlaneLayout::Interleaved', contiguous: 'eng::graphics::PlaneLayout::Contiguous' };
 const BOB_LAYOUT = { interleaved: 'eng::graphics::BobLayout::Interleaved', separate: 'eng::graphics::BobLayout::Separate' };
 const BOB_DRAW = { cookie_cut: 'eng::graphics::BobDraw::CookieCut', copy: 'eng::graphics::BobDraw::Copy' };
-const MASK_PACK = { interleaved_pair: 'eng::graphics::BobMaskPack::InterleavedPair', none: 'eng::graphics::BobMaskPack::None' };
+const MASK_PACK = { interleaved_pair: 'eng::graphics::BobMaskPack::InterleavedPair', none: 'eng::graphics::BobMaskPack::SeparatePlane' };
+const BYTES_TAG = { map: 'eng::MapCellsTag', work: 'eng::WorkTag' };
 const pick = (map, v, what, name) => {
   if (!(v in map)) { console.error(`[gen-manifest] ${name}: ${what} "${v}" no válido (${Object.keys(map).join(', ')}).`); process.exit(2); }
   return map[v];
@@ -156,17 +166,23 @@ for (const a of manifest.assets) {
   }
   L.push('');
 }
-L.push('/// Registra **todos** los assets del manifiesto en el `Assets` del juego, con su geometría.');
-L.push('/// `Assets` es plantilla para no acoplar el header a \`eng/api/assets.hpp\` (lo incluye el juego).');
+L.push('/// Registra los assets del manifiesto; register_sprites:false deja las hojas fuera.');
 L.push('template <class Assets>');
 L.push('[[nodiscard]] inline bool register_assets(Assets& a) noexcept {');
 for (const a of manifest.assets) {
   if (a.kind === 'bitmap') {
     L.push(`\tif (!a.add_bitmap("${a.name}", ${a.name}_data(), ${a.name}_size(), ${a.width}u, ${a.height}u, ${a.planes}u, ${pick(LAYOUT, a.layout || 'interleaved', 'layout', a.name)})) return false;`);
   } else if (a.kind === 'sprite') {
-    L.push(`\tif (!a.add_sprite("${a.name}", ${a.name}_data(), ${a.name}_size(), ${a.name}_desc())) return false;`);
+    if (manifest.register_sprites !== false) {
+      L.push(`\tif (!a.add_sprite("${a.name}", ${a.name}_data(), ${a.name}_size(), ${a.name}_desc())) return false;`);
+    }
   } else if (a.kind === 'music') {
     L.push(`\tif (!a.template add<eng::MusicTag>("${a.name}", ${a.name}_data(), ${a.name}_size())) return false;`);
+  } else if (a.kind === 'audio') {
+    L.push(`\tif (!a.template add<eng::AudioTag>("${a.name}", ${a.name}_data(), ${a.name}_size())) return false;`);
+  } else if (a.kind === 'bytes') {
+    const tag = pick(BYTES_TAG, a.tag || 'work', 'tag', a.name);
+    L.push(`\tif (!a.template add<${tag}>("${a.name}", ${a.name}_data(), ${a.name}_size())) return false;`);
   } else if (a.kind === 'palette') {
     L.push(`\tif (!a.template add<eng::PaletteTag>("${a.name}", reinterpret_cast<const eng::u8*>(${a.name}_words()), ${a.name}_size())) return false;`);
   }

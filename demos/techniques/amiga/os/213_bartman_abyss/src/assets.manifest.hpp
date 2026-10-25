@@ -47,8 +47,7 @@ namespace abyss {
 [[nodiscard]] inline const eng::u16* pal_words() noexcept { return reinterpret_cast<const eng::u16*>(abyss_pal); }
 [[nodiscard]] inline eng::u32 pal_size() noexcept { return ABYSS_BLOB_SIZE(abyss_pal); }
 
-/// Registra **todos** los assets del manifiesto en el `Assets` del juego, con su geometría.
-/// `Assets` es plantilla para no acoplar el header a `eng/api/assets.hpp` (lo incluye el juego).
+/// Registra los assets del manifiesto; register_sprites:false deja las hojas fuera.
 template <class Assets>
 [[nodiscard]] inline bool register_assets(Assets& a) noexcept {
 	if (!a.add_bitmap("img", img_data(), img_size(), 320u, 256u, 5u, eng::graphics::PlaneLayout::Interleaved)) return false;
