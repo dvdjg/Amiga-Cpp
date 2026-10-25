@@ -3,10 +3,10 @@
 ## Medición
 
 ```text
-500_caverna/A500_release | emulado=50,00 fps | 141869 ciclos/frame | 0,99996 campos/frame | stable=true
+500_caverna/A500_release | emulado=49,94 fps | 142033 ciclos/frame | 1,00111 campos/frame | stable=true
 ```
 
-Ventana de 12 s; `measure-fps`. La media es 49,92 fps y las muestras individuales oscilan entre 49,27 y 50,58 fps por la cuantización de frames por ventana. La medición es en reposo, sin entrada sostenida; no se ha medido el coste de un salto o desplazamiento continuo.
+Ventana de 20 s; `measure-fps`. La media es 49,84 fps (host) y las muestras individuales oscilan entre 49,60 y 50,32 fps por la cuantización de frames por ventana. La medición es en reposo, sin entrada sostenida; no se ha medido el coste de un salto o desplazamiento continuo.
 
 El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El display es **DPF 3+3** de 320×208; el jugador y los cuatro enemigos son sprites hardware (5 canales).
 

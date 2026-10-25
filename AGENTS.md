@@ -228,6 +228,17 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **No añadir complejidad solicitada hasta que las sondas parciales pasen.** Nuevas entidades móviles se integran después de tener evidencia separada de clipping/culling, winding exterior, oclusión y continuidad de Fake; asignar colores contrastantes a las caras para que un winding invertido o una oclusión incorrecta no quede oculto por el mismo color.
 - **Documenta el fallo en la sonda**: deja el test/la sonda en el repo (host u on-target con `detail`), de modo que el siguiente lo repita sin pensar.
 - Aplicación real (2026-10): el «residuo del borde derecho» de la 088 no se resolvió persiguiéndolo en la demo con deriva; se aisló con una sonda estática (`tests/amiga/l1_backend/003_plane_fill_bounds`: cinco caras sintéticas, una pasada), un modo «solo contornos» y un test CPU, y solo después se re-verificó la demo. Ver `PROTOCOLO_ETAPAS_GRAFICOS.md` §4 (primitiva aislada) y `DEMO_AND_DEBUG_LESSONS.md` §4.
+### 1.17.1 Estado runtime: dirección y fase antes de diagnosticar
+
+- **Nunca calcular `.data`/`.bss` como `baseText + offset ELF`.** Los segmentos se relocalizan por separado. Usar las bases de sección publicadas por el canal lateral (`state.sections`, `baseText`/`baseData`/`baseBss`) o cargar símbolos con `add-symbol-file` y la base correcta. Si una lectura no cuadra, comprobar primero la dirección antes de culpar al estado.
+- **Verificar la dirección con un centinela/magic y vecinos conocidos.** Una sonda canónica deja un `magic` buscable y canarios antes/después del objeto; si el valor leído no está flanqueado por ellos, la dirección es sospechosa.
+- **Toda observación debe registrar dirección, fase y frame.** Un `count == 0` sin `PC`, `frame`, `baseText`/`baseData` y si `init` ya ocurrió no es evidencia de corrupción. Es obligatorio distinguir “aún no inicializado” de “reiniciado”.
+- **No sincronizar con retardos ciegos.** Para inspeccionar después de `init`, usar un flag de estado, `mark_ready`, un breakpoint o una espera por condición; nunca un bucle de millones de iteraciones que permita muestrear la fase equivocada.
+- **Antes de afirmar que algo “se resetea”, enumerar los escritores al campo.** Desensamblar y localizar stores; usar un watchpoint con valor/máscara (`write == 0`) para capturar el `PC` exacto. Si solo aparecen incrementos y rollbacks, el 0 puede ser un estado previo, no una escritura.
+- **Los tests de límites deben comprobar contenido, no solo ausencia de desbordamiento.** Para texto/HUD: prefijo conservado, longitud útil, terminador, `truncated()` y canarios. Un test que solo mira “no escribe fuera” puede pasar con la línea vacía.
+- **Recompilar la sonda tras cambiar una estructura.** Un binario viejo con `SpriteDesc`/`Pool` de otro tamaño produce offsets falsos; validar `sizeof`/`offsetof` o usar símbolos del ELF recién construido.
+- **Separar la observación de la hipótesis.** “Lee 0” es un hecho; “el contador se resetea por corrupción” es una hipótesis que exige un write capturado. Documentar la conclusión solo cuando ambas coincidan.
+
 ### 1.18 Elegancia, claridad y decisiones de diseño
 
 - **Antes de escribir código, considera al menos dos opciones** y elige la **más simple, clara y legible** que cumpla el contrato. La elegancia no es estética: menos estados imposibles, menos plomería y menos conocimiento de bajo nivel en el llamador.

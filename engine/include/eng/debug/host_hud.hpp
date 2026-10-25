@@ -58,15 +58,25 @@ public:
 
 	/// Última estimación de fps ×10 (p. ej. 275 = 27,5 fps); 0 hasta la primera ventana.
 	[[nodiscard]] constexpr eng::u32 fps10() const noexcept { return m_fps10; }
+	/// Texto exacto enviado en el ?ltimo `draw` (vista no propietaria).
+	[[nodiscard]] constexpr eng::util::StringView last_text() const noexcept {
+		return m_block.view();
+	}
+	/// `true` si el ?ltimo texto se trunc? por capacidad; nunca escribe fuera.
+	[[nodiscard]] constexpr bool last_draw_truncated() const noexcept {
+		return m_block.truncated();
+	}
 
 	/// Margen seguro del HUD de una línea.
 	static constexpr eng::s16 kMarginX = 24;
 	static constexpr eng::s16 kMarginY = 8;
+	/// Capacidad de la linea unica; `TextLine` trunca de forma segura si no cabe.
+	static constexpr eng::usize kTextCapacity = 256u;
 
 private:
 	HudFpsWindow m_fps {};          ///< ventana de ~1 s para fps10
 	eng::u32 m_fps10 = 0u;          ///< última estimación fps ×10
-	eng::util::TextLine<192> m_block {}; ///< línea única enviada al overlay
+	eng::util::TextLine<kTextCapacity> m_block {}; ///< línea única enviada al overlay
 };
 
 } // namespace eng::debug
