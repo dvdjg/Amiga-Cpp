@@ -190,7 +190,21 @@ public:
 		}
 		return true;
 	}
-	/// Dibuja un grupo concreto (usado por el parche de animación).
+	/// Fuente planar y máscara del frame actual de un grupo (para el parche).
+	[[nodiscard]] bool frame_data(u16 group, eng::Span<const u16>& src,
+				    eng::Span<const u16>& mask) const noexcept {
+		if (group >= m_groups.size() || m_sheet == nullptr || m_masks == nullptr) return false;
+		const TileAnimationGroupView& grp = m_groups[group];
+		if (grp.frame_count == 0u) return false;
+		const u8 frame = m_frame[group] < grp.frame_count ? m_frame[group] : 0u;
+		const u32 idx = static_cast<u32>(grp.first_frame + frame);
+		const u8* image = m_sheet + idx * m_frame_stride;
+		const u8* m = m_masks + idx * m_mask_stride;
+		src = eng::Span<const u16> {reinterpret_cast<const u16*>(image),
+					    static_cast<usize>(m_planes) * m_tile * m_tile / 2u};
+		mask = eng::Span<const u16> {reinterpret_cast<const u16*>(m), m_mask_stride / 2u};
+		return true;
+	}	/// Dibuja un grupo concreto (usado por el parche de animación).
 	[[nodiscard]] bool draw_group(graphics::FramePlan& plan, const graphics::BobTarget& target,
 				      u16 ring_height, u16 x, u16 ring_y, u16 group) const noexcept {
 		if (group >= m_groups.size() || m_sheet == nullptr || m_masks == nullptr) return false;

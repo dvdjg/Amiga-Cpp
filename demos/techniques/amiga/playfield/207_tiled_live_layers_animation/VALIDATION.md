@@ -47,9 +47,7 @@ Respuesta:
 - Rectángulos/huecos/bandas/artefactos: No se observan.
 ```
 
-La fogata y la ausencia de artefactos quedan verificadas. El modelo no detecta el
-cambio sutil de agua/flores a esa escala temporal; el pipeline sí parchea sus celdas
-y la comprobación visual de secuencias largas no muestra huecos ni corrupción.
+**No concluyente**: esta secuencia tenía cámara en movimiento. Una prueba posterior con cámara fija mostró que `T` avanza y `A` cambia, pero el contenido de píxeles no cambia (solo el HUD). El parche de animación no se materializa en la ventana; la animación runtime queda pendiente.
 
 `flicker-check` reporta candidatos deterministas debidos al movimiento de cámara y a
 los frames de animación; la capa de visión no confirma anomalía:
@@ -70,5 +68,5 @@ los frames de animación; la capa de visión no confirma anomalía:
   `TileLayerStack` completo sigue pendiente.
 - **Ghosting**: los píxeles transparentes de frames posteriores pueden revelar el
   primer frame horneado; no se observó corrupción, pero es deuda del path de parche.
-- **Agua/flores**: su animación no se ha aislado con cámara fija; la fogata sí.
+- **Animación runtime**: no verificada; el tick avanza pero el parche no cambia\n  píxeles visibles. Es el bloqueo abierto de T5a.
 - La franja inferior de 48 px es HUD negro (no se dibuja contenido).

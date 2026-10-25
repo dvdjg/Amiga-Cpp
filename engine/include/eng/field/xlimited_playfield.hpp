@@ -851,8 +851,12 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
                 if (px + this->ctw() > this->m_bitmap_width) continue;
                 s32 ring_y = ring_base + sy;
                 if (ring_y >= dh) ring_y -= dh;
-                if (!anim.draw_group(plan, m_anim_target, this->display_height(),
-                                     static_cast<u16>(px), static_cast<u16>(ring_y), g)) {
+                eng::Span<const u16> src {};
+                eng::Span<const u16> mask {};
+                if (!anim.frame_data(g, src, mask)) return false;
+                if (!this->add_world_bitmap_masked(plan, src, mask,
+                        static_cast<s32>(px), ring_y, this->ctw(), this->cth(),
+                        static_cast<u16>(this->ctw() / 8u), 32u, this->cplanes())) {
                     return false;
                 }
             }

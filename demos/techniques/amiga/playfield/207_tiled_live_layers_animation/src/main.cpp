@@ -167,7 +167,7 @@ struct DemoGame {
 		scene_cfg.blocks_prebuilt = g_tiled_bank;
 		scene_cfg.blocks_prebuilt_size = g_tiled_bank_size;
 		scene_cfg.palette = g_palette;
-		scene_cfg.animator = nullptr; // el fill base ya trae el primer frame
+		scene_cfg.animator = &animator;
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::SceneBegin);
@@ -181,7 +181,6 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
 		}
-		scene.bg().set_animator(&animator);
 		animator.clear_changes();
 		if (!scene.compose()) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeInit);

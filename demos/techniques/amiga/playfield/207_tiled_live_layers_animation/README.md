@@ -2,7 +2,7 @@
 
 Demo T5: el bake base de `Beginning Fields` conserva el primer frame de todos los
 elementos, y un **animador de celdas** parchea por Blitter las celdas visibles que
-cambian de frame. Se animan las flores, el agua y la fogata; las banderolas quedan
+cambian de frame. Se pretende animar flores, agua y fogata; las banderolas quedan
 estáticas (su TSX no declara animación).
 
 ## Qué demuestra
@@ -10,7 +10,7 @@ estáticas (su TSX no declara animación).
 - El cooker host extrae las animaciones de Tiled (grupos, frames, duraciones y
   celdas dispersas) y las emite como banco planar + máscara 1bpp.
 - El runtime resuelve `frame(group, tick)` sin dividir por grupo en cada frame
-  (acumulador incremental) y parchea solo las celdas de los grupos que cambiaron.
+  (acumulador incremental) e intenta parchear solo las celdas de los grupos que cambiaron.
 - El pase de parcheo se reparte en 6 fases (`group % 6`) para que un cambio de
   agua (26 grupos) no desborde el `FramePlan` de 128 jobs.
 - El recorrido es **Y-only** (la configuración sigue siendo corkscrew XY): 50 fps
@@ -52,5 +52,5 @@ bash tools/run/run-demo.sh demos/techniques/amiga/playfield/207_tiled_live_layer
   overlays al llenar la banda sigue pendiente.
 - X+Y simultáneo a 1 px baja a ~25 fps (2 campos/frame); el recorrido entregado es
   Y-only para mantener 50 fps.
-- El agua/flores se ven correctamente y la fogata cambia de forma (verificado con
-  visión local); no se ha aislado una medida de animación de agua con cámara fija.
+- **Bloqueo abierto**: con cámara fija el tick avanza, pero el píxel del parche no
+  cambia en pantalla; la animación runtime no está verificada. El agua/flores se ven\n  como primer frame y la estructura del cooker/animador queda entregada.
