@@ -521,6 +521,39 @@ void test_sprite_pass_forwarding() {
 	check(pass.emit_count() == 2u, "pass: request_emit fuerza emisión");
 }
 
+/// El culling debe comparar el rect de pantalla, no el HSTART del sprite. Un actor a
+/// x=224 es visible en 320 px; el `hpos` interno (224+0x81) no debe culled.
+void test_cull_hstart() {
+	using Director = eng::scene::SpriteDirector<2u, 2u, 1u, 1u, 8u, 4u>;
+	Director dir {};
+	eng::u16 pixels[32] {};
+	for (eng::u16& w : pixels) w = 0xffffu;
+	eng::graphics::Visual visual = make_visual(8u, 2u, 32u);
+	visual.pixels = eng::Span<const eng::u16> {pixels, 32u};
+	const auto vid = dir.add_visual(visual);
+	eng::scene::SpriteDesc desc {};
+	desc.content = eng::scene::SpriteVisualRef::simple(vid);
+	desc.hint.policy = eng::scene::SpritePolicy::Sprite;
+	desc.transparency = eng::scene::TransparencyMode::Opaque;
+	desc.y = 40;
+	desc.x = 224;
+	const auto visible = dir.add(desc);
+	desc.x = 400;
+	const auto culled = dir.add(desc);
+	check(visible.valid() && culled.valid(), "cull: alta de actores");
+
+	const eng::graphics::BobTarget target = make_target();
+	const eng::graphics::BobTarget targets[1] {target};
+	eng::scene::ActorEmitContext ctx {};
+	ctx.targets = eng::Span<const eng::graphics::BobTarget> {targets, 1u};
+	ctx.display_top = eng::copper::kPalVisibleFirstLine;
+	ctx.clip = eng::graphics::DirtyRect {0, 0, 320, 208};
+	eng::graphics::FramePlan plan {};
+	plan.clear();
+	const auto report = dir.emit(plan, ctx);
+	check(report.hw == 1u, "cull: actor a x=224 visible, x=400 fuera");
+}
+
 } // namespace
 
 int main() {
@@ -528,6 +561,7 @@ int main() {
 	test_run();
 	test_refresh_animation();
 	test_sprite_pass_forwarding();
+	test_cull_hstart();
 	test_band_and_deadline_contracts();
 	if (g_fail == 0) {
 		std::printf("OK: SpriteDirector, reporte, banda y preflight estatico validados.\n");

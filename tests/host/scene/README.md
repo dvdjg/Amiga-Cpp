@@ -36,3 +36,4 @@ Categoría `scene` de la batería host (L1). El índice de categorías está en 
 | HOST-491 | [cpu_actor](491_cpu_actor/README.md) | Actor CPU (`scene/actor_store.hpp` + `graphics/cpu_blit.hpp`): `force_cpu`, copia planar 16-bit con X no alineada, `ClearRect`/`CookieCut` y reporte `cpu` en `SpriteDirector`. |
 | HOST-492 | [playfield_layer](492_playfield_layer/README.md) | Capa PF (`scene/playfield_layer.hpp`): planificación DPF/PF2 como región (`Layer`/`ScenePlan`), no como actor; rechazo sin DPF o con PF ocupado. |
 | HOST-497 | [sprite_bank](497_sprite_bank/README.md) | `SpriteBank` (DATA Chip prestada y configuración por slot), parcheo POS/CTL y `SpriteDirector::set_position`. |
+| HOST-498 | [caverna_gameplay](498_caverna_gameplay/README.md) | Lógica pura de Caverna: colisión de caja contra caras de tile, cámara con dead-zone, clasificación stomp/daño y regresión de las filas de staging del mapa PF2. |

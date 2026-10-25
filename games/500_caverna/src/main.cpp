@@ -13,6 +13,7 @@
 // el bucle no sondea registros.
 
 #include <eng/api/api.hpp>
+#include <eng/api/assets.hpp>
 #include <eng/debug/host_hud.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/xlimited_scroll_layer.hpp>
@@ -22,11 +23,20 @@
 #include <eng/scene/dpf_plan.hpp>
 #include <eng/scene/plan.hpp>
 
+#include "assets.manifest.hpp"
 #include "caverna_art.hpp"
+#include "caverna_gameplay.hpp"
 
 namespace {
 
 namespace playfield = eng::playfield;
+
+/// Vista de bytes de un asset como palabras u16 (blobs big-endian en Amiga).
+template <class Tag>
+[[nodiscard]] eng::Span<const eng::u16> as_u16(eng::ByteView<Tag> bytes) noexcept {
+	return eng::Span<const eng::u16> {
+		reinterpret_cast<const eng::u16*>(bytes.data()), bytes.size() / 2u};
+}
 
 constexpr eng::u16 kTile = caverna_art::kTile;
 constexpr eng::u16 kWidth = 320u;
@@ -45,37 +55,18 @@ constexpr playfield::ScrollConsts kScroll {
 using MapView = eng::playfield::FixedTileLayerMap<kMapWidth>;
 using Profile = playfield::ScrollProgressive;
 
-constexpr eng::u16 kSolidFirst = 2u;
-constexpr eng::u16 kSolidLast = 13u;
 constexpr eng::s16 kGravity = 1;
 constexpr eng::s16 kJump = -8;
-constexpr eng::s16 kPlayerSize = 16;
+constexpr eng::s16 kPlayerSize = caverna::kPlayerSize;
+// Banda de pantalla sin scroll: el jugador se mueve dentro y la cámara solo le
+// sigue al salir por un borde.
+constexpr eng::s32 kDeadLeft = 96;
+constexpr eng::s32 kDeadRight = 224;
 
-/// `true` si la celda bloquea al jugador. Los tiles 0/1 son decoración y los
-/// 2..13 son el terreno y las plataformas del tileset.
-bool tile_is_solid(eng::u16 tx, eng::u16 ty) {
-	if (tx >= kMapWidth || ty >= kMapHeight) return true;
-	const eng::u16 tile =
-		caverna_art::map_cells()[static_cast<eng::u32>(ty) * kMapWidth + tx];
-	return tile >= kSolidFirst && tile <= kSolidLast;
-}
-
-/// Colisión de la caja 16×16 con el tilemap en coordenadas de mundo. Se usa
-/// `>> 4` (tile 16 px) y no división en el bucle de juego.
-bool box_hits_solid(eng::s32 x, eng::s32 y) {
-	if (x < 0 || y < 0) return true;
-	const eng::s32 tx0 = x >> 4;
-	const eng::s32 ty0 = y >> 4;
-	const eng::s32 tx1 = (x + kPlayerSize - 1) >> 4;
-	const eng::s32 ty1 = (y + kPlayerSize - 1) >> 4;
-	for (eng::s32 ty = ty0; ty <= ty1; ++ty) {
-		for (eng::s32 tx = tx0; tx <= tx1; ++tx) {
-			if (tile_is_solid(static_cast<eng::u16>(tx), static_cast<eng::u16>(ty))) {
-				return true;
-			}
-		}
-	}
-	return false;
+/// Colisión de la caja del jugador contra el tilemap (lógica pura testeable).
+[[nodiscard]] bool box_hits_solid(eng::s32 x, eng::s32 y) {
+	return caverna::box_hits_solid(caverna_art::map_cells(), kMapWidth, kMapHeight, x, y,
+				       kPlayerSize, kPlayerSize);
 }
 
 constexpr eng::u8 kActorCount = 9u; // jugador + ocho enemigos
@@ -93,16 +84,19 @@ struct CavernaGame {
 	eng::s16 player_y = 144;
 	eng::s16 player_vy = 0;
 	bool on_ground = true;
-	bool jump_prev = false;
 	static constexpr eng::u8 kEnemyCount = 8u;
 	eng::s16 enemy_x[kEnemyCount] {40, 88, 184, 232, 280, 336, 392, 440};
 	eng::s16 enemy_y[kEnemyCount] {96, 72, 112, 80, 64, 120, 88, 104};
 	eng::s16 enemy_base_y[kEnemyCount] {96, 72, 112, 80, 64, 120, 88, 104};
 	eng::s8 enemy_dx[kEnemyCount] {2, -1, 2, -2, 1, -1, 2, -1};
+	bool enemy_alive[kEnemyCount] {true, true, true, true, true, true, true, true};
+	eng::u8 lives = 3u;
+	eng::u16 score = 0u;
+	eng::u8 invuln = 0u;
 	static constexpr eng::u8 kSpriteCount = kActorCount;
-	static constexpr eng::u16 kSpriteBytes = 64u;
 	using Director = eng::scene::SpriteDirector<static_cast<eng::u16>(kActorCount),
 					    static_cast<eng::u16>(kActorCount), 1u, 1u, 16u, 4u>;
+	eng::Assets m_assets {};
 	Director m_dir {};
 	// Pasada de sprites que conduce el `App` antes del scroll: emite/refresca los actores
 	// y entrega placements + plan de BOB a la escena. No es una capa visual: el director
@@ -112,6 +106,14 @@ struct CavernaGame {
 	SpritePass m_sprite_pass {m_dir, scene};
 	eng::scene::SpriteId m_actor_ids[kSpriteCount] {};
 	eng::Span<eng::u16> m_sprite_words {};
+	eng::audio::AudioSystem* m_audio = nullptr;
+	eng::Span<const eng::u8> m_sfx_jump {};
+	eng::Span<const eng::u8> m_sfx_stomp {};
+	eng::Span<const eng::u8> m_sfx_damage {};
+	eng::Span<const eng::u8> m_sfx_land {};
+	bool m_audio_ready = false;
+	bool m_music_ok = false;
+
 	eng::s16 m_player_sx = -1;
 	eng::s16 m_player_sy = -1;
 	bool joy_left = false;
@@ -135,25 +137,49 @@ struct CavernaGame {
 		return static_cast<eng::s16>(enemy_x[i] - cam_x);
 	}
 
+	/// Dispara un SFX del manifiesto si el mixer arrancó; sin audio no falla el juego.
+	void play_sfx(eng::Span<const eng::u8> sample, eng::s16 priority) {
+		if (m_audio == nullptr || !m_audio_ready || sample.empty()) return;
+		(void)m_audio->play_sfx(eng::audio::SfxSample {sample}, priority,
+					eng::audio::LoopMode::Once);
+	}
+
 	void init_sprites() {
+		// Cuatro hojas de 128 B (dos poses de 16x16x2) desde los blobs del manifiesto.
+		// La tabla de `Assets` no se usa para sprites: se copian al bloque Chip de la
+		// escena y cada tipo comparte una vista de 64 palabras.
+		const eng::u8* srcs[4] {caverna_assets::player_data(), caverna_assets::bat_data(),
+					 caverna_assets::slime_data(), caverna_assets::crab_data()};
 		auto words = scene.sprites().sprite_words();
 		m_sprite_words = eng::Span<eng::u16> {words.data(), words.size()};
-		m_sprite_words.fill(0u);
-		caverna_art::write_actor_art(m_sprite_words, 0u, 0u, 0u);
-		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
-			caverna_art::write_actor_art(m_sprite_words, static_cast<eng::u8>(i + 1u),
-						     static_cast<eng::u8>((i % 3u) + 1u), 0u);
+		if (m_sprite_words.size() < 4u * 64u) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
 		}
-		for (eng::u8 slot = 0u; slot < kSpriteCount; ++slot) {
+		eng::scene::VisualId type_visual[4] {};
+		for (eng::u8 type = 0u; type < 4u; ++type) {
+			eng::u8* dst = reinterpret_cast<eng::u8*>(m_sprite_words.data() +
+								 static_cast<eng::usize>(type) * 64u);
+			for (eng::usize i = 0u; i < 128u; ++i) dst[i] = srcs[type][i];
 			eng::graphics::Visual visual {};
 			visual.pixels = eng::Span<const eng::u16> {
-				m_sprite_words.data() + static_cast<eng::usize>(slot) * 32u, 32u};
+				m_sprite_words.data() + static_cast<eng::usize>(type) * 64u, 64u};
 			visual.w = 16u;
 			visual.h = 16u;
 			visual.bitplanes = 2u;
-			const eng::scene::VisualId visual_id = m_dir.add_visual(visual);
+			visual.frame_count = 2u;
+			visual.frame_stride = 64u;
+			type_visual[type] = m_dir.add_visual(visual);
+			if (!type_visual[type].valid()) {
+				eng::amiga::mark_failed(eng::debug::BootFail::Game);
+				return;
+			}
+		}
+		for (eng::u8 slot = 0u; slot < kSpriteCount; ++slot) {
+			const eng::u8 type = slot == 0u ? 0u : static_cast<eng::u8>((slot - 1u) % 3u + 1u);
 			eng::scene::SpriteDesc desc {};
-			desc.content = eng::scene::SpriteVisualRef::simple(visual_id);
+			desc.content = eng::scene::SpriteVisualRef::simple(type_visual[type]);
+			desc.animation = nullptr;
 			desc.hint.policy = eng::scene::SpritePolicy::Sprite;
 			// Canales HW 0..7 con preferencia estable; el noveno actor (slot 8) no
 			// reserva canal: entra por multiplexado vertical o degrada a BOB.
@@ -170,15 +196,13 @@ struct CavernaGame {
 		m_sprite_pass.request_emit();
 	}
 
-	/// Mantiene al jugador en una posición estable de pantalla y desplaza el
-	/// mundo: la cámara no se mueve a la vez que el sprite, sino que lo sigue.
+	/// Cámara con dead-zone: el jugador puede moverse dentro de la banda
+	/// `[kDeadLeft, kDeadRight]` sin que el scroll se mueva; al salir, la cámara
+	/// le sigue manteniendo el borde. Se acota al mundo.
 	void follow_camera() {
-		constexpr eng::s32 kScreenAnchor = 152;
-		eng::s32 target = static_cast<eng::s32>(player_wx) - kScreenAnchor;
-		if (target < 0) target = 0;
-		const eng::s32 max_x = static_cast<eng::s32>(kMapWidth * kTile) - kWidth;
-		if (target > max_x) target = max_x;
-		cam_x = target;
+		cam_x = caverna::dead_zone_camera(player_wx, cam_x,
+						  static_cast<eng::s32>(kMapWidth * kTile),
+						  kWidth, kDeadLeft, kDeadRight);
 		cam_y = 0;
 	}
 
@@ -190,22 +214,13 @@ struct CavernaGame {
 		m_player_sy = player_y;
 	}
 
-	/// Cambia la pose de arte cada 8 frames. La posición se actualiza aparte en
-	/// cada frame; este gate solo afecta al dibujo (alas/patas), no al sprite.
-	void animate_enemies(eng::u32 frame) {
-		if ((frame & 7u) != 0u) return;
-		const eng::u8 phase = static_cast<eng::u8>((frame >> 3u) & 1u);
-		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
-			caverna_art::write_actor_art(m_sprite_words, static_cast<eng::u8>(i + 1u),
-						     static_cast<eng::u8>((i % 3u) + 1u), phase);
-		}
-	}
 
 	/// Patrulla y hace flotar a los enemigos en cada frame (sin gate de
 	/// posición). La cámara ya está actualizada antes de refrescar los sprites.
 	void update_enemies(eng::u32 frame) {
 		constexpr eng::s8 kBob[8] {0, 1, 2, 1, 0, -1, -2, -1};
 		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
+			if (!enemy_alive[i]) continue;
 			enemy_x[i] = static_cast<eng::s16>(enemy_x[i] + enemy_dx[i]);
 			if (enemy_x[i] < 16) {
 				enemy_x[i] = 16;
@@ -222,15 +237,47 @@ struct CavernaGame {
 		}
 	}
 
-	/// Resuelve el contacto jugador/enemigo con una reacción mínima: invierte la
-	/// patrulla y deja al jugador en la posición horizontal previa.
+	/// Da de baja un enemigo: deja de patrullar y se retira del director. La
+	/// pasada pedirá una emisión completa (cambia la estructura de placements).
+	void kill_enemy(eng::u8 i) {
+		enemy_alive[i] = false;
+		(void)m_dir.remove(m_actor_ids[static_cast<eng::u8>(i + 1u)]);
+		m_actor_ids[static_cast<eng::u8>(i + 1u)] = {};
+		score = static_cast<eng::u16>(score + 100u);
+		play_sfx(m_sfx_stomp, 4);
+		m_sprite_pass.request_emit();
+	}
+
+	/// Clasifica el contacto: caer sobre el enemigo lo elimina y bota al jugador;
+	/// tocarlo de lado resta una vida con invulnerabilidad temporal. Si se acaban
+	/// las vidas, el jugador vuelve al inicio del nivel.
 	void resolve_enemy_hits(eng::s16 old_wx) {
 		const eng::Box player { player_wx, player_y, kPlayerSize, kPlayerSize };
 		for (eng::u8 i = 0u; i < kEnemyCount; ++i) {
+			if (!enemy_alive[i]) continue;
 			const eng::Box enemy { enemy_x[i], enemy_y[i], kPlayerSize, kPlayerSize };
-			if (eng::overlaps(player, enemy)) {
-				enemy_dx[i] = static_cast<eng::s8>(-enemy_dx[i]);
+			const caverna::EnemyHit hit =
+				caverna::classify_enemy_hit(player, player_vy, enemy);
+			if (hit == caverna::EnemyHit::Stomp) {
+				kill_enemy(i);
+				player_vy = -6;
+				on_ground = false;
+				return;
+			}
+			if (hit == caverna::EnemyHit::Damage && invuln == 0u) {
+				lives = static_cast<eng::u8>(lives > 0u ? lives - 1u : 0u);
+				invuln = 60u;
+				play_sfx(m_sfx_damage, 5);
 				player_wx = old_wx;
+				player_vy = -4;
+				on_ground = false;
+				if (lives == 0u) {
+					lives = 3u;
+					player_wx = 152;
+					player_y = 144;
+					cam_x = 0;
+				}
+				return;
 			}
 		}
 	}
@@ -238,7 +285,21 @@ struct CavernaGame {
 	/// Inicializa el arte, la escena y los actores, y registra la capa en el `App`.
 	void init(auto& app) {
 		eng::os::input_enable(eng::os::InputMouse | eng::os::InputJoystick);
-		caverna_art::build();
+		// Assets por manifiesto: la demo no calcula arte ni copia blobs a mano.
+		m_assets.bind(app.device().memory_manager());
+		if (!caverna_assets::register_assets(m_assets)) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
+		const bool art_ok = caverna_art::bind(
+			as_u16(m_assets.view<eng::WorkTag>("cave_rows")),
+			as_u16(m_assets.view<eng::WorkTag>("terrain_rows")),
+			as_u16(m_assets.view<eng::MapCellsTag>("map_pf2")),
+			as_u16(m_assets.view<eng::MapCellsTag>("map_pf1")));
+		if (!art_ok) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
 
 		// Plan de escena: un campo de scroll (BG) + un lienzo FG (rol `Foreground`,
 		// `content = Canvas`). `apply_dpf_plan` siembra geometría, paleta y roles.
@@ -249,7 +310,8 @@ struct CavernaGame {
 		bg.tile_h = kTile;
 		bg.planes = kPlanes;
 		bg.display_height = kRingHeight;
-		bg.tilemap.palette = eng::PaletteWords {caverna_art::palette().data(), 32u};
+		const eng::Span<const eng::u16> palette = m_assets.palette("pal");
+		bg.tilemap.palette = eng::PaletteWords {palette.data(), 32u};
 		playfield::ScrollPlan fg = bg;
 		eng::scene::ScenePlan<2u> plan {};
 		(void)plan.add(eng::scene::LayerRole::Background, eng::scene::LayerPlacement {}, bg);
@@ -260,6 +322,7 @@ struct CavernaGame {
 			return;
 		}
 		// Específico del corcóscru: política de ejes, mapa y generador de filas.
+		config.sprite_data_bytes = 4u * 128u;
 		config.y_mode = playfield::AxisPolicy::Off;
 		config.direction = playfield::DirectionPolicy::Bidirectional;
 		config.max_step = 2u;
@@ -277,8 +340,7 @@ struct CavernaGame {
 		config.tileset_count = kTilesetCount;
 		config.fg_row_fn = &caverna_art::cave_row;    // PF1: muro de cueva
 		config.bg_row_fn = &caverna_art::terrain_row; // PF2: terreno
-		config.sprite_data_bytes = kSpriteCount * kSpriteBytes;
-		config.sprites_armed = true;
+		config.sprites_armed = false;
 		scene.set_config(config);
 		scene.track_camera(&cam_x, &cam_y);
 		if (!app.add_scroll_layer(layer, eng::scene::LayerRole::Background,
@@ -288,6 +350,18 @@ struct CavernaGame {
 		}
 		init_sprites();
 		if (!app.add_sprite_pass(m_sprite_pass)) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
+			return;
+		}
+		// Audio: música P61 del manifiesto y cuatro SFX cortos en el mixer (AUD0).
+		m_audio = &app.audio();
+		m_sfx_jump = m_assets.audio("sfx_jump");
+		m_sfx_stomp = m_assets.audio("sfx_stomp");
+		m_sfx_damage = m_assets.audio("sfx_damage");
+		m_sfx_land = m_assets.audio("sfx_land");
+		m_music_ok = app.audio().play_music(m_assets.music("mod"));
+		m_audio_ready = app.audio().init(app.memory_manager());
+		if (!m_music_ok && !m_audio_ready) {
 			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 			return;
 		}
@@ -325,17 +399,30 @@ struct CavernaGame {
 				}
 			}
 		}
+		// Fallback de hardware: los mensajes del mini-OS pueden no cubrir todos los
+		// backends de entrada; el joystick del puerto 2 se lee también directamente.
+		eng::input::InputAggregator& hw = app.input();
+		eng::amiga::poll_input(hw);
+		joy_left = joy_left || hw.pad1.left;
+		joy_right = joy_right || hw.pad1.right;
+		joy_up = joy_up || hw.pad1.up;
+		joy_down = joy_down || hw.pad1.down;
+		if (hw.pad1.fire) joy_fire = 1u;
 		// 2 px/frame: el parcheo por placement (incluidos los rearmes de un canal
 		// multiplexado) mantiene el frame dentro del campo; medido 49,87 fps con
 		// entrada real sostenida.
 		const eng::s16 dx =
 			static_cast<eng::s16>((joy_right ? 2 : 0) - (joy_left ? 2 : 0) + mouse_dx);
+		if (invuln > 0u) --invuln;
 		const bool jump_down = (joy_fire != 0u) || ((mouse_buttons & 1u) != 0u) || joy_up;
-		if (jump_down && !jump_prev && on_ground) {
+		// Mantener pulsado salta en cuanto se toca el suelo: el juego es un
+		// plataformas simple y así la captura por frames puede ver el salto.
+		const bool was_ground = on_ground;
+		if (jump_down && on_ground) {
 			player_vy = kJump;
 			on_ground = false;
+			play_sfx(m_sfx_jump, 3);
 		}
-		jump_prev = jump_down;
 
 		const eng::s16 old_wx = player_wx;
 		if (dx != 0) {
@@ -377,20 +464,20 @@ struct CavernaGame {
 			on_ground = box_hits_solid(player_wx, player_y + 1);
 		}
 
+		if (!was_ground && on_ground) play_sfx(m_sfx_land, 1);
 		resolve_enemy_hits(old_wx);
 		follow_camera();
 		place_player();
 		update_enemies(app.frame());
-		animate_enemies(app.frame());
 		// La capa de sprites (conducida por el `App`) compone/refresca después de este
 		// update y antes del scroll; el juego no publica placements ni copperlist.
 	}
 
 	/// El `App` materializa el mundo y conduce el motor; el juego solo publica telemetría.
 	void render(auto& app) {
-		if ((app.frame() & 7u) == 0u) {
+		if ((app.frame() & 15u) == 0u) {
 			m_host_hud.draw(app.debug(), "CAVERNA DEMO 500", eng::debug::Version {1u, 0u},
-					app.frame(), eng::debug::prof_clock());
+					app.frame(), eng::debug::prof_clock(), nullptr);
 		}
 	}
 

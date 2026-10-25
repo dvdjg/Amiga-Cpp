@@ -64,14 +64,15 @@ if (!ver) {
 const images = files.map((f) => fs.readFileSync(path.join(seqDir, f)).toString('base64'));
 const prompt = [
 	'Las imagenes adjuntas van EN ORDEN TEMPORAL.',
-	'El protagonista es la criatura de contorno claro (blanco/verde) situada en el centro de la',
-	'pantalla, justo encima del bloque grande de tiles verde con digitos; NO es ninguno de los',
-	'cuadrados verdes con el numero 1, ni los bloques rojos, naranjas o marrones.',
-	'Describe si esa criatura realiza un SALTO: primero sube verticalmente y despues baja.',
-	'Fijate en la separacion entre la criatura y el borde superior del bloque de tiles.',
+	'El protagonista es el personaje naranja con forma humana y contorno claro situado en el',
+	'centro de la pantalla; NO es ninguno de los enemigos (triangulos rojos/naranjas, objetos',
+	'verdes, blancos o rosas) ni las columnas decorativas de la cueva.',
+	'El suelo es la franja marron con borde verde de la parte inferior.',
+	'Describe si ese personaje naranja realiza un SALTO: primero sube verticalmente respecto al',
+	'suelo y despues baja.',
 	'No confundas el cambio del contador de frames o de FPS con movimiento.',
 	'Responde primero con una linea exacta "SALTO: SI" o "SALTO: NO", y despues justifica brevemente',
-	'que cambia en la posicion vertical de la criatura entre las imagenes.'
+	'que cambia en la posicion vertical del personaje entre las imagenes.'
 ].join(' ');
 const res = await fetch(`${BASE}/api/generate`, {
 	method: 'POST',
