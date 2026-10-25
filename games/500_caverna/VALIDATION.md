@@ -17,7 +17,7 @@ El mapa es `FixedTileLayerMap<256>` y la cámara se conduce por la fachada. El d
 - colisión de la caja 16×16 del jugador contra los tiles sólidos del mapa (suelo y pilares);
 - gravedad, salto con botón izquierdo del ratón, fuego del joystick o arriba; el jugador vuelve a aterrizar en el suelo;
 - ocho actores hardware (jugador + siete enemigos) en los ocho canales, con patrulla y animación de DATA alterna;
-- `SpriteDirector` actualiza posiciones sin reemitir y `XlimitedDualComposer` parchea POS/CTL; `SpriteBank`/`SpriteGameView` aportan DATA y slots;
+- `SpriteDirector` actualiza posiciones sin reemitir y `XlimitedDualComposer` parchea POS/CTL; `SpriteBank` aportan DATA y slots;
 - `SpriteDirector` mantiene el contrato de estado (L1-006);
 - HUD de host con `CAVERNA DEMO 500`, versión, frame y fps;
 - sin audio ni pitidos;

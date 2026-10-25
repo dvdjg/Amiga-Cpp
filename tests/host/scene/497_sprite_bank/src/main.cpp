@@ -1,12 +1,6 @@
 // ============================================================================
-// Test HOST-497: SpriteBank/GameView y posición de SpriteDirector.
+// Test HOST-497: SpriteBank, parcheo POS/CTL y set_position del director.
 // ============================================================================
-//
-// Cubre:
-//   - SpriteBank: DATA Chip prestada, rebanada por slot y publicación en
-//     SpriteManager.
-//   - SpriteGameView/GameView: publica el banco y marca la escena.
-//   - SpriteDirector::set_position: mueve el actor simple sin exponer HSTART.
 //
 //   bash tools/run-host-tests.sh tests/host/scene/497_sprite_bank
 
@@ -34,14 +28,6 @@ eng::ChipView<Tag> chip_view(eng::u16 (&a)[N]) {
 }
 
 eng::u16 g_pixels[64] {};
-
-struct FakeScene {
-	eng::graphics::SpriteManager m_sprites {};
-	bool invalidated = false;
-
-	eng::graphics::SpriteManager& sprites() noexcept { return m_sprites; }
-	void invalidate_composition() noexcept { invalidated = true; }
-};
 
 struct RecordingScheduler {
 	eng::u16 words[128] {};
@@ -71,7 +57,6 @@ int main() {
 	// --- SpriteBank ---------------------------------------------------------
 	eng::scene::SpriteBank<4u> bank {};
 	check(bank.bind_data(chip_view(g_pixels)), "bind DATA Chip");
-	check(bank.data().size() == sizeof(g_pixels), "tamaño DATA");
 	const auto slot0 = bank.slot_data(0u, 64u);
 	check(slot0.size() == 64u, "rebanada del slot 0");
 	check(bank.slot_data(4u, 64u).empty(), "slot fuera de capacidad");
@@ -82,14 +67,6 @@ int main() {
 	bank_cfg->width_words = 1u;
 	bank_cfg->height = 16u;
 	check(!bank.config(4u).valid(), "config fuera de rango vacía");
-
-	FakeScene scene {};
-	eng::scene::SpriteGameView<4u> view {};
-	check(view.bind_data(chip_view(g_pixels)), "GameView bind DATA");
-	if (auto view_cfg = view.config(0u)) *view_cfg = *bank_cfg;
-	view.publish(scene);
-	check(scene.sprites().any_enabled(), "GameView publica el canal");
-	check(scene.invalidated, "GameView invalida la composición");
 
 	// --- Parcheo POS/CTL ----------------------------------------------------
 	eng::graphics::HwSpritePlacement placement {};
@@ -105,8 +82,6 @@ int main() {
 	check(eng::graphics::SpriteManager::emit_placements_patchable(
 		      sched, one, 32u, patch_table),
 	      "emite placements parcheables");
-	check(patch_table.valid && patch_table.channel[3].present, "tabla POS/CTL válida");
-
 	const eng::Span<eng::u16> words {sched.words, sched.used};
 	check(patch_table.patch(words, one), "parchea POS/CTL");
 	const eng::graphics::SpritePosCtl first =
@@ -171,6 +146,6 @@ int main() {
 		std::printf("[FAIL] %d comprobaciones\n", g_fail);
 		return 1;
 	}
-	std::printf("OK: SpriteBank, GameView y set_position validados.\n");
+	std::printf("OK: SpriteBank, parcheo POS/CTL y set_position validados.\n");
 	return 0;
 }

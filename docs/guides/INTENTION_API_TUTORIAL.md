@@ -12,7 +12,7 @@ Juego
         │
         ▼
 Fachada (eng::api)
-  App + Game, SpriteDirector, SpriteBank/GameView, Screen, XlimitedScene
+  App + Game, SpriteDirector, SpriteBank, Screen, XlimitedScene
         │
         ▼
 Resolución (engine)
@@ -100,12 +100,12 @@ void update(auto&) {
 | `sprite_template` | plantilla de franjas avanzada |
 | `line_layer` | capa por línea avanzada |
 
-## 4. `SpriteBank`/`SpriteGameView`: slots y DATA
+## 4. `SpriteBank`: slots y DATA
 
-`SpriteBank<MaxSprites>` agrupa los `SpriteConfig` y una vista Chip de DATA que pertenece a la escena; no posee el bloque de memoria. `SpriteGameView` publica el banco en el `SpriteManager` de la escena. Es la capa útil para juegos que quieren control explícito de slots sin tocar el `SpriteManager`:
+`SpriteBank<MaxSprites>` agrupa los `SpriteConfig` y una vista Chip de DATA que pertenece a la escena; no posee el bloque de memoria. `SpriteBank::apply` publica las configuraciones en el `SpriteManager` de la escena y el llamador decide cuándo invalidar la composición. Es la capa útil para juegos que quieren control explícito de slots sin tocar el `SpriteManager`:
 
 ```cpp
-eng::scene::SpriteGameView<8u> view;
+eng::scene::SpriteBank<8u> view;
 view.bind_data(scene.sprites().sprite_data_view());
 if (auto cfg = view.config(0u)) {
     cfg->enabled = true;
@@ -116,7 +116,7 @@ if (auto cfg = view.config(0u)) {
 view.publish(scene); // solo cuando cambie la estructura/posición de slots
 ```
 
-`config()` devuelve una vista vacía para un índice fuera de capacidad; no recorta silenciosamente al último slot. `GameView<MaxSprites>` es un alias corto de `SpriteGameView`; si el lector quiere el nombre explícito, use `SpriteGameView`.
+`config()` devuelve una vista vacía para un índice fuera de capacidad; no recorta silenciosamente al último slot. No hay una segunda fachada de vista: para control de slots se usa directamente `SpriteBank`.
 
 ## 5. Plantillas: capacidad fija y coste
 
@@ -125,7 +125,7 @@ Todas las plantillas del camino de juego reservan en BSS y no usan heap. Elegir 
 | Plantilla | Parámetros | Qué controla |
 |---|---|---|
 | `SpriteDirector<S, V, C, B, P, E>` | sprites, visuales, compuestos, bandas, placements, eventos | actores, contenido, bandas, presupuesto de placements/paleta |
-| `SpriteBank<N>` / `SpriteGameView<N>` | slots 1..8 | configuración y DATA por canal |
+| `SpriteBank<N>` | slots 1..8 | configuración y DATA por canal |
 | `SpriteScene<MaxActors>` | actores simples | escena interna simple y sus intenciones |
 | `CompositeScene<MaxActors, MaxIntents>` | actores compuestos e intenciones | partes/secuencias compuestas |
 | `XlimitedScene<Consts, Map, Profile>` | geometría, mapa, perfil | playfield de scroll/corcóscru |
@@ -146,7 +146,7 @@ Regla práctica: no dimensionar `SpriteDirector` al máximo si el juego usa ocho
 
 ## 7. Niveles de acceso
 
-**Nivel A — juego normal:** `App`, `Screen`, `World`, `SpriteDirector`, `SpriteBank`/`GameView`, `TextLine`, `HostHud`.
+**Nivel A — juego normal:** `App`, `Screen`, `World`, `SpriteDirector`, `SpriteBank`, `TextLine`, `HostHud`.
 
 **Nivel B — control de escena:** `XlimitedScene`, `XlimitedScrollLayer`, `ScenePlan`, `ScrollPlan`, `Camera2D`, `SpriteBudget`, `FramePlan`.
 
@@ -160,7 +160,7 @@ Bajar de nivel es aceptable cuando una abstracción falta o cuando se mide la ne
 - `refresh_positions` es para escenas simples estables; si hay compuestos, `attached`, plantillas o BOB, devuelve fallo y se usa `emit`.
 - El parcheo POS/CTL del compositor dual escribe POS/CTL; si cambia DATA, ancho, canal o estructura, se reemite.
 - El compositor single tiene parcheo solo cuando no hay split/HUD/zonas de color; el resto hace fallback a emisión completa.
-- `SpriteBank::publish`/`invalidate` no debe llamarse cada frame si solo cambian posiciones; el camino correcto es el refresh del director.
+- No publiques/`apply` el banco ni invalides la composición cada frame si solo cambian posiciones; el camino correcto es el refresh del director.
 - `Screen::target()`/`Screen::blit` son rutas de transición para código avanzado; no forman parte del vocabulario ideal de un juego nuevo.
 - No se asigna memoria en gameplay; las capacidades se eligen en compilación.
 

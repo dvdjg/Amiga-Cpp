@@ -77,35 +77,9 @@ protected:
 	eng::ChipView<eng::SpriteTag> m_sprite_data {}; ///< DATA Chip prestada; no propietaria
 };
 
-/// Vista de sprites de una escena: publica el `SpriteBank` en el `SpriteManager`
-/// de la escena y marca la composición para el siguiente `compose()`.
-///
-/// Es la capa que el juego usa para no conocer `Scene::sprites()` ni
-/// `invalidate_composition()`; la escena sigue siendo dueña del display/Copper.
-/// \tparam MaxSprites capacidad del banco (1..8).
-template <eng::u16 MaxSprites>
-class SpriteGameView : public SpriteBank<MaxSprites> {
-public:
-	/// Aplica el banco a la escena y solicita re-emisión de la copperlist.
-	/// Llamar solo cuando cambie una posición o la DATA de un slot; el camino
-	/// caliente de scroll no necesita publicar sprites cada frame.
-	/// \tparam Scene escena con `sprites()` e `invalidate_composition()`.
-	template <class Scene>
-	void publish(Scene& scene) noexcept {
-		this->apply(scene.sprites());
-		scene.invalidate_composition();
-	}
-};
-
-/// Alias corto de la vista de sprites para la capa de juego.
-/// \tparam MaxSprites capacidad del banco (1..8).
-template <eng::u16 MaxSprites>
-using GameView = SpriteGameView<MaxSprites>;
 
 } // namespace eng::scene
 
 namespace eng {
 using scene::SpriteBank;
-using scene::GameView;
-using scene::SpriteGameView;
 } // namespace eng

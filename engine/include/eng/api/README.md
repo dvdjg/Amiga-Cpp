@@ -19,4 +19,4 @@ Las fachadas directas `scene/sprite_scene.hpp` (`SpriteScene`) y `scene/composit
 
 Estado y decisiones de consolidación: `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md`.
 
-El camino 2D de alto nivel basado en intenciones se documenta en [INTENTION_API_TUTORIAL.md](../../../docs/guides/INTENTION_API_TUTORIAL.md): SpriteDirector (actores/intenciones), SpriteBank/SpriteGameView (slots y DATA) y el compositor/parcheo interno. Las cabeceras tecnicas siguen disponibles para control avanzado.
+El camino 2D de alto nivel basado en intenciones se documenta en [INTENTION_API_TUTORIAL.md](../../../docs/guides/INTENTION_API_TUTORIAL.md): SpriteDirector (actores/intenciones), SpriteBank (slots y DATA) y el compositor/parcheo interno. Las cabeceras tecnicas siguen disponibles para control avanzado.

@@ -1,10 +1,10 @@
-# HOST-497: SpriteBank/GameView y `set_position`
+# HOST-497: SpriteBank y `set_position`
 
 Valida la capa de presentación de sprites:
 
 - `SpriteBank<4>` liga una DATA Chip prestada, devuelve la rebanada de cada slot y publica los `SpriteConfig` en `SpriteManager`.
-- `SpriteGameView`/`GameView` aplica el banco a una escena y solicita la invalidación de su copperlist.
-- `SpriteDirector::set_position` mueve un actor simple en coordenadas de pantalla y actualiza el HSTART interno sin exponer `ActorDesc`; un id inválido se rechaza y `clear` vacía el director.
+
+- `SpriteDirector::set_position` mueve un actor simple en coordenadas de pantalla y actualiza el HSTART interno sin exponer `ActorDesc`; un id inválido se rechaza y `clear` vacía el director.\n- `SpritePatchTable`/`emit_placements_patchable` parchea POS/CTL y rechaza el parche si cambia la DATA.
 - `SpritePatchTable`/`emit_placements_patchable`: captura los `MoveSlot` de POS/CTL, parchea en una lista simulada y rechaza el parche si la DATA o la disposición cambian.
 
 ```bash
