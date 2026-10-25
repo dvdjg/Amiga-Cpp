@@ -45,7 +45,7 @@ Códigos de salida: `0` OK, `1` errores de validación (o warnings con `--strict
     version, tiledversion, orientation, renderorder,
     width, height, tilewidth, tileheight, infinite,
     staggeraxis, staggerindex, hexsidelength,
-    backgroundcolor, nextlayerid, nextobjectid, class,
+    backgroundcolor, nextlayerid, nextobjectid, class, objectalignment,
     parallaxoriginx, parallaxoriginy,
     properties: [Property], attrs: {...}
   },
