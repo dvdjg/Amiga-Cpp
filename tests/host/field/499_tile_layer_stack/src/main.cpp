@@ -32,10 +32,18 @@ int main() {
 		std::printf("FAIL: is_live\n");
 		return 1;
 	}
+	if (!TileLayerStack::cell_intersects(16u, 32u, eng::graphics::DirtyRect {0, 16, 40, 56})) {
+		std::printf("FAIL: interseccion de dirty rect\n");
+		return 1;
+	}
+	if (TileLayerStack::cell_intersects(16u, 32u, eng::graphics::DirtyRect {32, 48, 64, 80})) {
+		std::printf("FAIL: dirty rect no interseca\n");
+		return 1;
+	}
 	if (layers[2].priority != 128u || layers[3].priority != 64u) {
 		std::printf("FAIL: prioridad\n");
 		return 1;
 	}
-	std::printf("OK: TileLayerStack modos/prioridades/live_count\n");
+	std::printf("OK: TileLayerStack modos/prioridades/dirty rect\n");
 	return 0;
 }

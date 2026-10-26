@@ -112,6 +112,14 @@ public:
 		return true;
 	}
 
+	[[nodiscard]] static constexpr bool cell_intersects(eng::u16 x, eng::u16 y,
+							  const graphics::DirtyRect& r) noexcept {
+		return r.valid() && static_cast<eng::s32>(x) + 16 > r.left &&
+		       static_cast<eng::s32>(y) + 16 > r.top &&
+		       static_cast<eng::s32>(x) < r.right &&
+		       static_cast<eng::s32>(y) < r.bottom;
+	}
+
 	/// Redibuja solo celdas de capas `Occluder` que intersectan algun dirty rect.
 	[[nodiscard]] bool draw_occluders(TileAnimator& anim, graphics::FramePlan& plan,
 					  const graphics::BobTarget& target,
@@ -120,16 +128,10 @@ public:
 					  eng::Span<const graphics::DirtyRect> dirty) const noexcept {
 		bool intersects = false;
 		for (eng::u16 i = 0u; i < dirty.size(); ++i) {
-			const graphics::DirtyRect& r = dirty[i];
-			if (!r.valid()) continue;
-			if (static_cast<eng::s32>(x) + 16 <= r.left ||
-			    static_cast<eng::s32>(ring_y) + 16 <= r.top ||
-			    static_cast<eng::s32>(x) >= r.right ||
-			    static_cast<eng::s32>(ring_y) >= r.bottom) {
-				continue;
+			if (cell_intersects(x, ring_y, dirty[i])) {
+				intersects = true;
+				break;
 			}
-			intersects = true;
-			break;
 		}
 		if (!intersects) return true;
 		for (eng::u16 i = 0u; i < m_layers.size(); ++i) {
