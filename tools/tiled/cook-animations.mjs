@@ -96,7 +96,7 @@ function nearest(colors, r, g, b) {
 	return best;
 }
 
-function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false) {
+function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false, shadowIndex = -1) {
 	const image = resolveTileImage(ir, frameGid, cache, { useFirstFrame: false });
 	if (image.error != null) throw new Error(image.error);
 	if (image.sw !== TILE || image.sh !== TILE) {
@@ -118,7 +118,7 @@ function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false) {
 			if (a < 128) {
 				indices[y * TILE + x] = 0;
 			} else {
-				indices[y * TILE + x] = nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
+				indices[y * TILE + x] = shadowIndex >= 0 ? shadowIndex\n					: nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
 				mask[y * MASK_ROW_BYTES + (x >> 3)] |= 0x80 >> (x & 7);
 			}
 		}
@@ -170,7 +170,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	const palette = JSON.parse(fs.readFileSync(paletteFile, 'utf8'));
 	const p = planes ?? palette.planes ?? 6;
 	if (p < 1 || p > 6) throw new Error(`planos inválidos: ${p}`);
-	const colors = paletteColors(palette, p);
+	const colors = paletteColors(palette, p);\n	const shadowIndex = shadowDither ? nearest(colors, 64, 64, 64) : -1;
 	const cache = new ImageCache();
 	const width = ir.map.width;
 	const height = ir.map.height;
@@ -238,7 +238,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	let frameCursor = 0;
 	for (const group of groupList) {
 		const flags = decodeGid(group.gid);
-		const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, group.dither === true));
+		const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, group.dither === true, shadowIndex));
 		const first = frameCursor;
 		for (const frame of frames) {
 			sheetParts.push(frame.frame);
