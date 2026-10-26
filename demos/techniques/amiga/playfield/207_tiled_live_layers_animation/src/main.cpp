@@ -81,6 +81,7 @@ const playfield::TileLayerBinding kLiveLayers[] = {
 constexpr eng::u16 kTile = 16u;
 constexpr eng::u16 kViewportW = 320u;
 constexpr eng::u16 kViewportH = 256u; // total: 208 de campo + 48 de HUD negro
+constexpr eng::u16 kFieldH = kViewportH - 48u;
 constexpr eng::u8 kPlanes = TILED_MAP_PLANES;
 constexpr eng::u16 kPaletteCount = (kPlanes == 6u) ? 32u : (1u << kPlanes);
 constexpr eng::debug::Version kVersion {1u, 0u};
@@ -250,10 +251,10 @@ struct DemoGame {
 		const eng::s32 cam_y = scene.bg().mapposy();
 		if ((cam_y % static_cast<eng::s32>(kTile)) == 0) {
 			const eng::s16 row = (direction > 0)
-				? static_cast<eng::s16>((cam_y + static_cast<eng::s32>(kViewportH)) / static_cast<eng::s32>(kTile))
+				? static_cast<eng::s16>((cam_y + static_cast<eng::s32>(kFieldH)) / static_cast<eng::s32>(kTile))
 				: static_cast<eng::s16>(cam_y / static_cast<eng::s32>(kTile) + 1);
 			const eng::s16 screen_y = (direction > 0)
-				? static_cast<eng::s16>(kViewportH - kTile) : 0;
+				? static_cast<eng::s16>(kFieldH - kTile) : 0;
 			if (!scene.draw_animation_stack(backend, plan, layer_stack, row, screen_y)) {
 				ready = false;
 				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);

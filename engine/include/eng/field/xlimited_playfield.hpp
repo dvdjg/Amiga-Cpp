@@ -844,7 +844,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
                 s32 sx = wx - camx_mod;
                 if (sx < 0) sx += mapw;
                 if (sx >= this->m_cfg.viewport_w) continue;
-                s32 sy = wy - camy_mod;
+                s32 sy = wy - camy_mod - static_cast<s32>(this->cth());
                 if (sy < 0) sy += maph;
                 if (sy >= this->m_cfg.viewport_h) continue;
                 s32 px = wx - base_x;
