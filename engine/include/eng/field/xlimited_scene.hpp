@@ -692,6 +692,17 @@ public:
         return true;
     }
 
+    template <class Backend>
+    bool draw_animation_occluders(Backend& backend, graphics::FramePlan& plan,
+                                  const TileLayerStack& stack,
+                                  eng::Span<const graphics::DirtyRect> dirty) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].draw_animation_occluders(backend, plan, stack, dirty)) return false;
+        }
+        return true;
+    }
+
     /// Avanza el camino configurado (1 px/frame según `effect`/`phase`). En las
     /// fases con componente negativa y diagonales el scroll inverso queda
     /// bloqueado en el borde 0 (no falla). Devuelve el dx/dy aplicados por referencia.

@@ -927,6 +927,56 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         return true;
     }
 
+    /// Pase `after_actors`: redibuja celdas de capas `Occluder` solo si su rect
+    /// visible intersecta alguna zona sucia.
+    template <class Backend>
+    bool draw_animation_occluders(Backend& backend, graphics::FramePlan& plan,
+                                  const TileLayerStack& stack,
+                                  eng::Span<const graphics::DirtyRect> dirty) {
+        if (this->m_cfg.animator == nullptr || !stack.has_occluders()) return true;
+        const TileAnimator& anim = *this->m_cfg.animator;
+        const s32 camx = m_scroll.state().mapposx;
+        const s32 camy = m_scroll.state().mapposy;
+        const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
+        const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
+        if (mapw <= 0 || maph <= 0) return false;
+        s32 camx_mod = camx % mapw;
+        if (camx_mod < 0) camx_mod += mapw;
+        s32 camy_mod = camy % maph;
+        if (camy_mod < 0) camy_mod += maph;
+        const s32 ring_base = this->display_offset();
+        const s32 dh = static_cast<s32>(this->display_height());
+        plan.clear();
+        plan.set_blit_budget_limits({8192, 16384, 64, 120});
+        for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
+            const TileAnimationCellView& cell = anim.cell(ci);
+            const s32 wx = static_cast<s32>(cell.x) * this->ctw();
+            const s32 wy = static_cast<s32>(cell.y) * this->cth();
+            s32 sx = wx - camx_mod;
+            if (sx < 0) sx += mapw;
+            if (sx >= this->m_cfg.viewport_w) continue;
+            s32 sy = wy - camy_mod - static_cast<s32>(this->cth());
+            if (sy < 0) sy += maph;
+            if (sy < 0) sy += maph;
+            if (sy >= this->m_cfg.viewport_h) continue;
+            s32 ring_y = ring_base + sy;
+            if (ring_y >= dh) ring_y -= dh;
+            if (!stack.draw_occluders(anim, plan, m_anim_target,
+                    static_cast<u16>(dh), static_cast<u16>(sx),
+                    static_cast<u16>(ring_y), cell.x, cell.y, dirty)) {
+                return false;
+            }
+            if (plan.blit_job_count() >= 64u) {
+                if (!backend.execute_frame_plan(plan)) return false;
+                plan.clear();
+                plan.set_blit_budget_limits({8192, 16384, 64, 120});
+            }
+        }
+        if (plan.blit_job_count() > 0u && !backend.execute_frame_plan(plan)) return false;
+        plan.clear();
+        return true;
+    }
+
     /// Fija la posición de la cámara (píxeles de mundo) y sincroniza los punteros
     /// de display. Necesario para arrancar a media altura/ancho (p. ej. un shooter
     /// vertical de 10000 px que empieza abajo y sube). Debe llamarse tras `begin`

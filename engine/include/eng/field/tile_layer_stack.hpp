@@ -84,6 +84,20 @@ public:
 
 
 
+	[[nodiscard]] constexpr bool has_occluders() const noexcept {
+
+		for (eng::u16 i = 0u; i < m_layers.size(); ++i) {
+
+			if (m_layers[i].mode == TileLayerMode::Occluder) return true;
+
+		}
+
+		return false;
+
+	}
+
+
+
 	[[nodiscard]] constexpr eng::u16 live_count() const noexcept {
 		eng::u16 n = 0u;
 		for (eng::u16 i = 0u; i < m_layers.size(); ++i) {
@@ -121,7 +135,7 @@ public:
 	}
 
 	/// Redibuja solo celdas de capas `Occluder` que intersectan algun dirty rect.
-	[[nodiscard]] bool draw_occluders(TileAnimator& anim, graphics::FramePlan& plan,
+	[[nodiscard]] bool draw_occluders(const TileAnimator& anim, graphics::FramePlan& plan,
 					  const graphics::BobTarget& target,
 					  eng::u16 ring_height, eng::u16 x, eng::u16 ring_y,
 					  eng::u16 mapx, eng::u16 mapy,
