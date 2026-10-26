@@ -56,9 +56,11 @@ Presets de cocción:\n\n- `beginning-fields.baked.cook-plan.json`: 50 fps, sin c
 El cooker ya puede emitir todos los tiles de una capa como grupos de un frame y
 omitir la capa entera del bake (`live`). La variante `live-all` se probó: la base
 queda en `Ground` y las capas superiores se componen en runtime, pero `Shadows`
-usa opacidad de capa y se veía negra al dibujarse como overlay opaco. Para hacer
-`Flowers` viva con `Road`/`Shadows`/`Water` encima hace falta un overlay estático
-con alpha/dither, no solo modos de capa. Por eso la demo entregada usa el sufijo
+usa opacidad de capa y se veía negra al dibujarse como overlay opaco. Las sombras
+no deben tratarse como alpha: el cooker debe poder hornearlas como
+bitplane/índice de sombra o con dithering, o dejar la capa cocida. Para hacer
+`Flowers` viva con `Road`/`Shadows`/`Water` encima hace falta ese pase de sombra,
+no solo modos de capa. Por eso la demo entregada usa el sufijo
 vivo `Water`+`Object Layer 1`.
 ## Alcance y deuda
 
