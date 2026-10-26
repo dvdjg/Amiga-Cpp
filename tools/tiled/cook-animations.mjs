@@ -170,7 +170,9 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	const palette = JSON.parse(fs.readFileSync(paletteFile, 'utf8'));
 	const p = planes ?? palette.planes ?? 6;
 	if (p < 1 || p > 6) throw new Error(`planos inválidos: ${p}`);
-	const colors = paletteColors(palette, p);\n	const shadowIndex = shadowDither ? nearest(colors, 64, 64, 64) : -1;
+	const colors = paletteColors(palette, p);
+
+	const shadowIndex = shadowDither ? nearest(colors, 64, 64, 64) : -1;
 	const cache = new ImageCache();
 	const width = ir.map.width;
 	const height = ir.map.height;
@@ -341,7 +343,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	}
 	lines.push('};');
 	lines.push('');
-	fs.writeFileSync(path.join(outDir, 'animations.h'), lines.join('\n'), 'utf8');
+	fs.writeFileSync(path.join(outDir, 'animations.h'), lines.join('\\n'), 'utf8');
 	fs.writeFileSync(path.join(outDir, 'animations.json'), JSON.stringify({
 		planes: p,
 		frameStride,
@@ -355,7 +357,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 			groups: [...new Set(l.cells.filter((c) => c != null).map((c) => c.group))].length,
 		})),
 		groups: groupMeta,
-	}, null, 2) + '\n', 'utf8');
+	}, null, 2) + '\\n', 'utf8');
 	return {
 		groups: groupList.length,
 		frames: frameCursor,
