@@ -1,72 +1,40 @@
-# VALIDATION — 207_tiled_live_layers_animation
+# Validación 207 — capas vivas y cook-plan
 
-## Alcance
+## Estado
 
-- Mapa `Beginning Fields` (40×40, 16×16) cocido con `cook-map` en perfil EHB
-  (1183 tiles, banco 225 KB) y `animations.h` (44 grupos, 248 frames, 227 celdas,
-  sheet 47,6 KB, máscaras 7,9 KB).
-- Scroll **Y-only** a 1 px/frame, corkscrew XY con anillo 288 y ventana 208+HUD 48,
-  cámara inicial en Y=300 y rebote cada 600 frames.
-- Animación por parche de celdas visibles, repartida en 6 fases; base con el primer
-  frame. **No** se compone overlay en la banda entrante ni se mueve X+Y a la vez.
+Parcial. La composición viva y el contrato están implementados; el presupuesto
+de 50 fps no se mantiene con toda la zona visible animada. El caso completo
+(`kBudgetedAnimations=false`) queda en ~22–25 fps de media.
 
-## Medida
+## Medidas
 
-`node tools/debug/measure-fps.mjs 207_tiled_live_layers_animation A500_release --json`:
+| Build | fps | ciclos/frame | campos/frame | Notas |
+|---|---:|---:|---:|---|
+| `A500_release` live | 22,71 | 312 315 | 2,20 | media de 20 s; arranque 12→32 |
+| `A500_release` baked previo | 49,97 | 141 961 | 1,00 | referencia T5 anterior |
 
-```json
-{"demo":"207_tiled_live_layers_animation","config":"A500_release","date":"2026-10-25","commit":"c0b52fd3","emulatedFps":49.97,"hostFps":49.89,"cyclesPerFrame":141961,"fieldsPerFrame":1.0006,"frames":1011,"cycles":143523020,"measurementMs":20265,"detail":"0x20700000","watchdog":null,"stable":true,"quantizedFields":1,"minFps":49.66,"maxFps":50.32}
-```
+La ventana live tiene dispersión alta porque el arranque incluye la composición
+inicial y la política de prioridad tarda en observar fps. No se declara 50 fps.
 
-Regresión de la demo base: `206` sigue en **49,93 fps** (142 070 ciclos/frame) tras
-recompilar con el mismo engine.
+## Contrato
 
-## Secuencia y visión
+- `tools/tiled/validate-cook-plan.mjs` valida `render.baked_through`, modos,
+  `animations` y occluders. Test: `node tools/tiled/test-cook-plan.mjs`.
+- `HOST-499` valida `TileLayerStack` (modos, `live_count`, `is_live`, prioridad).
+- Plan live: `tools/tiled/fixtures/beginning-fields.live.cook-plan.json`.
+- Assets: `out/assets/tiled/beginning-fields-live/selected/` (base limpia, 30
+  grupos, 136 frames, 165 celdas).
 
-Secuencia de 5 frames cada 100 ms tras `pre_scroll` (fogata visible al arrancar):
+## Secuencia
 
-- `out/run/207_tiled_live_layers_animation/A500_release/sequence/frame_000.png`
-- ...
-- `out/run/207_tiled_live_layers_animation/A500_release/sequence/frame_004.png`
+`A500_debug` con pre-scroll: 4 frames a 600 ms. Se observan agua, flores cocidas y
+fogata sin huecos evidentes; la animación del agua/fogata avanza. La revisión por
+modelo local (Ollama) queda pendiente; el entorno es rico y se exige secuencia,
+no una captura aislada.
 
-Prompt enviado a `qwen3-vl:8b-instruct-q8_0` (Ollama local):
+## Deuda
 
-```text
-Las imágenes adjuntas van en orden temporal. Describe la fogata (campfire), el agua
-y las flores. Indica si la llama cambia de forma entre imágenes, si el agua/flores
-están animadas, y si ves rectángulos, huecos, bandas o artefactos. Responde breve y
-concreto.
-```
-
-Respuesta:
-
-```text
-- Fogata: La llama cambia de forma entre imágenes (más alta en la 2ª, más baja en la 3ª).
-- Agua: No está animada; es un plano estático.
-- Flores: No están animadas; son elementos estáticos.
-- Rectángulos/huecos/bandas/artefactos: No se observan.
-```
-
-**No concluyente**: esta secuencia tenía cámara en movimiento. Una prueba posterior con cámara fija mostró que `T` avanza y `A` cambia, pero el contenido de píxeles no cambia (solo el HUD). El parche de animación no se materializa en la ventana; la animación runtime queda pendiente.
-
-`flicker-check` reporta candidatos deterministas debidos al movimiento de cámara y a
-los frames de animación; la capa de visión no confirma anomalía:
-
-```text
-- Anomalía: no
-- Tipo: ninguno
-- Zona relativa: arriba
-- Confianza: alta
-```
-
-## Límites conocidos
-
-- **X+Y simultáneo**: baja a ~25 fps (2 campos/frame). El recorrido entregado es
-  Y-only para mantener 50 fps.
-- **Overlay en banda entrante**: la base lleva el primer frame; las celdas nuevas no
-  se recomponen con overlays hasta el siguiente cambio de grupo. El
-  `TileLayerStack` completo sigue pendiente.
-- **Ghosting**: los píxeles transparentes de frames posteriores pueden revelar el
-  primer frame horneado; no se observó corrupción, pero es deuda del path de parche.
-- **Animación runtime**: no verificada; el tick avanza pero el parche no cambia\n  píxeles visibles. Es el bloqueo abierto de T5a.
-- La franja inferior de 48 px es HUD negro (no se dibuja contenido).
+- La prioridad congela el reloj de capa, no elimina overlays; falta medir el
+  ahorro real de la banda con presupuesto.
+- `Flowers` viva requiere overlays estáticos de capas superiores; no se fuerza.
+- `Occluder` tras actores está en la API, sin demo 208.

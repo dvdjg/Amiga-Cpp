@@ -6,6 +6,8 @@
 
 #include <eng/field/actor_target.hpp>
 #include <eng/field/tile_animation.hpp>
+
+#include <eng/field/tile_layer_stack.hpp>
 #include <eng/field/xlimited_base.hpp>
 #include <eng/field/xlimited_mapping.hpp>
 
@@ -812,7 +814,6 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// Debe llamarse despuǸs de update (scroll) y antes de ejecutar el plan.
     bool patch_animations(graphics::FramePlan& plan) {
         if (this->m_cfg.animator == nullptr) return true;
-        return true; // overlays solo por parche (demo 207)
         const TileAnimator& anim = *this->m_cfg.animator;
         if (!anim.any_changed()) return true;
         const s32 camx = m_scroll.state().mapposx;
@@ -861,6 +862,67 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
                 }
             }
             anim.clear_group(g);
+        }
+        return true;
+    }
+
+    /// Compone todas las celdas visibles de las capas vivas de `stack` usando el
+    /// frame actual. Ejecuta en lotes para no desbordar el `FramePlan`.
+    template <class Backend>
+    bool draw_animation_stack(Backend& backend, graphics::FramePlan& plan,
+                              const TileLayerStack& stack,
+                              s16 only_map_row = -1, s16 screen_y = -1) {
+        if (this->m_cfg.animator == nullptr || !stack.configured()) return true;
+        const TileAnimator& anim = *this->m_cfg.animator;
+        const s32 camx = m_scroll.state().mapposx;
+        const s32 camy = m_scroll.state().mapposy;
+        const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
+        const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
+        if (mapw <= 0 || maph <= 0) return false;
+        s32 camx_mod = camx % mapw;
+        if (camx_mod < 0) camx_mod += mapw;
+        s32 camy_mod = camy % maph;
+        if (camy_mod < 0) camy_mod += maph;
+        const s32 ring_base = this->display_offset();
+        const s32 dh = static_cast<s32>(this->display_height());
+        plan.clear();
+        plan.set_blit_budget_limits({8192, 16384, 64, 120});
+        for (u16 layer = 0u; layer < anim.layer_count(); ++layer) {
+            if (!stack.is_live(static_cast<u8>(layer))) continue;
+            for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
+                const TileAnimationCellView& cell = anim.cell(ci);
+                if (cell.layer != layer) continue;
+                if (only_map_row >= 0 && static_cast<s16>(cell.y) != only_map_row) continue;
+                const s32 wx = static_cast<s32>(cell.x) * this->ctw();
+                const s32 wy = static_cast<s32>(cell.y) * this->cth();
+                s32 sx = wx - camx_mod;
+                if (sx < 0) sx += mapw;
+                if (sx >= this->m_cfg.viewport_w) continue;
+                s32 sy = (only_map_row >= 0) ? static_cast<s32>(screen_y)
+                    : wy - camy_mod - static_cast<s32>(this->cth());
+                if (only_map_row < 0) {
+                    if (sy < 0) sy += maph;
+                    if (sy < 0) sy += maph;
+                    if (sy >= this->m_cfg.viewport_h) continue;
+                }
+                s32 ring_y = ring_base + sy;
+                if (ring_y >= dh) ring_y -= dh;
+                if (!anim.draw_layer_block(plan, m_anim_target,
+                        static_cast<u16>(dh), static_cast<u16>(sx),
+                        static_cast<u16>(ring_y), cell.x, cell.y,
+                        static_cast<u16>(layer), false)) {
+                    return false;
+                }
+                if (plan.blit_job_count() >= 64u) {
+                    if (!backend.execute_frame_plan(plan)) return false;
+                    plan.clear();
+                    plan.set_blit_budget_limits({8192, 16384, 64, 120});
+                }
+            }
+        }
+        if (plan.blit_job_count() > 0u) {
+            if (!backend.execute_frame_plan(plan)) return false;
+            plan.clear();
         }
         return true;
     }

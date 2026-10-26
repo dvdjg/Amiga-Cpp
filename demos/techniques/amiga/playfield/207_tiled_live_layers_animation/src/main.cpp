@@ -23,8 +23,8 @@
 
 #include "support/gcc8_c_support.h"
 
-#include "../../../../../../out/assets/tiled/beginning-fields/selected/map_bundle.h"
-#include "../../../../../../out/assets/tiled/beginning-fields/selected/animations.h"
+#include "../../../../../../out/assets/tiled/beginning-fields-live/selected/map_bundle.h"
+#include "../../../../../../out/assets/tiled/beginning-fields-live/selected/animations.h"
 
 struct ExecBase* SysBase = nullptr;
 
@@ -42,7 +42,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 __asm__(".section tiles.MEMF_CHIP, \"aw\"\n"
 	".globl g_tiled_bank\ng_tiled_bank:\n"
 	".align 2\n"
-	".incbin \"out/assets/tiled/beginning-fields/selected/tilebank.xlimited.bin\"\n"
+	".incbin \"out/assets/tiled/beginning-fields-live/selected/tilebank.xlimited.bin\"\n"
 	".globl g_tiled_bank_size\ng_tiled_bank_size:\n"
 	".long . - g_tiled_bank");
 extern "C" const unsigned char g_tiled_bank[];
@@ -52,7 +52,7 @@ extern "C" const unsigned int g_tiled_bank_size;
 __asm__(".section anim_sheet.MEMF_CHIP, \"aw\"\n"
 	".globl g_anim_sheet\ng_anim_sheet:\n"
 	".align 2\n"
-	".incbin \"out/assets/tiled/beginning-fields/selected/anim_sheet.bin\"\n"
+	".incbin \"out/assets/tiled/beginning-fields-live/selected/anim_sheet.bin\"\n"
 	".globl g_anim_sheet_size\ng_anim_sheet_size:\n"
 	".long . - g_anim_sheet");
 extern "C" const unsigned char g_anim_sheet[];
@@ -61,15 +61,22 @@ extern "C" const unsigned int g_anim_sheet_size;
 __asm__(".section anim_masks.MEMF_CHIP, \"aw\"\n"
 	".globl g_anim_masks\ng_anim_masks:\n"
 	".align 2\n"
-	".incbin \"out/assets/tiled/beginning-fields/selected/anim_masks.bin\"\n"
+	".incbin \"out/assets/tiled/beginning-fields-live/selected/anim_masks.bin\"\n"
 	".globl g_anim_masks_size\ng_anim_masks_size:\n"
 	".long . - g_anim_masks");
 extern "C" const unsigned char g_anim_masks[];
 extern "C" const unsigned int g_anim_masks_size;
 
 namespace {
-
 namespace playfield = eng::playfield;
+
+const playfield::TileLayerBinding kLiveLayers[] = {
+	{0u, playfield::TileLayerMode::AnimatedOverlay, false,
+	 static_cast<eng::u8>(playfield::TileAnimationPriority::Background)},
+	{1u, playfield::TileLayerMode::AnimatedOverlay, false,
+	 static_cast<eng::u8>(playfield::TileAnimationPriority::Foreground)},
+};
+
 
 constexpr eng::u16 kTile = 16u;
 constexpr eng::u16 kViewportW = 320u;
@@ -87,6 +94,7 @@ enum class Fail : eng::u32 {
 	Memory = 0x00020701u,
 	MapAsset = 0x00020705u,
 	Animation = 0x00020706u,
+	AnimationDraw = 0x00020716u,
 	SceneBegin = 0x00020702u,
 	Fill = 0x00020703u,
 	ComposeInit = 0x00020704u,
@@ -107,6 +115,8 @@ struct DemoGame {
 	eng::map::MapAssetView m_map {eng::Span<const eng::u8> {kMapBundle, sizeof(kMapBundle)}};
 	eng::map::LayerView m_layer {};
 	playfield::TileAnimator animator {};
+
+	playfield::TileLayerStack layer_stack {};
 	playfield::XlimitedScene<kScrollConsts, eng::map::LayerView> scene {};
 	playfield::XlimitedSceneConfigT<eng::map::LayerView> scene_cfg {};
 	eng::graphics::FramePlan plan {};
@@ -148,6 +158,7 @@ struct DemoGame {
 			return;
 		}
 		animator.set_tick(0u);
+		layer_stack.configure(eng::Span<const playfield::TileLayerBinding> {kLiveLayers, 2u});
 
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
@@ -181,6 +192,10 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
 		}
+		if (!scene.draw_animation_stack(backend, plan, layer_stack)) {
+			eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
+			return;
+		}
 		animator.clear_changes();
 		if (!scene.compose()) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeInit);
@@ -191,33 +206,67 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
 	}
 
+	static constexpr bool kBudgetedAnimations = false; // variante completa; true = política por defecto
+
+	void apply_animation_budget() {
+		if (!kBudgetedAnimations) {
+			animator.set_layer_animation_enabled(0u, true);
+			animator.set_layer_animation_enabled(1u, true);
+			return;
+		}
+		const eng::u32 fps10 = host_hud.fps10();
+		if (fps10 == 0u) return;
+		if (fps10 < 480u) animator.set_layer_animation_enabled(0u, false);
+		if (fps10 < 440u) animator.set_layer_animation_enabled(1u, false);
+	}
+
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!ready) return;
 		if ((context.frame.frame_index % 600u) == 0u && context.frame.frame_index != 0u) {
 			direction = static_cast<eng::s16>(-direction);
 		}
+		apply_animation_budget();
 		animator.set_tick(context.frame.frame_index);
 		plan.clear();
-		plan.set_blit_budget_limits({16384, 65536, 256, 512});
+		plan.set_blit_budget_limits({16384, 65536, 120, 512});
 		const eng::s32 step = static_cast<eng::s32>(direction);
 		const eng::s32 dx = 0; // recorrido Y-only: X+scroll simultáneo baja a 25 fps
 		if (!scene.update(plan, dx, step, context.frame.frame_index)) {
 			// Borde del toroide inverso: rebotar y reintentar en el mismo frame.
 			direction = static_cast<eng::s16>(-direction);
 			plan.clear();
-			plan.set_blit_budget_limits({16384, 65536, 256, 512});
+			plan.set_blit_budget_limits({16384, 65536, 120, 512});
 			if (!scene.update(plan, dx, direction, context.frame.frame_index)) {
 				ready = false;
 				eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 				return;
 			}
 		}
-		if (!scene.patch_animations(plan)) {
+		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, Fail::Animation);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 			return;
 		}
-		if (!backend.execute_frame_plan(plan)) {
+		const eng::s32 cam_y = scene.bg().mapposy();
+		if ((cam_y % static_cast<eng::s32>(kTile)) == 0) {
+			const eng::s16 row = (direction > 0)
+				? static_cast<eng::s16>((cam_y + static_cast<eng::s32>(kViewportH)) / static_cast<eng::s32>(kTile))
+				: static_cast<eng::s16>(cam_y / static_cast<eng::s32>(kTile) + 1);
+			const eng::s16 screen_y = (direction > 0)
+				? static_cast<eng::s16>(kViewportH - kTile) : 0;
+			if (!scene.draw_animation_stack(backend, plan, layer_stack, row, screen_y)) {
+				ready = false;
+				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
+				return;
+			}
+		}
+		plan.set_blit_budget_limits({16384, 65536, 120, 512});
+		if (!scene.patch_animations(plan)) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
+			return;
+		}
+		if (plan.blit_job_count() != 0u && !backend.execute_frame_plan(plan)) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 			return;

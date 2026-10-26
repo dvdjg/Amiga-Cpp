@@ -78,6 +78,13 @@ public:
 		for (u8 i = 0u; i < kTileAnimationMaxGroups; ++i) {
 			m_frame[i] = 0u;
 			m_changed[i] = 0u;
+			m_group_layer[i] = 0u;
+		}
+		for (u8 i = 0u; i < kTileAnimationMaxLayers; ++i) m_layer_enabled[i] = 1u;
+		for (u16 g = 0u; g < groups.size() && g < kTileAnimationMaxGroups; ++g) {
+			const TileAnimationGroupView& grp = groups[g];
+			m_group_layer[g] = (cells.empty() || grp.first_cell >= cells.size())
+				? 0u : cells[grp.first_cell].layer;
 		}
 		m_tick = 0u;
 		m_primed = false;
@@ -175,7 +182,21 @@ public:
 			m_acc[g] = static_cast<u8>(local);
 		}
 		m_tick = tick;
-	}	[[nodiscard]] constexpr u32 tick() const noexcept { return m_tick; }
+	}
+	[[nodiscard]] constexpr u32 tick() const noexcept { return m_tick; }
+
+	void set_layer_animation_enabled(u8 layer, bool enabled) noexcept {
+
+		if (layer < kTileAnimationMaxLayers) m_layer_enabled[layer] = enabled ? 1u : 0u;
+
+	}
+
+	[[nodiscard]] constexpr bool layer_animation_enabled(u8 layer) const noexcept {
+
+		return layer < kTileAnimationMaxLayers && m_layer_enabled[layer] != 0u;
+
+	}
+	[[nodiscard]] constexpr u16 cell_count() const noexcept { return static_cast<u16>(m_cells.size()); }
 
 	/// Dibuja todas las capas para la celda de mapa `(mapx,mapy)` en el destino
 	/// físico `(x, ring_y)` (x en píxeles, y en filas del anillo).
@@ -206,7 +227,7 @@ public:
 		return true;
 	}	/// Dibuja un grupo concreto (usado por el parche de animación).
 	[[nodiscard]] bool draw_group(graphics::FramePlan& plan, const graphics::BobTarget& target,
-				      u16 ring_height, u16 x, u16 ring_y, u16 group) const noexcept {
+				      u16 ring_height, u16 x, u16 ring_y, u16 group, bool opaque = false) const noexcept {
 		if (group >= m_groups.size() || m_sheet == nullptr || m_masks == nullptr) return false;
 		const TileAnimationGroupView& grp = m_groups[group];
 		if (grp.frame_count == 0u) return false;
@@ -227,9 +248,9 @@ public:
 			for (u8 p = 0u; p < planes; ++p) {
 				const u8* src = sheet + static_cast<u32>(p) * 32u + static_cast<u32>(first_row) * 2u;
 				const u8* msk = mask + static_cast<u32>(first_row) * 2u;
-				graphics::BlitJob& job = plan.begin_blit_job(graphics::BlitJobKind::MaskedBobCookieCut);
+				graphics::BlitJob& job = plan.begin_blit_job(opaque ? graphics::BlitJobKind::CopyRect : graphics::BlitJobKind::MaskedBobCookieCut);
 				job.source = graphics::BlitPtr::from_storage(reinterpret_cast<const u16*>(src));
-				job.mask = graphics::BlitPtr::from_storage(reinterpret_cast<const u16*>(msk));
+				job.mask = graphics::BlitPtr::from_storage(opaque ? nullptr : reinterpret_cast<const u16*>(msk));
 				job.destination = graphics::BlitPtr::from_storage(
 					reinterpret_cast<u16*>(target.data() +
 						(static_cast<u32>(ry) * planes + p) * target.row_bytes + (x >> 3u)));
@@ -240,9 +261,9 @@ public:
 					static_cast<s32>(target.row_bytes) * static_cast<s32>(target.plane_count) - 2);
 				job.bitplane_count = 1u;
 				job.source_shift = 0u;
-				job.source_plane_stride_bytes = 0u;
-				job.destination_plane_stride_bytes = 0u;
-				job.minterm = 0x00cau;
+				job.source_plane_stride_bytes = 32u;
+				job.destination_plane_stride_bytes = static_cast<u32>(target.row_bytes) * static_cast<u32>(target.plane_count);
+				job.minterm = opaque ? 0x00f0u : 0x00cau;
 				job.interleaved = false;
 				job.source_words_per_row = 0u;
 				job.descending = false;
@@ -252,6 +273,19 @@ public:
 			first_row = static_cast<u16>(first_row + seg);
 			ry = 0;
 		}		return true;
+	}
+
+	/// Dibuja solo la capa `layer_index` de una celda (para `TileLayerStack`).
+	[[nodiscard]] bool draw_layer_block(graphics::FramePlan& plan,
+					    const graphics::BobTarget& target,
+					    u16 ring_height, u16 x, u16 ring_y,
+					    u16 mapx, u16 mapy, u16 layer_index,
+					    bool opaque = false) const noexcept {
+		if (layer_index >= m_layers.size()) return false;
+		const u16 group = cell_group(m_layers[layer_index], mapx, mapy);
+		if (group == 0u) return true;
+		return draw_group(plan, target, ring_height, x, ring_y,
+				  static_cast<u16>(group - 1u), opaque);
 	}
 
 	/// Grupo de una celda (`0` = vacío), con wrap o clamp según la capa.
@@ -288,6 +322,8 @@ private:
 	mutable u8 m_changed[kTileAnimationMaxGroups] {};
 	mutable bool m_any_changed = false;
 	mutable u16 m_changed_count = 0u;
+	u8 m_group_layer[kTileAnimationMaxGroups] {};
+	u8 m_layer_enabled[kTileAnimationMaxLayers] {};
 };
 
 } // namespace eng::playfield

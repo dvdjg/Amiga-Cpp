@@ -681,6 +681,16 @@ public:
         }
         return true;
     }
+    template <class Backend>
+    bool draw_animation_stack(Backend& backend, graphics::FramePlan& plan,
+                              const TileLayerStack& stack,
+                              eng::s16 only_map_row = -1, eng::s16 screen_y = -1) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].draw_animation_stack(backend, plan, stack, only_map_row, screen_y)) return false;
+        }
+        return true;
+    }
 
     /// Avanza el camino configurado (1 px/frame según `effect`/`phase`). En las
     /// fases con componente negativa y diagonales el scroll inverso queda
