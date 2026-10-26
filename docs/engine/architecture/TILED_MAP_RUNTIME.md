@@ -370,7 +370,9 @@ La infraestructura actual (`XlimitedScene`, `XlimitedPlayfield`, `XlimitedScroll
 3. **Pase de animación.** `TileAnimator` mantiene el tick y una lista de celdas animadas visibles por capa. Al cambiar un frame, emite parches enmascarados para esas celdas; si la celda entra en la banda, se pinta ya con el frame actual y no se duplica el trabajo. El presupuesto (`max_visible_cells`) se declara y se mide.
 4. **Pase `after_actors`.** El presenter expone un hook que el `App` llama después de los actores y antes del flip. Dibuja solo las celdas `Occluder` visibles que intersectan las zonas sucias de actores/cámara/animación; no redibuja la capa entera. Un `Occluder` estático no necesita un `WorldMap` completo: el cooker puede emitir parches por chunk (rectángulo + máscara + tile) y el runtime redibuja solo los que intersectan dirty rects.
 5. **Modos de capa y visibilidad.** `Baked` no se puede “deshornear” en runtime. `Base`/`Overlay`/`Occluder` admiten visibilidad y animación; el cambio de modo solo se acepta si el bundle contiene los datos del modo destino. El API no promete una transición que el asset no soporta.
-6. **DPF y paralaje.** Un `Parallax` puede ser el segundo campo de un DPF (3+3) o un campo propio si la geometría lo permite; no se inventan capas independientes ilimitadas en OCS. La composición resuelve `BPLCON1`, prioridad, split y paletas compartidas como en `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
+6. **Contrato de cocción y prioridad.** El detalle operativo vive en [`TILED_COOK_PLAN.md`](TILED_COOK_PLAN.md): prefijo cocido (`baked_through`), modos por capa, fallback sin ghosting y orden de degradación (`Water` → `Flowers` → fuego) para preservar 50 fps. La base limpia + frame actual/congelado por celda viva evita necesitar un segundo bitmap completo.
+
+7. **DPF y paralaje.** Un `Parallax` puede ser el segundo campo de un DPF (3+3) o un campo propio si la geometría lo permite; no se inventan capas independientes ilimitadas en OCS. La composición resuelve `BPLCON1`, prioridad, split y paletas compartidas como en `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
 
 ### 8.3 Isométrico
 

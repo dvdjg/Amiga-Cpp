@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { parseTmxFile } from './parse-tmx.mjs';
+import { validateCookPlan } from './validate-cook-plan.mjs';
 import { composeMap } from './compose-map.mjs';
 import { packMapBundle, bundleHeader } from './map_bundle.mjs';
 import { cookAnimations } from './cook-animations.mjs';
@@ -225,6 +226,14 @@ function main() {
 	fs.mkdirSync(out, { recursive: true });
 	const ir = parseTmxFile(source);
 	const plan = planFile != null ? JSON.parse(fs.readFileSync(path.resolve(planFile), 'utf8')) : null;
+	const planReport = validateCookPlan(ir, plan ?? {});
+	if (planReport.warnings.length > 0) {
+		for (const warning of planReport.warnings) console.warn(`[cook] aviso de plan: ${warning}`);
+	}
+	if (!planReport.ok) {
+		for (const error of planReport.errors) console.error(`[cook] error de plan: ${error}`);
+		process.exit(1);
+	}
 	const composed = composeMap(ir, plan);
 	const composedPath = path.join(out, 'composed.png');
 	fs.writeFileSync(composedPath, PNG.sync.write(composed.png));
@@ -232,6 +241,7 @@ function main() {
 		source: ir.source,
 		bounds: composed.bounds,
 		stats: composed.stats,
+		plan: planReport,
 		warnings: composed.warnings,
 		errors: composed.errors,
 	}, null, 2) + '\n', 'utf8');

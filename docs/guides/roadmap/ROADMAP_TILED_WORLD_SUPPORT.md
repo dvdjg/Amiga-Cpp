@@ -113,7 +113,7 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 
 - Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,93 fps en debug, 142 070 ciclos/frame, flicker OK y visión de secuencia sin artefactos.
 - Entregado: `207_tiled_live_layers_animation` (T5a) con `TileAnimator` cocinado (44 grupos, 248 frames, 227 celdas), parche enmascarado planar+máscara, presupuesto en 6 fases y recorrido Y-only; 49,97 fps release, 141 961 ciclos/frame. La base se ve sin corrupción y el recorrido mantiene 50 fps; el parche de animación no se ha confirmado visualmente (con cámara fija el tick avanza pero el píxel no cambia). `VALIDATION.md` recoge el bloqueo.
-- Pendiente: `TileLayerStack` (base + overlays por banda entrante), composición de celdas nuevas con el frame actual, `after_actors` para `Occluder` y demo 208.
+- Entregado parcial: `TileLayerStack` con modos/prefijos/prioridad, cook-plan validado y demo 207 con base limpia + overlays de `Water`/`Object Layer 1` en banda entrante; ~22–32 fps de media según carga. Pendiente: overlays estáticos por encima de capas vivas no-sufijo, `after_actors` para `Occluder` y demo 208.
 - El parche actual usa la base con el primer frame; los píxeles transparentes de frames posteriores pueden revelar ese primer frame (ghosting) y las celdas entrantes esperan al siguiente cambio de grupo.
 - X+Y simultáneo baja a ~25 fps; el recorrido entregado es Y-only.
 - Integración con `ScrollLayer`/`App`: un nivel se registra y el `App` lo conduce; visibilidad/modo validados contra el bundle.
