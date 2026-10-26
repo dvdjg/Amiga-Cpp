@@ -1,0 +1,32 @@
+{
+  "profile": "a500-ocs",
+  "palette": { "mode": "global", "colors": 32 },
+  "tile": { "w": 16, "h": 16, "page_tiles": 128, "mask": "auto" },
+  "chunk": { "cells": 16 },
+  "render": {
+    "schema": 1,
+    "baked_through": "Object Layer 1",
+    "modes": {
+      "Ground": "baked",
+      "Flowers": "baked",
+      "Road": "baked",
+      "Shadows": "baked",
+      "Object Shadows": "baked",
+      "RockSlopes_Auto": "baked",
+      "Water": "baked",
+      "Object Layer 1": "baked"
+    },
+    "occluders": []
+  },
+  "layers": {
+    "Ground": "baked",
+    "Flowers": "baked",
+    "Road": "baked",
+    "Shadows": "baked",
+    "RockSlopes_Auto": "baked",
+    "Water": "baked"
+  },
+  "objects": { "Object Layer 1": "bake" },
+  "flips": "prebake-used",
+  "opacity": "bake"
+}
