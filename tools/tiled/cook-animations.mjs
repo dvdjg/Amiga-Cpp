@@ -142,9 +142,7 @@ function packFrame(ir, frameGid, flags, cache, colors, planes) {
 function objectCell(ir, object, cache) {
 	const image = resolveTileImage(ir, object.gid, cache, { useFirstFrame: false });
 	if (image.error != null) throw new Error(image.error);
-	if (image.sw !== TILE || image.sh !== TILE) {
-		throw new Error(`objeto ${object.id}: ${image.sw}x${image.sh}; los overlays animados exigen ${TILE}x${TILE}`);
-	}
+	if (image.sw !== TILE || image.sh !== TILE) return null;
 	const rect = objectRect(ir, object, image.sw, image.sh);
 	const x = Math.round(rect.x / TILE);
 	const y = Math.round(rect.y / TILE);
@@ -172,8 +170,8 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 
 	const layers = [];
 	const groups = new Map(); // gid -> { frames, cells:[{layer,x,y}] }
-	const addCell = (layer, cell, gid) => {
-		const frames = animationFrames(ir, gid);
+	const addCell = (layer, cell, gid, live = false) => {
+		const frames = animationFrames(ir, gid) ?? (live ? [{ gid, ticks: 0 }] : null);
 		if (frames == null) return;
 		let group = groups.get(gid);
 		if (group == null) {
@@ -188,7 +186,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	for (const layer of flat) {
 		if (layer.kind === 'tile') {
 			const policy = layerPolicy[layerName(layer)];
-			if (policy !== 'overlay' && policy !== 'animated' && !animLayers.has(layerName(layer))) continue;
+			if (policy !== 'overlay' && policy !== 'animated' && policy !== 'live' && !animLayers.has(layerName(layer))) continue;
 			if (layer.width !== width || layer.height !== height) {
 				throw new Error(`${layerName(layer)}: capa ${layer.width}x${layer.height}, mapa ${width}x${height}`);
 			}
@@ -196,18 +194,24 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 			for (let y = 0; y < height; ++y) {
 				for (let x = 0; x < width; ++x) {
 					const gid = layer.data?.cells?.[y * width + x] ?? 0;
-					if (gid === 0 || !tileHasAnimation(ir, gid)) continue;
-					addCell(out, { x, y }, gid);
+					if (gid === 0) continue;
+					if (policy !== 'live' && !tileHasAnimation(ir, gid) && !animLayers.has(layerName(layer))) continue;
+					addCell(out, { x, y }, gid, policy === 'live');
 				}
 			}
 			if (out.cells.some((c) => c != null)) layers.push(out);
 		} else if (layer.kind === 'object') {
 			const policy = objectPolicy[layerName(layer)];
-			if (policy !== 'overlay' && policy !== 'animated' && !animObjects.has(layerName(layer))) continue;
+			if (policy !== 'overlay' && policy !== 'animated' && policy !== 'live' && !animObjects.has(layerName(layer))) continue;
 			const out = { name: layerName(layer), cells: new Array(width * height).fill(null) };
 			for (const object of layer.objects ?? []) {
-				if (object.gid == null || !tileHasAnimation(ir, object.gid)) continue;
-				addCell(out, objectCell(ir, object, cache), object.gid);
+				if (object.gid == null) continue;
+				if (policy !== 'live' && !tileHasAnimation(ir, object.gid) && !animObjects.has(layerName(layer))) continue;
+				const cell = objectCell(ir, object, cache);
+
+				if (cell == null) continue;
+
+				addCell(out, cell, object.gid, policy === 'live');
 			}
 			if (out.cells.some((c) => c != null)) layers.push(out);
 		}
@@ -218,7 +222,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	}
 
 	const groupList = [...groups.values()];
-	if (groupList.length > 64) throw new Error(`demasiados grupos de animación (${groupList.length} > 64)`);
+	if (groupList.length > 255) throw new Error(`demasiados grupos de animación (${groupList.length} > 255)`);
 	const sheetParts = [];
 	const maskParts = [];
 	const groupMeta = [];

@@ -28,12 +28,12 @@ capas >  baked_through : overlay | animated | occluder | parallax | skip
 | `baked` | ya está en el bitmap base | estático, sin transparencia fuera de la base |
 | `base` | copia opaca en la banda entrante | base viva opaca; no se parchea por frame |
 | `overlay` | celda enmascarada encima de la base | transparencia estática o animada |
-| `animated` | overlay con frame actual de `TileAnimator` | agua, flores, fuego |
+| `animated` | overlay con frame actual de `TileAnimator` | agua, flores, fuego |\n| `live` | toda la capa se compone en runtime; las celdas estáticas se emiten como grupos de 1 frame | capas vivas completas, prototipos |
 | `occluder` | solo tras actores y en dirty rects | copas, puentes, aleros |
 | `parallax` | campo separado/DPF | no es una capa libre más |
 | `skip`/`collision` | no se dibuja | colisión o datos auxiliares |
 
-El cooker no acepta un tile transparente “por convención”: una capa `overlay`,
+Una capa `live` estática no replica la **opacidad de capa** de Tiled: si la capa usa blending global (p. ej. sombras), debe seguir cocida o convertirse en overlay con alpha/dither específico. Por eso el prefijo cocido sigue siendo la opción segura para capas superiores con opacidad.\n\nEl cooker no acepta un tile transparente “por convención”: una capa `overlay`,
 `animated` u `occluder` necesita datos de máscara. La base opaca no lee máscara.
 
 ## 3. JSON mínimo

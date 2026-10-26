@@ -207,14 +207,17 @@ export function objectRect(ir, object, iw, ih) {
 
 function drawObject(ir, object, layerOpacity, offsetx, offsety, ctx, policy = null) {
 	if (object.gid == null) return;
-	if ((policy === 'overlay' || policy === 'animated') && objectHasAnimation(ir, object, ctx.cache)) {
-		ctx.skippedAnimated++;
-		return;
-	}
 	const image = resolveTileImage(ir, object.gid, ctx.cache, { useFirstFrame: true });
 	if (image.error != null) {
 		ctx.errors.push(`${layerName(object.__layer ?? {})}: ${image.error}`);
 		return;
+	}
+	if ((policy === 'live' || policy === 'overlay' || policy === 'animated') &&
+	    (policy === 'live' || objectHasAnimation(ir, object, ctx.cache))) {
+		if (image.sw === 16 && image.sh === 16) {
+			ctx.skippedAnimated++;
+			return;
+		}
 	}
 	const flags = decodeGid(object.gid);
 	const rect = objectRect(ir, object, image.sw, image.sh);
@@ -280,7 +283,7 @@ function applyPlan(ir, plan) {
 	for (const item of flat) {
 		const name = layerName(item.layer);
 		const policy = item.layer.kind === 'object' ? objectPolicy[name] : layerPolicy[name];
-		if (policy === 'skip' || policy === 'collision' || policy === 'collisiononly' || policy === 'actors') continue;
+		if (policy === 'skip' || policy === 'collision' || policy === 'collisiononly' || policy === 'actors' || policy === 'live') continue;
 		if (policy === 'parallax' && item.layer.kind !== 'image') {
 			// Se hornea en su posición base; el parallax real necesita un campo propio.
 			usable.push(item);

@@ -22,9 +22,10 @@ const MODES = new Set([
 	'collisiononly',
 	'actors',
 	'bake',
+	'live',
 ]);
 
-const LIVE_MODES = new Set(['overlay', 'animated', 'occluder']);
+const LIVE_MODES = new Set(['overlay', 'animated', 'occluder', 'live']);
 
 const layerName = (layer) => layer.name || `#${layer.id}`;
 

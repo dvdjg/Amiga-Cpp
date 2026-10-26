@@ -23,8 +23,8 @@
 namespace eng::playfield {
 
 inline constexpr u8 kTileAnimationMaxFrames = 8u;
-inline constexpr u8 kTileAnimationMaxGroups = 64u;
-inline constexpr u8 kTileAnimationMaxLayers = 4u;
+inline constexpr u8 kTileAnimationMaxGroups = 255u;
+inline constexpr u8 kTileAnimationMaxLayers = 8u;
 inline constexpr u8 kTileAnimationFlagMasked = 1u;
 
 /// Un grupo de animación: frames contiguos en `sheet`/`mask` y duración por
