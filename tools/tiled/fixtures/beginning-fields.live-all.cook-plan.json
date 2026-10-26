@@ -1,0 +1,45 @@
+{
+  "profile": "a500-ocs",
+  "palette": { "mode": "global", "colors": 32 },
+  "tile": { "w": 16, "h": 16, "page_tiles": 128, "mask": "auto" },
+  "chunk": { "cells": 16 },
+  "render": {
+    "schema": 1,
+    "baked_through": "Ground",
+    "shadow_mode": "dither",
+    "modes": {
+      "Ground": "baked",
+      "Flowers": "live",
+      "Road": "live",
+      "Shadows": "live",
+      "Object Shadows": "live",
+      "RockSlopes_Auto": "live",
+      "Water": "live",
+      "Object Layer 1": "animated"
+    },
+    "opaque": ["Ground", "Road"],
+    "occluders": []
+  },
+  "layers": {
+    "Ground": "baked",
+    "Flowers": "live",
+    "Road": "live",
+    "Shadows": "live",
+    "RockSlopes_Auto": "live",
+    "Water": "live"
+  },
+  "objects": { "Object Layer 1": "animated" },
+  "animations": {
+    "mode": "live",
+    "layers": ["Flowers", "Road", "Shadows", "RockSlopes_Auto", "Water"],
+    "objects": ["Object Layer 1"],
+    "max_visible_cells": 512
+  },
+  "animation_budget": {
+    "policy": "preserve50",
+    "target_fps": 50,
+    "degrade_order": ["Water", "RockSlopes_Auto", "Shadows", "Road", "Flowers", "Object Layer 1"]
+  },
+  "flips": "prebake-used",
+  "opacity": "bake"
+}

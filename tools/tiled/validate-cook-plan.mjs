@@ -138,6 +138,14 @@ export function validateCookPlan(ir, plan = {}) {
 		if (item == null) errors.push(`render.opaque: no existe la capa "${name}"`);
 	}
 
+	const shadowMode = plan?.render?.shadow_mode ?? 'baked';
+	if (!['baked', 'dither', 'bitplane'].includes(shadowMode)) {
+		errors.push(`render.shadow_mode desconocido "${shadowMode}"`);
+	}
+	if (shadowMode === 'bitplane') {
+		warnings.push('shadow_mode=bitplane: runtime aún no implementado; usa dither o baked');
+	}
+
 	const budget = plan?.animation_budget ?? null;
 	if (budget != null) {
 		const policy = budget.policy ?? 'preserve50';

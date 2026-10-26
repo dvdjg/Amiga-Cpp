@@ -37,7 +37,7 @@ bash tools/build/build-demo.sh demos/techniques/amiga/playfield/207_tiled_live_l
 bash tools/run/run-demo.sh demos/techniques/amiga/playfield/207_tiled_live_layers_animation --sequence-frames 4
 ```
 
-Presets de cocción:\n\n- `beginning-fields.baked.cook-plan.json`: 50 fps, sin capas vivas.\n- `beginning-fields.fire.cook-plan.json`: solo la fogata viva; agua/flores cocidas.\n- `beginning-fields.live.cook-plan.json`: agua + fogata vivas (el que usa esta demo).\n\n`selected/` contiene `map.bundle`, `tilebank.xlimited.bin` (226 KB),
+Presets de cocción:\n\n- `beginning-fields.live-all.cook-plan.json`: todas las capas vivas; `Shadows` usa `shadow_mode: dither` (experimental, sombra en damero).\n\n- `beginning-fields.baked.cook-plan.json`: 50 fps, sin capas vivas.\n- `beginning-fields.fire.cook-plan.json`: solo la fogata viva; agua/flores cocidas.\n- `beginning-fields.live.cook-plan.json`: agua + fogata vivas (el que usa esta demo).\n\n`selected/` contiene `map.bundle`, `tilebank.xlimited.bin` (226 KB),
 `animations.h`, `anim_sheet.bin` (26,1 KB) y `anim_masks.bin` (4,4 KB): 30 grupos,
 136 frames y 165 celdas vivas (`Water` + fogata).
 

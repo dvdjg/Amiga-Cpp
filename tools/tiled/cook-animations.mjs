@@ -96,7 +96,7 @@ function nearest(colors, r, g, b) {
 	return best;
 }
 
-function packFrame(ir, frameGid, flags, cache, colors, planes) {
+function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false) {
 	const image = resolveTileImage(ir, frameGid, cache, { useFirstFrame: false });
 	if (image.error != null) throw new Error(image.error);
 	if (image.sw !== TILE || image.sh !== TILE) {
@@ -120,6 +120,13 @@ function packFrame(ir, frameGid, flags, cache, colors, planes) {
 			} else {
 				indices[y * TILE + x] = nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
 				mask[y * MASK_ROW_BYTES + (x >> 3)] |= 0x80 >> (x & 7);
+			}
+		}
+	}
+	if (dither) {
+		for (let y = 0; y < TILE; ++y) {
+			for (let x = 0; x < TILE; ++x) {
+				if (((x & 1) !== 0) || ((y & 1) !== 0)) mask[y * MASK_ROW_BYTES + (x >> 3)] &= ~(0x80 >> (x & 7));
 			}
 		}
 	}
@@ -159,6 +166,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	const animLayers = new Set(plan?.animations?.layers ?? []);
 	const animObjects = new Set(plan?.animations?.objects ?? []);
 	const objectPolicy = plan?.objects ?? {};
+	const shadowDither = plan?.render?.shadow_mode === 'dither';
 	const palette = JSON.parse(fs.readFileSync(paletteFile, 'utf8'));
 	const p = planes ?? palette.planes ?? 6;
 	if (p < 1 || p > 6) throw new Error(`planos inválidos: ${p}`);
@@ -170,19 +178,20 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 
 	const layers = [];
 	const groups = new Map(); // gid -> { frames, cells:[{layer,x,y}] }
-	const addCell = (layer, cell, gid, live = false) => {
+	const addCell = (layer, cell, gid, live = false, shadow = false) => {
 		const frames = animationFrames(ir, gid) ?? (live ? [{ gid, ticks: 0 }] : null);
 		if (frames == null) return;
-		let group = groups.get(gid);
+		const key = shadow ? `${gid}@shadow` : gid;
+		let group = groups.get(key);
 		if (group == null) {
-			group = { gid, frames, cells: [] };
-			groups.set(gid, group);
+			group = { gid, key, dither: shadow, frames, cells: [] };
+			groups.set(key, group);
 		}
-		layer.cells[cell.y * width + cell.x] = { gid };
+		layer.cells[cell.y * width + cell.x] = { gid: key };
 		group.cells.push({ layer, x: cell.x, y: cell.y });
 	};
-
 	const flat = flattenLayers(ir.layers);
+
 	for (const layer of flat) {
 		if (layer.kind === 'tile') {
 			const policy = layerPolicy[layerName(layer)];
@@ -196,7 +205,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 					const gid = layer.data?.cells?.[y * width + x] ?? 0;
 					if (gid === 0) continue;
 					if (policy !== 'live' && !tileHasAnimation(ir, gid) && !animLayers.has(layerName(layer))) continue;
-					addCell(out, { x, y }, gid, policy === 'live');
+					addCell(out, { x, y }, gid, policy === 'live', shadowDither && /shadow|sombra/i.test(layerName(layer)));
 				}
 			}
 			if (out.cells.some((c) => c != null)) layers.push(out);
@@ -211,7 +220,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 
 				if (cell == null) continue;
 
-				addCell(out, cell, object.gid, policy === 'live');
+				addCell(out, cell, object.gid, policy === 'live', shadowDither && /shadow|sombra/i.test(layerName(layer)));
 			}
 			if (out.cells.some((c) => c != null)) layers.push(out);
 		}
@@ -229,7 +238,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	let frameCursor = 0;
 	for (const group of groupList) {
 		const flags = decodeGid(group.gid);
-		const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p));
+		const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, group.dither === true));
 		const first = frameCursor;
 		for (const frame of frames) {
 			sheetParts.push(frame.frame);
@@ -244,10 +253,11 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 			cells: group.cells.length,
 			first_cell: 0,
 			cell_count: 0,
+			dither: group.dither === true,
 		});
 	}
 
-	const groupIndex = new Map(groupList.map((g, i) => [g.gid, i]));
+	const groupIndex = new Map(groupList.map((g, i) => [g.key ?? g.gid, i]));
 	for (const layer of layers) {
 		for (const cell of layer.cells) {
 			if (cell == null) continue;
