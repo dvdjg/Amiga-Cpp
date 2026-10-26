@@ -118,8 +118,8 @@ function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false, s
 			if (a < 128) {
 				indices[y * TILE + x] = 0;
 			} else {
-				indices[y * TILE + x] = shadowIndex >= 0 ? shadowIndex\n					: nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
-				mask[y * MASK_ROW_BYTES + (x >> 3)] |= 0x80 >> (x & 7);
+				indices[y * TILE + x] = shadowIndex >= 0 ? shadowIndex
+					: nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
 			}
 		}
 	}
