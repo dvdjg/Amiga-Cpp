@@ -410,7 +410,9 @@ public:
         if (hud_zone) {
             if (cfg.hud.height > cfg.viewport_h) return eng::util::unexpected(eng::Result::InvalidArgument);
             if (hud_planes == 0u || hud_planes > 6u) return eng::util::unexpected(eng::Result::InvalidArgument);
-            if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return eng::util::unexpected(eng::Result::HardwareLimit);
+            if (static_cast<eng::u32>(static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u)) + main_h > 255u) {
+                return eng::util::unexpected(eng::Result::HardwareLimit);
+            }
             // El lienzo del HUD se reserva con el layout de DISPLAY del campo
             // corkscrew (filas de viewport_w + guarda de fetch) pero con SU propia
             // profundidad `hud_planes`. Si coincide con el campo, la zona overlay

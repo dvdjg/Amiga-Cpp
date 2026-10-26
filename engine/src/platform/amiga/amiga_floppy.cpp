@@ -51,7 +51,8 @@ void prb_set(eng::u8 v) { *ciab_prb = v; }
 
 /// Espera activa (no usa timers del OS). Aproximada; de sobra para los minimos mecanicos.
 void spin(eng::u32 n) {
-	for (volatile eng::u32 i = 0u; i < n; ++i) {
+	for (eng::u32 i = 0u; i < n; ++i) {
+		__asm__ __volatile__("" ::: "memory");
 	}
 }
 

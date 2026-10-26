@@ -248,7 +248,7 @@ inline eng::u16 read_cd32_buttons(eng::u8 port) {
 
 	eng::u16 buttons = 0u;
 	for (eng::u8 i = 0; i < 9; ++i) {
-		for (volatile eng::u32 d = 0; d < 6; ++d) { (void)*ciaapra; } // ECLOCK_DELAY
+		for (eng::u32 d = 0; d < 6u; ++d) { (void)*ciaapra; } // ECLOCK_DELAY
 		if ((*potinp & potin_bit) == 0u) {
 			buttons |= static_cast<eng::u16>(1u << i);
 		}

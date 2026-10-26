@@ -377,7 +377,7 @@ extern "C" void level3_dispatch() {
 			g_vbl_task(g_vbl_task_user, vpos);
 		}
 		// Señal de VBlank: despierta al bucle que duerme en `Wait()` (modelo de mensajes).
-		++g_vblank_seq;
+		g_vblank_seq = static_cast<eng::u32>(g_vblank_seq + 1u);
 		vblank_signal_raise();
 	}
 	if ((req & 0x0040u) != 0u) {                    // BLIT
@@ -410,7 +410,7 @@ void sync_os_servers() {
 		init_server(g_exec_servers.vbl, g_vbl_server_name, eng_vbl_server_entry, vbl_pri);
 		AddIntServer(INTB_VERTB, &g_exec_servers.vbl);
 		g_exec_servers.vbl_added = true;
-		++g_irq_diag_vbl_adds;
+		g_irq_diag_vbl_adds = static_cast<eng::u32>(g_irq_diag_vbl_adds + 1u);
 	} else if (g_vbl_task == nullptr && g_exec_servers.vbl_added) {
 		RemIntServer(INTB_VERTB, &g_exec_servers.vbl);
 		g_exec_servers.vbl_added = false;
@@ -458,12 +458,12 @@ void remove_os_servers() {
 // Exec ya ha confirmado (ack) el bit de INTREQ antes de recorrer la cadena; aquí no se
 // escribe INTREQ. Se conserva la señal de VBlank para el bucle de mensajes.
 extern "C" void eng_vbl_server_body() {
-	++g_irq_diag_vbl_calls;
+	g_irq_diag_vbl_calls = static_cast<eng::u32>(g_irq_diag_vbl_calls + 1u);
 	const unsigned short vpos = static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8);
 	if (g_vbl_task != nullptr) {
 		g_vbl_task(g_vbl_task_user, vpos);
 	}
-	++g_vblank_seq;
+	g_vblank_seq = static_cast<eng::u32>(g_vblank_seq + 1u);
 	g_irq_diag_seq_value = g_vblank_seq;
 	vblank_signal_raise();
 }
@@ -544,7 +544,7 @@ bool AmigaBackend::install_blit_service(ServiceSlot& slot) {
 		// Slot exclusivo ya ocupado (p. ej. el bombeo de fondo del `Engine` vs. el feeder
 		// async de la demo): se contabiliza para que la incoherencia sea diagnosticable
 		// (el fallo del 066 «L0/S0» fue exactamente esto). Ver `COHERENCIA_DE_SETUP.md`.
-		++g_blit_service_conflicts;
+		g_blit_service_conflicts = static_cast<eng::u32>(g_blit_service_conflicts + 1u);
 		return false;
 	}
 	g_blit_task = slot.thunk;

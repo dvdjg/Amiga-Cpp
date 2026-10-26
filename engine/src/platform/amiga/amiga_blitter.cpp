@@ -1413,10 +1413,10 @@ bool AmigaBackend::blitter_strip_column(eng::graphics::BlitPtr src, eng::graphic
 	const eng::u32 src_stride = static_cast<eng::u32>(words) * 2u;
 	const eng::u32 dst_stride = src_stride + static_cast<eng::u16>(dmod);
 	eng::u16 done = 0u;
-	while (done < planelines) {
-		// H de BLTSIZE = 10 bits (max 1024 planelíneas): trocea la columna si hace falta.
-		const eng::u16 h = static_cast<eng::u16>((planelines - done) > 1024u ? 1024u
-									     : (planelines - done));
+	while (static_cast<eng::u32>(done) < static_cast<eng::u32>(planelines)) {
+		// H de BLTSIZE = 10 bits (max 1024 planel�neas): trocea la columna si hace falta.
+		const eng::u32 remaining = static_cast<eng::u32>(planelines) - static_cast<eng::u32>(done);
+		const eng::u16 h = static_cast<eng::u16>(remaining > 1024u ? 1024u : remaining);
 		blitter_blob_run_begin(eng::amiga::BlobOp::Opaque, words, h, 0, 0, 0, dmod);
 		blitter_blob_run_one(src + static_cast<eng::u32>(done) * src_stride,
 				     eng::graphics::BlitPtr {},

@@ -81,11 +81,11 @@ eng::u16 read_cd32_shift_port2() {
 	*ddra = static_cast<eng::u8>(*ddra | kClock);  // reloj como salida
 	*pra = static_cast<eng::u8>(*pra & ~kClock);   // reloj a bajo
 	custom_base[0x034 / 2] = 0x6f00u;              // POTGO: arranca el puerto 2
-	for (volatile eng::u16 i = 0u; i < 64u; ++i) {} // asentar las capacidades del pot
+	for (eng::u32 i = 0u; i < 64u; ++i) { __asm__ __volatile__("" ::: "memory"); } // asentar las capacidades del pot
 
 	eng::u16 bits = 0u;
 	for (eng::u8 i = 0u; i < 9u; ++i) {
-		for (volatile eng::u16 d = 0u; d < 8u; ++d) {} // >= ~1.4 us (el CIA va al E clock)
+		for (eng::u32 d = 0u; d < 8u; ++d) { __asm__ __volatile__("" ::: "memory"); } // >= ~1.4 us (el CIA va al E clock)
 		const eng::u16 potinp = custom_base[0x016 / 2];
 		*pra = static_cast<eng::u8>(*pra | kClock);  // reloj a alto
 		*pra = static_cast<eng::u8>(*pra & ~kClock); // reloj a bajo (pulso)
@@ -122,7 +122,7 @@ void os_kbd_isr() {
 	}
 	volatile eng::u8* const cra = ciaa_reg(0x0eu);
 	*cra = static_cast<eng::u8>(*cra & 0xbfu);            // SPMODE=0: SP bajo
-	for (volatile eng::u16 i = 0u; i < 150u; ++i) {}      // >= 85 µs (AHRM)
+	for (eng::u32 i = 0u; i < 150u; ++i) { __asm__ __volatile__("" ::: "memory"); }      // >= 85 µs (AHRM)
 	*cra = static_cast<eng::u8>(*cra | 0x40u);            // SPMODE=1: SP alto (fin del pulso)
 }
 
@@ -180,7 +180,7 @@ void tick_body() {
 		(void)ciab_ticks_now(); // primera lectura de referencia
 	}
 
-	++g_frame;
+	g_frame = static_cast<eng::u32>(g_frame + 1u);
 	g_vblank.signal(g_frame);
 	g_port.signal(SigVBlank);
 

@@ -116,7 +116,7 @@ struct VBlankHeartbeat {
 		if (hb.vblank_hook != nullptr) {
 			hb.vblank_hook(hb.vblank_user);
 		}
-		++hb.frames;
+		hb.frames = static_cast<u32>(hb.frames + 1u);
 	}
 };
 
