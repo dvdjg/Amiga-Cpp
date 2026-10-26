@@ -180,7 +180,7 @@ void tick_body() {
 		(void)ciab_ticks_now(); // primera lectura de referencia
 	}
 
-	g_frame = static_cast<eng::u32>(g_frame + 1u);
+	g_frame = g_frame + 1u;
 	g_vblank.signal(g_frame);
 	g_port.signal(SigVBlank);
 
