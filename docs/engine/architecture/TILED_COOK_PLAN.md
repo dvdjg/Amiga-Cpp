@@ -133,6 +133,68 @@ válido por celda viva es suficiente. Si el desarrollador quiere una variante
 totalmente estática, cuece otra selección con `baked_through` al final y sin
 `animations`.
 
+## 5. Objetos en una sola capa
+
+Tiled solo tiene `Object Layer 1`; no hace falta separar capas para cocer casas
+y mantener props en primer plano. Lo recomendable es **no tocar el TMX original**
+y trabajar con una **copia de cocina** (`*.cook.tmx`) donde cada objeto declare su
+rol mediante clase/propiedades:
+
+```xml
+<object id="12" class="Building" ...>
+  <properties>
+    <property name="cook" value="baked"/>
+  </properties>
+</object>
+
+<object id="37" class="Prop" ...>
+  <properties>
+    <property name="cook" value="foreground"/>
+    <property name="sort_y" value="base"/>
+  </properties>
+</object>
+
+<object id="50" class="Tree" ...>
+  <properties>
+    <property name="cook" value="foreground"/>
+    <property name="sort_y" value="base"/>
+    <property name="occluder" value="canopy"/>
+  </properties>
+</object>
+```
+
+- `cook=baked`: el objeto se funde en la base, como una casa de fondo.
+- `cook=foreground`: el objeto no se hornea; se emite como `MapObject`/sprite
+  (o grupo de tiles) y participa en el orden por Y.
+- `sort_y=base`: la clave es `object.y + object.height` (el pie del objeto).
+  El actor usa la misma clave (`foot_y`). Los objetos con clave menor se dibujan
+  antes del actor; los mayores, después.
+- `occluder=canopy`: separa la parte que debe tapar al actor (copa, tejado) y
+  mantén el tronco/base en el fondo o en el objeto ordenado. Sin esta separación,
+  un árbol grande no puede ser a la vez fondo y primer plano.
+- Si una casa se puede rodear y el personaje puede pasar por detrás, **no se
+  hornea entera**: se cuece la fachada de fondo y se deja tejado/pared delantera
+  como `foreground`/`occluder`. Si es un decorado no atravesable, `baked` es
+  correcto.
+
+El cook-plan puede llevar reglas de respaldo para una copia aún sin propiedades:
+
+```json
+"objects": {
+  "Object Layer 1": {
+    "default": "foreground",
+    "sort_y": "base",
+    "rules": [
+      { "gid": [477, 478, 479, 480], "mode": "baked" },
+      { "class": "Building", "mode": "baked" }
+    ]
+  }
+}
+```
+
+Las reglas por `gid` son una muleta para el fixture; para producción, clases y
+propiedades en la copia de cocina son la fuente de verdad. Los nombres de los
+objetos están vacíos, así que no son una clave fiable.
 ## 5. Orden y occluders
 
 ```text
