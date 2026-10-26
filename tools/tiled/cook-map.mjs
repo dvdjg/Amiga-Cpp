@@ -22,6 +22,7 @@ import { validateCookPlan } from './validate-cook-plan.mjs';
 import { composeMap } from './compose-map.mjs';
 import { packMapBundle, bundleHeader } from './map_bundle.mjs';
 import { cookAnimations } from './cook-animations.mjs';
+import { cookObjects } from './cook-objects.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const QUANTIZE = path.join(ROOT, 'tools/ehb/quantize-ehb.mjs');
@@ -176,6 +177,13 @@ function writeSelected(outDir, profile, ir, plan) {
 		planes: profile.planes,
 		outDir: selectedDir,
 	});
+	const objects = cookObjects({
+		ir,
+		plan,
+		paletteFile: path.join(profileDir, 'quant', 'palette.json'),
+		planes: profile.planes,
+		outDir: selectedDir,
+	});
 	const selected = {
 		profile: profile.name,
 		planes: profile.planes,
@@ -188,6 +196,18 @@ function writeSelected(outDir, profile, ir, plan) {
 		tilebankXlimited: path.relative(ROOT, path.join(selectedDir, 'tilebank.xlimited.bin')),
 		bundle: path.relative(ROOT, path.join(selectedDir, 'map.bundle')),
 		bundleHeader: path.relative(ROOT, path.join(selectedDir, 'map_bundle.h')),
+		animations: animations == null ? null : {
+			header: path.relative(ROOT, path.join(selectedDir, 'animations.h')),
+			sheet: path.relative(ROOT, path.join(selectedDir, 'anim_sheet.bin')),
+			masks: path.relative(ROOT, path.join(selectedDir, 'anim_masks.bin')),
+			report: path.relative(ROOT, path.join(selectedDir, 'animations.json')),
+		},
+		objects: objects == null ? null : {
+			header: path.relative(ROOT, path.join(selectedDir, 'objects.h')),
+			sheet: path.relative(ROOT, path.join(selectedDir, 'object_sheet.bin')),
+			masks: path.relative(ROOT, path.join(selectedDir, 'object_masks.bin')),
+			report: path.relative(ROOT, path.join(selectedDir, 'objects.json')),
+		},
 	};
 	fs.writeFileSync(path.join(outDir, 'selected.json'), JSON.stringify(selected, null, 2) + '\n', 'utf8');
 	return selected;

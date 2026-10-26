@@ -96,9 +96,16 @@ node tools/tiled/cook-map.mjs "ruta/Beginning Fields.tmx" --out out/assets/tiled
 
 `compose-map` aplica orden de capas, opacidad de capa/grupo, offsets, tile objects con alineación/`tileoffset`, image layers y el primer frame de tiles animados. En mapas finitos recorta al rectángulo lógico del mapa; en infinitos calcula bounds por chunks/objetos. Escribe `composed.png` y `compose.json` con stats, avisos y errores; una imagen faltante es error.
 
-`cook-map` ejecuta `quantize-ehb.mjs` (perfil forzado), `slice-tiles.mjs` con `--dither checker` y `emit-xlimited-bank.mjs` (1..6 planos), y escribe `proposal.json`/`proposal.md` con tiles, banco, PSNR y estimación Chip. La recomendación automática es una **propuesta**, no una imposición: EHB se sugiere con capas de sombra o >32 colores; `--select` promueve el perfil elegido a `selected/`, genera `tiled_map.h` y un `MapBundle` v1 (`map.bundle`/`map_bundle.h`) para el runtime. `--palette` permite imponer la paleta y `--planes` su profundidad. El checker es el optimal-checker de dos tonos consecutivos por luminancia portado de `amiga-tiles`; `--dither none` conserva el comportamiento anterior.
+`cook-map` ejecuta `quantize-ehb.mjs` (perfil forzado), `slice-tiles.mjs` con `--dither checker` y `emit-xlimited-bank.mjs` (1..6 planos), y escribe `proposal.json`/`proposal.md` con tiles, banco, PSNR y estimación Chip. La recomendación automática es una **propuesta**, no una imposición: EHB se sugiere con capas de sombra o >32 colores; `--select` promueve el perfil elegido a `selected/`, genera `tiled_map.h`, un `MapBundle` v1 (`map.bundle`/`map_bundle.h`) y, si el plan declara objetos `foreground`/`occluder`, los assets `objects.h`, `object_sheet.bin`, `object_masks.bin` y `objects.json`. `--palette` permite imponer la paleta y `--planes` su profundidad. El checker es el optimal-checker de dos tonos consecutivos por luminancia portado de `amiga-tiles`; `--dither none` conserva el comportamiento anterior.
 
-Salidas por perfil en `profiles/<perfil>/`: `tilebank.raw.bin` (1 B/píxel), `tilebank_indexed.h`, `tilebank.xlimited.bin`, `tiles.json`, `reconstruct.png`, `tilebank.png`, `quant/palette.json`. `selected/` contiene `map.bundle` + `map_bundle.h` (MapBundle v1 BE), `tiled_map.h`, `tilebank_indexed.h` y `tilebank.xlimited.bin`; el runtime lo lee con `eng::map::MapAssetView`/`LayerView` (HOST-498).
+Salidas por perfil en `profiles/<perfil>/`: `tilebank.raw.bin` (1 B/píxel), `tilebank_indexed.h`, `tilebank.xlimited.bin`, `tiles.json`, `reconstruct.png`, `tilebank.png`, `quant/palette.json`. `selected/` contiene `map.bundle` + `map_bundle.h` (MapBundle v1 BE), `tiled_map.h`, `tilebank_indexed.h` y `tilebank.xlimited.bin`; el runtime lo lee con `eng::map::MapAssetView`/`LayerView` (HOST-498). Si hay objetos de runtime, `selected/` añade `objects.h` (tabla `MapObjectView`/`MapObjectImageView` ordenada por `foot_y`), `object_sheet.bin` (planos con guarda por fila para el shift fino) y `object_masks.bin` (máscara 1bpp), consumidos por `eng::map::MapObjectsView`.
+
+## Objetos: roles, `foot_y` y MapObjects
+
+`map-objects.mjs` resuelve el rol de cada objeto con este orden: propiedades del objeto (`cook`, `sort_y`, `occluder`) → reglas de `objects.<capa>.rules` (primera coincidencia por `id`/`gid`/`class`/`type`/`name`) → `objects.<capa>.default`. Los modos válidos son `baked`, `foreground`, `occluder`, `collision` y `skip`; `sort_y` es `base` (clave = pie) o `top`; `occluder=canopy` convierte un `foreground` en `occluder` (se dibuja después de los actores). Los objetos `baked` los funde `compose-map`; los `foreground`/`occluder` se emiten como registros de runtime con `foot_y` (pie real) y `sort_key`, ordenados por profundidad. `cook-objects.mjs` rechaza objetos escalados, rotados o sin `gid` porque el runtime dibuja el arte nativo 1:1.
+
+La demo `208_tiled_occlusion_objects` es el consumidor de referencia. Su plan `fixtures/beginning-fields.objects.cook-plan.json` cuece la casa (por defecto) y deja dos árboles como objetos de runtime (id 43 occluder y id 45 foreground).
+
 
 ## Fixtures y tests
 
@@ -109,12 +116,14 @@ node tools/tiled/test-parse-tmx.mjs
 node tools/tiled/test-cook.mjs
 ```
 
-`test-parse-tmx` cubre XML, atlas/colección, animaciones, objetos, propiedades, grupos, CSV/base64 gzip/zlib, chunks negativos, flips, GID fuera de rango/no definido, zstd y orientación rechazada. Si existe el proyecto local `Beginning Fields.tmx`, lo parsea como integración y comprueba 18 tilesets, 7 capas de tiles, 2 objectgroups, 169 objetos y 256 GID únicos. `test-cook` comprueba el bake del fixture, los tres perfiles, la propuesta/`selected` y la paleta impuesta. Ambos se ejecutan en la pasada completa de `tools/run-host-tests.sh`.
+`test-parse-tmx` cubre XML, atlas/colección, animaciones, objetos, propiedades, grupos, CSV/base64 gzip/zlib, chunks negativos, flips, GID fuera de rango/no definido, zstd y orientación rechazada. Si existe el proyecto local `Beginning Fields.tmx`, lo parsea como integración y comprueba 18 tilesets, 7 capas de tiles, 2 objectgroups, 169 objetos y 256 GID únicos. `test-cook-plan` valida el contrato de capas y las reglas por objeto; `test-cook` comprueba el bake del fixture, los tres perfiles, la propuesta/`selected`, la paleta impuesta y la emisión de `objects.h`/sheet/máscara cuando una regla marca un objeto `foreground`. Ambos se ejecutan en la pasada completa de `tools/run-host-tests.sh`.
 
 ## Límites actuales
 
 - El parser no lee imágenes; `compose-map`/`cook-map` sí, con `pngjs`, en host.
-- El formato actual es un **bake opaco** + banco/mapa C para una demo; no hay todavía `MapBundle` UAF-R, catálogo `VisualId`, páginas runtime ni capas `Overlay`/`Occluder` separadas.
+- El formato actual es un **bake opaco** + banco/mapa C + objetos de runtime; no hay todavía `MapBundle` UAF-R, catálogo `VisualId`, páginas runtime ni capas `Overlay`/`Occluder` separadas como celdas.
+- Los objetos de runtime usan el arte nativo (escala 1:1) y máscara 1bpp; no se escalan, rotan ni cuecen variantes de flip por objeto (los flips del `gid` se aplican al muestrear).
+- La demo 208 emite los blits y verifica en destino que los bits coinciden, pero la composición visible del objeto sigue **NO VERIFICADA** (ver `VALIDATION.md`); el resto del pipeline host está cubierto por tests.
 - No evalúa wangsets/terrain/rules: consume las capas resultantes (el cooker las trata como cualquier capa).
 - Rechaza `template` de objeto, orientaciones hex/staggered y compresión `zstd` con diagnósticos; no las convierte en silencio.
 - El IR JSON puede ser grande (un mapa 40×40 con 7 capas y objetos ronda 1,5 MB con indentación); es un intermedio host, no un asset de runtime.

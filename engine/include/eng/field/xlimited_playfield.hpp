@@ -443,7 +443,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     }
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
-    /// Overlays animados de la celda de mapa (mapx,mapy) en el destino f��sico
+    /// Overlays animados de la celda de mapa (mapx,mapy) en el destino físico
     /// (x, y_planeline). Se pinta despuǸs del bloque base y comparte su destino.
     void set_animator(const TileAnimator* animator) { this->m_cfg.animator = animator; }
 
@@ -563,8 +563,12 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// `source_modulo_bytes` para el canal A=masks, ver amiga.cpp).
     bool emit_world_rect_masked(graphics::FramePlan& plan, const u16* src, const u16* mask,
                                 u16 x_byte, u32 planeline_start, u16 words, u16 seg_rows,
-                                u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                                u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                                u8 source_shift = 0u) {
         const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_row_bytes) - static_cast<s32>(words) * 2);
+        // El destino es un bloque de `words` palabras, pero si `source_shift` > 0
+        // el barrel del Blitter lee además la palabra de guarda de la fuente y
+        // de la máscara (por eso `src_row_bytes` incluye `words + 1`).
         const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(this->m_bytes_per_row) * static_cast<s32>(planes) - static_cast<s32>(words) * 2);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
@@ -573,7 +577,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitPtr::from_storage(mask), graphics::BlitPtr::from_storage(s), graphics::BlitPtr::from_storage(d),
                 words, seg_rows, src_mod, dst_mod,
-                1, 0, src_plane_stride, static_cast<u32>(this->m_bytes_per_row * planes), false
+                1, source_shift, src_plane_stride, static_cast<u32>(this->m_bytes_per_row * planes), false
             };
             if (!plan.add_masked_bob(job)) return false;
         }
@@ -629,32 +633,40 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
                                  Span<const u16> src, Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride,
                                  u8 planes, u8 source_shift = 0u) override {
-        (void)source_shift; // el corkscrew no usa shift fino en world bitmap
         if (!this->m_initialized || src.empty() || mask.empty() || planes == 0) return false;
-        if (wx < 0 || (wx & 15) != 0) return false;
-        const s32 loop = this->dmod2(wy);
+        if ((w & 15u) != 0u) return false;
+        // `wx` es la columna de **mundo**. El ring guarda `world_x % bitmap_width`;
+        // el display empieza en `planeaddx*8 - fine` (la cámara), así que un objeto
+        // en `world_x` aparece en `world_x - camx` sin que el llamador reste la base
+        // de la cámara. El ancho del ring (352) es múltiplo de 16, por lo que el
+        // shift fino del mundo coincide con el del anillo.
+        s32 rx = wx % static_cast<s32>(this->m_bitmap_width);
+        if (rx < 0) rx += static_cast<s32>(this->m_bitmap_width);
+        const u8 shift = (source_shift != 0u) ? source_shift : static_cast<u8>(rx & 15);
         const u16 words = static_cast<u16>(w / 16u);
+        if (shift != 0u && static_cast<u32>(src_row_bytes) < (static_cast<u32>(words) + 1u) * 2u) return false;
+        const s32 loop = this->dmod2(wy);
         // Contrato de tamaño: el origen cubre los planes; la máscara, una viaje.
         const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
                            + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
-                           + static_cast<u32>(words);
+                           + static_cast<u32>(words) + (shift != 0u ? 1u : 0u);
         const u32 need_mask = (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
-                            + static_cast<u32>(words);
+                            + static_cast<u32>(words) + (shift != 0u ? 1u : 0u);
         if (src.size() < need_src || mask.size() < need_mask) return false;
         const u16* sbase = src.data();
         const u16* mbase = mask.data();
-        const u16 x_byte = static_cast<u16>((wx / 8u) & 0xfffeu);
+        const u16 x_byte = static_cast<u16>((static_cast<u32>(rx) / 8u) & 0xfffeu);
         s32 r = loop;
         u16 remaining = h;
         while (remaining > 0) {
             const u16 seg = static_cast<u16>(
                 (r + remaining > this->m_display_height) ? (this->m_display_height - r) : remaining);
             if (!emit_world_rect_masked(plan, sbase, mbase, x_byte, static_cast<u32>(r) * planes,
-                    words, seg, src_row_bytes, src_plane_stride, planes)) return false;
+                    words, seg, src_row_bytes, src_plane_stride, planes, shift)) return false;
             if (this->m_linear_display) {
                 if (!emit_world_rect_masked(plan, sbase, mbase, x_byte,
                         static_cast<u32>(r + this->m_display_height) * planes,
-                        words, seg, src_row_bytes, src_plane_stride, planes)) return false;
+                        words, seg, src_row_bytes, src_plane_stride, planes, shift)) return false;
             }
             remaining = static_cast<u16>(remaining - seg);
             r = 0;
@@ -810,7 +822,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         return this->m_linear_display ? row : this->dmod2(row);
     }
 
-    /// Parchea las celdas visibles cuyos grupos de animaci��n cambiaron de frame.
+    /// Parchea las celdas visibles cuyos grupos de animación cambiaron de frame.
     /// Debe llamarse despuǸs de update (scroll) y antes de ejecutar el plan.
     bool patch_animations(graphics::FramePlan& plan) {
         if (this->m_cfg.animator == nullptr) return true;
@@ -821,7 +833,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
         const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
         if (mapw <= 0 || maph <= 0) return false;
-        // Una divisi��n por frame (no 2 por celda): las comparaciones de visibilidad
+        // Una división por frame (no 2 por celda): las comparaciones de visibilidad
         // se resuelven con un ajuste de rango porque wx/cam estǭn normalizados.
         s32 camx_mod = camx % mapw;
         if (camx_mod < 0) camx_mod += mapw;
@@ -856,7 +868,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
                 eng::Span<const u16> mask {};
                 if (!anim.frame_data(g, src, mask)) return false;
                 if (!this->add_world_bitmap_masked(plan, src, mask,
-                        static_cast<s32>(px), ring_y, this->ctw(), this->cth(),
+                        wx, ring_y, this->ctw(), this->cth(),
                         static_cast<u16>(this->ctw() / 8u), 32u, this->cplanes())) {
                     return false;
                 }

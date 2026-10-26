@@ -81,6 +81,7 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 ### T2 — Cooker de tilesets, paleta y páginas — **PARCIAL (bake)**
 
 - Entregado: `compose-map.mjs` compone capas/grupos/objetos/opacidad en host; `cook-map.mjs` prueba 16c/32c/EHB, escribe `proposal.json`/`proposal.md`, permite `--palette`/`--planes`, usa `--dither checker` (optimal-checker portado de `amiga-tiles`) y promueve `selected/`. `slice-tiles.mjs` acepta `--dither checker`; `emit-xlimited-bank.mjs` acepta 1..6 planos. Medido en `Beginning Fields`: 16c 25,17 dB, 32c 28,16 dB, EHB 28,53 dB; banco 153/188/225 KB.
+- Entregado: `cook-objects.mjs` cuece objetos `foreground`/`occluder` como planar 6bpp + máscara 1bpp con guarda por fila (`object_sheet.bin`, `object_masks.bin`, `objects.h`), y `map-objects.mjs` resuelve `cook`/`sort_y`/`occluder` por objeto y emite `MapObject` con `foot_y`. La sombra viva usa `shadow_mode: baked|dither` con cobertura por alfa y `shadow_color`; `bitplane` se rechaza en EHB.
 - Pendiente para el gate completo: páginas de tiles con catálogo, máscara 1bpp para overlays y agrupación explícita de frames de animación; el bake actual usa una imagen compuesta y un banco único.
 - Recolectar solo los tiles referenciados (capas + objetos + frames + flips usados).
 - Cuantizar contra una paleta global por campo (16/32/EHB/DPF) y medir la calidad con `compare-palettes.mjs` + visión.
@@ -114,6 +115,7 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 - Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,93 fps en debug, 142 070 ciclos/frame, flicker OK y visión de secuencia sin artefactos.
 - Entregado: `207_tiled_live_layers_animation` (T5a) con `TileAnimator` cocinado (44 grupos, 248 frames, 227 celdas), parche enmascarado planar+máscara, presupuesto en 6 fases y recorrido Y-only; 49,97 fps release, 141 961 ciclos/frame. La base se ve sin corrupción y el recorrido mantiene 50 fps; el parche de animación no se ha confirmado visualmente (con cámara fija el tick avanza pero el píxel no cambia). `VALIDATION.md` recoge el bloqueo.
 - Entregado parcial: `TileLayerStack` con modos/prefijos/prioridad, cook-plan validado y demo 207 con base limpia + overlays de `Water`/`Object Layer 1` en banda entrante; ~22–32 fps de media según carga. Pendiente: overlays estáticos por encima de capas vivas no-sufijo, `after_actors` para `Occluder` y demo 208.
+- Entregado: demo `208_tiled_occlusion_objects` (casa cocida + árbol foreground id 43 + farola occluder id 143 + explorador móvil + guardia horneado) sobre `MapObjectsView`. Props y actor usan hoja par interleaved de un blit; el actor móvil añade save-under por Blitter. Visión confirma árbol detrás/delante y farola encima, sin estelas ni huecos; flicker OK. Rendimiento **24,98 fps (2 campos)**, excepción documentada por 6 planos EHB + props + save-under.
 - El parche actual usa la base con el primer frame; los píxeles transparentes de frames posteriores pueden revelar ese primer frame (ghosting) y las celdas entrantes esperan al siguiente cambio de grupo.
 - X+Y simultáneo baja a ~25 fps; el recorrido entregado es Y-only.
 - Integración con `ScrollLayer`/`App`: un nivel se registra y el `App` lo conduce; visibilidad/modo validados contra el bundle.
@@ -121,6 +123,7 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 - **Gate**: demos 206/207/208; 50 fps sin tirones en el alcance medido; flicker; visión de secuencia; no regresión de 201–205.
 ### T6 — Objetos, colisión y gameplay
 
+- Entregado: roles por objeto (`cook`, `sort_y`, `occluder`) en el cook-plan, `MapObject` con `foot_y`/`sort_key`, orden estable foreground/occluder y `eng::map::MapObjectsView::upper_bound_foreground`; el cooker rechaza objetos escalados/rotados/sin `gid`. La demo 208 consume la tabla y valida la oclusión visual; su rendimiento queda como excepción documentada (25 fps).
 - Emitir `MapObjects` tipados: spawn, trigger, collider, path, camera, door, mechanism, decor; propiedades y clases.
 - Resolver *tile objects* con `objectalignment`, `tileoffset`, flips y tamaño variable; convertirlos a `ActorDesc`/BOB o a decor cocido.
 - Extraer colisión de tiles y de objetos (polígonos de TSX) a bitsets/materials/shapes; consultas O(1).

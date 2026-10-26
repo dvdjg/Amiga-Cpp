@@ -16,6 +16,7 @@ import path from 'node:path';
 import { PNG } from 'pngjs';
 import { fileURLToPath } from 'node:url';
 import { decodeGid, parseTmxFile } from './parse-tmx.mjs';
+import { objectLayerConfig, objectRole } from './map-objects.mjs';
 
 const TILE_EPS = 1e-6;
 const MAX_PIXELS = 16 * 1024 * 1024;
@@ -134,8 +135,10 @@ export function resolveTileImage(ir, gid, cache, { useFirstFrame = true, stack =
 		png,
 		sx: 0,
 		sy: 0,
-		sw: png.width,
-		sh: png.height,
+		// En una colección, `tile.image` puede recortar una región menor que el
+		// PNG completo; usar sus dimensiones declaradas, no el tamaño del fichero.
+		sw: tile.image.width > 0 ? tile.image.width : png.width,
+		sh: tile.image.height > 0 ? tile.image.height : png.height,
 		tileoffset: tileset.tileoffset ?? { x: 0, y: 0 },
 		tileset,
 		local,
@@ -316,7 +319,7 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 		buffer[i * 4 + 2] = background[2];
 		buffer[i * 4 + 3] = background[3];
 	}
-	const ctx = { buffer, width, height, cache, warnings: new Set(), errors: [], objectCount: 0, skippedAnimated: 0 };
+	const ctx = { buffer, width, height, cache, warnings: new Set(), errors: [], objectCount: 0, skippedAnimated: 0, skippedRuntimeObjects: 0 };
 	const tileCount = { cells: 0, drawn: 0, animated: 0, skippedAnimated: 0, missing: 0 };
 	const layerReports = [];
 	for (const item of flat) {
@@ -364,9 +367,18 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 		} else if (layer.kind === 'object') {
 			const objects = [...(layer.objects ?? [])];
 			if (layer.draworder === 'topdown') objects.sort((a, b) => (a.y - b.y) || (a.id - b.id));
+			const config = objectLayerConfig(plan, name);
 			for (const object of objects) {
 				object.__layer = layer;
-				drawObject(ir, object, item.opacity, item.offsetx, item.offsety, ctx, item.policy);
+				const role = objectRole(object, config);
+				if (role.mode === 'foreground' || role.mode === 'occluder') {
+					// El objeto vive en runtime (MapObjects): no debe quedar una copia
+					// horneada que revele su posición al taparlo.
+					++ctx.skippedRuntimeObjects;
+					continue;
+				}
+				if (role.mode === 'collision' || role.mode === 'skip') continue;
+				drawObject(ir, object, item.opacity, item.offsetx, item.offsety, ctx, role.mode);
 			}
 			drawn = objects.length;
 		} else if (layer.kind === 'image') {
@@ -397,7 +409,7 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 		bounds: { minX, minY, maxX, maxY, width, height },
 		warnings: [...ctx.warnings],
 		errors: ctx.errors,
-		stats: { ...tileCount, objects: ctx.objectCount, skippedAnimatedObjects: ctx.skippedAnimated, layers: layerReports },
+		stats: { ...tileCount, objects: ctx.objectCount, skippedAnimatedObjects: ctx.skippedAnimated, skippedRuntimeObjects: ctx.skippedRuntimeObjects, layers: layerReports },
 	};
 }
 

@@ -23,6 +23,7 @@ import {
 	tileNode,
 	tileSetFor,
 } from './compose-map.mjs';
+import { ditherCovers, nearest, paletteColors, shadowLevel } from './palette.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const TILE = 16;
@@ -40,6 +41,20 @@ const asNumber = (value, fallback = 0) => {
 };
 
 const layerName = (layer) => layer.name || `#${layer.id}`;
+
+/// Color RGB de sombra del plan (`#rrggbb`); negro si no se declara.
+/// \param {string|null|undefined} value valor de `render.shadow_color`.
+/// \returns {number[]} `[r,g,b]` 0..255.
+function parseShadowColor(value) {
+	if (typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)) {
+		return [
+			Number.parseInt(value.slice(1, 3), 16),
+			Number.parseInt(value.slice(3, 5), 16),
+			Number.parseInt(value.slice(5, 7), 16),
+		];
+	}
+	return [0, 0, 0];
+}
 
 function flattenLayers(layers, out = []) {
 	for (const layer of layers) {
@@ -65,37 +80,6 @@ function animationFrames(ir, gid) {
 	}));
 }
 
-function paletteColors(palette, planes) {
-	const bases = Array.isArray(palette.bases) ? palette.bases : [];
-	const baseCount = Math.min(bases.length, planes >= 6 ? 32 : (1 << planes));
-	if (baseCount === 0) throw new Error('palette.json no contiene bases');
-	const colors = [];
-	for (let k = 0; k < baseCount; ++k) {
-		const b = bases[k];
-		colors[k] = [b[0] & 255, b[1] & 255, b[2] & 255];
-		if (planes >= 6) colors[32 + k] = [b[0] >> 1, b[1] >> 1, b[2] >> 1];
-	}
-	return colors;
-}
-
-function nearest(colors, r, g, b) {
-	let best = 0;
-	let bestD = Infinity;
-	for (let i = 0; i < colors.length; ++i) {
-		const p = colors[i];
-		if (p == null) continue;
-		const dr = r - p[0];
-		const dg = g - p[1];
-		const db = b - p[2];
-		const d = dr * dr + dg * dg + db * db;
-		if (d < bestD) {
-			bestD = d;
-			best = i;
-		}
-	}
-	return best;
-}
-
 function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false, shadowIndex = -1) {
 	const image = resolveTileImage(ir, frameGid, cache, { useFirstFrame: false });
 	if (image.error != null) throw new Error(image.error);
@@ -115,19 +99,18 @@ function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false, s
 			}
 			const so = ((image.sy + v) * image.png.width + (image.sx + u)) * 4;
 			const a = image.png.data[so + 3];
-			if (a < 128) {
-				indices[y * TILE + x] = 0;
-			} else {
-				indices[y * TILE + x] = shadowIndex >= 0 ? shadowIndex
-					: nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
+			let color = 0;
+			if (dither && shadowIndex >= 0) {
+				// Sombra viva: el alfa de origen decide la cobertura del bloque 2x2.
+				// El color es el índice oscuro elegido para el perfil; una sombra con
+				// alfa 64 ocupa 1 de cada 4 píxeles (no se descarta ni se pinta entera).
+				const level = shadowLevel(a);
+				if (level > 0 && ditherCovers(x, y, level)) color = shadowIndex;
+			} else if (a >= 128) {
+				color = nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
 			}
-		}
-	}
-	if (dither) {
-		for (let y = 0; y < TILE; ++y) {
-			for (let x = 0; x < TILE; ++x) {
-				if (((x & 1) !== 0) || ((y & 1) !== 0)) mask[y * MASK_ROW_BYTES + (x >> 3)] &= ~(0x80 >> (x & 7));
-			}
+			indices[y * TILE + x] = color;
+			if (color !== 0) mask[y * MASK_ROW_BYTES + (x >> 3)] |= 0x80 >> (x & 7);
 		}
 	}
 	const frame = Buffer.alloc(planes * 32);
@@ -171,8 +154,8 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	const p = planes ?? palette.planes ?? 6;
 	if (p < 1 || p > 6) throw new Error(`planos inválidos: ${p}`);
 	const colors = paletteColors(palette, p);
-
-	const shadowIndex = shadowDither ? nearest(colors, 64, 64, 64) : -1;
+	const shadowRgb = parseShadowColor(plan?.render?.shadow_color);
+	const shadowIndex = shadowDither ? nearest(colors, shadowRgb[0], shadowRgb[1], shadowRgb[2]) : -1;
 	const cache = new ImageCache();
 	const width = ir.map.width;
 	const height = ir.map.height;
@@ -343,7 +326,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	}
 	lines.push('};');
 	lines.push('');
-	fs.writeFileSync(path.join(outDir, 'animations.h'), lines.join('\\n'), 'utf8');
+	fs.writeFileSync(path.join(outDir, 'animations.h'), lines.join('\n'), 'utf8');
 	fs.writeFileSync(path.join(outDir, 'animations.json'), JSON.stringify({
 		planes: p,
 		frameStride,
@@ -357,7 +340,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 			groups: [...new Set(l.cells.filter((c) => c != null).map((c) => c.group))].length,
 		})),
 		groups: groupMeta,
-	}, null, 2) + '\\n', 'utf8');
+	}, null, 2) + '\n', 'utf8');
 	return {
 		groups: groupList.length,
 		frames: frameCursor,

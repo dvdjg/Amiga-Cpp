@@ -77,6 +77,42 @@ try {
 		assert.ok(fs.statSync(path.join(out, 'selected', 'map.bundle')).size > 88);
 	});
 
+	test('compose: objetos foreground no se hornean', () => {
+		const ir = parseTmxFile(FIXTURE);
+		const plan = {
+			render: { modes: { Objects: 'foreground' } },
+			objects: { Objects: { default: 'skip', rules: [{ name: 'icon', cook: 'foreground' }] } },
+		};
+		const result = composeMap(ir, plan);
+		assert.equal(result.errors.length, 0);
+		assert.equal(result.stats.skippedRuntimeObjects, 1);
+		assert.equal(result.stats.objects, 0);
+	});
+
+	test('cook: objetos foreground emiten objects.h y arte planar', () => {
+		const out = path.join(temp, 'objects');
+		const planFile = path.join(temp, 'objects-plan.json');
+		fs.writeFileSync(planFile, JSON.stringify({
+			render: { modes: { Objects: 'foreground' } },
+			objects: { Objects: { default: 'skip', rules: [{ name: 'icon', cook: 'foreground', sort_y: 'base' }] } },
+		}), 'utf8');
+		run(COOK, [FIXTURE, '--plan', planFile, '--out', out, '--profiles', '16c', '--select', '16c']);
+		for (const file of ['objects.h', 'object_sheet.bin', 'object_masks.bin', 'object_pair.bin', 'objects.json']) {
+			assert.ok(fs.existsSync(path.join(out, 'selected', file)), `selected/${file}`);
+		}
+		const objects = JSON.parse(fs.readFileSync(path.join(out, 'selected', 'objects.json'), 'utf8'));
+		assert.equal(objects.foreground, 1);
+		assert.equal(objects.occluders, 0);
+		assert.equal(objects.images.length, 1);
+		assert.ok(objects.bytes.sheet > 0);
+		assert.equal(objects.bytes.pair, objects.images[0].pair_bytes);
+		const compose = JSON.parse(fs.readFileSync(path.join(out, 'compose.json'), 'utf8'));
+		assert.equal(compose.stats.skippedRuntimeObjects, 1);
+		const selected = JSON.parse(fs.readFileSync(path.join(out, 'selected.json'), 'utf8'));
+		assert.ok(selected.objects != null);
+		assert.ok(selected.objects.header.endsWith('objects.h'));
+	});
+
 	test('cook: paleta impuesta (custom)', () => {
 		const out = path.join(temp, 'custom');
 		const source = path.join(temp, 'profiles', 'profiles', '32c', 'quant', 'palette.json');

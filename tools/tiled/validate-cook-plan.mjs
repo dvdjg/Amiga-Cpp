@@ -9,6 +9,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseTmxFile } from './parse-tmx.mjs';
+import {
+	OBJECT_OCCLUDER,
+	OBJECT_SORT_Y,
+	normalizeObjectMode,
+	objectLayerConfig,
+	objectRole,
+} from './map-objects.mjs';
 
 const MODES = new Set([
 	'baked',
@@ -23,9 +30,10 @@ const MODES = new Set([
 	'actors',
 	'bake',
 	'live',
+	'foreground',
 ]);
 
-const LIVE_MODES = new Set(['overlay', 'animated', 'occluder', 'live']);
+const LIVE_MODES = new Set(['overlay', 'animated', 'occluder', 'live', 'foreground']);
 
 const layerName = (layer) => layer.name || `#${layer.id}`;
 
@@ -45,8 +53,11 @@ function modeFor(plan, layer) {
 	const name = layerName(layer);
 	const explicit = plan?.render?.modes?.[name];
 	if (explicit != null) return explicit;
-	const table = layer.kind === 'object' ? plan?.objects : plan?.layers;
-	return table?.[name] ?? (layer.kind === 'object' ? 'bake' : 'baked');
+	if (layer.kind === 'object') {
+		const config = objectLayerConfig(plan, name);
+		return config.mode ?? 'baked';
+	}
+	return plan?.layers?.[name] ?? 'baked';
 }
 
 function isBaked(mode) {
@@ -55,6 +66,70 @@ function isBaked(mode) {
 
 function isLive(mode) {
 	return LIVE_MODES.has(mode);
+}
+
+function propertyValue(object, name) {
+	const entry = (object.properties ?? []).find((property) => property.name === name);
+	return entry == null ? null : entry.value;
+}
+
+/// Valida las reglas/propiedades por objeto y cuenta los roles que verá el
+/// runtime. No necesita imágenes: solo comprueba nombres y valores del plan.
+function validateObjectLayers(ir, plan, errors, warnings) {
+	const summary = { layers: 0, baked: 0, foreground: 0, occluder: 0, collision: 0, skip: 0, animated: 0 };
+	const walk = (layers) => {
+		for (const layer of layers ?? []) {
+			if (layer.kind === 'group') {
+				walk(layer.layers);
+				continue;
+			}
+			if (layer.kind !== 'object') continue;
+			++summary.layers;
+			const name = layerName(layer);
+			const config = objectLayerConfig(plan, name);
+			for (const rule of config.rules) {
+				if (rule == null || typeof rule !== 'object') {
+					errors.push(`${name}: regla de objeto inválida (debe ser un objeto)`);
+					continue;
+				}
+				const declared = normalizeObjectMode(rule.cook ?? rule.mode);
+				if (declared == null && rule.cook != null) {
+					errors.push(`${name}: regla con cook desconocido "${rule.cook}"`);
+				}
+				if (rule.sort_y != null && !OBJECT_SORT_Y.includes(rule.sort_y)) {
+					errors.push(`${name}: regla con sort_y desconocido "${rule.sort_y}"`);
+				}
+				if (rule.occluder != null && !OBJECT_OCCLUDER.includes(rule.occluder)) {
+					errors.push(`${name}: regla con occluder desconocido "${rule.occluder}"`);
+				}
+				if (rule.id == null && rule.gid == null && rule.class == null && rule.type == null && rule.name == null) {
+					errors.push(`${name}: regla sin criterio (id/gid/class/type/name)`);
+				}
+			}
+			for (const object of layer.objects ?? []) {
+				if (object.visible === false) continue;
+				const cook = propertyValue(object, 'cook');
+				if (cook != null && normalizeObjectMode(cook) == null) {
+					errors.push(`${name}: objeto ${object.id} con cook desconocido "${cook}"`);
+				}
+				const sortY = propertyValue(object, 'sort_y');
+				if (sortY != null && !OBJECT_SORT_Y.includes(sortY)) {
+					errors.push(`${name}: objeto ${object.id} con sort_y desconocido "${sortY}"`);
+				}
+				const occluder = propertyValue(object, 'occluder');
+				if (occluder != null && occluder !== true && !OBJECT_OCCLUDER.includes(occluder)) {
+					errors.push(`${name}: objeto ${object.id} con occluder desconocido "${occluder}"`);
+				}
+				const role = objectRole(object, config);
+				if (Object.hasOwn(summary, role.mode)) ++summary[role.mode];
+				if ((role.mode === 'foreground' || role.mode === 'occluder') && object.gid == null) {
+					warnings.push(`${name}: objeto ${object.id} ${role.mode} sin gid; se ignorará en runtime`);
+				}
+			}
+		}
+	};
+	walk(ir.layers);
+	return summary;
 }
 
 /**
@@ -77,6 +152,7 @@ export function validateCookPlan(ir, plan = {}) {
 			errors.push(`${item.name}: modo de capa desconocido "${item.mode}"`);
 		}
 	}
+	const objectSummary = validateObjectLayers(ir, plan, errors, warnings);
 
 	const explicit = plan?.render?.baked_through ?? null;
 	let bakedThrough = explicit;
@@ -143,7 +219,11 @@ export function validateCookPlan(ir, plan = {}) {
 		errors.push(`render.shadow_mode desconocido "${shadowMode}"`);
 	}
 	if (shadowMode === 'bitplane') {
-		warnings.push('shadow_mode=bitplane: runtime aún no implementado; usa dither o baked');
+		errors.push('render.shadow_mode=bitplane no está soportado: el perfil EHB usa el 6.º plano para half-brights; usa dither o baked');
+	}
+	const shadowColor = plan?.render?.shadow_color;
+	if (shadowColor != null && !(typeof shadowColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(shadowColor))) {
+		errors.push(`render.shadow_color debe ser "#rrggbb" (recibido ${JSON.stringify(shadowColor)})`);
 	}
 
 	const budget = plan?.animation_budget ?? null;
@@ -175,6 +255,7 @@ export function validateCookPlan(ir, plan = {}) {
 		warnings,
 		baked_through: bakedThrough,
 		modes: modes.map(({ name, kind, mode }) => ({ name, kind, mode })),
+		object_roles: objectSummary,
 	};
 }
 
