@@ -85,3 +85,15 @@ La prueba con un recorte de fogata/flores devolvió una descripción limitada a 
 - El parche actual conserva `sx` en `add_draw/draw_group`; la corrección a `rx/ry` y la costura horizontal siguen pendientes.
 - La caché de celdas que entran/salen está sin resolver; el límite de 24 evita el diferido sistemático de grupos de 4, pero no garantiza la entrada.
 - La captura secuencial no es fiable para animación; usar pausa y lectura de memoria/checksum.
+
+## Capa completa / escena
+
+- 207 release tras corregir la visibilidad y el límite: una sola fogata en la primera parada (la duplicación de la prueba `rx` desapareció). Persisten celdas rojas/oscurecidas en la zona inferior-derecha; no se declaran corregidas.
+- 208 release: actor y cartel se ven; el cartel usa overlay trasero y el actor no deja estela. No se ha medido aquí el mínimo de fps con la caché nueva.
+- La caché de entrada mantiene bits por celda y dibuja solo las que no tienen overlay; no repinta toda la capa en cada frame. El coste aún baja el mínimo de 207 a ~23,8 fps.
+
+## Qué ayudó / qué no
+
+- Ayudó: limitar el grupo de 4 celdas a 24 jobs, el filtro de celda única, la cámara congelada, el recorte aislado y el contador por capa.
+- No ayudó: usar `rx` como destino del parche (duplicó la fogata); el modelo de visión con la escena completa; la secuencia de frames para medir animación.
+- Sigue abierto: checksum del rectángulo, lectura GDB del BlitJob, costura horizontal y el mínimo de 25 fps.
