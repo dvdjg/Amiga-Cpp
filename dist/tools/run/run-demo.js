@@ -2013,37 +2013,90 @@ try {
         }
     }
     // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
-    // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por el
+    // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) y el
+    // bloque general `g_eng_metrics` (contadores + anillo de eventos) por el
     // canal lateral, no por GDB (readMemory sufre timeouts en este fork).
     const telemetrySymbol = findMapSymbol(builtMap, 'g_eng_frame_telemetry');
+    const metricsSymbol = findMapSymbol(builtMap, 'g_eng_metrics');
     const sideSections = report.sideChannel?.state?.sections;
-    if (telemetrySamples > 0 && telemetrySymbol !== null && Array.isArray(sideSections) && sideSections.length > 0) {
-        let telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
+    if (telemetrySamples > 0 && Array.isArray(sideSections) && sideSections.length > 0 &&
+        (telemetrySymbol !== null || metricsSymbol !== null)) {
+        let telAddr = telemetrySymbol === null
+            ? null : resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
+        let metricsAddr = metricsSymbol === null
+            ? null : resolveRuntimeSymbolAddress(metricsSymbol, builtMapSections, sideSections);
         // Ambos símbolos están en `.data`: usar el run status ya verificado evita
         // el desfase de orden de secciones del mapa en este fork.
         if (runStatusSymbol !== null && report.sideChannel?.runtimeAddress) {
-            telAddr = report.sideChannel.runtimeAddress + (telemetrySymbol - runStatusSymbol);
+            if (telemetrySymbol !== null) {
+                telAddr = report.sideChannel.runtimeAddress + (telemetrySymbol - runStatusSymbol);
+            }
+            if (metricsSymbol !== null) {
+                metricsAddr = report.sideChannel.runtimeAddress + (metricsSymbol - runStatusSymbol);
+            }
         }
-        if (telAddr !== null) {
+        if (telAddr !== null || metricsAddr !== null) {
             report.telemetry = [];
+            report.metrics = [];
             for (let t = 0; t < telemetrySamples; ++t) {
-                try {
-                    const reply = JSON.parse(await sendSideChannelCommand(sideChannelPort, `mem 0x${telAddr.toString(16)} 12`, 4000));
-                    if (!reply.ok || typeof reply.data !== 'string' || reply.data.length < 24) {
-                        throw new Error(`lectura de telemetría inválida: ${JSON.stringify(reply)}`);
+                if (telAddr !== null) {
+                    try {
+                        const reply = JSON.parse(await sendSideChannelCommand(sideChannelPort, `mem 0x${telAddr.toString(16)} 12`, 4000));
+                        if (!reply.ok || typeof reply.data !== 'string' || reply.data.length < 24) {
+                            throw new Error(`lectura de telemetría inválida: ${JSON.stringify(reply)}`);
+                        }
+                        const b = Buffer.from(reply.data, 'hex');
+                        // m68k es big-endian: leer los campos del struct en BE.
+                        report.telemetry.push({
+                            frame: b.readUInt32BE(0),
+                            blit_jobs: b.readUInt16BE(4),
+                            blit_words: b.readUInt16BE(6),
+                            copper_words: b.readUInt16BE(8),
+                            fillup_extra: b.readUInt16BE(10),
+                        });
                     }
-                    const b = Buffer.from(reply.data, 'hex');
-                    // m68k es big-endian: leer los campos del struct en BE.
-                    report.telemetry.push({
-                        frame: b.readUInt32BE(0),
-                        blit_jobs: b.readUInt16BE(4),
-                        blit_words: b.readUInt16BE(6),
-                        copper_words: b.readUInt16BE(8),
-                        fillup_extra: b.readUInt16BE(10),
-                    });
+                    catch (err) {
+                        report.telemetry.push({ error: err instanceof Error ? err.message : String(err) });
+                    }
                 }
-                catch (err) {
-                    report.telemetry.push({ error: err instanceof Error ? err.message : String(err) });
+                if (metricsAddr !== null) {
+                    try {
+                        // MetricsBlock: offset 0..83 de cabecera + 16 eventos de 12 bytes.
+                        const reply = JSON.parse(await sendSideChannelCommand(sideChannelPort, `mem 0x${metricsAddr.toString(16)} 276`, 4000));
+                        if (!reply.ok || typeof reply.data !== 'string' || reply.data.length < 552) {
+                            throw new Error(`lectura de métricas inválida: ${JSON.stringify(reply)}`);
+                        }
+                        const b = Buffer.from(reply.data, 'hex');
+                        const slots = Math.min(b[6], 16);
+                        const values = [];
+                        for (let i = 0; i < slots; ++i)
+                            values.push(b.readUInt32BE(12 + i * 4));
+                        const eventTotal = b.readUInt32BE(76);
+                        const eventHead = b[80];
+                        const eventCount = Math.min(b[81], 16);
+                        const events = [];
+                        for (let i = 0; i < eventCount; ++i) {
+                            const idx = (eventHead - eventCount + i + 16) % 16;
+                            const off = 84 + idx * 12;
+                            events.push({
+                                frame: b.readUInt32BE(off),
+                                metric: b.readUInt16BE(off + 4),
+                                value: b.readUInt32BE(off + 8),
+                            });
+                        }
+                        report.metrics.push({
+                            frame: b.readUInt32BE(8),
+                            magic: b.readUInt32BE(0),
+                            values,
+                            event_total: eventTotal,
+                            event_head: eventHead,
+                            event_count: eventCount,
+                            events,
+                        });
+                    }
+                    catch (err) {
+                        report.metrics.push({ error: err instanceof Error ? err.message : String(err) });
+                    }
                 }
                 await sleep(telemetryIntervalMs);
             }

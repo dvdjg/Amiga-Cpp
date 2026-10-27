@@ -10,6 +10,7 @@
 #include <exec/interrupts.h>
 #include <hardware/intbits.h>
 #include <dos/dosextens.h> // struct Process (pr_CLI): deteccion de "bajo SO vivo" (212)
+#include <eng/debug/metrics.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/hw/info.hpp>
@@ -49,6 +50,14 @@ extern "C" {
 	prof_magic, 0u, {0u, 0u, 0u}, 0u, {}, {}, {}, {},
 };
 [[gnu::used]] volatile eng::u32 g_prof_start[prof_max_sections] {1u};
+#if defined(ENG_METRICS)
+// Bloque de métricas generales. Inicializador no nulo para que viva en `.data` y
+// el mapa publique `g_eng_metrics`; en la build normal este símbolo no existe.
+[[gnu::used]] volatile MetricsBlock g_eng_metrics {
+	metrics_magic, metrics_version, metrics_slot_count, metrics_event_capacity,
+	0u, {}, 0u, 0u, 0u, 0u, {},
+};
+#endif
 }
 } // namespace eng::debug
 
