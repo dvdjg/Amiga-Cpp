@@ -112,3 +112,6 @@ Esta parte no cierra 1–4: falta el valor real de `dest`, el checksum y la cost
 - Lectura: `magic=414E494D`, `dest=0x0005D104`, `source=0x0004D150`, `mask=0x00058160`, `words_per_row=1`, `height=16`, `cell=5`, `screen_x=64`, `ring_y=16`, `display_offset=16`.
 - BPL1PT en ese frame: `0x0005BFA0`; con `row_bytes=44`, 6 planos, plano 5 y `xbyte=screen_x/8=8`, la dirección esperada es `0x5BFA0 + 16*6*44 + 5*44 + 8 = 0x5D104`, exactamente el `dest` del BlitJob. La coordenada del parche coincide.
 - Pendiente: checksum antes/después del blit y repetición en la costura horizontal. El hallazgo valida el destino, no aún los píxeles copiados.
+- Añadidos `magic`, `target_base`, `row_bytes`, `plane_stride`, `planes` y checksums antes/después al global; la build normal no los incluye.
+- El segundo intento de búsqueda por patrón en caliente agotó el tiempo del MCP; no se obtuvo el checksum en esta sesión. El destino ya está verificado, pero el checksum y la costura siguen pendientes.
+- Comando estable: arrancar `runner.uae`, reset, `continue`, pausar tras unos segundos, buscar el patrón `414E494D` en RAM y leer `dest/source/mask/checksum_before/checksum_after`.

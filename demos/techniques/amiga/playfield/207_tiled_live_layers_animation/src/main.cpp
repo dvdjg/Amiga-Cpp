@@ -41,6 +41,12 @@ struct DebugAnimBlit {
 	eng::u32 mask;
 	eng::u16 words_per_row;
 	eng::u16 height;
+	eng::u32 target_base;
+	eng::u32 plane_stride;
+	eng::u16 row_bytes;
+	eng::u8 planes;
+	eng::u32 checksum_before;
+	eng::u32 checksum_after;
 	eng::u16 cell;
 	eng::s16 screen_x;
 	eng::s16 ring_y;
@@ -473,6 +479,20 @@ struct DemoGame {
 			g_debug_anim_blit.mask = reinterpret_cast<eng::u32>(job.mask.cwords());
 			g_debug_anim_blit.words_per_row = job.words_per_row;
 			g_debug_anim_blit.height = job.height;
+			const auto ctx = scene.sprite_context();
+			const auto& target = ctx.targets[0];
+			g_debug_anim_blit.target_base =
+				reinterpret_cast<eng::u32>(target.planes.data());
+			g_debug_anim_blit.plane_stride = target.plane_pointer_step();
+			g_debug_anim_blit.row_bytes = target.row_bytes;
+			g_debug_anim_blit.planes = target.plane_count;
+			eng::u32 sum = 0u;
+			const eng::u16* words = job.destination.cwords();
+			for (eng::u16 i = 0u; i < job.words_per_row * job.height; ++i) {
+				sum += words[i];
+			}
+			g_debug_anim_blit.checksum_before = sum;
+			g_debug_anim_blit.checksum_after = 0u;
 			g_debug_anim_blit.cell = 5u;
 			g_debug_anim_blit.screen_x = static_cast<eng::s16>(sx);
 			g_debug_anim_blit.ring_y = static_cast<eng::s16>(ry);
@@ -512,6 +532,17 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 			return;
 		}
+#if defined(DEMO_DEBUG_ONE_CELL)
+		if (g_debug_anim_blit.magic == 0x414E494Du) {
+			eng::u32 sum = 0u;
+			const eng::u16* words =
+				reinterpret_cast<const eng::u16*>(g_debug_anim_blit.dest);
+			const eng::u16 count = static_cast<eng::u16>(
+				g_debug_anim_blit.words_per_row * g_debug_anim_blit.height);
+			for (eng::u16 i = 0u; i < count; ++i) sum += words[i];
+			g_debug_anim_blit.checksum_after = sum;
+		}
+#endif
 		DEMO_PROF_END(2u);
 		DEMO_PROF_BEGIN(3u);
 		if (!scene.compose()) {
