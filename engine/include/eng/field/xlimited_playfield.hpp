@@ -894,6 +894,7 @@ private:
             bool group_drawn = false;
             for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
                 const TileAnimationCellView& cell = anim.cell(ci);
+                if (!anim.test_cell_allowed(ci)) continue;
                 const s32 wx = static_cast<s32>(cell.x) * this->ctw();
                 const s32 wy = static_cast<s32>(cell.y) * this->cth();
                 s32 sx = wx - camx_mod;
@@ -973,6 +974,7 @@ public:
             for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
                 const TileAnimationCellView& cell = anim.cell(ci);
                 if (cell.layer != layer) continue;
+                if (!anim.test_cell_allowed(ci)) continue;
                 if (only_map_row >= 0 && static_cast<s16>(cell.y) != only_map_row) continue;
                 const s32 wx = static_cast<s32>(cell.x) * this->ctw();
                 const s32 wy = static_cast<s32>(cell.y) * this->cth();
@@ -1030,8 +1032,9 @@ public:
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 64, 120});
         for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
-            const TileAnimationCellView& cell = anim.cell(ci);
-            const s32 wx = static_cast<s32>(cell.x) * this->ctw();
+                const TileAnimationCellView& cell = anim.cell(ci);
+                if (!anim.test_cell_allowed(ci)) continue;
+                const s32 wx = static_cast<s32>(cell.x) * this->ctw();
             const s32 wy = static_cast<s32>(cell.y) * this->cth();
             s32 sx = wx - camx_mod;
             if (sx < 0) sx += mapw;

@@ -56,6 +56,7 @@ F=43  X=112 Y=376  A=0 G=76 J=7 B0=1 B1=0 B2=0
 - `B1=0/B2=0`: en esa cámara no había celdas visibles de agua/fogata en el turno, o no cambiaron.
 - Un grupo de 4 celdas necesita 24 jobs; el límite de 18 lo difería siempre. El límite se subió a 24.
 - Medida release normal: ~30,9 fps de media con mínimo ~24,7; no alcanza el suelo de 25 de forma estable.
+- Prueba de celda única: con `DEMO_DEBUG_ONE_CELL`, `TileAnimator.set_test_cell(5)` (Flowers, celda 5) y cámara congelada en `(544,552)`, la captura no muestra la flor y el HUD da `J=0 B0=0`. Reproduce el bitmap ausente en una escena mínima; aún hay que separar coordenada de la celda, culling y frame inicial. El filtro queda bajo macro de diagnóstico.
 
 La prueba **no demuestra todavía** que todas las celdas estén completas: hay que aislar una celda de flores y comprobar el rectángulo de anillo con un checksum, como pide Grok.
 

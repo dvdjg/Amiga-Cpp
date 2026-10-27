@@ -223,6 +223,13 @@ public:
 	}
 	[[nodiscard]] constexpr u16 cell_count() const noexcept { return static_cast<u16>(m_cells.size()); }
 
+	/// Filtro de diagnóstico: si `cell` está en rango, solo se pinta/parchea
+	/// esa celda. `0xffff` desactiva el filtro.
+	void set_test_cell(u16 cell) noexcept { m_test_cell = cell; }
+	[[nodiscard]] constexpr bool test_cell_allowed(u16 cell) const noexcept {
+		return m_test_cell == 0xffffu || cell == m_test_cell;
+	}
+
 	/// Dibuja todas las capas para la celda de mapa `(mapx,mapy)` en el destino
 	/// físico `(x, ring_y)` (x en píxeles, y en filas del anillo).
 	[[nodiscard]] bool draw_block(graphics::FramePlan& plan, const graphics::BobTarget& target,
@@ -349,6 +356,7 @@ private:
 	mutable u16 m_changed_count = 0u;
 	u8 m_group_layer[kTileAnimationMaxGroups] {};
 	u8 m_layer_enabled[kTileAnimationMaxLayers] {};
+	u16 m_test_cell = 0xffffu;
 };
 
 } // namespace eng::playfield

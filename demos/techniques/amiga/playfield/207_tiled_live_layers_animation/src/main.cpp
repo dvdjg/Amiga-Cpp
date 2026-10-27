@@ -227,6 +227,9 @@ struct DemoGame {
 	void build_tour() {
 		m_stop_count = 0u;
 		eng::s16 x = 0, y = 0;
+#if defined(DEMO_DEBUG_ONE_CELL)
+		add_stop(544, 552); // diagnóstico: celda Flowers (4,1)
+#endif
 		if (camera_for_layer(2u, x, y)) add_stop(x, y); // fogata / Object Layer 1
 		if (camera_for_layer(1u, x, y)) add_stop(x, y); // agua
 		if (camera_for_layer(0u, x, y)) add_stop(x, y); // flores
@@ -304,7 +307,16 @@ struct DemoGame {
 			return;
 		}
 		animator.set_tick(0u);
+#if defined(DEMO_DEBUG_ONE_CELL)
+		animator.set_test_cell(5u); // única celda Flowers del diagnóstico
+#endif
 		build_tour();
+#if defined(DEMO_DEBUG_ONE_CELL)
+		m_stop_index = 0u;
+		m_camera_x = m_stops[0].x;
+		m_camera_y = m_stops[0].y;
+		m_pause_frames = 0xffffu; // congelar cámara para la celda única
+#endif
 		layer_stack.configure(eng::Span<const playfield::TileLayerBinding> {kLiveLayers, 3u});
 
 		scene_cfg.viewport_w = kViewportW;
