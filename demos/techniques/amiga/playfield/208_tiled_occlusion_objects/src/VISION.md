@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-26T23:24:51.571Z
+- Fecha: 2026-10-27T13:17:41.791Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000_f0012.png, frame_003_f0015.png, frame_006_f0018.png, frame_008_f0020.png, frame_011_f0023.png (5)
+- Frames: frame_000.png, frame_006.png, frame_011.png, frame_017.png, frame_022.png, frame_028.png, frame_033.png, frame_039.png (8)
 - Secuencia: `out/run/208_tiled_occlusion_objects/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,29 +15,27 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes son idénticas en su contenido visual y en la composición de los elementos gráficos. No hay cambios en la posición, apariencia o estado de ningún objeto entre ellas.
+**Análisis de las imágenes:**
 
-**Descripción de los elementos gráficos observables:**
+Las cuatro imágenes muestran una escena de estilo pixel art, probablemente de un videojuego, desde una perspectiva isométrica. La escena es idéntica en contenido y composición en todas ellas, excepto por el movimiento de un personaje y los datos de rendimiento en la barra superior.
 
-*   **Escena general:** Vista isométrica de un entorno rural en estilo pixel art. El fondo es un cielo de color verde claro.
-*   **Edificio principal:** Una casa de piedra con techo de paja, ubicada en la parte superior central. Tiene una puerta de madera, ventanas y macetas con flores en la pared.
-*   **Personajes:** Dos personajes pequeños, con atuendo de color naranja y azul, están situados en el tercio izquierdo de la imagen. Uno está detrás de un banco de madera, y el otro está a su derecha, cerca de la casa.
-*   **Elementos del entorno:**
-    *   Un banco de madera en el tercio izquierdo.
-    *   Un árbol de hoja ancha (verde) a la derecha de la casa.
-    *   Un montón de heno amarillo a la derecha del árbol.
-    *   Un árbol de conífera (verde) en el centro inferior.
-    *   Un poste de madera con una lámpara colgante en la esquina inferior derecha.
-    *   Un poste de madera con dos lámparas colgantes en la esquina superior izquierda.
-    *   Un muro de piedra en la esquina superior derecha.
-    *   Un camino de tierra marrón que cruza la escena.
-    *   Flores blancas y rojas dispersas por el suelo.
-*   **Texto en la parte superior:** Una barra de información técnica que muestra: "208 TILED OCCLUSION v1.0.6956 | F12 0.0FPS | F=12 SPLIT=1 A0=194 A1=185". En la tercera imagen, el texto cambia a "F23 19.7FPS", pero el resto permanece igual.
+**Elementos gráficos fijos:**
 
-**Análisis de movimientos y artefactos:**
+*   **Edificio principal:** Una casa de piedra con techo de paja, ubicada en la parte superior central. Tiene ventanas con flores y una puerta de madera.
+*   **Personaje:** Un personaje de pixel art, vestido con camisa roja y pantalones azules, está ubicado en el centro de la imagen, sobre un camino de tierra. En las imágenes 1 y 2, el personaje está parado. En la imagen 3, se ha movido ligeramente hacia la derecha. En la imagen 4, se ha movido hacia arriba, cerca de la puerta de la casa.
+*   **Entorno:** El entorno incluye césped, caminos de tierra, árboles (uno grande a la derecha y un pino más pequeño en el centro inferior), un cartel de madera a la izquierda, haces de paja, y otros elementos decorativos como flores y arbustos.
+*   **Barra de información superior:** Muestra datos técnicos del motor de renderizado "208 TILED OCCLUSION v1.0.7019", como FPS, F (frames), SPLIT, y valores de AO (Ambient Occlusion) y A1.
 
-*   **Movimiento:** No hay ningún objeto que se mueva entre las imágenes. Todos los elementos están completamente estáticos.
-*   **Contornos y fondo:** Todos los objetos tienen contornos limpios y definidos. No hay bandas, halos, píxeles cortados ni restos de posiciones anteriores. El fondo inmediato alrededor de cada objeto es consistente y no muestra artefactos visibles.
-*   **Coherencia:** La escena es coherente y no presenta elementos superpuestos, incompletos o incoherentes. La composición es estable y completa en todas las imágenes.
+**Cambios entre imágenes:**
 
-En resumen, las tres imágenes muestran exactamente la misma escena estática, con la única diferencia de que el texto en la barra de información cambia de "F12 0.0FPS" a "F23 19.7FPS" en la tercera imagen, lo cual sugiere que el programa está en ejecución y ha avanzado en el tiempo, pero no ha modificado la escena visual.
+*   **Movimiento del personaje:** El personaje cambia de posición en cada imagen, indicando que se está moviendo. La transición es suave y parece ser un movimiento de un paso o una animación de caminata.
+*   **Datos de rendimiento:** Los valores en la barra superior cambian ligeramente entre imágenes, lo que es esperable al cambiar la posición del personaje y la carga de la escena.
+
+**Observaciones sobre el contorno y el fondo:**
+
+*   **Contorno del personaje:** El contorno del personaje es limpio en todas las imágenes. No hay bandas, halos ni artefactos visibles alrededor de su figura. Los píxeles están bien definidos y no se cortan ni colgantes en los bordes.
+*   **Fondo:** El fondo inmediatamente alrededor del personaje permanece igual en todas las imágenes. No hay artefactos de renderizado, ni restos de su posición anterior. El personaje simplemente "aparece" en su nueva posición, sin dejar rastro ni tapar el fondo con un rectángulo de color uniforme.
+
+**Conclusión:**
+
+Las imágenes muestran una escena de videojuego con un personaje que se mueve de forma fluida. No hay artefactos visibles, ni defectos en el contorno del personaje ni en el fondo. La escena es coherente y bien renderizada.

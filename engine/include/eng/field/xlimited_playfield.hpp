@@ -828,7 +828,30 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// \param restore_background_layers máscara de capas (bit por índice) que
     ///        repintan el bloque base antes del frame enmascarado; evita restos
     ///        del frame anterior en celdas transparentes (por ejemplo, fogata).
+    /// \return `false` si algún job no cabe o falla el dibujo del grupo.
     bool patch_animations(graphics::FramePlan& plan, u8 restore_background_layers = 0u) {
+        return patch_animations_impl<false>(plan, restore_background_layers, nullptr);
+    }
+
+    /// Variante que recoge estadísticas; no se usa en la build normal.
+    /// \param plan destino de los trabajos.
+    /// \param restore_background_layers máscara de capas que repintan la base.
+    /// \param stats salida con grupos/celdas visitados, pintados, diferidos y
+    ///        descartados.
+    /// \return `false` si algún job no cabe o falla el dibujo del grupo.
+    bool patch_animations(graphics::FramePlan& plan, u8 restore_background_layers,
+                          TilePatchStats* stats) {
+        return patch_animations_impl<true>(plan, restore_background_layers, stats);
+    }
+
+private:
+    /// Implementación única; `Collect` elimina en compilación los contadores
+    /// cuando la demo no pide estadísticas.
+    template <bool Collect>
+    bool patch_animations_impl(graphics::FramePlan& plan, u8 restore_background_layers,
+                               TilePatchStats* stats) {
+        if constexpr (Collect) *stats = TilePatchStats {};
+        else (void)stats;
         if (this->m_cfg.animator == nullptr) return true;
         const TileAnimator& anim = *this->m_cfg.animator;
         if (!anim.any_changed()) return true;
@@ -846,28 +869,45 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         const s32 ring_base = this->display_offset();
         const s32 dh = static_cast<s32>(this->display_height());
         const u16 parity = static_cast<u16>(anim.tick() % 6u);
-        // Un grupo de 18 celdas ocupa 108 jobs (6 planos); varios grupos del
-        // mismo turno no caben en el plan. Se dibuja lo que quepa y los grupos
+        // El plan de 207 admite grupos de hasta 3 celdas (3 * 6 planos = 18
+        // jobs); un grupo de 4 celdas se difiere. Se dibuja lo que quepa y los
         // pendientes conservan `changed` para el siguiente turno de paridad.
-        constexpr u16 kPatchJobLimit = 24u;
+        constexpr u16 kPatchJobLimit = 18u;
         constexpr u16 kJobsPerCell = 6u;
         for (u16 g = 0u; g < anim.group_count(); ++g) {
+            if constexpr (Collect) ++stats->groups_scanned;
             if (!anim.group_changed(g) || ((g % 6u) != parity)) continue;
             const TileAnimationGroupView& grp = anim.group(g);
             if (plan.blit_job_count() + static_cast<u16>(grp.cell_count) * kJobsPerCell >
                 kPatchJobLimit) {
+                if constexpr (Collect) {
+                    // Cuenta también los grupos posteriores que sí tocaban en
+                    // este turno y quedan pendientes para el siguiente.
+                    for (u16 pending = g; pending < anim.group_count(); ++pending) {
+                        if (anim.group_changed(pending) && ((pending % 6u) == parity)) {
+                            ++stats->groups_deferred;
+                        }
+                    }
+                }
                 break;
             }
+            bool group_drawn = false;
             for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
                 const TileAnimationCellView& cell = anim.cell(ci);
                 const s32 wx = static_cast<s32>(cell.x) * this->ctw();
                 const s32 wy = static_cast<s32>(cell.y) * this->cth();
                 s32 sx = wx - camx_mod;
                 if (sx < 0) sx += mapw;
-                if (sx >= this->m_cfg.viewport_w) continue;
+                if (sx >= this->m_cfg.viewport_w) {
+                    if constexpr (Collect) ++stats->cells_culled;
+                    continue;
+                }
                 s32 sy = wy - camy_mod - static_cast<s32>(this->cth());
                 if (sy < 0) sy += maph;
-                if (sy >= this->m_cfg.viewport_h) continue;
+                if (sy >= this->m_cfg.viewport_h) {
+                    if constexpr (Collect) ++stats->cells_culled;
+                    continue;
+                }
                 s32 ring_y = ring_base + sy;
                 if (ring_y >= dh) ring_y -= dh;
                 // Las celdas transparentes no deben conservar restos del frame
@@ -877,6 +917,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
                             static_cast<u16>(ring_y), cell.x, cell.y)) {
                         return false;
                     }
+                    if constexpr (Collect) ++stats->base_restores;
                 }
                 // Se usa el mismo dibujo de grupo que la pasada inicial: el
                 // overlay vive en el anillo, no en el espejo lineal del display.
@@ -884,12 +925,18 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
                         static_cast<u16>(sx), static_cast<u16>(ring_y), g, false)) {
                     return false;
                 }
+                group_drawn = true;
+                if constexpr (Collect) ++stats->cells_patched;
+            }
+            if constexpr (Collect) {
+                if (group_drawn) ++stats->groups_patched;
             }
             anim.clear_group(g);
         }
         return true;
     }
 
+public:
     /// Compone todas las celdas visibles de las capas vivas de `stack` usando el
     /// frame actual. Ejecuta en lotes para no desbordar el `FramePlan`.
     template <class Backend>

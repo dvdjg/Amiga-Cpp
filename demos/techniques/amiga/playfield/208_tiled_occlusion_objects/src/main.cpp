@@ -19,12 +19,14 @@
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/text_line.hpp>
 #include <eng/debug/host_hud.hpp>
+#include <eng/debug/metrics.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/graphics/blit_job.hpp>
+#include <eng/graphics/bob.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/map/asset.hpp>
 #include <eng/map/objects.hpp>
@@ -137,10 +139,40 @@ enum class Fail : eng::u32 {
 
 eng::u16 g_palette[32] {};
 eng::u16 g_hud_palette[16] {};
+eng::u8 g_actor_colors[7] {};
 
 void build_palette(const eng::map::MapAssetView& map) {
 	const eng::u16 count = map.palette_count() < kPaletteCount ? map.palette_count() : kPaletteCount;
 	for (eng::u16 i = 0u; i < count; ++i) g_palette[i] = map.palette_word(i);
+	// Colores deseados del explorador, resueltos por cercanía contra la paleta
+	// del mapa. No se fijan índices de una paleta concreta: el mismo actor
+	// funciona con cualquier mapa y cualquier orden de cuantización.
+	static constexpr eng::u8 kDesired[7][3] = {
+		{0u, 0u, 0u},
+		{85u, 68u, 51u},
+		{170u, 153u, 204u},
+		{221u, 170u, 102u},
+		{221u, 187u, 136u},
+		{238u, 102u, 85u},
+		{102u, 187u, 221u},
+	};
+	g_actor_colors[0] = 0u;
+	for (eng::u8 slot = 1u; slot < 7u; ++slot) {
+		eng::u32 best = 1u, best_d = 0xffffffffu;
+		for (eng::u16 i = 1u; i < count; ++i) {
+			const eng::u16 word = g_palette[i];
+			const eng::s32 dr = static_cast<eng::s32>(((word >> 8u) & 0xfu) * 17u) - kDesired[slot][0];
+			const eng::s32 dg = static_cast<eng::s32>(((word >> 4u) & 0xfu) * 17u) - kDesired[slot][1];
+			const eng::s32 db = static_cast<eng::s32>((word & 0xfu) * 17u) - kDesired[slot][2];
+			const eng::u32 d = static_cast<eng::u32>(dr * dr + dg * dg + db * db);
+			if (d < best_d) { best_d = d; best = i; }
+		}
+		g_actor_colors[slot] = static_cast<eng::u8>(best);
+	}
+}
+
+eng::u8 actor_color(eng::u8 slot) {
+	return slot < 7u ? g_actor_colors[slot] : 0u;
 }
 
 // --- Actor procedural ---------------------------------------------------------------
@@ -152,12 +184,18 @@ constexpr eng::u16 kActorVisibleW = 16u;
 constexpr eng::u16 kActorH = 24u;
 constexpr eng::u16 kActorW = 32u; // arte 16 + 16 de guarda
 constexpr eng::u16 kActorRowWords = kActorW / 16u;
+
+// Índices de la paleta canónica EHB de Beginning Fields. El arte procedural
+// usa la mitad base (0..31), así que los colores deben elegirse de esa tabla;
+// 17/24/26/28 son ocres y amarillos y teñían de naranja la túnica.
+// Slots semánticos del actor: el arte se construye en compilación y los
+// índices reales se resuelven contra la paleta generada del mapa en init.
 constexpr eng::u8 kActorInk = 1u;      // contorno, cinturón y botas
-constexpr eng::u8 kActorHatBand = 20u; // cinta del sombrero (morado)
-constexpr eng::u8 kActorSkin = 26u;    // cara y brazos (naranja)
-constexpr eng::u8 kActorArm = 28u;     // antebrazos (naranja claro)
-constexpr eng::u8 kActorTunic = 17u;   // túnica (rojo)
-constexpr eng::u8 kActorLegs = 24u;    // pantalón (azul)
+constexpr eng::u8 kActorHatBand = 2u;  // cinta del sombrero
+constexpr eng::u8 kActorSkin = 3u;     // cara y brazos
+constexpr eng::u8 kActorArm = 4u;      // antebrazos
+constexpr eng::u8 kActorTunic = 5u;    // túnica
+constexpr eng::u8 kActorLegs = 6u;     // pantalón
 
 [[nodiscard]] constexpr eng::u8 actor_pixel(eng::u16 y, eng::u16 x, bool step) noexcept {
 	if (x >= kActorVisibleW || y >= kActorH) return 0u;
@@ -256,13 +294,14 @@ struct Walker {
 	}
 	void update() noexcept {
 		// Ruta en mundo (píxeles). El tramo x=272 cruza el pie del árbol ordenado
-		// (id 43): y=55..65 queda detrás (pie < 90) y y=66..80 delante. Después
-		// el actor pasa bajo la farola occluder (id 143) y bajo el cartel (id 89),
-		// que siempre se pintan encima.
+		// (id 43): y=55..65 queda detrás (pie < 90) y y=66..80 delante. El actor
+		// pasa DELANTE del cartel (pie > 203) para no desaparecer; el guardia
+		// horneado lo oculta en el tramo y=160 y el árbol/lámpara siguen probando
+		// el orden por profundidad.
 		static constexpr eng::s16 kPathX[kPathCount] = {
-			280, 320, 320, 272, 272, 272, 230, 230, 230, 280, 310, 230, 280};
+			280, 320, 300, 320, 320, 272, 272, 272, 230, 230, 280, 310, 230};
 		static constexpr eng::s16 kPathY[kPathCount] = {
-			180, 180, 60, 55, 65, 80, 80, 50, 180, 160, 161, 161, 185};
+			190, 190, 160, 190, 60, 55, 65, 80, 80, 190, 190, 190, 190};
 		const eng::s16 tx = kPathX[target];
 		const eng::s16 ty = kPathY[target];
 		if (x != tx) x = static_cast<eng::s16>(x + (tx > x ? 1 : -1));
@@ -309,20 +348,46 @@ struct DemoGame {
 	bool ready = false;
 
 	bool upload_actor_art(eng::amiga::AmigaBackend& backend) {
-		const eng::u32 sheet_bytes = static_cast<eng::u32>(kActorIdle.size() * 2u);
-		const eng::u32 mask_bytes = static_cast<eng::u32>(kActorMask.size() * 2u);
-		m_actor_sheet[0] = backend.memory_manager().chip().reserve<eng::MaskTag>(sheet_bytes, 16u);
-		m_actor_sheet[1] = backend.memory_manager().chip().reserve<eng::MaskTag>(sheet_bytes, 16u);
-		m_actor_mask = backend.memory_manager().chip().reserve<eng::MaskTag>(mask_bytes, 16u);
+		const eng::usize sheet_words = static_cast<eng::usize>(kPlanes) * kActorH * kActorRowWords;
+		const eng::usize mask_words = static_cast<eng::usize>(kActorH) * kActorRowWords;
+		m_actor_sheet[0] = backend.memory_manager().chip().reserve<eng::MaskTag>(
+			static_cast<eng::u32>(sheet_words * 2u), 16u);
+		m_actor_sheet[1] = backend.memory_manager().chip().reserve<eng::MaskTag>(
+			static_cast<eng::u32>(sheet_words * 2u), 16u);
+		m_actor_mask = backend.memory_manager().chip().reserve<eng::MaskTag>(
+			static_cast<eng::u32>(mask_words * 2u), 16u);
 		if (!m_actor_sheet[0].valid() || !m_actor_sheet[1].valid() || !m_actor_mask.valid()) return false;
 		const auto idle = m_actor_sheet[0].view.as_words();
 		const auto step = m_actor_sheet[1].view.as_words();
 		const auto mask = m_actor_mask.view.as_words();
-		for (eng::usize i = 0u; i < kActorIdle.size(); ++i) {
-			idle[i] = kActorIdle[i];
-			step[i] = kActorStep[i];
+		for (eng::usize i = 0u; i < sheet_words; ++i) { idle[i] = 0u; step[i] = 0u; }
+		for (eng::usize i = 0u; i < mask_words; ++i) mask[i] = 0u;
+		for (eng::u16 y = 0u; y < kActorH; ++y) {
+			for (eng::u16 x = 0u; x < kActorVisibleW; ++x) {
+				const eng::u8 slot = actor_pixel(y, x, false);
+				const eng::u8 color = actor_color(slot);
+				if (slot != 0u) mask[y * kActorRowWords + (x >> 4u)] |=
+					static_cast<eng::u16>(0x8000u >> (x & 15u));
+				if (color == 0u) continue;
+				for (eng::u8 p = 0u; p < kPlanes; ++p) {
+					if ((color & static_cast<eng::u8>(1u << p)) == 0u) continue;
+					idle[(static_cast<eng::usize>(p) * kActorH + y) * kActorRowWords +
+						(x >> 4u)] |= static_cast<eng::u16>(0x8000u >> (x & 15u));
+				}
+			}
 		}
-		for (eng::usize i = 0u; i < kActorMask.size(); ++i) mask[i] = kActorMask[i];
+		for (eng::u16 y = 0u; y < kActorH; ++y) {
+			for (eng::u16 x = 0u; x < kActorVisibleW; ++x) {
+				const eng::u8 slot = actor_pixel(y, x, true);
+				const eng::u8 color = actor_color(slot);
+				if (color == 0u) continue;
+				for (eng::u8 p = 0u; p < kPlanes; ++p) {
+					if ((color & static_cast<eng::u8>(1u << p)) == 0u) continue;
+					step[(static_cast<eng::usize>(p) * kActorH + y) * kActorRowWords +
+						(x >> 4u)] |= static_cast<eng::u16>(0x8000u >> (x & 15u));
+				}
+			}
+		}
 		for (eng::u8 f = 0u; f < 2u; ++f) {
 			m_actor_art[f].sheet = reinterpret_cast<const eng::u16*>(m_actor_sheet[f].data());
 			m_actor_art[f].mask = reinterpret_cast<const eng::u16*>(m_actor_mask.data());
@@ -340,9 +405,9 @@ struct DemoGame {
 			eng::util::Array<eng::u8, static_cast<eng::usize>(kActorVisibleW) * kActorH> mask {};
 			for (eng::u16 y = 0u; y < kActorH; ++y) {
 				for (eng::u16 x = 0u; x < kActorVisibleW; ++x) {
-					const eng::u8 color = actor_pixel(y, x, f != 0u);
-					pixels[static_cast<eng::usize>(y) * kActorVisibleW + x] = color;
-					mask[static_cast<eng::usize>(y) * kActorVisibleW + x] = color != 0u ? 1u : 0u;
+					const eng::u8 slot = actor_pixel(y, x, f != 0u);
+					pixels[static_cast<eng::usize>(y) * kActorVisibleW + x] = actor_color(slot);
+					mask[static_cast<eng::usize>(y) * kActorVisibleW + x] = slot != 0u ? 1u : 0u;
 				}
 			}
 			eng::util::Array<eng::u16, static_cast<eng::usize>(kActorH) * kPlanes * 4u> pair {};
@@ -417,7 +482,9 @@ struct DemoGame {
 		++m_stat_props;
 #endif
 		const eng::map::MapObjectImageView& image = m_objects.image_of(object);
-		return draw_sprite(frame_plan, m_prop_sprites[object.image], image.width, object.x, object.y);
+		const bool ok = draw_sprite(frame_plan, m_prop_sprites[object.image], image.width, object.x, object.y);
+		if (ok) eng::debug::metrics.add(eng::debug::Metric::ObjectDraws, 1u);
+		return ok;
 	}
 
 	/// Actores por el camino planar enmascarado (6 blits/actor): el pack interleaved
@@ -431,22 +498,33 @@ struct DemoGame {
 			frame_plan, bob, bob.width, bob.height, walker.painted_x, walker.painted_y,
 			m_bob_target, m_actor_save[slot].mem_view(), 2u, kActorH);
 		walker.saved = false;
+		if (ok) eng::debug::metrics.add(eng::debug::Metric::ActorRestores, 1u);
 		return ok;
 	}
 
 	bool behind_guard(const Walker& walker) const {
-		// Guardia horneado en (300,170), 16x24; su pie está en 194.
+		// Guardia horneado en (300,170), 16x24; su pie está en 194. Si el pie
+		// del móvil queda por encima, el guardia debe cubrirlo con un overlay
+		// opaco; no se oculta el actor (eso producía saltos al entrar/salir).
 		return walker.foot_y() <= 194 &&
-		       walker.x < static_cast<eng::s16>(300 + 16) &&
+		       walker.x < static_cast<eng::s16>(300 + kActorVisibleW) &&
 		       walker.x + static_cast<eng::s16>(kActorVisibleW) > 300;
 	}
 
-	bool fully_behind_sign(const Walker& walker) const {
-		if (m_sign == nullptr || walker.foot_y() > m_sign->foot_y) return false;
-		const eng::s16 right = static_cast<eng::s16>(walker.x + static_cast<eng::s16>(kActorVisibleW));
-		const eng::s16 bottom = static_cast<eng::s16>(walker.y + static_cast<eng::s16>(kActorH));
-		return walker.x >= m_sign->x && right <= m_sign->x + static_cast<eng::s16>(m_sign->w) &&
-		       walker.y >= m_sign->y && bottom <= m_sign->y + static_cast<eng::s16>(m_sign->h);
+	/// Repinta el guardia estático únicamente cuando el móvil pasa por detrás.
+	/// La base ya contiene al guardia; este blit sin save-under cubre la parte
+	/// del actor que quedaría tapada, sin ocultarlo ni restaurar nada.
+	bool draw_guard_overlay(eng::graphics::FramePlan& frame_plan) {
+		const eng::s32 guard_x = 300 % static_cast<eng::s32>(m_bob_target.width);
+		const eng::s32 guard_y = 170 % static_cast<eng::s32>(m_bob_target.height);
+		const bool ok = m_actor_pair_sprites[0].draw(
+			frame_plan, m_bob_target, 0u, static_cast<eng::s16>(guard_x),
+			static_cast<eng::s16>(guard_y));
+		if (ok) {
+			eng::debug::metrics.add(eng::debug::Metric::GuardOverlays, 1u);
+			eng::debug::metrics.event(eng::debug::Metric::GuardOverlays, 1u);
+		}
+		return ok;
 	}
 
 	bool draw_actor(eng::graphics::FramePlan& frame_plan, Walker& walker, eng::u8 slot) {
@@ -454,8 +532,8 @@ struct DemoGame {
 		++m_stat_actors;
 #endif
 		const eng::u8 frame = walker.step != 0u ? 1u : 0u;
-		// El guardia es estático: no necesita save-under; se repinta cada frame
-		// (idéntico) para que el actor móvil pueda pasar por delante o detrás.
+		// El móvil usa save-under; el guardia está horneado y se repinta como
+		// overlay solo cuando el móvil le pasa por detrás.
 		const bool dynamic_actor = true;
 		if constexpr (kUseActorPair) {
 			const eng::graphics::Bob& bob = m_actor_pair_sprites[frame].bob();
@@ -469,12 +547,6 @@ struct DemoGame {
 			const bool in_window = !(sy >= static_cast<eng::s32>(kFieldH) &&
 				sy + static_cast<eng::s32>(kActorH) <= static_cast<eng::s32>(kDisplayH));
 			if (!visible || !in_window) {
-				return restore_actor_under(frame_plan, slot);
-			}
-			if (dynamic_actor && behind_guard(walker)) {
-				return restore_actor_under(frame_plan, slot);
-			}
-			if (dynamic_actor && fully_behind_sign(walker)) {
 				return restore_actor_under(frame_plan, slot);
 			}
 			eng::s32 rx = walker.x % static_cast<eng::s32>(m_bob_target.width);
@@ -495,6 +567,7 @@ struct DemoGame {
 			walker.painted_x = static_cast<eng::s16>(rx);
 			walker.painted_y = static_cast<eng::s16>(ry);
 			walker.saved = dynamic_actor;
+			eng::debug::metrics.add(eng::debug::Metric::ActorDraws, 1u);
 			return true;
 		}
 		const ActorArt& art = m_actor_art[frame];
@@ -511,10 +584,12 @@ struct DemoGame {
 		const eng::u32 plane_words = static_cast<eng::u32>(art.row_words) * art.height;
 		const eng::Span<const eng::u16> src {art.sheet, static_cast<eng::usize>(plane_words) * art.planes};
 		const eng::Span<const eng::u16> mask {art.mask, static_cast<eng::usize>(plane_words)};
-		return scene.bg().add_world_bitmap_masked(
+		const bool ok = scene.bg().add_world_bitmap_masked(
 			frame_plan, src, mask, walker.x, walker.y, art.width, art.height,
 			static_cast<eng::u16>(art.row_words * 2u), plane_words * 2u, art.planes,
 			static_cast<eng::u8>(walker.x & 15));
+		if (ok) eng::debug::metrics.add(eng::debug::Metric::ActorDraws, 1u);
+		return ok;
 	}
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
@@ -590,9 +665,9 @@ struct DemoGame {
 			return;
 		}
 		scene.bg().set_camera(kCameraX, kCameraY);
-		// El cartel es estático: se pinta una vez en el anillo. Cuando un actor
-		// queda detrás de su pie, se repinta como overlay de oclusión solo en
-		// ese cruce, en vez de pagar un blit grande todos los frames.
+		// El cartel es estático: se pinta una vez en el anillo. El explorador
+		// móvil lo cruza por delante; el cartel sigue disponible como occluder
+		// para cualquier actor con pie menor que 203.
 		if (m_sign != nullptr) {
 			plan.clear();
 			if (!draw_prop(plan, *m_sign)) {
@@ -606,8 +681,8 @@ struct DemoGame {
 			plan.clear();
 		}
 		// El explorador de guardia es estático: se pinta una vez en el anillo.
-		// El actor móvil se oculta cuando su pie queda por detrás del guardia;
-		// así el orden por Y es correcto sin pagar su save-under por frame.
+		// Cuando el móvil queda por detrás, se repinta solo su silueta encima;
+		// no se oculta el actor ni se paga su save-under por frame.
 		plan.clear();
 		const eng::s32 guard_x = 300 % static_cast<eng::s32>(m_bob_target.width);
 		const eng::s32 guard_y = 170 % static_cast<eng::s32>(m_bob_target.height);
@@ -622,8 +697,9 @@ struct DemoGame {
 		}
 		plan.clear();
 		m_walkers[0] = Walker {300, 170, 0u, 0u, 0u, 0u, 0, 0, false, false};
-		// El actor móvil arranca a la izquierda del cartel (id 89) y cruza detrás.
-		m_walkers[1] = Walker {220, 161, 10u, 0u, 3u, 0u, 0, 0, false, true};
+		// El actor móvil arranca a la izquierda del cartel (id 89) y lo cruza por
+		// delante; el guardia horneado queda como oclusor de su tramo trasero.
+		m_walkers[1] = Walker {220, 190, 1u, 0u, 3u, 0u, 0, 0, false, true};
 		if (!scene.compose()) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeInit);
 			return;
@@ -636,6 +712,7 @@ struct DemoGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!ready) return;
 		DEMO_PROF_FRAME();
+		eng::debug::metrics.begin_frame(context.frame.frame_index);
 #if defined(DEMO_BLIT_STATS)
 		m_stat_props = 0u;
 		m_stat_actors = 0u;
@@ -696,21 +773,15 @@ struct DemoGame {
 			}
 			++cursor;
 		}
-		bool sign_overlap = false;
-		if (m_sign != nullptr) {
-			for (const Walker& walker : m_walkers) {
-				if (!walker.active || walker.foot_y() > m_sign->foot_y) continue;
-				if (walker.x + static_cast<eng::s16>(kActorVisibleW) > m_sign->x &&
-				    walker.x < m_sign->x + static_cast<eng::s16>(m_sign->w) &&
-				    walker.y < m_sign->y + static_cast<eng::s16>(m_sign->h) &&
-				    walker.y + static_cast<eng::s16>(kActorH) > m_sign->y &&
-				    !fully_behind_sign(walker)) {
-					sign_overlap = true;
-				}
-			}
+		// El guardia de la base es estático; solo se repinta cuando el móvil
+		// cruza por detrás. Así la oclusión es parcial y continua.
+		if (m_walkers[1].active && behind_guard(m_walkers[1]) && !draw_guard_overlay(plan)) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, Fail::ObjectDraw);
+			return;
 		}
 		for (eng::u16 i = fg_count; i < m_objects.count(); ++i) {
-			if (m_objects.object(i).id == 89u && !sign_overlap) continue;
+			if (m_objects.object(i).id == 89u) continue; // el cartel está horneado
 #if defined(DEMO_BLIT_STATS)
 			++m_stat_occluders;
 #endif
@@ -721,6 +792,14 @@ struct DemoGame {
 			}
 		}
 		DEMO_PROF_END(2u);
+		if constexpr (eng::debug::metrics_enabled) {
+			plan.finalize();
+			const eng::graphics::BlitBudget& b = plan.blit_budget();
+			eng::debug::metrics.set(eng::debug::Metric::BlitJobs, b.jobs);
+			eng::debug::metrics.set(eng::debug::Metric::BlitWords, b.words);
+			eng::debug::metrics.set(eng::debug::Metric::BlitMaskedJobs, b.masked_jobs);
+			eng::debug::metrics.set(eng::debug::Metric::BlitCopyJobs, b.copy_jobs);
+		}
 #if defined(DEMO_BLIT_STATS)
 		plan.finalize();
 		const eng::graphics::BlitBudget& budget = plan.blit_budget();

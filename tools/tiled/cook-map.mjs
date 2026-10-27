@@ -257,10 +257,18 @@ function main() {
 	const composed = composeMap(ir, plan);
 	const composedPath = path.join(out, 'composed.png');
 	fs.writeFileSync(composedPath, PNG.sync.write(composed.png));
+	// La paleta no puede salir solo del bake: las capas vivas (agua, flores,
+	// fuego) y los objetos runtime no están en `composed.png`. Se compone una
+	// referencia que incluye todas las capas y objetos con su primer frame; es
+	// una entrada más del cooker, no un caso especial de este mapa.
+	const paletteSource = composeMap(ir, {}, { palette: true });
+	const paletteSourcePath = path.join(out, 'palette-source.png');
+	fs.writeFileSync(paletteSourcePath, PNG.sync.write(paletteSource.png));
 	fs.writeFileSync(path.join(out, 'compose.json'), JSON.stringify({
 		source: ir.source,
 		bounds: composed.bounds,
 		stats: composed.stats,
+		paletteSource: path.relative(ROOT, paletteSourcePath),
 		plan: planReport,
 		warnings: composed.warnings,
 		errors: composed.errors,
@@ -297,7 +305,7 @@ function main() {
 			const dir = path.join(out, 'profiles', name);
 			const quantDir = path.join(dir, 'quant');
 			fs.mkdirSync(quantDir, { recursive: true });
-			const quantOut = runNode(QUANTIZE, [composedPath, '--force', profile.force, '--out', quantDir]);
+			const quantOut = runNode(QUANTIZE, [paletteSourcePath, '--force', profile.force, '--out', quantDir]);
 			const sliceOut = runNode(SLICE, [composedPath, '--palette', path.join(quantDir, 'palette.json'), '--out', dir, '--dither', dither]);
 			runNode(EMIT, ['--planes', String(profile.planes), '--in', path.join(dir, 'tilebank.raw.bin'), '--out-bin', path.join(dir, 'tilebank.xlimited.bin'), '--out-h', path.join(dir, 'tilebank.xlimited.h')]);
 			selectedProfiles.push(profileReport(name, profile.planes, dir, quantOut + sliceOut, composedPath));
@@ -307,6 +315,7 @@ function main() {
 	const proposal = {
 		map: path.relative(ROOT, source),
 		composed: path.relative(ROOT, composedPath),
+		paletteSource: path.relative(ROOT, paletteSourcePath),
 		bounds: composed.bounds,
 		uniqueColors: unique,
 		hasShadowLayer: hasShadow,

@@ -64,20 +64,46 @@ const dist2 = (a, b) => {
 };
 const half = (c) => ((((c >> 16) & 255) >> 1) << 16) | ((((c >> 8) & 255) >> 1) << 8) | ((c & 255) >> 1);
 
-// --- seed: 32 colores diversificados por luminosidad ---
+const total = entries.reduce((s, e) => s + e[1], 0);
+
+// --- seed: farthest-first ponderado (color, no solo luminancia) ---
+//
+// La luminancia reparte semillas por bandas de brillo, pero deja fuera tonos
+// minoritarios y muy saturados (agua, flores, fuego) que sí son importantes en
+// el mapa. Farthest-first recorre el espacio RGB y el peso `count^0.35` evita
+// que un color raro pero aislado desplace a una masa de color dominante. El
+// resultado es una cobertura de tonos mucho más fiel para cualquier mapa, sin
+// conocer su contenido.
 function seed(k) {
-  const sorted = entries.map((e) => e[0]).sort((a, b) => lum(a) - lum(b));
-  const out = [];
-  for (let i = 0; i < k; i++) out.push(sorted[Math.min(sorted.length - 1, Math.floor(((i + 0.5) / k) * sorted.length))]);
+  if (entries.length === 0) return [];
+  const sorted = entries.slice().sort((a, b) => b[1] - a[1]);
+  const out = [sorted[0][0]];
+  const chosen = new Set(out);
+  while (out.length < k) {
+    let best = null, bestScore = -1;
+    for (const [c, n] of sorted) {
+      if (chosen.has(c)) continue;
+      let minD = Infinity;
+      for (const q of out) {
+        const d = Math.min(dist2(c, q), useEHB ? dist2(c, half(q)) : Infinity);
+        if (d < minD) minD = d;
+      }
+      const score = Math.sqrt(minD) * Math.pow(n / total, 0.35);
+      if (score > bestScore) { bestScore = score; best = c; }
+    }
+    if (best == null) break;
+    out.push(best);
+    chosen.add(best);
+  }
+  while (out.length < k) out.push(out[out.length - 1] ?? 0);
   return out;
 }
 
-// --- k-means modificado (half-aware) ---
+// --- k-means modificado (half-aware, mediana ponderada) ---
 let centers = seed(K);
-const total = entries.reduce((s, e) => s + e[1], 0);
 for (let it = 0; it < 60; it++) {
   const chans = centers.map(() => [[], [], []]);
-  for (const [c, ] of entries) {
+  for (const [c, n] of entries) {
     let best = 0, bestDU = Infinity;
     for (let i = 0; i < K; i++) {
       const dF = dist2(c, centers[i]);
@@ -87,16 +113,38 @@ for (let it = 0; it < 60; it++) {
     }
     const isHalf = useEHB && dist2(c, half(centers[best])) < dist2(c, centers[best]);
     // Subida ×2 POR COMPONENTE con clamp (un carry cruzaría el canal superior).
-    chans[best][0].push(isHalf ? Math.min(255, ((c >> 16) & 255) << 1) : (c >> 16) & 255);
-    chans[best][1].push(isHalf ? Math.min(255, ((c >> 8) & 255) << 1) : (c >> 8) & 255);
-    chans[best][2].push(isHalf ? Math.min(255, (c & 255) << 1) : c & 255);
+    chans[best][0].push([isHalf ? Math.min(255, ((c >> 16) & 255) << 1) : (c >> 16) & 255, n]);
+    chans[best][1].push([isHalf ? Math.min(255, ((c >> 8) & 255) << 1) : (c >> 8) & 255, n]);
+    chans[best][2].push([isHalf ? Math.min(255, (c & 255) << 1) : c & 255, n]);
   }
   let moved = 0;
-  const med = (a) => { if (!a.length) return -1; a.sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; };
+  const wmed = (a) => {
+    if (!a.length) return -1;
+    a.sort((x, y) => x[0] - y[0]);
+    const halfW = a.reduce((s, x) => s + x[1], 0) / 2;
+    let acc = 0;
+    for (const x of a) { acc += x[1]; if (acc >= halfW) return x[0]; }
+    return a[a.length - 1][0];
+  };
   for (let i = 0; i < K; i++) {
-    const r = med(chans[i][0]);
-    if (r < 0) continue;
-    const g = med(chans[i][1]), b = med(chans[i][2]);
+    const r = wmed(chans[i][0]);
+    if (r < 0) {
+      // Cluster vacío: recolocarlo en el color peor representado (distancia ×
+      // frecuencia) en vez de dejar una semilla muerta que ocupa una base.
+      let worst = null, worstScore = -1;
+      for (const [c, n] of entries) {
+        let minD = Infinity;
+        for (const q of centers) {
+          const d = Math.min(dist2(c, q), useEHB ? dist2(c, half(q)) : Infinity);
+          if (d < minD) minD = d;
+        }
+        const score = minD * Math.sqrt(n);
+        if (score > worstScore) { worstScore = score; worst = c; }
+      }
+      if (worst != null) { centers[i] = worst; moved++; }
+      continue;
+    }
+    const g = wmed(chans[i][1]), b = wmed(chans[i][2]);
     const next = (r << 16) | (g << 8) | b;
     if (next !== centers[i]) { centers[i] = next; moved++; }
   }

@@ -56,6 +56,28 @@ struct TileAnimationLayerView {
 	u16 wrap_y = 0u;
 };
 
+/// Resultado de un parche de animación, para telemetría y diagnóstico de carga.
+///
+/// El parche recorre los grupos, descarta los que no cambian o no tocan en este
+/// turno de paridad y puede dejar grupos pendientes si no caben en el
+/// `FramePlan`. Estos contadores permiten distinguir trabajo útil de barrido
+/// redundante sin instrumentar el interior del motor:
+///
+/// - `groups_scanned`: grupos visitados por el bucle.
+/// - `groups_patched`: grupos con al menos una celda visible repintada.
+/// - `groups_deferred`: grupos que tocaban pero no cupieron en el plan.
+/// - `cells_patched`: celdas visibles repintadas.
+/// - `cells_culled`: celdas descartadas por quedar fuera de la ventana.
+/// - `base_restores`: bloques base repintados bajo overlays transparentes.
+struct TilePatchStats {
+	u16 groups_scanned = 0u;
+	u16 groups_patched = 0u;
+	u16 groups_deferred = 0u;
+	u16 cells_patched = 0u;
+	u16 cells_culled = 0u;
+	u16 base_restores = 0u;
+};
+
 /// Reloj y dibujo de las animaciones cocinadas. No posee los bancos ni los mapas.
 class TileAnimator {
 public:

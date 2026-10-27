@@ -686,6 +686,20 @@ public:
         }
         return true;
     }
+
+    /// Variante con estadísticas de parche para telemetría; no se usa en la
+    /// build normal.
+    /// \param plan plan donde se encolan los parches.
+    /// \param restore_background_layers máscara de capas que repintan la base.
+    /// \param stats salida con el recuento del parche.
+    bool patch_animations(graphics::FramePlan& plan, eng::u8 restore_background_layers,
+                          eng::playfield::TilePatchStats* stats) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].patch_animations(plan, restore_background_layers, stats)) return false;
+        }
+        return true;
+    }
     template <class Backend>
     bool draw_animation_stack(Backend& backend, graphics::FramePlan& plan,
                               const TileLayerStack& stack,

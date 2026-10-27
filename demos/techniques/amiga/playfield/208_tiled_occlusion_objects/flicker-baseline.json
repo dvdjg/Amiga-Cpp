@@ -1,5 +1,5 @@
 {
   "max_candidates": 0,
-  "max_blocks_low": 2,
-  "note": "Demo 208: playfield único, props en hoja par y actor móvil con save-under. El cartel occluder id 89 se cruza de forma deliberada; el frame-diff de alta frecuencia admite hasta 2 bloques estructurales por el movimiento del actor, sin candidatos de flicker/tearing."
+  "max_blocks_low": 0,
+  "note": "Demo 208: playfield único, props en hoja par y actor móvil con save-under. El actor cruza por delante del cartel y por detrás del guardia; el frame-step no deja candidatos de flicker/tearing ni bloques bajos."
 }

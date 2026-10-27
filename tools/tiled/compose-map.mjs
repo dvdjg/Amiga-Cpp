@@ -298,7 +298,7 @@ function applyPlan(ir, plan) {
 }
 
 /// Compone la imagen baked. Devuelve `{png, bounds, warnings, errors, stats}`.
-export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
+export function composeMap(ir, plan = null, { layerPreview = false, palette = false } = {}) {
 	const flat = applyPlan(ir, plan);
 	const cache = new ImageCache();
 	const bounds = collectPixelBounds(ir, flat);
@@ -334,7 +334,7 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 				++tileCount.cells;
 				if (gid === 0) return;
 				const animatedTile = tileHasAnimation(ir, gid);
-				if ((item.policy === 'overlay' || item.policy === 'animated') && animatedTile) {
+				if (!palette && (item.policy === 'overlay' || item.policy === 'animated') && animatedTile) {
 					++tileCount.animated;
 					++tileCount.skippedAnimated;
 					return;
@@ -371,9 +371,10 @@ export function composeMap(ir, plan = null, { layerPreview = false } = {}) {
 			for (const object of objects) {
 				object.__layer = layer;
 				const role = objectRole(object, config);
-				if (role.mode === 'foreground' || role.mode === 'occluder') {
+				if (!palette && (role.mode === 'foreground' || role.mode === 'occluder')) {
 					// El objeto vive en runtime (MapObjects): no debe quedar una copia
-					// horneada que revele su posición al taparlo.
+					// horneada que revele su posición al taparlo. En la referencia de
+					// paleta sí interesa su color.
 					++ctx.skippedRuntimeObjects;
 					continue;
 				}

@@ -3,8 +3,8 @@
 // El bake base excluye las celdas animadas (Flowers/Water) y los objetos animados
 // (Campfire). `cook-map.mjs` emite `animations.h` + banco planar + máscaras 1bpp;
 // el runtime compone esas celdas y parchea solo los grupos cuyo frame cambia.
-// La cámara queda fija para validar las tres animaciones sin confundirlas con el
-// movimiento del scroll.
+// La cámara recorre el mapa en una visita con paradas de 3 s para observar las
+// tres animaciones; durante el desplazamiento no se parchean las capas vivas.
 //
 //   bash tools/build/build-demo.sh demos/techniques/amiga/playfield/207_tiled_live_layers_animation --debug --clean
 //   bash tools/run/run-demo.sh demos/techniques/amiga/playfield/207_tiled_live_layers_animation
@@ -12,6 +12,7 @@
 #include <eng/api/api.hpp>
 #include <eng/core/util/text_line.hpp>
 #include <eng/debug/host_hud.hpp>
+#include <eng/debug/metrics.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
@@ -27,6 +28,7 @@
 #include "support/gcc8_c_support.h"
 
 #include "../../../../../../out/assets/tiled/beginning-fields-live-flowers/selected/map_bundle.h"
+#include "../../../../../../out/assets/tiled/beginning-fields-live-flowers/selected/tiled_map.h"
 #include "../../../../../../out/assets/tiled/beginning-fields-live-flowers/selected/animations.h"
 
 struct ExecBase* SysBase = nullptr;
@@ -115,8 +117,13 @@ const playfield::TileLayerBinding kLiveLayers[] = {
 
 constexpr eng::u16 kTile = 16u;
 constexpr eng::u16 kViewportW = 320u;
-constexpr eng::u16 kViewportH = 256u; // total: 208 de campo + 48 de HUD negro
+constexpr eng::u16 kViewportH = 256u; // total: 208 de campo + 48 de HUD
 constexpr eng::u16 kFieldH = kViewportH - 48u;
+constexpr eng::u16 kMapW = TILED_MAP_W * kTile;
+constexpr eng::u16 kMapH = TILED_MAP_H * kTile;
+constexpr eng::u16 kTourPauseSeconds = 3u;
+constexpr eng::s16 kTourStep = 2; // píxeles por eje y frame
+constexpr eng::u8 kMaxTourStops = 8u;
 constexpr eng::u8 kPlanes = TILED_MAP_PLANES;
 constexpr eng::u16 kPaletteCount = (kPlanes == 6u) ? 32u : (1u << kPlanes);
 constexpr eng::debug::Version kVersion {1u, 0u};
@@ -157,7 +164,102 @@ struct DemoGame {
 	playfield::XlimitedSceneConfigT<eng::map::LayerView> scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::debug::HostHud host_hud {};
+	struct CameraStop {
+		eng::s16 x = 0;
+		eng::s16 y = 0;
+	};
+	CameraStop m_stops[kMaxTourStops] {};
+	eng::u8 m_stop_count = 0u;
+	eng::u8 m_stop_index = 0u;
+	eng::u16 m_pause_frames = 0u;
+	eng::s32 m_camera_x = 0;
+	eng::s32 m_camera_y = 0;
 	bool ready = false;
+
+	static constexpr eng::s16 wrap_camera(eng::s32 value, eng::s32 span) {
+		value %= span;
+		if (value < 0) value += span;
+		return static_cast<eng::s16>(value);
+	}
+
+	/// Cámara centrada en el bounding box de una capa viva. Sirve para llevar
+	/// la visita a las flores, el agua y la fogata sin conocer sus coordenadas
+	/// en el código: las celdas vienen del cook-plan.
+	bool camera_for_layer(eng::u8 layer, eng::s16& x, eng::s16& y) const {
+		eng::s32 min_x = 32767, min_y = 32767, max_x = -1, max_y = -1;
+		for (eng::u16 i = 0u; i < animator.cell_count(); ++i) {
+			const playfield::TileAnimationCellView& cell = animator.cell(i);
+			if (cell.layer != layer) continue;
+			if (min_x > cell.x) min_x = cell.x;
+			if (min_y > cell.y) min_y = cell.y;
+			if (max_x < cell.x) max_x = cell.x;
+			if (max_y < cell.y) max_y = cell.y;
+		}
+		if (max_x < min_x) return false;
+		const eng::s32 center_x = ((min_x + max_x + 1) * static_cast<eng::s32>(kTile)) / 2;
+		const eng::s32 center_y = ((min_y + max_y + 1) * static_cast<eng::s32>(kTile)) / 2;
+		x = wrap_camera(center_x - static_cast<eng::s32>(kViewportW) / 2, kMapW);
+		y = wrap_camera(center_y - static_cast<eng::s32>(kFieldH) / 2, kMapH);
+		return true;
+	}
+
+	eng::u16 pause_frames() const {
+		// La pausa se mide en frames de la cadencia observada; si el HUD aún no
+		// tiene una ventana válida, usar 34 fps (la cadencia típica de la visita).
+		const eng::u32 fps10 = host_hud.fps10();
+		const eng::u32 fps = fps10 >= 250u ? fps10 / 10u : 34u;
+		return static_cast<eng::u16>(fps * kTourPauseSeconds);
+	}
+
+	void add_stop(eng::s16 x, eng::s16 y) {
+		if (m_stop_count >= kMaxTourStops) return;
+		for (eng::u8 i = 0u; i < m_stop_count; ++i) {
+			if (m_stops[i].x == x && m_stops[i].y == y) return;
+		}
+		m_stops[m_stop_count++] = CameraStop {x, y};
+	}
+
+	/// Paradas: fogata (inicio), agua, flores, esquinas y centro del mapa. La
+	/// cámara recorre todo el lienzo en una vuelta y vuelve a la fogata.
+	void build_tour() {
+		m_stop_count = 0u;
+		eng::s16 x = 0, y = 0;
+		if (camera_for_layer(2u, x, y)) add_stop(x, y); // fogata / Object Layer 1
+		if (camera_for_layer(1u, x, y)) add_stop(x, y); // agua
+		if (camera_for_layer(0u, x, y)) add_stop(x, y); // flores
+		add_stop(0, 0);
+		add_stop(static_cast<eng::s16>(kMapW - kViewportW), 0);
+		add_stop(static_cast<eng::s16>(kMapW - kViewportW), static_cast<eng::s16>(kMapH - kFieldH));
+		add_stop(0, static_cast<eng::s16>(kMapH - kFieldH));
+		add_stop(static_cast<eng::s16>(kMapW / 2u), static_cast<eng::s16>(kMapH / 2u));
+		if (m_stop_count == 0u) add_stop(0, 0);
+		m_stop_index = m_stop_count > 1u ? 1u : 0u;
+		m_camera_x = m_stops[0].x;
+		m_camera_y = m_stops[0].y;
+		m_pause_frames = pause_frames();
+	}
+
+	/// Avance de la vuelta: pausa 3 s en cada parada y después mueve la cámara
+	/// hacia la siguiente a paso fijo. Devuelve el delta que consume `scene.update`.
+	void update_tour(eng::s16& dx, eng::s16& dy) {
+		dx = 0;
+		dy = 0;
+		if (m_pause_frames != 0u) {
+			--m_pause_frames;
+			return;
+		}
+		const CameraStop& target = m_stops[m_stop_index];
+		const eng::s32 tx = target.x - m_camera_x;
+		const eng::s32 ty = target.y - m_camera_y;
+		dx = static_cast<eng::s16>(tx > kTourStep ? kTourStep : tx < -kTourStep ? -kTourStep : tx);
+		dy = static_cast<eng::s16>(ty > kTourStep ? kTourStep : ty < -kTourStep ? -kTourStep : ty);
+		m_camera_x += dx;
+		m_camera_y += dy;
+		if (m_camera_x == target.x && m_camera_y == target.y) {
+			m_pause_frames = pause_frames();
+			m_stop_index = static_cast<eng::u8>((m_stop_index + 1u) % m_stop_count);
+		}
+	}
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		DEMO_PROF_INIT(8u);
@@ -199,6 +301,7 @@ struct DemoGame {
 			return;
 		}
 		animator.set_tick(0u);
+		build_tour();
 		layer_stack.configure(eng::Span<const playfield::TileLayerBinding> {kLiveLayers, 3u});
 
 		scene_cfg.viewport_w = kViewportW;
@@ -229,8 +332,9 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Fill);
 			return;
 		}
-		// Y=423 deja en pantalla agua, flores y la fogata a la vez.
-		if (!scene.pre_scroll(backend, plan, 0, 300)) {
+		// La visita arranca centrada en la fogata; las capas vivas siguen
+		// visibles mientras la cámara recorre el mapa.
+		if (!scene.pre_scroll(backend, plan, m_stops[0].x, m_stops[0].y)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
 		}
@@ -265,15 +369,16 @@ struct DemoGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!ready) return;
 		DEMO_PROF_FRAME();
+		eng::debug::metrics.begin_frame(context.frame.frame_index);
 		DEMO_PROF_BEGIN(0u);
 		apply_animation_budget();
 		animator.set_tick(context.frame.frame_index);
 		plan.clear();
 		plan.set_blit_budget_limits({16384, 65536, 120, 512});
-		// Cámara fija: el update no desplaza el anillo; sigue siendo el punto de
-		// sincronización de la escena y deja el parche de animación como única
-		// fuente de cambios visuales.
-		if (!scene.update(plan, 0, 0, context.frame.frame_index)) {
+		eng::s16 tour_dx = 0, tour_dy = 0;
+		update_tour(tour_dx, tour_dy);
+		const bool tour_paused = m_pause_frames != 0u;
+		if (!scene.update(plan, tour_dx, tour_dy, context.frame.frame_index)) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
@@ -287,12 +392,41 @@ struct DemoGame {
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();
 		plan.set_blit_budget_limits({16384, 65536, 120, 512});
-		if (!scene.patch_animations(plan, static_cast<eng::u8>(1u << 2u))) {
-			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
-			return;
+		// Durante el desplazamiento se paga el scroll; al llegar a una parada
+		// se parchean las animaciones visibles durante 3 s. Así el viaje no
+		// compite con el coste de las tres capas vivas y las paradas sí las
+		// muestran actualizadas.
+		if (tour_paused) {
+			eng::playfield::TilePatchStats patch_stats {};
+			eng::playfield::TilePatchStats* patch_stats_out = nullptr;
+			if constexpr (eng::debug::metrics_enabled) patch_stats_out = &patch_stats;
+			if (!scene.patch_animations(plan, static_cast<eng::u8>(1u << 2u), patch_stats_out)) {
+				ready = false;
+				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
+				return;
+			}
+			if constexpr (eng::debug::metrics_enabled) {
+				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsScanned, patch_stats.groups_scanned);
+				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsPatched, patch_stats.groups_patched);
+				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsDeferred, patch_stats.groups_deferred);
+				eng::debug::metrics.set(eng::debug::Metric::TiledCellsPatched, patch_stats.cells_patched);
+				eng::debug::metrics.set(eng::debug::Metric::TiledCellsCulled, patch_stats.cells_culled);
+				eng::debug::metrics.set(eng::debug::Metric::TiledBaseRestores, patch_stats.base_restores);
+				if (patch_stats.groups_deferred != 0u) {
+					eng::debug::metrics.event(
+						eng::debug::Metric::TiledGroupsDeferred, patch_stats.groups_deferred);
+				}
+			}
 		}
 		DEMO_PROF_END(1u);
+		if constexpr (eng::debug::metrics_enabled) {
+			plan.finalize();
+			const eng::graphics::BlitBudget& b = plan.blit_budget();
+			eng::debug::metrics.set(eng::debug::Metric::BlitJobs, b.jobs);
+			eng::debug::metrics.set(eng::debug::Metric::BlitWords, b.words);
+			eng::debug::metrics.set(eng::debug::Metric::BlitMaskedJobs, b.masked_jobs);
+			eng::debug::metrics.set(eng::debug::Metric::BlitCopyJobs, b.copy_jobs);
+		}
 #if defined(DEMO_BLIT_STATS)
 		plan.finalize();
 		const eng::graphics::BlitBudget& budget = plan.blit_budget();

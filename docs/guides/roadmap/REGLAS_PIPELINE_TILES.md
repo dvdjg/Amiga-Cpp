@@ -13,6 +13,8 @@ El tile debe extraerse de la imagen YA en el espacio donde se dibuja (EHB: 32 ba
 Nunca extraer del RGB original y hablar de "duplicados" en RGB: lo que importa es el índice
 EHB que consumirá el chipset.
 
+La fuente de la paleta es el mapa completo, no solo el bake: `cook-map` genera `palette-source.png` con todas las capas y objetos (incluidas las animadas) antes de cuantizar. Si la paleta se calcula solo sobre las celdas horneadas, el agua, las flores o el fuego pueden quedar fuera y el resultado parecerá que necesita una paleta fija. La cuantización usa farthest-first ponderado y k-means half-aware; cualquier mapa de entrada pasa por el mismo camino.
+
 ## 2. Comparar SIEMPRE en el mismo espacio
 "¿Coincide la reconstrucción con el original?" se responde comparando
 `original(cuantizado a EHB)` contra `reconstruido (desde banco+mapa)`, índice a índice.

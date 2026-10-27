@@ -259,6 +259,28 @@ Con el recorte limpio x2, `qwen3-vl:8b-instruct-q8_0` respondió: «Pair 3-4 (fr
 
 **Comparativa de modelos (misma ventana, f0024–f0035):** `qwen3-vl:8b-instruct-q8_0` da evolución frame a frame y señala cambios concretos (p. ej. el detalle amarillo de la torreta que cambia de forma); `gemma3:12b` es más verboso pero **inventa movimientos** (dice que la torreta se desplaza, siendo estática) y sus «anomalías» son vagas («posible variación de color… difícil determinar»). **Preferido: qwen3-vl**; gemma3 queda como segunda opinión. Además: para el flicker 1-de-cada-2 frames (bandas alternas) existe el check objetivo `node tools/analyze/check-alternating-bands.mjs <dirSeq>` (por bandas de 16 filas y alternancias de luminancia), que no depende del modelo.
 
+### 6.4.3 Seguimiento de entidades y evolución temporal (evitar falsos negativos globales)
+
+Un prompt sobre la escena completa tiende a describir solo el elemento más contrastado. En la demo 208 una pasada de ese tipo dijo que el explorador era estático y que solo cambiaba el fuego, aunque el actor se desplazaba y cruzaba ocultadores; el fallo no era del render sino del **alcance de la pregunta**. El procedimiento que sí funciona es **entidad primero**:
+
+1. **Declarar las entidades en `src/INTENT.md`** con nombre estable y apariencia distintiva (por ejemplo `explorador móvil`, `explorador guardia`, `cartel`, `árbol`, `fogata`). Si dos entidades comparten arte o color, la pregunta debe diferenciarlas por posición y rol, no por píxel.
+2. **Capturar una secuencia que cubra las transiciones**, no solo el reposo: `run-demo.sh <demo> --sequence-frames 40 --sequence-interval-ms 120`. Para movimiento fino, usar frames consecutivos (`flicker-highfreq.mjs --no-run` o `--sequence-step-frames`), porque un intervalo mayor muestrea fases distintas.
+3. **Analizar por ventanas** de 8–16 frames y, si hace falta, **recortar la zona de la entidad** y ampliarla con vecino más cercano. El modelo no debe recibir una escena llena de textura si la pregunta es sobre un actor de 16x24.
+4. **Preguntar explícitamente por cada entidad y por su evolución**, no por «si hay algún problema»:
+
+```text
+Analiza esta secuencia temporal de N frames consecutivos (imagen 1 = primer frame, misma resolución).
+Entidades: (A) explorador móvil rojo/azul; (B) guardia rojo/azul estático junto a la casa; (C) cartel de madera; (D) árbol; (E) fogata.
+Para CADA frame indica, en una tabla: qué entidades son visibles, zona relativa (izquierda/centro/derecha, arriba/medio/abajo), si alguna queda total o parcialmente oculta y por cuál, y si su posición cambia respecto al frame anterior.
+Después responde: ¿el explorador A aparece o desaparece de golpe en algún frame? ¿La desaparición se explica por un ocultador opaco o es un fallo? ¿Hay parpadeo, salto de posición, cambio de tamaño o de color entre frames consecutivos?
+No inventes coordenadas en píxeles; usa zonas relativas. Sé literal y señala los frames exactos.
+```
+
+5. **Cerrar con un gate objetivo**: un `frame-diff`/crop de la zona, el contador `ActorDraws`/`ActorRestores`/`GuardOverlays` de `g_eng_metrics`, y `flicker-highfreq` para alternancias. La respuesta del modelo es un **filtro de sospecha**, nunca la prueba final: si dice «desaparece» o «no se mueve», comprobar el frame y la métrica antes de tocar el render; si dice «no hay nada», revisar que la entidad esté en la ventana y que la secuencia tenga frames suficientes.
+6. **Registrar el prompt crudo y la respuesta** en `<demoId>_report.md` (§6.5) y resumir en `VALIDATION.md` solo lo confirmado. Un falso negativo del modelo no se convierte en «fallo del render» ni en «diseño válido»: se documenta el alcance (qué entidad, qué frames y qué gate lo cubre).
+
+La lección operativa es que **la pregunta debe nombrar la entidad y la transición**. «¿Ves algún parpadeo?» sobre una escena completa produce respuestas genéricas y a veces falsas; «¿en qué frames A queda oculto por C y la transición es continua?» sobre un recorte temporal es verificable.
+
 ### 6.5 Artefactos de una pasada de visión: nombres y ubicación
 
 Toda pasada de visión deja **dos artefactos** con nombre canónico, **en la propia carpeta de la demo** (junto a su `src/`), ignorados por git (reglas `demos/**/vision/` y `demos/**/*_report.md` del `.gitignore`; **nunca** se copian a `docs/`):

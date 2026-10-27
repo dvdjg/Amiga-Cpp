@@ -30,7 +30,7 @@ paleta y tabla de índices) sale ya en la convención que consume el chipset EHB
 
 | Script | Entrada | Salida | Rol |
 |---|---|---|---|
-| `quantize-ehb.mjs` | PNG original | `palette.json` (32 bases RGB), `ehb_palette.h`, `ehb_preview.png` | Elige 32 bases con k-means **half-aware** ordenadas por luminosidad; reserva base 0 para transparencia si hace falta |
+| `quantize-ehb.mjs` | PNG original | `palette.json` (32 bases RGB), `ehb_palette.h`, `ehb_preview.png` | Elige 32 bases con farthest-first ponderado + k-means **half-aware**, ordenadas por luminosidad; reserva base 0 para transparencia si hace falta |
 | `slice-tiles.mjs` | PNG + `palette.json` | `tilebank_indexed.h`, `tilebank.raw.bin`, `tiles.json`, `reconstruct.png`, `tilebank.png` | Cuantiza el original a la paleta (4/5/EHB), extrae tiles únicos exactos, (fusión opcional), reconstruye y **compara al 100%**, exporta en BASES-PRIMERO; `--dither checker` aplica el optimal-checker de dos tonos |
 | `emit-const-201.mjs` | `tilebank_indexed.h` + `tiles.json` | `const_game_201.h` | Renombrado determinista: `kEhbPalette[64·3]` + `kRenderMap[1600]` + externs del banco incbin |
 | `emit-xlimited-bank.mjs` | `tilebank.raw.bin` | `tilebank.xlimited.bin` + `tilebank.xlimited.h` | Convierte el banco indexado (1..6 planos) al banco de bloques interleaved 320 px que dibuja el algoritmo X-Limited |
@@ -87,6 +87,7 @@ generó con **estos** comandos y sin edición manual.
 - K-means modificado **half-aware**: un píxel del original se asigna a `min(dist(base),
   dist(half))`; a los half se les sube ×2 por componente con clamp antes de promediar
   (evita que un carry cruce al canal anterior). 60 iteraciones como máximo.
+- Las semillas no se reparten solo por luminosidad: farthest-first recorre el espacio RGB y pondera la frecuencia (`count^0.35`), de modo que tonos minoritarios pero importantes (agua, flores, fuego) conservan una base. En `cook-map`, la entrada es `palette-source.png` con todas las capas y objetos, no solo el bake.
 - Las 32 bases se ordenan por luminosidad y se bajan a RGB444 (`0x0RGB`).
 - `palette.json` guarda solo las 32 bases RGB (`bases`) y los `planes`.
 - `ehb_palette.h` (`kEhbPalette[32]`) NO se usa en la demo 201: se genera solo como
