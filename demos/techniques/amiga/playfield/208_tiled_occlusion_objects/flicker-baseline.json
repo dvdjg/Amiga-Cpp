@@ -1,5 +1,5 @@
 {
   "max_candidates": 0,
-  "max_blocks_low": 0,
-  "note": "Demo 208: playfield único con scroll estático, props en hoja par y un actor móvil con save-under por Blitter sobre el anillo. La regresión de flicker (tools/test-regression.sh --flicker --require-flicker-ok --release-build --demo ...) termina con 'Regression OK' y sin candidatos; el único cambio por frame es el actor y el texto del HUD de host."
+  "max_blocks_low": 2,
+  "note": "Demo 208: playfield único, props en hoja par y actor móvil con save-under. El cartel occluder id 89 se cruza de forma deliberada; el frame-diff de alta frecuencia admite hasta 2 bloques estructurales por el movimiento del actor, sin candidatos de flicker/tearing."
 }

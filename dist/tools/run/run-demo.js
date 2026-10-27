@@ -1815,7 +1815,7 @@ try {
         report.keys = { count: keyCount, scancodes: keysToInject };
     }
     // --joy: inyecta direcciones/botones de joystick (`input joy <port> <dir|button> <1|0>`); a
-    // diferencia del teclado, el monitor usa nombres de evento (`INPUTEVENT_JOY1_LEFT`...), as� que es
+    // diferencia del teclado, el monitor usa nombres de evento (`INPUTEVENT_JOY1_LEFT`...), así que es
     // fiable. Spec: `port:dir` separado por comas, p. ej. `--joy 1:left` (joystick del puerto 2) o
     // `--joy 1:up,1:fire`. port 0 = joystick 1, port 1 = joystick 2.
     // Con `--joy-through-sequence`, la pulsacion se mantiene durante la captura de secuencia y se
@@ -2013,12 +2013,14 @@ try {
         }
     }
     // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
-    // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB.
+    // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por el
+    // canal lateral, no por GDB (readMemory sufre timeouts en este fork).
     const telemetrySymbol = findMapSymbol(builtMap, 'g_eng_frame_telemetry');
     const sideSections = report.sideChannel?.state?.sections;
     if (telemetrySamples > 0 && telemetrySymbol !== null && Array.isArray(sideSections) && sideSections.length > 0) {
         let telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
-        // Ancla al run status ya verificado: evita el desfase de orden de secciones.
+        // Ambos símbolos están en `.data`: usar el run status ya verificado evita
+        // el desfase de orden de secciones del mapa en este fork.
         if (runStatusSymbol !== null && report.sideChannel?.runtimeAddress) {
             telAddr = report.sideChannel.runtimeAddress + (telemetrySymbol - runStatusSymbol);
         }
@@ -2026,7 +2028,11 @@ try {
             report.telemetry = [];
             for (let t = 0; t < telemetrySamples; ++t) {
                 try {
-                    const b = await protocol.readMemory(telAddr, 12);
+                    const reply = JSON.parse(await sendSideChannelCommand(sideChannelPort, `mem 0x${telAddr.toString(16)} 12`, 4000));
+                    if (!reply.ok || typeof reply.data !== 'string' || reply.data.length < 24) {
+                        throw new Error(`lectura de telemetría inválida: ${JSON.stringify(reply)}`);
+                    }
+                    const b = Buffer.from(reply.data, 'hex');
                     // m68k es big-endian: leer los campos del struct en BE.
                     report.telemetry.push({
                         frame: b.readUInt32BE(0),
@@ -2037,7 +2043,7 @@ try {
                     });
                 }
                 catch (err) {
-                    report.telemetry.push({ error: err.message });
+                    report.telemetry.push({ error: err instanceof Error ? err.message : String(err) });
                 }
                 await sleep(telemetryIntervalMs);
             }

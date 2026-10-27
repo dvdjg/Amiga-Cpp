@@ -676,10 +676,13 @@ public:
 
     /// Parchea las celdas animadas visibles que cambiaron de frame. Llamar tras
     /// `update()` y antes de ejecutar el plan (los jobs de scroll van primero).
-    bool patch_animations(graphics::FramePlan& plan) {
+    /// \param plan plan donde se encolan los parches.
+    /// \param restore_background_layers máscara de capas que repintan el bloque
+    ///        base antes del frame (evita restos de celdas transparentes).
+    bool patch_animations(graphics::FramePlan& plan, eng::u8 restore_background_layers = 0u) {
         const eng::u8 n = fields();
         for (eng::u8 pf = 0; pf < n; ++pf) {
-            if (!m_field[pf].patch_animations(plan)) return false;
+            if (!m_field[pf].patch_animations(plan, restore_background_layers)) return false;
         }
         return true;
     }

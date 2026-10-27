@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-26T15:08:46.616Z
+- Fecha: 2026-10-26T21:48:12.523Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png (2)
+- Frames: frame_000.png, frame_003.png, frame_006.png, frame_008.png, frame_011.png (5)
 - Secuencia: `out/run/207_tiled_live_layers_animation/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,30 +15,210 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Imagen observada:**
+**Análisis de las imágenes:**
 
-- **Tipo de imagen:** Captura de pantalla de un editor de mapas o juego en estilo pixel art, mostrando una vista isométrica de un entorno.
-- **Texto en la parte superior:** “207 TILED LIVE v1.0.6694 | F24 6C06PB5 | XX044350AA136644” — parece ser información del software o del proyecto en curso.
-- **Contenido visual:**
-  - **Entorno:** Un mapa con césped verde, tierra marrón, agua azul y árboles verdes.
-  - **Elementos fijos:**
-    - A la izquierda: árboles y un pequeño río.
-    - En el centro: una estructura de madera (parece una casa o cobertizo) con un poste de electricidad y dos faroles colgantes.
-    - A la derecha: una estructura de madera con una ventana azul, una puerta, y un fuego activo (con llamas naranjas y amarillas) junto a un recipiente (posiblemente una olla o pila).
-    - En el suelo: varios bloques de madera sueltos, piedras, y un camino de piedra que rodea el área.
-    - En el fondo: una pared de piedra que delimita el mapa.
-  - **Elementos dinámicos:**
-    - **Fuego:** En la parte derecha, hay un fuego que parece estar activo, con llamas que se mueven ligeramente (posiblemente animado). El contorno del fuego es limpio, sin halos ni artefactos visibles. El fondo inmediato (tierra y piedras) está tapado por el fuego, pero no hay restos de su posición anterior ni píxeles cortados.
-    - **Flor/objeto rojo:** En el lado izquierdo, hay un grupo de pequeños objetos rojos que parecen flores o frutos, y están fijos en el suelo.
-  - **Estado general:** La imagen parece estar en un estado de edición o renderizado en tiempo real. No hay elementos superpuestos, recortes, ni artefactos visibles. Todos los objetos tienen contornos limpios y están bien integrados en el entorno.
+Las tres imágenes muestran exactamente el mismo mapa de juego en formato pixel art, con una vista cenital. No hay cambios en la composición, los objetos ni la posición de los elementos gráficos entre las imágenes. El contenido visual es idéntico en todas ellas.
 
-**Observaciones:**
+**Elementos gráficos observables:**
 
-- No hay cambios entre imágenes, ya que solo se proporciona una imagen.
-- No hay elementos extraños, defectuosos o incoherentes.
-- El fuego es el único elemento que parece estar en movimiento, y su contorno es limpio, sin artefactos.
-- El fondo está completamente tapado por el fuego, sin dejar rastros de su posición anterior.
-
-**Conclusión:**
-
-La imagen muestra un mapa de juego en estilo pixel art con una estructura de madera, un fuego activo, árboles, agua y otros elementos fijos. El fuego es el único elemento en movimiento, y su contorno es limpio y bien integrado en el entorno. No hay artefactos, superposiciones ni elementos defectuosos visibles.
+*   **Entorno:** Un paisaje con tierra verde, rocas marrones, árboles verdes y un cuerpo de agua azul en el centro.
+*   **Objetos fijos:**
+    *   Un árbol grande con tronco marrón y follaje verde, situado en el centro del mapa, sobre la tierra.
+    *   Un pequeño arbusto verde a la derecha del árbol.
+    *   Un montículo de rocas marrones en la parte inferior izquierda.
+    *   Un montículo de rocas marrones en la parte superior derecha.
+    *   Un fuego de leña con llamas amarillas y naranjas, rodeado de piedras, en la parte superior derecha.
+    *   Un camino de piedras blancas que conduce al fuego.
+    *   Un bloque de madera vertical en la parte superior derecha.
+    *   Un bloque de madera más pequeño en la parte superior derecha, debajo del fuego.
+    *   Un bloque de madera vertical en la parte superior izquierda.
+    *   Un bloque de madera vertical en la parte inferior izquierda.
+    *   Un bloque de madera vertical en la parte inferior derecha.
+    *   Un grupo de flores naranjas en la parte inferior derecha.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del árbol.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del árbol.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del fuego.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte superior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior izquierda, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la parte inferior derecha, cerca del bloque de madera.
+    *   Un grupo de flores blancas en la

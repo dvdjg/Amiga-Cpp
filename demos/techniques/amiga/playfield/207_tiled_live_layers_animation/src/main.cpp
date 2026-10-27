@@ -1,9 +1,10 @@
 // Demo 207: capas vivas y animación de tiles sobre Beginning Fields.
 //
-// El bake base excluye las celdas animadas (Water/Flowers) y los objetos animados
+// El bake base excluye las celdas animadas (Flowers/Water) y los objetos animados
 // (Campfire). `cook-map.mjs` emite `animations.h` + banco planar + máscaras 1bpp;
-// el runtime compone esas celdas en la banda entrante y parchea solo los grupos
-// cuyo frame cambia. El scroll es XY (corkscrew) para que la fogata sea visible.
+// el runtime compone esas celdas y parchea solo los grupos cuyo frame cambia.
+// La cámara queda fija para validar las tres animaciones sin confundirlas con el
+// movimiento del scroll.
 //
 //   bash tools/build/build-demo.sh demos/techniques/amiga/playfield/207_tiled_live_layers_animation --debug --clean
 //   bash tools/run/run-demo.sh demos/techniques/amiga/playfield/207_tiled_live_layers_animation
@@ -11,7 +12,9 @@
 #include <eng/api/api.hpp>
 #include <eng/core/util/text_line.hpp>
 #include <eng/debug/host_hud.hpp>
+#include <eng/debug/peripheral.hpp>
 #include <eng/debug/prof.hpp>
+#include <eng/debug/run_status.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/field/tile_animation.hpp>
 #include <eng/field/xlimited_scene.hpp>
@@ -23,8 +26,8 @@
 
 #include "support/gcc8_c_support.h"
 
-#include "../../../../../../out/assets/tiled/beginning-fields-live/selected/map_bundle.h"
-#include "../../../../../../out/assets/tiled/beginning-fields-live/selected/animations.h"
+#include "../../../../../../out/assets/tiled/beginning-fields-live-flowers/selected/map_bundle.h"
+#include "../../../../../../out/assets/tiled/beginning-fields-live-flowers/selected/animations.h"
 
 struct ExecBase* SysBase = nullptr;
 
@@ -36,13 +39,16 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	0,
 	0,
 };
+#if defined(DEMO_BLIT_STATS)
+__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry { 0xffffffffu, 0u, 0u, 0u, 0u, { 0u, 0u, 0u } };
+#endif
 }
 
 // Banco base interleaved (sin celdas animadas).
 __asm__(".section tiles.MEMF_CHIP, \"aw\"\n"
 	".globl g_tiled_bank\ng_tiled_bank:\n"
 	".align 2\n"
-	".incbin \"out/assets/tiled/beginning-fields-live/selected/tilebank.xlimited.bin\"\n"
+	".incbin \"out/assets/tiled/beginning-fields-live-flowers/selected/tilebank.xlimited.bin\"\n"
 	".globl g_tiled_bank_size\ng_tiled_bank_size:\n"
 	".long . - g_tiled_bank");
 extern "C" const unsigned char g_tiled_bank[];
@@ -52,7 +58,7 @@ extern "C" const unsigned int g_tiled_bank_size;
 __asm__(".section anim_sheet.MEMF_CHIP, \"aw\"\n"
 	".globl g_anim_sheet\ng_anim_sheet:\n"
 	".align 2\n"
-	".incbin \"out/assets/tiled/beginning-fields-live/selected/anim_sheet.bin\"\n"
+	".incbin \"out/assets/tiled/beginning-fields-live-flowers/selected/anim_sheet.bin\"\n"
 	".globl g_anim_sheet_size\ng_anim_sheet_size:\n"
 	".long . - g_anim_sheet");
 extern "C" const unsigned char g_anim_sheet[];
@@ -61,7 +67,7 @@ extern "C" const unsigned int g_anim_sheet_size;
 __asm__(".section anim_masks.MEMF_CHIP, \"aw\"\n"
 	".globl g_anim_masks\ng_anim_masks:\n"
 	".align 2\n"
-	".incbin \"out/assets/tiled/beginning-fields-live/selected/anim_masks.bin\"\n"
+	".incbin \"out/assets/tiled/beginning-fields-live-flowers/selected/anim_masks.bin\"\n"
 	".globl g_anim_masks_size\ng_anim_masks_size:\n"
 	".long . - g_anim_masks");
 extern "C" const unsigned char g_anim_masks[];
@@ -70,10 +76,39 @@ extern "C" const unsigned int g_anim_masks_size;
 namespace {
 namespace playfield = eng::playfield;
 
+#if defined(DEMO_PROF)
+#define DEMO_PROF_INIT(n) ENG_PROF_INIT(n)
+#define DEMO_PROF_FRAME() ENG_PROF_FRAME()
+#define DEMO_PROF_BEGIN(s) ENG_PROF_BEGIN(s)
+#define DEMO_PROF_END(s) ENG_PROF_END(s)
+#else
+#define DEMO_PROF_INIT(n) do { (void)sizeof(n); } while (0)
+#define DEMO_PROF_FRAME() do {} while (0)
+#define DEMO_PROF_BEGIN(s) do { (void)sizeof(s); } while (0)
+#define DEMO_PROF_END(s) do { (void)sizeof(s); } while (0)
+#endif
+
+#if defined(DEMO_BLIT_STATS)
+inline void stat_name(eng::u8 slot, const char* name) {
+	eng::debug::DebugPeripheral::counter_name(
+		slot, static_cast<eng::u32>(reinterpret_cast<eng::usize>(name)));
+}
+inline void stat_value(eng::u8 slot, eng::u32 value) {
+	eng::debug::DebugPeripheral::counter_value(slot, value);
+}
+#define DEMO_STAT_NAME(slot, name) stat_name(slot, name)
+#define DEMO_STAT_VALUE(slot, value) stat_value(slot, value)
+#else
+#define DEMO_STAT_NAME(slot, name) do { (void)sizeof(slot); } while (0)
+#define DEMO_STAT_VALUE(slot, value) do { (void)sizeof(value); } while (0)
+#endif
+
 const playfield::TileLayerBinding kLiveLayers[] = {
 	{0u, playfield::TileLayerMode::AnimatedOverlay, false,
 	 static_cast<eng::u8>(playfield::TileAnimationPriority::Background)},
 	{1u, playfield::TileLayerMode::AnimatedOverlay, false,
+	 static_cast<eng::u8>(playfield::TileAnimationPriority::Decor)},
+	{2u, playfield::TileLayerMode::AnimatedOverlay, false,
 	 static_cast<eng::u8>(playfield::TileAnimationPriority::Foreground)},
 };
 
@@ -122,11 +157,16 @@ struct DemoGame {
 	playfield::XlimitedSceneConfigT<eng::map::LayerView> scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::debug::HostHud host_hud {};
-	eng::s16 direction = 1;
-	eng::u32 frame_of_day = 0u;
 	bool ready = false;
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+		DEMO_PROF_INIT(8u);
+		DEMO_STAT_NAME(0u, "jobs");
+		DEMO_STAT_NAME(1u, "words");
+		DEMO_STAT_NAME(2u, "masked");
+		DEMO_STAT_NAME(3u, "copy");
+		DEMO_STAT_NAME(4u, "groups");
+		DEMO_STAT_NAME(5u, "tick");
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({104u * 1024u, 16u * 1024u, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
@@ -159,7 +199,7 @@ struct DemoGame {
 			return;
 		}
 		animator.set_tick(0u);
-		layer_stack.configure(eng::Span<const playfield::TileLayerBinding> {kLiveLayers, 2u});
+		layer_stack.configure(eng::Span<const playfield::TileLayerBinding> {kLiveLayers, 3u});
 
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
@@ -189,6 +229,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Fill);
 			return;
 		}
+		// Y=423 deja en pantalla agua, flores y la fogata a la vez.
 		if (!scene.pre_scroll(backend, plan, 0, 300)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
@@ -223,48 +264,18 @@ struct DemoGame {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!ready) return;
-		if ((context.frame.frame_index % 600u) == 0u && context.frame.frame_index != 0u) {
-			direction = static_cast<eng::s16>(-direction);
-		}
+		DEMO_PROF_FRAME();
+		DEMO_PROF_BEGIN(0u);
 		apply_animation_budget();
 		animator.set_tick(context.frame.frame_index);
 		plan.clear();
 		plan.set_blit_budget_limits({16384, 65536, 120, 512});
-		const eng::s32 step = static_cast<eng::s32>(direction);
-		const eng::s32 dx = 0; // recorrido Y-only: X+scroll simultáneo baja a 25 fps
-		if (!scene.update(plan, dx, step, context.frame.frame_index)) {
-			// Borde del toroide inverso: rebotar y reintentar en el mismo frame.
-			direction = static_cast<eng::s16>(-direction);
-			plan.clear();
-			plan.set_blit_budget_limits({16384, 65536, 120, 512});
-			if (!scene.update(plan, dx, direction, context.frame.frame_index)) {
-				ready = false;
-				eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
-				return;
-			}
-		}
-		if (!backend.execute_frame_plan(plan)) {
+		// Cámara fija: el update no desplaza el anillo; sigue siendo el punto de
+		// sincronización de la escena y deja el parche de animación como única
+		// fuente de cambios visuales.
+		if (!scene.update(plan, 0, 0, context.frame.frame_index)) {
 			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
-			return;
-		}
-		const eng::s32 cam_y = scene.bg().mapposy();
-		if ((cam_y % static_cast<eng::s32>(kTile)) == 0) {
-			const eng::s16 row = (direction > 0)
-				? static_cast<eng::s16>((cam_y + static_cast<eng::s32>(kFieldH)) / static_cast<eng::s32>(kTile))
-				: static_cast<eng::s16>(cam_y / static_cast<eng::s32>(kTile) + 1);
-			const eng::s16 screen_y = (direction > 0)
-				? static_cast<eng::s16>(kFieldH - kTile) : 0;
-			if (!scene.draw_animation_stack(backend, plan, layer_stack, row, screen_y)) {
-				ready = false;
-				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
-				return;
-			}
-		}
-		plan.set_blit_budget_limits({16384, 65536, 120, 512});
-		if (!scene.patch_animations(plan)) {
-			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
+			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
 		}
 		if (plan.blit_job_count() != 0u && !backend.execute_frame_plan(plan)) {
@@ -272,17 +283,53 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 			return;
 		}
+		DEMO_PROF_END(0u);
+		DEMO_PROF_BEGIN(1u);
+		plan.clear();
+		plan.set_blit_budget_limits({16384, 65536, 120, 512});
+		if (!scene.patch_animations(plan, static_cast<eng::u8>(1u << 2u))) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
+			return;
+		}
+		DEMO_PROF_END(1u);
+#if defined(DEMO_BLIT_STATS)
+		plan.finalize();
+		const eng::graphics::BlitBudget& budget = plan.blit_budget();
+		DEMO_STAT_VALUE(0u, budget.jobs);
+		DEMO_STAT_VALUE(1u, budget.words);
+		DEMO_STAT_VALUE(2u, budget.masked_jobs);
+		DEMO_STAT_VALUE(3u, budget.copy_jobs);
+		DEMO_STAT_VALUE(4u, animator.group_count());
+		DEMO_STAT_VALUE(5u, animator.tick());
+		g_eng_frame_telemetry.frame = context.frame.frame_index;
+		g_eng_frame_telemetry.blit_jobs = budget.jobs;
+		g_eng_frame_telemetry.blit_words = static_cast<eng::u16>(budget.words > 0xffffu ? 0xffffu : budget.words);
+#endif
+		DEMO_PROF_BEGIN(2u);
+		if (plan.blit_job_count() != 0u && !backend.execute_frame_plan(plan)) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
+			return;
+		}
+		DEMO_PROF_END(2u);
+		DEMO_PROF_BEGIN(3u);
 		if (!scene.compose()) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeFrame);
 			return;
 		}
-		++frame_of_day;
-		eng::util::TextLine<64> stats;
+		DEMO_PROF_END(3u);
+		DEMO_PROF_BEGIN(4u);
+		eng::util::TextLine<96> stats;
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
 		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count();
+#if defined(DEMO_BLIT_STATS)
+		stats << " J=" << budget.jobs << " W=" << budget.words;
+#endif
 		host_hud.draw(backend.debug(), "207 TILED LIVE", kVersion, context.frame.frame_index,
 			      eng::debug::prof_clock(), stats.c_str());
+		DEMO_PROF_END(4u);
 	}
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) scene.install(backend);

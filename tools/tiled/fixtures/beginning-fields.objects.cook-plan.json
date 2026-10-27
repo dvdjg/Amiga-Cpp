@@ -36,6 +36,7 @@
       "sort_y": "base",
       "rules": [
         { "id": [43], "cook": "foreground", "sort_y": "base" },
+        { "id": [89], "cook": "occluder" },
         { "id": [143], "cook": "occluder" }
       ]
     }

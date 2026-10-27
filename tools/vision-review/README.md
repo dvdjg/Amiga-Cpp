@@ -349,3 +349,13 @@ powershell -File tools/vision-review/hud-resize-check.ps1 -Demo demos/techniques
 ```
 
 El check imprime `HUD resize OK: pixels=..., bands=...` y deja la captura en `out/vision/hud-resize-check.png`.
+
+## Flicker de alta frecuencia
+
+`flicker-highfreq.mjs` captura una secuencia **frame a frame** (no por intervalo de reloj), ejecuta el detector de bandas alternas y el frame-diff temporal, y deja `out/vision-review/<demo>/flicker-highfreq.{json,md}`. Uso:
+
+```bash
+node tools/vision-review/flicker-highfreq.mjs --demo demos/techniques/amiga/playfield/208_tiled_occlusion_objects --config A500_release --frames 12 --require-ok
+```
+
+No sustituye una captura dentro del scanout: detecta alternancias de frames y cambios estructurales; para tearing de buffer único hay que instrumentar el scanout o pasar a doble buffer.

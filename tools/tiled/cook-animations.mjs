@@ -215,25 +215,61 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 		return null;
 	}
 
-	const groupList = [...groups.values()];
+	// Agrupa como máximo 4 celdas por grupo: un grupo de agua puede tener 18
+	// celdas y 108 jobs (6 planos), lo que bloquea el parche entero. Varios
+	// grupos pequeños comparten los mismos frames y el FramePlan reparte el
+	// trabajo sin congelar las demás capas.
+	const kCellsPerGroup = 4;
+	const groupList = [];
+	for (const group of groups.values()) {
+		for (let i = 0; i < group.cells.length; i += kCellsPerGroup) {
+			groupList.push({ ...group, cells: group.cells.slice(i, i + kCellsPerGroup) });
+		}
+	}
 	if (groupList.length > 255) throw new Error(`demasiados grupos de animación (${groupList.length} > 255)`);
+	// Reparte los grupos por capas en round-robin: con un presupuesto pequeño,
+	// un orden por capas dejaría la fogata sin parchear durante segundos.
+	const byLayer = new Map();
+	for (const group of groupList) {
+		const layerIndex = layers.indexOf(group.cells[0]?.layer);
+		const key = layerIndex >= 0 ? layerIndex : 0;
+		if (!byLayer.has(key)) byLayer.set(key, []);
+		byLayer.get(key).push(group);
+	}
+	const layerGroups = [...byLayer.entries()]
+		.sort((a, b) => b[0] - a[0])
+		.map((entry) => entry[1]);
+	const roundRobin = [];
+	const maxPerLayer = Math.max(0, ...layerGroups.map((v) => v.length));
+	for (let i = 0; i < maxPerLayer; ++i) {
+		for (const groupsOfLayer of layerGroups) {
+			if (i < groupsOfLayer.length) roundRobin.push(groupsOfLayer[i]);
+		}
+	}
+	groupList.length = 0;
+	groupList.push(...roundRobin);
 	const sheetParts = [];
 	const maskParts = [];
 	const groupMeta = [];
+	const frameFirst = new Map();
 	let frameCursor = 0;
 	for (const group of groupList) {
-		const flags = decodeGid(group.gid);
-		const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, group.dither === true, shadowIndex));
-		const first = frameCursor;
-		for (const frame of frames) {
-			sheetParts.push(frame.frame);
-			maskParts.push(frame.mask);
-			++frameCursor;
+		let first = frameFirst.get(group.key);
+		if (first == null) {
+			const flags = decodeGid(group.gid);
+			const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, group.dither === true, shadowIndex));
+			first = frameCursor;
+			for (const frame of frames) {
+				sheetParts.push(frame.frame);
+				maskParts.push(frame.mask);
+				++frameCursor;
+			}
+			frameFirst.set(group.key, first);
 		}
 		groupMeta.push({
 			gid: group.gid,
 			first_frame: first,
-			frame_count: frames.length,
+			frame_count: group.frames.length,
 			durations: group.frames.map((f) => f.ticks),
 			cells: group.cells.length,
 			first_cell: 0,
@@ -242,11 +278,9 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 		});
 	}
 
-	const groupIndex = new Map(groupList.map((g, i) => [g.key ?? g.gid, i]));
-	for (const layer of layers) {
-		for (const cell of layer.cells) {
-			if (cell == null) continue;
-			cell.group = groupIndex.get(cell.gid);
+	for (let g = 0; g < groupList.length; ++g) {
+		for (const cell of groupList[g].cells) {
+			cell.layer.cells[cell.y * width + cell.x].group = g;
 		}
 	}
 	// Lista dispersa global ordenada por grupo: el parche recorre solo las celdas

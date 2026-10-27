@@ -2135,12 +2135,14 @@ if (index !== injectSample - 1) return;
   }
 
   // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
-  // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB.
+  // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por el
+  // canal lateral, no por GDB (readMemory sufre timeouts en este fork).
   const telemetrySymbol = findMapSymbol(builtMap, 'g_eng_frame_telemetry');
   const sideSections = report.sideChannel?.state?.sections;
   if (telemetrySamples > 0 && telemetrySymbol !== null && Array.isArray(sideSections) && sideSections.length > 0) {
     let telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
-    // Ancla al run status ya verificado: evita el desfase de orden de secciones.
+    // Ambos símbolos están en `.data`: usar el run status ya verificado evita
+    // el desfase de orden de secciones del mapa en este fork.
     if (runStatusSymbol !== null && report.sideChannel?.runtimeAddress) {
       telAddr = report.sideChannel.runtimeAddress + (telemetrySymbol - runStatusSymbol);
     }
@@ -2148,7 +2150,13 @@ if (index !== injectSample - 1) return;
       report.telemetry = [];
       for (let t = 0; t < telemetrySamples; ++t) {
         try {
-          const b = await protocol.readMemory(telAddr, 12);
+          const reply = JSON.parse(
+            await sendSideChannelCommand(sideChannelPort, `mem 0x${telAddr.toString(16)} 12`, 4000),
+          );
+          if (!reply.ok || typeof reply.data !== 'string' || reply.data.length < 24) {
+            throw new Error(`lectura de telemetría inválida: ${JSON.stringify(reply)}`);
+          }
+          const b = Buffer.from(reply.data, 'hex');
           // m68k es big-endian: leer los campos del struct en BE.
           report.telemetry.push({
             frame: b.readUInt32BE(0),
@@ -2158,7 +2166,7 @@ if (index !== injectSample - 1) return;
             fillup_extra: b.readUInt16BE(10),
           });
         } catch (err) {
-          report.telemetry.push({ error: err.message });
+          report.telemetry.push({ error: err instanceof Error ? err.message : String(err) });
         }
         await sleep(telemetryIntervalMs);
       }
