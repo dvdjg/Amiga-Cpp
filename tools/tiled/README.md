@@ -118,6 +118,17 @@ node tools/tiled/test-cook.mjs
 
 `test-parse-tmx` cubre XML, atlas/colección, animaciones, objetos, propiedades, grupos, CSV/base64 gzip/zlib, chunks negativos, flips, GID fuera de rango/no definido, zstd y orientación rechazada. Si existe el proyecto local `Beginning Fields.tmx`, lo parsea como integración y comprueba 18 tilesets, 7 capas de tiles, 2 objectgroups, 169 objetos y 256 GID únicos. `test-cook-plan` valida el contrato de capas y las reglas por objeto; `test-cook` comprueba el bake del fixture, los tres perfiles, la propuesta/`selected`, la paleta impuesta y la emisión de `objects.h`/sheet/máscara cuando una regla marca un objeto `foreground`. Ambos se ejecutan en la pasada completa de `tools/run-host-tests.sh`.
 
+## Animaciones y tamaño de tile
+
+`tools/tiled/cook-animations.mjs` acepta `--tile 16` o `--tile 32`; si se omite usa `map.tilewidth`. Solo admite tiles cuadrados de 16×16 o 32×32; rechaza 8×8, tiles rectangulares y mapas cuyo `tilewidth` no coincida. El tamaño se propaga a `TILED_ANIM_TILE`, `ANIM_FRAME_STRIDE`, `ANIM_MASK_STRIDE`, `TILED_ANIM_FRAME_STRIDE` y `TILED_ANIM_MASK_STRIDE`.
+
+Ejemplo:
+
+```bash
+node tools/tiled/cook-animations.mjs --ir ir.json --plan plan.json \
+  --palette palette.json --planes 6 --tile 32 --out selected/
+```
+
 ## Límites actuales
 
 - El parser no lee imágenes; `compose-map`/`cook-map` sí, con `pngjs`, en host.

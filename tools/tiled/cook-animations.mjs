@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Cocina las celdas animadas de un mapa Tiled como overlays X-Limited:
 //   - mapas dispersos de grupo por celda (u16, 0 = vacío),
-//   - frames planares 16x16 + máscara 1bpp para cookie-cut,
+//   - frames planares cuadrados de 16 o 32 px + máscara 1bpp para cookie-cut,
 //   - duraciones en ticks de juego (50 Hz).
 //
 // Entrada: IR de parse-tmx, cook-plan y palette.json del perfil seleccionado.
@@ -9,7 +9,10 @@
 //
 // Uso:
 //   node tools/tiled/cook-animations.mjs --ir ir.json --plan plan.json \
-//        --palette palette.json --planes 6 --out selected/
+//        --palette palette.json --planes 6 --tile 16 --out selected/
+//
+// `--tile` es opcional: si se omite se usa `map.tilewidth`; sólo se aceptan
+// tiles cuadrados de 16×16 o 32×32.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,9 +29,9 @@ import {
 import { ditherCovers, nearest, paletteColors, shadowLevel } from './palette.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const TILE = 16;
+const SUPPORTED_TILES = new Set([16, 32]);
+const DEFAULT_TILE = 16;
 const MAX_FRAMES = 8;
-const MASK_ROW_BYTES = TILE / 8;
 
 const argValue = (args, name) => {
 	const at = args.indexOf(name);
@@ -80,18 +83,21 @@ function animationFrames(ir, gid) {
 	}));
 }
 
-function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false, shadowIndex = -1) {
+function packFrame(ir, frameGid, flags, cache, colors, planes, tile, dither = false, shadowIndex = -1) {
 	const image = resolveTileImage(ir, frameGid, cache, { useFirstFrame: false });
 	if (image.error != null) throw new Error(image.error);
-	if (image.sw !== TILE || image.sh !== TILE) {
-		throw new Error(`frame ${frameGid} mide ${image.sw}x${image.sh}; se esperaba ${TILE}x${TILE}`);
+	if (image.sw !== tile || image.sh !== tile) {
+		throw new Error(`frame ${frameGid} mide ${image.sw}x${image.sh}; se esperaba ${tile}x${tile}`);
 	}
-	const indices = new Uint8Array(TILE * TILE);
-	const mask = new Uint8Array(TILE * MASK_ROW_BYTES);
-	for (let y = 0; y < TILE; ++y) {
-		for (let x = 0; x < TILE; ++x) {
-			let u = flags.flipH ? TILE - 1 - x : x;
-			let v = flags.flipV ? TILE - 1 - y : y;
+	const rowBytes = tile / 8;
+	const planeStride = rowBytes * tile;
+	const wordsPerRow = tile / 16;
+	const indices = new Uint8Array(tile * tile);
+	const mask = new Uint8Array(tile * rowBytes);
+	for (let y = 0; y < tile; ++y) {
+		for (let x = 0; x < tile; ++x) {
+			let u = flags.flipH ? tile - 1 - x : x;
+			let v = flags.flipV ? tile - 1 - y : y;
 			if (flags.flipD) {
 				const t = u;
 				u = v;
@@ -109,42 +115,56 @@ function packFrame(ir, frameGid, flags, cache, colors, planes, dither = false, s
 			} else if (a >= 128) {
 				color = nearest(colors, image.png.data[so], image.png.data[so + 1], image.png.data[so + 2]);
 			}
-			indices[y * TILE + x] = color;
-			if (color !== 0) mask[y * MASK_ROW_BYTES + (x >> 3)] |= 0x80 >> (x & 7);
+			indices[y * tile + x] = color;
+			if (color !== 0) mask[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
 		}
 	}
-	const frame = Buffer.alloc(planes * 32);
+	const frame = Buffer.alloc(planes * planeStride);
 	for (let p = 0; p < planes; ++p) {
 		const bit = 1 << p;
-		for (let y = 0; y < TILE; ++y) {
-			let word = 0;
-			for (let x = 0; x < TILE; ++x) {
-				if ((indices[y * TILE + x] & bit) !== 0) word |= 0x8000 >> x;
+		for (let y = 0; y < tile; ++y) {
+			for (let wordIndex = 0; wordIndex < wordsPerRow; ++wordIndex) {
+				let word = 0;
+				for (let b = 0; b < 16; ++b) {
+					const x = wordIndex * 16 + b;
+					if ((indices[y * tile + x] & bit) !== 0) word |= 0x8000 >> b;
+				}
+				const at = p * planeStride + y * rowBytes + wordIndex * 2;
+				frame[at] = (word >> 8) & 0xff;
+				frame[at + 1] = word & 0xff;
 			}
-			const at = (p * TILE + y) * 2;
-			frame[at] = (word >> 8) & 0xff;
-			frame[at + 1] = word & 0xff;
 		}
 	}
 	return { frame, mask: Buffer.from(mask) };
 }
 
-function objectCell(ir, object, cache) {
+function objectCell(ir, object, cache, tile) {
 	const image = resolveTileImage(ir, object.gid, cache, { useFirstFrame: false });
 	if (image.error != null) throw new Error(image.error);
-	if (image.sw !== TILE || image.sh !== TILE) return null;
+	if (image.sw !== tile || image.sh !== tile) return null;
 	const rect = objectRect(ir, object, image.sw, image.sh);
-	const x = Math.round(rect.x / TILE);
-	const y = Math.round(rect.y / TILE);
-	if (Math.abs(rect.x - x * TILE) > 1e-6 || Math.abs(rect.y - y * TILE) > 1e-6) {
-		throw new Error(`objeto ${object.id}: posición ${rect.x},${rect.y} no alineada a ${TILE}px`);
+	const x = Math.round(rect.x / tile);
+	const y = Math.round(rect.y / tile);
+	if (Math.abs(rect.x - x * tile) > 1e-6 || Math.abs(rect.y - y * tile) > 1e-6) {
+		throw new Error(`objeto ${object.id}: posición ${rect.x},${rect.y} no alineada a ${tile}px`);
 	}
 	return { x, y, gid: object.gid };
 }
 
 /// Cocina animaciones y escribe `animations.h`/bins en `outDir`.
-/// \param {object} opts `{ ir, plan, paletteFile, planes, outDir }`
-export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
+/// \param {object} opts `{ ir, plan, paletteFile, planes, tile, outDir }`
+export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedTile, outDir }) {
+	const mapTile = Number(ir?.map?.tilewidth ?? 0);
+	const tile = requestedTile ?? (mapTile || DEFAULT_TILE);
+	if (!SUPPORTED_TILES.has(tile)) {
+		throw new Error(`tile ${tile} no soportado; usa 16 o 32`);
+	}
+	if (mapTile > 0 && mapTile !== tile) {
+		throw new Error(`tile ${tile} no coincide con map.tilewidth ${mapTile}`);
+	}
+	if (Number(ir?.map?.tileheight ?? tile) !== tile) {
+		throw new Error(`tile ${tile} no es cuadrado (map.tileheight=${ir?.map?.tileheight})`);
+	}
 	const layerPolicy = plan?.layers ?? {};
 	const animLayers = new Set(plan?.animations?.layers ?? []);
 	const animObjects = new Set(plan?.animations?.objects ?? []);
@@ -201,7 +221,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 			for (const object of layer.objects ?? []) {
 				if (object.gid == null) continue;
 				if (policy !== 'live' && !tileHasAnimation(ir, object.gid) && !animObjects.has(layerName(layer))) continue;
-				const cell = objectCell(ir, object, cache);
+				const cell = objectCell(ir, object, cache, tile);
 
 				if (cell == null) continue;
 
@@ -257,7 +277,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 		let first = frameFirst.get(group.key);
 		if (first == null) {
 			const flags = decodeGid(group.gid);
-			const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, group.dither === true, shadowIndex));
+			const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, tile, group.dither === true, shadowIndex));
 			first = frameCursor;
 			for (const frame of frames) {
 				sheetParts.push(frame.frame);
@@ -312,8 +332,9 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	fs.writeFileSync(path.join(outDir, 'anim_sheet.bin'), sheet);
 	fs.writeFileSync(path.join(outDir, 'anim_masks.bin'), masks);
 
-	const frameStride = p * 32;
-	const maskStride = 32;
+	const planeStride = (tile / 8) * tile;
+	const frameStride = p * planeStride;
+	const maskStride = (tile / 8) * tile;
 	const lines = [];
 	lines.push('// Animaciones Tiled cocinadas (T5): overlays planares + máscara 1bpp.');
 	lines.push(`// ${groupList.length} grupos, ${frameCursor} frames, ${layers.length} capas, ${p} planos.`);
@@ -325,7 +346,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	lines.push(`#define TILED_ANIM_FRAME_COUNT ${frameCursor}u`);
 	lines.push(`#define TILED_ANIM_FRAME_STRIDE ${frameStride}u`);
 	lines.push(`#define TILED_ANIM_MASK_STRIDE ${maskStride}u`);
-	lines.push(`#define TILED_ANIM_TILE ${TILE}u`);
+	lines.push(`#define TILED_ANIM_TILE ${tile}u`);
 	lines.push(`#define TILED_ANIM_PLANES ${p}u`);
 	lines.push(`#define TILED_ANIM_SHEET_BYTES ${sheet.length}u`);
 	lines.push(`#define TILED_ANIM_CELL_COUNT ${sparse.length}u`);
@@ -363,6 +384,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, outDir }) {
 	fs.writeFileSync(path.join(outDir, 'animations.h'), lines.join('\n'), 'utf8');
 	fs.writeFileSync(path.join(outDir, 'animations.json'), JSON.stringify({
 		planes: p,
+		tile,
 		frameStride,
 		maskStride,
 		frameCount: frameCursor,
@@ -391,6 +413,7 @@ function main() {
 	const planFile = argValue(args, '--plan');
 	const paletteFile = argValue(args, '--palette');
 	const planes = argValue(args, '--planes');
+	const tile = argValue(args, '--tile');
 	const outDir = argValue(args, '--out');
 	for (let i = 0; i < args.length; ++i) {
 		if (args[i] === '--ir') { irFile = args[++i] ?? null; continue; }
@@ -398,7 +421,7 @@ function main() {
 		if (file == null) file = args[i];
 	}
 	if ((irFile == null && file == null) || planFile == null || paletteFile == null || outDir == null) {
-		console.error('Uso: node tools/tiled/cook-animations.mjs <mapa.tmx|--ir ir.json> --plan plan.json --palette palette.json --planes 6 --out selected/');
+		console.error('Uso: node tools/tiled/cook-animations.mjs <mapa.tmx|--ir ir.json> --plan plan.json --palette palette.json --planes 6 [--tile 16|32] --out selected/');
 		process.exit(2);
 	}
 	const ir = irFile != null ? JSON.parse(fs.readFileSync(path.resolve(irFile), 'utf8')) : parseTmxFile(file);
@@ -408,6 +431,7 @@ function main() {
 		plan,
 		paletteFile: path.resolve(paletteFile),
 		planes: planes == null ? undefined : Number(planes),
+		tile: tile == null ? undefined : Number(tile),
 		outDir: path.resolve(outDir),
 	});
 	console.log(`[anim] ${result.groups} grupos, ${result.frames} frames, ${result.layers.join('/')}, sheet=${(result.sheetBytes / 1024).toFixed(1)}KB masks=${(result.maskBytes / 1024).toFixed(1)}KB`);

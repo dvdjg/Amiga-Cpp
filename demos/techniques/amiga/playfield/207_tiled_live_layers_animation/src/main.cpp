@@ -122,7 +122,7 @@ __asm__(".section tiles.MEMF_CHIP, \"aw\"\n"
 extern "C" const unsigned char g_tiled_bank[];
 extern "C" const unsigned int g_tiled_bank_size;
 
-// Frames planares 16x16 (6 planos) y máscaras 1bpp.
+// Frames planares de `TILED_ANIM_TILE` (16×16 o 32×32) y máscaras 1bpp.
 __asm__(".section anim_sheet.MEMF_CHIP, \"aw\"\n"
 	".globl g_anim_sheet\ng_anim_sheet:\n"
 	".align 2\n"
@@ -181,7 +181,7 @@ const playfield::TileLayerBinding kLiveLayers[] = {
 };
 
 
-constexpr eng::u16 kTile = 16u;
+constexpr eng::u16 kTile = TILED_ANIM_TILE;
 constexpr eng::u16 kViewportW = 320u;
 constexpr eng::u16 kViewportH = 256u; // total: 208 de campo + 48 de HUD
 constexpr eng::u16 kFieldH = kViewportH - 48u;
