@@ -228,7 +228,7 @@ struct DemoGame {
 		m_stop_count = 0u;
 		eng::s16 x = 0, y = 0;
 #if defined(DEMO_DEBUG_ONE_CELL)
-		add_stop(544, 552); // diagnóstico: celda Flowers (4,1)
+		add_stop(0, 0); // diagnóstico: celda Flowers (4,1) en pantalla (64,16)
 #endif
 		if (camera_for_layer(2u, x, y)) add_stop(x, y); // fogata / Object Layer 1
 		if (camera_for_layer(1u, x, y)) add_stop(x, y); // agua

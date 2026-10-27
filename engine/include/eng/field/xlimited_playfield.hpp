@@ -854,9 +854,16 @@ private:
         else (void)stats;
         if (this->m_cfg.animator == nullptr) return true;
         const TileAnimator& anim = *this->m_cfg.animator;
-        if (!anim.any_changed()) return true;
         const s32 camx = m_scroll.state().mapposx;
         const s32 camy = m_scroll.state().mapposy;
+        if (camx != m_last_anim_camx || camy != m_last_anim_camy) {
+            m_last_anim_camx = camx;
+            m_last_anim_camy = camy;
+            // No se invalida todo el viewport: las celdas que siguen visibles
+            // conservan su overlay; solo se dibujan las que aún no tienen bit.
+            m_redraw_visible_anim = true;
+        }
+        if (!anim.any_changed() && !m_redraw_visible_anim) return true;
         const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
         const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
         if (mapw <= 0 || maph <= 0) return false;
@@ -874,12 +881,16 @@ private:
         // pendientes conservan `changed` para el siguiente turno de paridad.
         constexpr u16 kPatchJobLimit = 24u;
         constexpr u16 kJobsPerCell = 6u;
+        bool pass_deferred = false;
         for (u16 g = 0u; g < anim.group_count(); ++g) {
             if constexpr (Collect) ++stats->groups_scanned;
-            if (!anim.group_changed(g) || ((g % 6u) != parity)) continue;
+            const bool changed = anim.group_changed(g);
+            const bool parity_ok = ((g % 6u) == parity);
+            if (!m_redraw_visible_anim && (!changed || !parity_ok)) continue;
             const TileAnimationGroupView& grp = anim.group(g);
             if (plan.blit_job_count() + static_cast<u16>(grp.cell_count) * kJobsPerCell >
                 kPatchJobLimit) {
+                pass_deferred = true;
                 if constexpr (Collect) {
                     // Cuenta también los grupos posteriores que sí tocaban en
                     // este turno y quedan pendientes para el siguiente.
@@ -909,6 +920,10 @@ private:
                     if constexpr (Collect) ++stats->cells_culled;
                     continue;
                 }
+                if (m_redraw_visible_anim && !changed &&
+                    ci < kTileAnimationMaxCells && m_anim_cell_visible[ci] != 0u) {
+                    continue;
+                }
                 s32 ring_y = ring_base + sy;
                 if (ring_y >= dh) ring_y -= dh;
                 // Las celdas transparentes no deben conservar restos del frame
@@ -931,6 +946,7 @@ private:
                         static_cast<u16>(sx), static_cast<u16>(ring_y), g, false)) {
                     return false;
                 }
+                if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
                 group_drawn = true;
                 if constexpr (Collect) {
                     ++stats->cells_patched;
@@ -942,8 +958,9 @@ private:
             if constexpr (Collect) {
                 if (group_drawn) ++stats->groups_patched;
             }
-            anim.clear_group(g);
+            if (changed && (parity_ok || m_redraw_visible_anim)) anim.clear_group(g);
         }
+        if (m_redraw_visible_anim && !pass_deferred) m_redraw_visible_anim = false;
         return true;
     }
 
@@ -996,6 +1013,7 @@ public:
                         static_cast<u16>(layer), false)) {
                     return false;
                 }
+                if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
                 if (plan.blit_job_count() >= 64u) {
                     if (!backend.execute_frame_plan(plan)) return false;
                     plan.clear();
@@ -1096,6 +1114,10 @@ private:
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
     graphics::BobTarget m_anim_target {};         // anillo para overlays animados
+    s32 m_last_anim_camx = 0x7fffffff;            // cámara del último parche
+    s32 m_last_anim_camy = 0x7fffffff;
+    bool m_redraw_visible_anim = true;            // pasada de entrada tras scroll
+    mutable u8 m_anim_cell_visible[kTileAnimationMaxCells] {};
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
 };
 
