@@ -97,3 +97,11 @@ La prueba con un recorte de fogata/flores devolvió una descripción limitada a 
 - Ayudó: limitar el grupo de 4 celdas a 24 jobs, el filtro de celda única, la cámara congelada, el recorte aislado y el contador por capa.
 - No ayudó: usar `rx` como destino del parche (duplicó la fogata); el modelo de visión con la escena completa; la secuencia de frames para medir animación.
 - Sigue abierto: checksum del rectángulo, lectura GDB del BlitJob, costura horizontal y el mínimo de 25 fps.
+
+## Intento GDB (2026-10-27)
+
+- Se consiguió arrancar WinUAE con `runner.uae` y GDB quedó conectado; el `winuae_print` resolvió mal `g_debug_anim_blit` (devolvió una dirección de `.rodata`/texto), así que la lectura directa no es fiable con la resolución por mapa actual.
+- Se localizó el símbolo en `.bss`: enlazado `0x6b592`, sección `.bss` en `0x6b4b0`, offset `0xe2`. La base `bss` de runtime fue `0x00c2b1e0`, luego la dirección manual sería `0x00c2b2c2`; la lectura allí no mostró un `dest` válido, por lo que hay que revisar la resolución de bases/secciones antes de usarla como prueba.
+- Siguiente intento: poner un valor mágico al inicio de la estructura, romper en `patch_animations_impl` después del `draw_group`, y leer el global por GDB en ese stop; no usar `winuae_print` como oráculo hasta corregir la base.
+
+Esta parte no cierra 1–4: falta el valor real de `dest`, el checksum y la costura horizontal.
