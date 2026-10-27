@@ -911,23 +911,30 @@ private:
                 s32 sx = wx - camx_mod;
                 if (sx < 0) sx += mapw;
                 if (sx >= this->m_cfg.viewport_w) {
+                    if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
                     if constexpr (Collect) ++stats->cells_culled;
                     continue;
                 }
                 s32 sy = wy - camy_mod - static_cast<s32>(this->cth());
                 if (sy < 0) sy += maph;
                 if (sy >= this->m_cfg.viewport_h) {
+                    if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
                     if constexpr (Collect) ++stats->cells_culled;
-                    continue;
-                }
-                if (m_redraw_visible_anim && !changed &&
-                    ci < kTileAnimationMaxCells && m_anim_cell_visible[ci] != 0u) {
                     continue;
                 }
                 s32 ring_y = ring_base + sy;
                 if (ring_y >= dh) ring_y -= dh;
+                // La caché debe incluir la POSICIÓN del overlay, no solo el
+                // índice de celda: al mover la cámara el mismo tile cambia de
+                // fila/columna del anillo y el bit antiguo dejaría un resto.
+                if (m_redraw_visible_anim && !changed && ci < kTileAnimationMaxCells &&
+                    m_anim_cell_visible[ci] != 0u &&
+                    m_anim_cell_x[ci] == static_cast<u16>(sx) &&
+                    m_anim_cell_y[ci] == static_cast<u16>(ring_y)) {
+                    continue;
+                }
                 // Las celdas transparentes no deben conservar restos del frame
-                // anterior: repinta el bloque base y despu������s el frame encima.
+                // anterior: repinta el bloque base y después el frame encima.
                 if ((restore_background_layers & static_cast<u8>(1u << cell.layer)) != 0u) {
                     if (!this->add_draw(plan, static_cast<u16>(sx),
                             static_cast<u16>(ring_y), cell.x, cell.y)) {
@@ -946,7 +953,11 @@ private:
                         static_cast<u16>(sx), static_cast<u16>(ring_y), g, false)) {
                     return false;
                 }
-                if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
+                if (ci < kTileAnimationMaxCells) {
+                    m_anim_cell_visible[ci] = 1u;
+                    m_anim_cell_x[ci] = static_cast<u16>(sx);
+                    m_anim_cell_y[ci] = static_cast<u16>(ring_y);
+                }
                 group_drawn = true;
                 if constexpr (Collect) {
                     ++stats->cells_patched;
@@ -997,13 +1008,19 @@ public:
                 const s32 wy = static_cast<s32>(cell.y) * this->cth();
                 s32 sx = wx - camx_mod;
                 if (sx < 0) sx += mapw;
-                if (sx >= this->m_cfg.viewport_w) continue;
+                if (sx >= this->m_cfg.viewport_w) {
+                    if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
+                    continue;
+                }
                 s32 sy = (only_map_row >= 0) ? static_cast<s32>(screen_y)
                     : wy - camy_mod - static_cast<s32>(this->cth());
                 if (only_map_row < 0) {
                     if (sy < 0) sy += maph;
                     if (sy < 0) sy += maph;
-                    if (sy >= this->m_cfg.viewport_h) continue;
+                    if (sy >= this->m_cfg.viewport_h) {
+                        if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
+                        continue;
+                    }
                 }
                 s32 ring_y = ring_base + sy;
                 if (ring_y >= dh) ring_y -= dh;
@@ -1013,7 +1030,11 @@ public:
                         static_cast<u16>(layer), false)) {
                     return false;
                 }
-                if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
+                if (ci < kTileAnimationMaxCells) {
+                    m_anim_cell_visible[ci] = 1u;
+                    m_anim_cell_x[ci] = static_cast<u16>(sx);
+                    m_anim_cell_y[ci] = static_cast<u16>(ring_y);
+                }
                 if (plan.blit_job_count() >= 64u) {
                     if (!backend.execute_frame_plan(plan)) return false;
                     plan.clear();
@@ -1118,6 +1139,8 @@ private:
     s32 m_last_anim_camy = 0x7fffffff;
     bool m_redraw_visible_anim = true;            // pasada de entrada tras scroll
     mutable u8 m_anim_cell_visible[kTileAnimationMaxCells] {};
+    mutable u16 m_anim_cell_x[kTileAnimationMaxCells] {};
+    mutable u16 m_anim_cell_y[kTileAnimationMaxCells] {};
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
 };
 

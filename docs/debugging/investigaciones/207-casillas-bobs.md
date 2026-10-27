@@ -86,6 +86,64 @@ La prueba con un recorte de fogata/flores devolvió una descripción limitada a 
 - La caché de celdas que entran/salen está sin resolver; el límite de 24 evita el diferido sistemático de grupos de 4, pero no garantiza la entrada.
 - La captura secuencial no es fiable para animación; usar pausa y lectura de memoria/checksum.
 
+## Sonda corregida: checksum por plano y costura (2026-10-27)
+
+La lectura anterior solo guardaba el **último** BlitJob y sumaba palabras contiguas. El destino es interleaved: cada fila de un plano dista `row_bytes * planes = 264` bytes, no 2. La sonda de `207/src/main.cpp` ahora:
+
+- captura todos los jobs enmascarados de la celda de prueba antes de `execute_frame_plan`;
+- guarda una copia de las 16 filas de cada plano;
+- calcula `expected = (source & mask) | (before & ~mask)` para cookie-cut `$CA`;
+- verifica que `after == expected` fila a fila y expone `M` (jobs con mismatch) y `N` (jobs capturados) en el HUD;
+- conserva la última captura verificada para poder leerla aunque el frame actual no tenga jobs.
+
+La lectura se hizo por el canal lateral y una búsqueda del patrón `ANIM` en RAM, sin depender de la resolución de símbolos por `.map`.
+
+### Celda 5, cámara (0,0)
+
+Cabecera: `target=0x0005BFA0`, `row_bytes=44`, `planes=6`, `jobs=6`, `cell=5`, `sx=64`, `ry=16`, `mismatch_count=0`.
+
+| Plano | destino | source | mask | before | expected | after |
+|---|---|---|---|---|---|---|
+| 0 | `0x0005D028` | `0x0004D170` | `0x00058180` | 255176 | 255368 | 255368 |
+| 1 | `0x0005D054` | `0x0004D190` | `0x00058180` | 781019 | 781771 | 781771 |
+| 2 | `0x0005D080` | `0x0004D1B0` | `0x00058180` | 506861 | 506285 | 506285 |
+| 3 | `0x0005D0AC` | `0x0004D1D0` | `0x00058180` | 510812 | 511692 | 511692 |
+| 4 | `0x0005D0D8` | `0x0004D1F0` | `0x00058180` | 40333 | 39709 | 39709 |
+| 5 | `0x0005D104` | `0x0004D210` | `0x00058180` | 129025 | 129025 | 129025 |
+
+Los seis planos cumplen `after == expected`; `M=0`, `N=6`. El destino del plano 5 coincide con el cálculo manual `0x5BFA0 + 16*6*44 + 5*44 + 8 = 0x5D104`.
+
+### Celda 116 en el borde, cámara (48,144)
+
+Cabecera: `cell=116`, `sx=304`, `ry=224`, `jobs=6`, `mismatch_count=0`. Los destinos `0x0006A6C6`, `0x0006A6F2`, `0x0006A71E`, `0x0006A74A`, `0x0006A776` y `0x0006A7A2` cumplen `after == expected`; `M=0`, `N=6`. La celda ocupa la última zona visible a la derecha (`sx=304`, 16 px) sin cruzar la fila de 352 px del anillo.
+
+### Caché de visibilidad
+
+`m_anim_cell_visible` era un bit pegajoso: una celda que ya se había pintado no se repintaba aunque la cámara la moviera a otra posición del anillo. Ahora la caché guarda también `sx` y `ring_y`; solo se salta el repintado si la celda sigue en la misma posición y su grupo no cambió. Las celdas culled limpian su bit.
+
+### Test host
+
+`tests/host/field/500_tile_animation_edge` valida sin emulador:
+
+- el tile en `x=336` ocupa la última palabra de la fila de 352 px;
+- el cruce `ring_y=280 + 16` se parte en dos segmentos de 8 filas;
+- los segmentos conservan fuente, máscara, minterm `$CA` y el stride interleaved.
+
+Comando: `bash tools/run-host-tests.sh tests/host/field/500_tile_animation_edge` → `HOST-500: borde de anillo OK`.
+
+### Estadísticas del HUD
+
+`B0/B1/B2` se resetean cada frame. Cuando la captura muestra el último checksum de un frame anterior, `M/N` podía ser distinto de `B0/B1/B2`. El HUD usa ahora `m_last_patch_stats`, copiado solo cuando el parche de ese frame contiene jobs; así el contador de capa y el checksum corresponden al mismo frame de trabajo.
+
+### Secuencia y fps
+
+- Secuencia de 4 frames cada 250 ms: el modelo de visión detecta desplazamiento horizontal del contenido; no se usa como prueba de píxeles.
+- `measure-fps` con `A500_release`: media 29,01 fps, mínimo 21,39, máximo 38,91; **cadencia inestable**, no cumple el mínimo de 25 fps.
+
+### Alcance
+
+El checksum valida los **seis planos** de la celda 5 y de la celda 116 en las cámaras indicadas, y el test host valida la geometría del borde. La capa completa se ha movido en una secuencia, pero sigue mostrando celdas rojas/oscurecidas en la zona inferior derecha, **SIN VERIFICAR**; el mínimo de fps tampoco se cumple.
+
 ## Capa completa / escena
 
 - 207 release tras corregir la visibilidad y el límite: una sola fogata en la primera parada (la duplicación de la prueba `rx` desapareció). Persisten celdas rojas/oscurecidas en la zona inferior-derecha; no se declaran corregidas.

@@ -34,29 +34,69 @@
 struct ExecBase* SysBase = nullptr;
 
 #if defined(DEMO_DEBUG_ONE_CELL)
-struct DebugAnimBlit {
-	eng::u32 magic;
+#ifndef DEMO_DEBUG_CELL
+#if defined(DEMO_SEAM)
+#define DEMO_DEBUG_CELL 116u
+#define DEMO_DEBUG_CAM_X 48
+#define DEMO_DEBUG_CAM_Y 144
+#else
+#define DEMO_DEBUG_CELL 5u
+#define DEMO_DEBUG_CAM_X 0
+#define DEMO_DEBUG_CAM_Y 0
+#endif
+#endif
+#ifndef DEMO_DEBUG_CAM_X
+#define DEMO_DEBUG_CAM_X 0
+#endif
+#ifndef DEMO_DEBUG_CAM_Y
+#define DEMO_DEBUG_CAM_Y 0
+#endif
+
+constexpr eng::u16 kDebugCell = static_cast<eng::u16>(DEMO_DEBUG_CELL);
+constexpr eng::s16 kDebugCamX = static_cast<eng::s16>(DEMO_DEBUG_CAM_X);
+constexpr eng::s16 kDebugCamY = static_cast<eng::s16>(DEMO_DEBUG_CAM_Y);
+constexpr eng::u16 kDebugAnimMaxJobs = 12u;
+constexpr eng::u16 kDebugAnimMaxRows = 16u;
+
+struct DebugAnimJob {
 	eng::u32 dest;
 	eng::u32 source;
 	eng::u32 mask;
+	eng::u32 checksum_before;
+	eng::u32 checksum_source;
+	eng::u32 checksum_mask;
+	eng::u32 checksum_expected;
+	eng::u32 checksum_after;
 	eng::u16 words_per_row;
 	eng::u16 height;
+	eng::u16 dest_row_words;
+	eng::u16 before[kDebugAnimMaxRows];
+	eng::u8 kind;
+	eng::u8 minterm;
+	eng::u8 mismatch;
+	eng::u8 pad;
+};
+
+struct DebugAnimBlit {
+	eng::u32 magic;
 	eng::u32 target_base;
 	eng::u32 plane_stride;
 	eng::u16 row_bytes;
 	eng::u8 planes;
-	eng::u32 checksum_before;
-	eng::u32 checksum_after;
+	eng::u8 job_count;
+	eng::u8 mismatch_count;
+	eng::u8 pending;
 	eng::u16 cell;
 	eng::s16 screen_x;
 	eng::s16 ring_y;
 	eng::s16 camx;
 	eng::s16 camy;
 	eng::s16 display_offset;
-	eng::u8 kind;
-	eng::u8 minterm;
+	DebugAnimJob jobs[kDebugAnimMaxJobs];
 };
-extern "C" __attribute__((used)) volatile DebugAnimBlit g_debug_anim_blit {};
+extern "C" {
+__attribute__((used)) DebugAnimBlit g_debug_anim_blit {};
+}
 #endif
 
 extern "C" {
@@ -191,6 +231,7 @@ struct DemoGame {
 	eng::graphics::FramePlan plan {};
 	eng::debug::HostHud host_hud {};
 	eng::playfield::TilePatchStats m_patch_stats {};
+	eng::playfield::TilePatchStats m_last_patch_stats {};
 	struct CameraStop {
 		eng::s16 x = 0;
 		eng::s16 y = 0;
@@ -254,7 +295,7 @@ struct DemoGame {
 		m_stop_count = 0u;
 		eng::s16 x = 0, y = 0;
 #if defined(DEMO_DEBUG_ONE_CELL)
-		add_stop(0, 0); // diagnóstico: celda Flowers (4,1) en pantalla (64,16)
+		add_stop(kDebugCamX, kDebugCamY); // diagnóstico: una sola celda visible
 #endif
 		if (camera_for_layer(2u, x, y)) add_stop(x, y); // fogata / Object Layer 1
 		if (camera_for_layer(1u, x, y)) add_stop(x, y); // agua
@@ -337,7 +378,7 @@ struct DemoGame {
 		}
 		animator.set_tick(0u);
 #if defined(DEMO_DEBUG_ONE_CELL)
-		animator.set_test_cell(5u); // única celda Flowers del diagnóstico
+		animator.set_test_cell(kDebugCell);
 #endif
 		build_tour();
 #if defined(DEMO_DEBUG_ONE_CELL)
@@ -410,6 +451,127 @@ struct DemoGame {
 		if (fps10 < 440u) animator.set_layer_animation_enabled(1u, false);
 	}
 
+#if defined(DEMO_DEBUG_ONE_CELL)
+	/// Guarda una copia del destino de cada plano ANTES de ejecutar el plan.
+	/// El checksum global anterior leía las filas de forma contigua, pero el
+	/// destino está interleaved: cada fila de un plano dista row_bytes*planes.
+	void capture_debug_jobs(const eng::graphics::FramePlan& plan) {
+		bool has_masked = false;
+		for (eng::u16 i = 0u; i < plan.blit_job_count(); ++i) {
+			if (plan.blit_job(i).kind == eng::graphics::BlitJobKind::MaskedBobCookieCut) {
+				has_masked = true;
+				break;
+			}
+		}
+		if (!has_masked) return;
+		g_debug_anim_blit.magic = 0x414E494Du;
+		g_debug_anim_blit.job_count = 0u;
+		g_debug_anim_blit.mismatch_count = 0u;
+		g_debug_anim_blit.pending = 1u;
+		g_debug_anim_blit.cell = kDebugCell;
+
+		const auto ctx = scene.sprite_context();
+		const auto& target = ctx.targets[0];
+		g_debug_anim_blit.target_base = reinterpret_cast<eng::u32>(target.planes.data());
+		g_debug_anim_blit.plane_stride = target.plane_pointer_step();
+		g_debug_anim_blit.row_bytes = target.row_bytes;
+		g_debug_anim_blit.planes = target.plane_count;
+
+		const eng::playfield::TileAnimationCellView& cell = animator.cell(kDebugCell);
+		const eng::s32 wx = static_cast<eng::s32>(cell.x) * kTile;
+		const eng::s32 wy = static_cast<eng::s32>(cell.y) * kTile;
+		eng::s32 sx = (wx - scene.bg().mapposx()) % kMapW;
+		if (sx < 0) sx += kMapW;
+		eng::s32 sy = (wy - scene.bg().mapposy() - kTile) % kMapH;
+		if (sy < 0) sy += kMapH;
+		const eng::s32 ry = (scene.bg().display_offset() + sy) % scene.bg().display_height();
+		g_debug_anim_blit.screen_x = static_cast<eng::s16>(sx);
+		g_debug_anim_blit.ring_y = static_cast<eng::s16>(ry);
+		g_debug_anim_blit.camx = static_cast<eng::s16>(scene.bg().mapposx());
+		g_debug_anim_blit.camy = static_cast<eng::s16>(scene.bg().mapposy());
+		g_debug_anim_blit.display_offset = static_cast<eng::s16>(scene.bg().display_offset());
+
+		for (eng::u16 i = 0u; i < plan.blit_job_count() && i < kDebugAnimMaxJobs; ++i) {
+			const eng::graphics::BlitJob& job = plan.blit_job(i);
+			if (job.kind != eng::graphics::BlitJobKind::MaskedBobCookieCut) continue;
+			if (g_debug_anim_blit.job_count >= kDebugAnimMaxJobs) break;
+
+			DebugAnimJob& out = g_debug_anim_blit.jobs[g_debug_anim_blit.job_count];
+			out = {};
+			out.dest = reinterpret_cast<eng::u32>(job.destination.cwords());
+			out.source = reinterpret_cast<eng::u32>(job.source.cwords());
+			out.mask = reinterpret_cast<eng::u32>(job.mask.cwords());
+			out.words_per_row = job.words_per_row;
+			out.height = job.height;
+			out.kind = static_cast<eng::u8>(job.kind);
+			out.minterm = static_cast<eng::u8>(job.minterm);
+
+			const eng::u16 dest_row_words = static_cast<eng::u16>(
+				job.destination_plane_stride_bytes / 2u);
+			out.dest_row_words = dest_row_words;
+			const eng::u16* dest = job.destination.cwords();
+			const eng::u16* src = job.source.cwords();
+			const eng::u16* msk = job.mask.cwords();
+			if (dest == nullptr || src == nullptr || msk == nullptr ||
+			    dest_row_words == 0u || job.words_per_row != 1u ||
+			    job.height > kDebugAnimMaxRows) {
+				out.mismatch = 1u;
+				++g_debug_anim_blit.mismatch_count;
+				++g_debug_anim_blit.job_count;
+				continue;
+			}
+			for (eng::u16 row = 0u; row < job.height; ++row) {
+				const eng::u16* dest_row = dest + static_cast<eng::u32>(row) * dest_row_words;
+				const eng::u16 before = *dest_row;
+				const eng::u16 source = src[row];
+				const eng::u16 mask = msk[row];
+				out.before[row] = before;
+				out.checksum_before += before;
+				out.checksum_source += source;
+				out.checksum_mask += mask;
+				out.checksum_expected +=
+					(static_cast<eng::u32>(source) & mask) |
+					(static_cast<eng::u32>(before) & (~static_cast<eng::u32>(mask) & 0xffffu));
+			}
+			out.checksum_after = 0u;
+			++g_debug_anim_blit.job_count;
+		}
+	}
+
+	/// Compara cada fila después del blit con el resultado del cookie-cut.
+	void verify_debug_jobs() {
+		if (g_debug_anim_blit.magic != 0x414E494Du || g_debug_anim_blit.pending == 0u) return;
+		g_debug_anim_blit.pending = 0u;
+		for (eng::u8 j = 0u; j < g_debug_anim_blit.job_count; ++j) {
+			DebugAnimJob& job = g_debug_anim_blit.jobs[j];
+			if (job.mismatch != 0u) continue;
+			const eng::u16 dest_row_words = job.dest_row_words;
+			const eng::u16* dest = reinterpret_cast<const eng::u16*>(job.dest);
+			const eng::u16* src = reinterpret_cast<const eng::u16*>(job.source);
+			const eng::u16* msk = reinterpret_cast<const eng::u16*>(job.mask);
+			if (dest == nullptr || src == nullptr || msk == nullptr ||
+			    dest_row_words == 0u || job.words_per_row != 1u) {
+				job.mismatch = 1u;
+				++g_debug_anim_blit.mismatch_count;
+				continue;
+			}
+			eng::u32 sum = 0u;
+			for (eng::u16 row = 0u; row < job.height; ++row) {
+				const eng::u16* dest_row = dest + static_cast<eng::u32>(row) * dest_row_words;
+				const eng::u16 actual = *dest_row;
+				const eng::u32 expected =
+					(static_cast<eng::u32>(src[row]) & msk[row]) |
+					(static_cast<eng::u32>(job.before[row]) &
+					 (~static_cast<eng::u32>(msk[row]) & 0xffffu));
+				sum += actual;
+				if (actual != expected) job.mismatch = 1u;
+			}
+			job.checksum_after = sum;
+			if (job.mismatch != 0u) ++g_debug_anim_blit.mismatch_count;
+		}
+	}
+#endif
+
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!ready) return;
 		DEMO_PROF_FRAME();
@@ -447,6 +609,10 @@ struct DemoGame {
 				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
 				return;
 			}
+			// El HUD conserva las últimas estadísticas de un frame con trabajo:
+			// si este frame no cambió ninguna celda, B0/B1/B2 no debe parecer
+			// que el parche dejó de pintar.
+			if (plan.blit_job_count() != 0u) m_last_patch_stats = m_patch_stats;
 			if constexpr (eng::debug::metrics_enabled) {
 				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsScanned, m_patch_stats.groups_scanned);
 				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsPatched, m_patch_stats.groups_patched);
@@ -461,48 +627,7 @@ struct DemoGame {
 			}
 		}
 #if defined(DEMO_DEBUG_ONE_CELL)
-		if (plan.blit_job_count() != 0u) {
-			const eng::graphics::BlitJob& job =
-				plan.blit_job(static_cast<eng::u8>(plan.blit_job_count() - 1u));
-			const eng::playfield::TileAnimationCellView& cell = animator.cell(5u);
-			const eng::s32 wx = static_cast<eng::s32>(cell.x) * kTile;
-			const eng::s32 wy = static_cast<eng::s32>(cell.y) * kTile;
-			eng::s32 sx = (wx - scene.bg().mapposx()) % kMapW;
-			if (sx < 0) sx += kMapW;
-			eng::s32 sy = (wy - scene.bg().mapposy() - kTile) % kMapH;
-			if (sy < 0) sy += kMapH;
-			eng::s32 ry = (scene.bg().display_offset() + sy) %
-				      scene.bg().display_height();
-			g_debug_anim_blit.magic = 0x414E494Du; // "ANIM"
-			g_debug_anim_blit.dest = reinterpret_cast<eng::u32>(job.destination.cwords());
-			g_debug_anim_blit.source = reinterpret_cast<eng::u32>(job.source.cwords());
-			g_debug_anim_blit.mask = reinterpret_cast<eng::u32>(job.mask.cwords());
-			g_debug_anim_blit.words_per_row = job.words_per_row;
-			g_debug_anim_blit.height = job.height;
-			const auto ctx = scene.sprite_context();
-			const auto& target = ctx.targets[0];
-			g_debug_anim_blit.target_base =
-				reinterpret_cast<eng::u32>(target.planes.data());
-			g_debug_anim_blit.plane_stride = target.plane_pointer_step();
-			g_debug_anim_blit.row_bytes = target.row_bytes;
-			g_debug_anim_blit.planes = target.plane_count;
-			eng::u32 sum = 0u;
-			const eng::u16* words = job.destination.cwords();
-			for (eng::u16 i = 0u; i < job.words_per_row * job.height; ++i) {
-				sum += words[i];
-			}
-			g_debug_anim_blit.checksum_before = sum;
-			g_debug_anim_blit.checksum_after = 0u;
-			g_debug_anim_blit.cell = 5u;
-			g_debug_anim_blit.screen_x = static_cast<eng::s16>(sx);
-			g_debug_anim_blit.ring_y = static_cast<eng::s16>(ry);
-			g_debug_anim_blit.camx = static_cast<eng::s16>(scene.bg().mapposx());
-			g_debug_anim_blit.camy = static_cast<eng::s16>(scene.bg().mapposy());
-			g_debug_anim_blit.display_offset =
-				static_cast<eng::s16>(scene.bg().display_offset());
-			g_debug_anim_blit.kind = static_cast<eng::u8>(job.kind);
-			g_debug_anim_blit.minterm = static_cast<eng::u8>(job.minterm);
-		}
+		capture_debug_jobs(plan);
 #endif
 		DEMO_PROF_END(1u);
 		if constexpr (eng::debug::metrics_enabled) {
@@ -533,15 +658,7 @@ struct DemoGame {
 			return;
 		}
 #if defined(DEMO_DEBUG_ONE_CELL)
-		if (g_debug_anim_blit.magic == 0x414E494Du) {
-			eng::u32 sum = 0u;
-			const eng::u16* words =
-				reinterpret_cast<const eng::u16*>(g_debug_anim_blit.dest);
-			const eng::u16 count = static_cast<eng::u16>(
-				g_debug_anim_blit.words_per_row * g_debug_anim_blit.height);
-			for (eng::u16 i = 0u; i < count; ++i) sum += words[i];
-			g_debug_anim_blit.checksum_after = sum;
-		}
+		verify_debug_jobs();
 #endif
 		DEMO_PROF_END(2u);
 		DEMO_PROF_BEGIN(3u);
@@ -556,9 +673,13 @@ struct DemoGame {
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
 		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count();
 #if defined(DEMO_BLIT_STATS)
-		stats << " J=" << budget.jobs << " B0=" << m_patch_stats.cells_patched_by_layer[0]
-		      << " B1=" << m_patch_stats.cells_patched_by_layer[1]
-		      << " B2=" << m_patch_stats.cells_patched_by_layer[2];
+		stats << " J=" << budget.jobs << " B0=" << m_last_patch_stats.cells_patched_by_layer[0]
+		      << " B1=" << m_last_patch_stats.cells_patched_by_layer[1]
+		      << " B2=" << m_last_patch_stats.cells_patched_by_layer[2];
+#if defined(DEMO_DEBUG_ONE_CELL)
+		stats << " M=" << g_debug_anim_blit.mismatch_count
+		      << " N=" << g_debug_anim_blit.job_count;
+#endif
 #endif
 		host_hud.draw(backend.debug(), "207 TILED LIVE", kVersion, context.frame.frame_index,
 			      eng::debug::prof_clock(), stats.c_str());
