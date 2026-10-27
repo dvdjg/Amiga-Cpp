@@ -876,11 +876,13 @@ private:
         const s32 ring_base = this->display_offset();
         const s32 dh = static_cast<s32>(this->display_height());
         const u16 parity = static_cast<u16>(anim.tick() % 6u);
-        // El plan de 207 admite grupos de hasta 3 celdas (3 * 6 planos = 18
-        // jobs); un grupo de 4 celdas se difiere. Se dibuja lo que quepa y los
-        // pendientes conservan `changed` para el siguiente turno de paridad.
-        constexpr u16 kPatchJobLimit = 24u;
-        constexpr u16 kJobsPerCell = 6u;
+        // Presupuesto de CPU por turno (no de geometría): `jobs_per_cell` se
+        // deriva de la animación configurada y el límite impide que un solo
+        // grupo acapare el plan. 24 = cuatro celdas de 6 planos o ocho de 3.
+        constexpr u16 kPatchJobBudget = 24u;
+        const u16 patch_job_limit = static_cast<u16>(
+            plan.max_blit_jobs < kPatchJobBudget ? plan.max_blit_jobs : kPatchJobBudget);
+        const u16 jobs_per_cell = anim.plane_count();
         bool pass_deferred = false;
         for (u16 g = 0u; g < anim.group_count(); ++g) {
             if constexpr (Collect) ++stats->groups_scanned;
@@ -888,8 +890,9 @@ private:
             const bool parity_ok = ((g % 6u) == parity);
             if (!m_redraw_visible_anim && (!changed || !parity_ok)) continue;
             const TileAnimationGroupView& grp = anim.group(g);
-            if (plan.blit_job_count() + static_cast<u16>(grp.cell_count) * kJobsPerCell >
-                kPatchJobLimit) {
+            if (static_cast<u32>(plan.blit_job_count()) +
+                    static_cast<u32>(grp.cell_count) * jobs_per_cell >
+                patch_job_limit) {
                 pass_deferred = true;
                 if constexpr (Collect) {
                     // Cuenta también los grupos posteriores que sí tocaban en

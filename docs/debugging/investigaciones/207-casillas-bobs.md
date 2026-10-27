@@ -140,6 +140,17 @@ Comando: `bash tools/run-host-tests.sh tests/host/field/500_tile_animation_edge`
 - Secuencia de 4 frames cada 250 ms: el modelo de visión detecta desplazamiento horizontal del contenido; no se usa como prueba de píxeles.
 - `measure-fps` con `A500_release`: media 29,01 fps, mínimo 21,39, máximo 38,91; **cadencia inestable**, no cumple el mínimo de 25 fps.
 
+### Genericidad de `TileAnimator`
+
+La sonda de la demo 207 usa 6 planos y tiles de 16 px, pero el camino común ya no fija esos valores:
+
+- `TileAnimator::plane_count()` y `TileAnimator::tile()` exponen la configuración.
+- `draw_group` calcula `words_per_row = (tile + 15) / 16`, el offset de plano de fuente y el byte de fila; no usa `32` fijo.
+- `configured()` valida frame/máscara contra `planes` y `tile`; el tile debe ser múltiplo de 16 para quedar alineado a palabra.
+- `patch_animations` deriva `jobs_per_cell` de `plane_count()` y usa la capacidad real de `FramePlan`, no el 6 de la demo.
+- HOST-500 cubre 6 planos/16 px, 3 planos/16 px, 32×32, y el cruce de anillo.
+- La sonda de checksum de la demo sigue siendo específica de 16 px/6 planos; es instrumentación de diagnóstico, no forma parte de `TileAnimator`.
+
 ### Alcance
 
 El checksum valida los **seis planos** de la celda 5 y de la celda 116 en las cámaras indicadas, y el test host valida la geometría del borde. La capa completa se ha movido en una secuencia, pero sigue mostrando celdas rojas/oscurecidas en la zona inferior derecha, **SIN VERIFICAR**; el mínimo de fps tampoco se cumple.

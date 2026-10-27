@@ -86,6 +86,10 @@ class TileAnimator {
 public:
 	constexpr TileAnimator() noexcept = default;
 
+	/// Configura el animador para `planes` planos y tiles cuadrados de `tile`
+	/// píxeles. `tile` debe ser múltiplo de 16 (una palabra Amiga por fila);
+	/// `planes` puede ser 1..8 y no se fija a los 6 de la demo 207. El ancho
+	/// de frame, máscara y plano se valida en `configured()`.
 	void configure(eng::Span<const TileAnimationGroupView> groups,
 		       eng::Span<const TileAnimationLayerView> layers,
 		       eng::Span<const TileAnimationCellView> cells,
@@ -116,9 +120,25 @@ public:
 	}
 
 	[[nodiscard]] constexpr bool configured() const noexcept {
-		return !m_groups.empty() && !m_layers.empty() && m_sheet != nullptr &&
-		       m_masks != nullptr && m_frame_stride != 0u && m_planes != 0u;
+		if (m_groups.empty() || m_layers.empty() || m_sheet == nullptr ||
+		    m_masks == nullptr || m_frame_stride == 0u || m_planes == 0u ||
+		    m_tile < 16u || (m_tile & 15u) != 0u) {
+			return false;
+		}
+		// Cada fila de un plano ocupa palabras completas; el frame apila
+		// `m_planes` planos de `m_tile` filas y la máscara tiene una fila por
+		// fila de tile. Validarlo aquí evita leer fuera del bake.
+		const u16 words_per_row = static_cast<u16>((m_tile + 15u) / 16u);
+		const u32 source_plane_stride = static_cast<u32>(words_per_row) * 2u * m_tile;
+		return m_frame_stride >= source_plane_stride * m_planes &&
+		       m_mask_stride >= static_cast<u32>(words_per_row) * 2u * m_tile;
 	}
+	/// Número de planos del frame; también es el número de jobs por celda en
+	/// `draw_group` cuando no hay cruce vertical.
+	[[nodiscard]] constexpr u8 plane_count() const noexcept { return m_planes; }
+	/// Lado del tile en píxeles; debe ser múltiplo de 16 para que los frames
+	/// planares queden alineados a palabra.
+	[[nodiscard]] constexpr u16 tile() const noexcept { return m_tile; }
 	[[nodiscard]] constexpr u16 group_count() const noexcept {
 		return static_cast<u16>(m_groups.size());
 	}
@@ -253,8 +273,9 @@ public:
 		const u32 idx = static_cast<u32>(grp.first_frame + frame);
 		const u8* image = m_sheet + idx * m_frame_stride;
 		const u8* m = m_masks + idx * m_mask_stride;
+		const u16 words_per_row = static_cast<u16>((m_tile + 15u) / 16u);
 		src = eng::Span<const u16> {reinterpret_cast<const u16*>(image),
-					    static_cast<usize>(m_planes) * m_tile * m_tile / 2u};
+					    static_cast<usize>(m_planes) * words_per_row * m_tile};
 		mask = eng::Span<const u16> {reinterpret_cast<const u16*>(m), m_mask_stride / 2u};
 		return true;
 	}	/// Dibuja un grupo concreto (usado por el parche de animación).
@@ -270,7 +291,13 @@ public:
 		const u8* mask = m_masks + static_cast<u32>(frame_index) * m_mask_stride;
 		const u16 planes = m_planes;
 		const u16 tile = m_tile;
-		if (planes == 0u || tile == 0u || ring_height == 0u) return false;
+		const u16 words_per_row = static_cast<u16>((tile + 15u) / 16u);
+		const u16 source_row_bytes = static_cast<u16>(words_per_row * 2u);
+		const u32 source_plane_stride = static_cast<u32>(source_row_bytes) * tile;
+		if (planes == 0u || tile < 16u || (tile & 15u) != 0u ||
+		    ring_height == 0u) {
+			return false;
+		}
 		u16 first_row = 0u;
 		u16 remaining = tile;
 		s16 ry = static_cast<s16>(ring_y);
@@ -278,22 +305,24 @@ public:
 			const u16 seg = static_cast<u16>(static_cast<u32>(ry) + remaining > ring_height
 				? ring_height - static_cast<u16>(ry) : remaining);
 			for (u8 p = 0u; p < planes; ++p) {
-				const u8* src = sheet + static_cast<u32>(p) * 32u + static_cast<u32>(first_row) * 2u;
-				const u8* msk = mask + static_cast<u32>(first_row) * 2u;
+				const u8* src = sheet + static_cast<u32>(p) * source_plane_stride +
+						static_cast<u32>(first_row) * source_row_bytes;
+				const u8* msk = mask + static_cast<u32>(first_row) * source_row_bytes;
 				graphics::BlitJob& job = plan.begin_blit_job(opaque ? graphics::BlitJobKind::CopyRect : graphics::BlitJobKind::MaskedBobCookieCut);
 				job.source = graphics::BlitPtr::from_storage(reinterpret_cast<const u16*>(src));
 				job.mask = graphics::BlitPtr::from_storage(opaque ? nullptr : reinterpret_cast<const u16*>(msk));
 				job.destination = graphics::BlitPtr::from_storage(
 					reinterpret_cast<u16*>(target.data() +
 						(static_cast<u32>(ry) * planes + p) * target.row_bytes + (x >> 3u)));
-				job.words_per_row = 1u;
+				job.words_per_row = words_per_row;
 				job.height = seg;
 				job.source_modulo_bytes = 0;
 				job.destination_modulo_bytes = eng::graphics::mod16(
-					static_cast<s32>(target.row_bytes) * static_cast<s32>(target.plane_count) - 2);
+					static_cast<s32>(target.row_bytes) * static_cast<s32>(target.plane_count) -
+					static_cast<s32>(words_per_row) * 2);
 				job.bitplane_count = 1u;
 				job.source_shift = 0u;
-				job.source_plane_stride_bytes = 32u;
+				job.source_plane_stride_bytes = source_plane_stride;
 				job.destination_plane_stride_bytes = static_cast<u32>(target.row_bytes) * static_cast<u32>(target.plane_count);
 				job.minterm = opaque ? 0x00f0u : 0x00cau;
 				job.interleaved = false;
