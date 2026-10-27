@@ -35,6 +35,7 @@ struct ExecBase* SysBase = nullptr;
 
 #if defined(DEMO_DEBUG_ONE_CELL)
 struct DebugAnimBlit {
+	eng::u32 magic;
 	eng::u32 dest;
 	eng::u32 source;
 	eng::u32 mask;
@@ -287,6 +288,9 @@ struct DemoGame {
 	}
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+#if defined(DEMO_DEBUG_ONE_CELL)
+		g_debug_anim_blit.magic = 0x414E494Du;
+#endif
 		DEMO_PROF_INIT(8u);
 		DEMO_STAT_NAME(0u, "jobs");
 		DEMO_STAT_NAME(1u, "words");
@@ -463,6 +467,7 @@ struct DemoGame {
 			if (sy < 0) sy += kMapH;
 			eng::s32 ry = (scene.bg().display_offset() + sy) %
 				      scene.bg().display_height();
+			g_debug_anim_blit.magic = 0x414E494Du; // "ANIM"
 			g_debug_anim_blit.dest = reinterpret_cast<eng::u32>(job.destination.cwords());
 			g_debug_anim_blit.source = reinterpret_cast<eng::u32>(job.source.cwords());
 			g_debug_anim_blit.mask = reinterpret_cast<eng::u32>(job.mask.cwords());
