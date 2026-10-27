@@ -33,6 +33,25 @@
 
 struct ExecBase* SysBase = nullptr;
 
+#if defined(DEMO_DEBUG_ONE_CELL)
+struct DebugAnimBlit {
+	eng::u32 dest;
+	eng::u32 source;
+	eng::u32 mask;
+	eng::u16 words_per_row;
+	eng::u16 height;
+	eng::u16 cell;
+	eng::s16 screen_x;
+	eng::s16 ring_y;
+	eng::s16 camx;
+	eng::s16 camy;
+	eng::s16 display_offset;
+	eng::u8 kind;
+	eng::u8 minterm;
+};
+extern "C" __attribute__((used)) volatile DebugAnimBlit g_debug_anim_blit {};
+#endif
+
 extern "C" {
 __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	eng::debug::run_status_magic,
@@ -431,6 +450,35 @@ struct DemoGame {
 				}
 			}
 		}
+#if defined(DEMO_DEBUG_ONE_CELL)
+		if (plan.blit_job_count() != 0u) {
+			const eng::graphics::BlitJob& job =
+				plan.blit_job(static_cast<eng::u8>(plan.blit_job_count() - 1u));
+			const eng::playfield::TileAnimationCellView& cell = animator.cell(5u);
+			const eng::s32 wx = static_cast<eng::s32>(cell.x) * kTile;
+			const eng::s32 wy = static_cast<eng::s32>(cell.y) * kTile;
+			eng::s32 sx = (wx - scene.bg().mapposx()) % kMapW;
+			if (sx < 0) sx += kMapW;
+			eng::s32 sy = (wy - scene.bg().mapposy() - kTile) % kMapH;
+			if (sy < 0) sy += kMapH;
+			eng::s32 ry = (scene.bg().display_offset() + sy) %
+				      scene.bg().display_height();
+			g_debug_anim_blit.dest = reinterpret_cast<eng::u32>(job.destination.cwords());
+			g_debug_anim_blit.source = reinterpret_cast<eng::u32>(job.source.cwords());
+			g_debug_anim_blit.mask = reinterpret_cast<eng::u32>(job.mask.cwords());
+			g_debug_anim_blit.words_per_row = job.words_per_row;
+			g_debug_anim_blit.height = job.height;
+			g_debug_anim_blit.cell = 5u;
+			g_debug_anim_blit.screen_x = static_cast<eng::s16>(sx);
+			g_debug_anim_blit.ring_y = static_cast<eng::s16>(ry);
+			g_debug_anim_blit.camx = static_cast<eng::s16>(scene.bg().mapposx());
+			g_debug_anim_blit.camy = static_cast<eng::s16>(scene.bg().mapposy());
+			g_debug_anim_blit.display_offset =
+				static_cast<eng::s16>(scene.bg().display_offset());
+			g_debug_anim_blit.kind = static_cast<eng::u8>(job.kind);
+			g_debug_anim_blit.minterm = static_cast<eng::u8>(job.minterm);
+		}
+#endif
 		DEMO_PROF_END(1u);
 		if constexpr (eng::debug::metrics_enabled) {
 			plan.finalize();
