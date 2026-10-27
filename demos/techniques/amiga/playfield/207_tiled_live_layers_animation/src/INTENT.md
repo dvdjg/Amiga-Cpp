@@ -20,5 +20,5 @@ Extiende el bake de `Beginning Fields` con **celdas animadas vivas**: flores, ag
 ## Evolución temporal
 
 1. **Init**: base cocida con `Ground` y capas estáticas, se construye la lista de paradas desde las celdas vivas (fogata, agua, flores) y las esquinas, `pre_scroll` a la fogata y se compone la pila de tres capas vivas.
-2. **Frames**: la cámara avanza 2 px por eje y frame; durante el desplazamiento no se parchean las capas vivas. En cada parada de 3 s, `patch_animations` pinta las celdas visibles de los grupos cuyo frame cambia, reparte grupos pequeños en round-robin por capa y, para la fogata, repinta primero el bloque base y después el frame enmascarado.
+2. **Frames**: la cámara avanza 2 px por eje y frame; durante el desplazamiento no se parchean las capas vivas. En cada parada de 3 s, `patch_animations` pinta las celdas visibles de los grupos cuyo frame cambia, reparte grupos pequeños en round-robin por capa y, en las tres capas, repinta primero el bloque base y después el frame enmascarado.
 3. **Cierre**: bucle continuo de visita. El scroll mantiene más de 25 fps; en las paradas el coste sube por el parcheo de las tres capas.

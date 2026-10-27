@@ -2,13 +2,13 @@
 
 ## Estado
 
-**Funcional: validada con visita de cámara.** `Flowers`, `Water` y la fogata están vivas; la cámara recorre el mapa con paradas de 3 s y las animaciones se actualizan en ellas. **Rendimiento: 40,53 fps de media**, mínimo 34,04 fps; no se declara 50 fps.
+**Funcional: validada con visita de cámara.** `Flowers`, `Water` y la fogata están vivas; la cámara recorre el mapa con paradas de 3 s y las animaciones se actualizan en ellas. **Rendimiento: 30,89 fps de media**, mínimo 24,68 fps; no se declara 50 fps. `patch_animations(0xff)` restaura el bloque base de las tres capas antes del frame enmascarado, no solo la fogata.
 
 ## Medidas
 
 | Build | fps | ciclos/frame | campos/frame | Notas |
 |---|---:|---:|---:|---|
-| `A500_release` visita | 40,53 | 175 028 | 1,234 | 8 ventanas, 34,04-47,54 fps |
+| `A500_release` visita | 30,89 | 229 619 | 1,618 | 8 ventanas, 24,68-46,73 fps |
 | `A500_release` live anterior | 22,71 | 312 315 | 2,20 | referencia de agua + fogata con flores cocidas |
 
 La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí; la media no se usa como presupuesto y el mínimo medido queda por encima de 25 fps.
@@ -33,7 +33,7 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 
 - La pasada canónica (8 frames de la secuencia de 90) detecta el **desplazamiento de cámara**, pero describe la escena como estática: falso negativo global sobre detalles de 16 px. La respuesta cruda queda en `src/VISION.md`.
 - La evidencia que prevalece es el frame-diff de la secuencia y el recorte 4x de la fogata durante la primera parada: las llamas cambian de silueta entre frames consecutivos. El modelo no sustituye esa comprobación.
-- Queda pendiente una pasada por entidad con recortes separados de `Flowers`, `Water` y fogata; no se declara cubierta por el modelo.
+- Recortes separados de la primera parada (frames 0/2/4): fogata 816/696 píxeles cambiados y flores 126/150; la cámara está quieta en esos frames. El agua tiene 52 grupos y 161 celdas vivas y su parada usa la primera celda del cluster (no el centro del bounding box, que caía entre clusters); la restauración de base de `layer 1` usa el mismo `patch_animations(0xff)`. Queda pendiente un recorte visual de agua en una pausa alineada al cambio de su grupo.
 
 ## Telemetría Tiled
 
@@ -46,4 +46,4 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 - Optimizar si se quiere acercar a 50 fps; ahora el frame con visita ocupa 1,234 campos y el mínimo medido es 34,04 fps.
 - Confirmar el encaje de las flores en celdas tapadas por `Road/Shadows` si se amplía la ventana; el aviso del validador sigue abierto.
 - Repetir la validación de flicker de alta frecuencia en 207 cuando el coste permita una secuencia frame-step sin cuantización.
-- Comparar el reparto de grupos con los contadores `tiled_groups_deferred` y `tiled_cells_culled` antes de cambiar el límite de 18 jobs o la paridad; vigilar que la cadencia de las tres capas siga siendo suficiente.
+- Comparar el reparto de grupos con los contadores `tiled_groups_deferred` y `tiled_cells_culled` antes de cambiar el límite de 24 jobs o la paridad; vigilar que la cadencia de las tres capas siga siendo suficiente.

@@ -872,7 +872,7 @@ private:
         // El plan de 207 admite grupos de hasta 3 celdas (3 * 6 planos = 18
         // jobs); un grupo de 4 celdas se difiere. Se dibuja lo que quepa y los
         // pendientes conservan `changed` para el siguiente turno de paridad.
-        constexpr u16 kPatchJobLimit = 18u;
+        constexpr u16 kPatchJobLimit = 24u;
         constexpr u16 kJobsPerCell = 6u;
         for (u16 g = 0u; g < anim.group_count(); ++g) {
             if constexpr (Collect) ++stats->groups_scanned;
@@ -911,13 +911,18 @@ private:
                 s32 ring_y = ring_base + sy;
                 if (ring_y >= dh) ring_y -= dh;
                 // Las celdas transparentes no deben conservar restos del frame
-                // anterior: repinta el bloque base y después el frame encima.
+                // anterior: repinta el bloque base y despu������s el frame encima.
                 if ((restore_background_layers & static_cast<u8>(1u << cell.layer)) != 0u) {
                     if (!this->add_draw(plan, static_cast<u16>(sx),
                             static_cast<u16>(ring_y), cell.x, cell.y)) {
                         return false;
                     }
-                    if constexpr (Collect) ++stats->base_restores;
+                    if constexpr (Collect) {
+                        ++stats->base_restores;
+                        if (cell.layer < kTileAnimationMaxLayers) {
+                            ++stats->base_restores_by_layer[cell.layer];
+                        }
+                    }
                 }
                 // Se usa el mismo dibujo de grupo que la pasada inicial: el
                 // overlay vive en el anillo, no en el espejo lineal del display.
@@ -926,7 +931,12 @@ private:
                     return false;
                 }
                 group_drawn = true;
-                if constexpr (Collect) ++stats->cells_patched;
+                if constexpr (Collect) {
+                    ++stats->cells_patched;
+                    if (cell.layer < kTileAnimationMaxLayers) {
+                        ++stats->cells_patched_by_layer[cell.layer];
+                    }
+                }
             }
             if constexpr (Collect) {
                 if (group_drawn) ++stats->groups_patched;

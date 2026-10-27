@@ -164,6 +164,7 @@ struct DemoGame {
 	playfield::XlimitedSceneConfigT<eng::map::LayerView> scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::debug::HostHud host_hud {};
+	eng::playfield::TilePatchStats m_patch_stats {};
 	struct CameraStop {
 		eng::s16 x = 0;
 		eng::s16 y = 0;
@@ -182,9 +183,11 @@ struct DemoGame {
 		return static_cast<eng::s16>(value);
 	}
 
-	/// Cámara centrada en el bounding box de una capa viva. Sirve para llevar
-	/// la visita a las flores, el agua y la fogata sin conocer sus coordenadas
-	/// en el código: las celdas vienen del cook-plan.
+	/// Cámara centrada en la primera celda de una capa viva. Sirve para llevar
+	/// la visita a una zona real de flores, agua o fogata sin conocer sus
+	/// coordenadas en el código: las celdas vienen del cook-plan. Centrar el
+	/// bounding box podía caer en terreno sin overlay (el agua se reparte en
+	/// dos clusters separados).
 	bool camera_for_layer(eng::u8 layer, eng::s16& x, eng::s16& y) const {
 		eng::s32 min_x = 32767, min_y = 32767, max_x = -1, max_y = -1;
 		for (eng::u16 i = 0u; i < animator.cell_count(); ++i) {
@@ -392,29 +395,27 @@ struct DemoGame {
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();
 		plan.set_blit_budget_limits({16384, 65536, 120, 512});
-		// Durante el desplazamiento se paga el scroll; al llegar a una parada
-		// se parchean las animaciones visibles durante 3 s. Así el viaje no
-		// compite con el coste de las tres capas vivas y las paradas sí las
-		// muestran actualizadas.
 		if (tour_paused) {
-			eng::playfield::TilePatchStats patch_stats {};
 			eng::playfield::TilePatchStats* patch_stats_out = nullptr;
-			if constexpr (eng::debug::metrics_enabled) patch_stats_out = &patch_stats;
-			if (!scene.patch_animations(plan, static_cast<eng::u8>(1u << 2u), patch_stats_out)) {
+#if defined(DEMO_BLIT_STATS) || defined(ENG_METRICS)
+			m_patch_stats = {};
+			patch_stats_out = &m_patch_stats;
+#endif
+			if (!scene.patch_animations(plan, 0xffu, patch_stats_out)) {
 				ready = false;
 				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
 				return;
 			}
 			if constexpr (eng::debug::metrics_enabled) {
-				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsScanned, patch_stats.groups_scanned);
-				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsPatched, patch_stats.groups_patched);
-				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsDeferred, patch_stats.groups_deferred);
-				eng::debug::metrics.set(eng::debug::Metric::TiledCellsPatched, patch_stats.cells_patched);
-				eng::debug::metrics.set(eng::debug::Metric::TiledCellsCulled, patch_stats.cells_culled);
-				eng::debug::metrics.set(eng::debug::Metric::TiledBaseRestores, patch_stats.base_restores);
-				if (patch_stats.groups_deferred != 0u) {
+				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsScanned, m_patch_stats.groups_scanned);
+				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsPatched, m_patch_stats.groups_patched);
+				eng::debug::metrics.set(eng::debug::Metric::TiledGroupsDeferred, m_patch_stats.groups_deferred);
+				eng::debug::metrics.set(eng::debug::Metric::TiledCellsPatched, m_patch_stats.cells_patched);
+				eng::debug::metrics.set(eng::debug::Metric::TiledCellsCulled, m_patch_stats.cells_culled);
+				eng::debug::metrics.set(eng::debug::Metric::TiledBaseRestores, m_patch_stats.base_restores);
+				if (m_patch_stats.groups_deferred != 0u) {
 					eng::debug::metrics.event(
-						eng::debug::Metric::TiledGroupsDeferred, patch_stats.groups_deferred);
+						eng::debug::Metric::TiledGroupsDeferred, m_patch_stats.groups_deferred);
 				}
 			}
 		}
@@ -459,7 +460,9 @@ struct DemoGame {
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
 		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count();
 #if defined(DEMO_BLIT_STATS)
-		stats << " J=" << budget.jobs << " W=" << budget.words;
+		stats << " J=" << budget.jobs << " B0=" << m_patch_stats.cells_patched_by_layer[0]
+		      << " B1=" << m_patch_stats.cells_patched_by_layer[1]
+		      << " B2=" << m_patch_stats.cells_patched_by_layer[2];
 #endif
 		host_hud.draw(backend.debug(), "207 TILED LIVE", kVersion, context.frame.frame_index,
 			      eng::debug::prof_clock(), stats.c_str());

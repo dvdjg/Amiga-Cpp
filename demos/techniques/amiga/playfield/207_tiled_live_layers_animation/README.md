@@ -39,7 +39,7 @@ La paleta la genera el cooker a partir de la composición completa del mapa (inc
 
 ## Medidas
 
-- `A500_release` con visita: **40,53 fps**, **175.028 ciclos/frame**, **1,234 campos/frame**; ventanas 34,04-47,54 fps. El viaje va por encima del suelo de 25 fps y las paradas concentran el parcheo; el reparto usa grupos pequeños, 18 jobs y repinta el bloque base de la fogata.
+- `A500_release` con visita: **30,89 fps**, **229.619 ciclos/frame**, **1,618 campos/frame**; ventanas 24,68-46,73 fps. Se usa el centro del bounding box de cada capa como parada; el límite de 24 jobs permite copiar grupos de 4 celdas completos. El viaje va por encima del suelo de 25 fps y las paradas concentran el parcheo; el reparto usa grupos pequeños, 24 jobs y `patch_animations(0xff)` repinta el bloque base de las tres capas vivas antes del frame enmascarado.
 - La secuencia de 60 frames a 250 ms termina con estado READY y muestra la visita completa: fogata, agua, casa/esquinas y vuelta. El frame-diff incluye el scroll; no hay huecos negros ni frames congelados.
 - La revisión canónica con Ollama describe la escena como estática: es un falso negativo global sobre detalles de 16 px. La evidencia canónica es la secuencia + diff de píxeles (y el recorte de agua), no la descripción del VLM; queda pendiente una pasada por entidad con recortes separados.
 

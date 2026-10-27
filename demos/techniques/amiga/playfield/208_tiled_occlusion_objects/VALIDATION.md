@@ -1,6 +1,6 @@
 # VALIDATION - 208_tiled_occlusion_objects
 
-**Estado: funcional con suelo de 25 fps.** Composición, oclusión del árbol, la farola y el guardia, y ausencia de estelas comprobadas en la ventana. El frame ocupa **2 campos (24,94 fps)**, en el suelo de 25 fps. La validación por entidades está hecha con una respuesta parcialmente errónea del modelo y un gate objetivo que la corrige (§ Visión).
+**Estado: funcional con suelo de 25 fps.** Composición, oclusión del árbol, la farola y el guardia, y ausencia de estelas comprobadas en la ventana. El frame ocupa **2 campos (24,97 fps)**, en el suelo de 25 fps. La validación por entidades está hecha con una respuesta parcialmente errónea del modelo y un gate objetivo que la corrige (§ Visión).
 
 ## Evidencia host
 
@@ -14,7 +14,7 @@
 
 - Build release: OK (`208_tiled_occlusion_objects.A500_release.exe`).
 - `run-demo`: READY por canal lateral, sin `FAILED`; cámara `X=200`, `Y=50`.
-- Props por hoja par interleaved (`Sprite` + `BobMaskPack::InterleavedPair`): árbol id 43, farola id 143 y cartel id 89 visibles con la máscara correcta. El cartel se hornea una vez.
+- Props por hoja par interleaved (`Sprite` + `BobMaskPack::InterleavedPair`): árbol id 43, farola id 143 y cartel id 89 visibles con la máscara correcta. El cartel se hornea una vez. La posición se resuelve con `graphics/map_sprite.hpp` (`place_map_sprite` + `draw_map_sprite`) y el anillo parte los props en la costura.
 - Actor móvil por hoja par y save-under por Blitter sobre el anillo; el explorador de guardia se dibuja una vez en el init y se repinta como overlay solo cuando el móvil cruza por detrás (una pasada, sin save-under).
 - La ruta del móvil cruza **por delante del cartel** (pie > 203) y **por detrás del guardia** (pie 184 en el tramo `x=300`). No hay ocultación binaria del actor ni salto de visibilidad.
 - Secuencia de 40 frames cada 120 ms: el actor permanece visible; no aparece ni desaparece de golpe. La respuesta cruda por entidad y la comparación con el frame-diff están en `208_tiled_occlusion_objects_report.md` y `src/VISION.md`.
@@ -22,7 +22,7 @@
 
 ## Rendimiento
 
-- `node tools/debug/measure-fps.mjs 208_tiled_occlusion_objects A500_release --json` → **24,94 fps**, **284.423 ciclos/frame**, **2,005 campos/frame**; ventana estable 24,76-25,00 fps, cuantización a 2 campos.
+- `node tools/debug/measure-fps.mjs 208_tiled_occlusion_objects A500_release --json` → **24,97 fps**, **284.036 ciclos/frame**, **2,002 campos/frame**; ventana estable 24,76-25,16 fps, cuantización a 2 campos.
 - El coste se mantiene en el suelo de 25 fps al no repintar el cartel completo: el cartel está horneado y el guardia solo cuesta un overlay en su cruce.
 
 ## Flicker de alta frecuencia

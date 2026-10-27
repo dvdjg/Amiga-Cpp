@@ -2,7 +2,7 @@
 
 Demo de la capa de objetos del pipeline Tiled: la casa se cuece en la base y tres objetos viven en runtime. El árbol ordenado por `foot_y` sirve para comprobar el orden props/actores; la farola y el cartel de madera marcados como `occluder` se pintan después de los actores.
 
-**Estado: funcional en el suelo de 25 fps.** La oclusión del árbol, la farola y el guardia está comprobada; el frame ocupa 2 campos (24,94 fps), en el suelo de 25 fps. El actor cruza el cartel por delante para no desaparecer. La evidencia está en [`VALIDATION.md`](VALIDATION.md).
+**Estado: funcional en el suelo de 25 fps.** La oclusión del árbol, la farola y el guardia está comprobada; el frame ocupa 2 campos (24,97 fps), en el suelo de 25 fps. El actor cruza el cartel por delante para no desaparecer. La evidencia está en [`VALIDATION.md`](VALIDATION.md).
 
 ## Cocinar los assets
 
@@ -16,7 +16,7 @@ node tools/tiled/cook-map.mjs \
 
 La paleta la genera `cook-map` desde la composición completa del mapa (capas, animaciones y objetos) y la cuantiza a 32 bases EHB; no hay paleta fija en el repositorio.
 
-El plan cuece todo por defecto y deja como runtime el árbol 43 (`foreground`, a la izquierda de la casa), la farola 143 (`occluder`) y el cartel 89 (`occluder`, abajo a la izquierda). `selected/` contiene `objects.h`, `object_sheet.bin`, `object_masks.bin`, `object_pair.bin` y `objects.json`. Los props usan `object_pair.bin` (hoja par interleaved, un blit cookie-cut por objeto); el actor móvil usa la misma hoja par con save-under por Blitter.
+El plan cuece todo por defecto y deja como runtime el árbol 43 (`foreground`, a la izquierda de la casa), la farola 143 (`occluder`) y el cartel 89 (`occluder`, abajo a la izquierda). `selected/` contiene `objects.h`, `object_sheet.bin`, `object_masks.bin`, `object_pair.bin` y `objects.json`. Los props usan `object_pair.bin` (hoja par interleaved, un blit cookie-cut por objeto); el actor móvil usa la misma hoja par con save-under por Blitter. La posición de los props se resuelve con `graphics/map_sprite.hpp` (`place_map_sprite` + `draw_map_sprite`): mundo → ventana → anillo, con anchor superior-izquierda y partición en la costura; la demo no repite esas cuentas.
 
 ## Compilar y ejecutar
 

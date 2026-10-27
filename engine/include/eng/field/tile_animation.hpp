@@ -12,8 +12,8 @@
 ///
 /// `XLimitedPlayfield::patch_animations` redibuja solo celdas visibles de grupos
 /// que cambiaron de frame, repartidas en 6 fases para no desbordar el FramePlan.
-/// La base conserva el primer frame horneado; una celda que entra por scroll
-/// muestra ese frame hasta el siguiente cambio de grupo.
+/// El bake omite las celdas de capas vivas; la composición inicial pinta su
+/// frame actual y el parche restaura el bloque base de la capa antes del overlay.
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/bob.hpp>
@@ -25,6 +25,7 @@ namespace eng::playfield {
 inline constexpr u8 kTileAnimationMaxFrames = 8u;
 inline constexpr u8 kTileAnimationMaxGroups = 255u;
 inline constexpr u8 kTileAnimationMaxLayers = 8u;
+inline constexpr u16 kTileAnimationMaxCells = 256u;
 inline constexpr u8 kTileAnimationFlagMasked = 1u;
 
 /// Un grupo de animación: frames contiguos en `sheet`/`mask` y duración por
@@ -76,6 +77,8 @@ struct TilePatchStats {
 	u16 cells_patched = 0u;
 	u16 cells_culled = 0u;
 	u16 base_restores = 0u;
+	u16 cells_patched_by_layer[kTileAnimationMaxLayers] {};
+	u16 base_restores_by_layer[kTileAnimationMaxLayers] {};
 };
 
 /// Reloj y dibujo de las animaciones cocinadas. No posee los bancos ni los mapas.

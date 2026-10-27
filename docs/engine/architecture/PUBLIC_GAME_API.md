@@ -145,6 +145,21 @@ s.sprite(nave, x, y, {.anchor = eng::Anchor::Center, .erases = eng::Erase::Auto}
 
 `screen.sprite` reemplaza hoy a `graphics::bob_draw(plan, bob, frame, x, y, target)`; el `BobTarget` (base, `row_bytes`, `plane_bytes`, planos, layout) se lo da el **contexto de dispositivo** (`Scene::bob_target()` a través del `DrawTarget`), no el juego. Implementado en `eng/graphics/sprite_asset.hpp` (`Sprite`) + `Scene::bob_target()` + `Screen::sprite()`; gate en la demo **117_bobs3d** y HOST-324.
 
+Para un BOB **ligado al mapa**, la demo no debe repetir el módulo de cámara, el anillo y el punto de referencia en cada prop. `graphics/map_sprite.hpp` concentra esa traducción: `place_map_sprite()` convierte mundo → ventana visible → bitmap destino, y `draw_map_sprite()` dibuja con el anillo (`bob_draw_ring`) para partir el objeto en la costura vertical.
+
+```cpp
+eng::graphics::MapSpriteView view {
+    scene.bg().mapposx(), scene.bg().display_offset(),
+    static_cast<eng::u16>(map_width_px), kDisplayH,
+    kViewportW, kFieldH, target.width, target.height, target.height,
+};
+const auto p = eng::graphics::place_map_sprite(world_x, world_y, sprite.width(),
+                                               sprite.height(), view, anchor_x, anchor_y);
+draw_map_sprite(plan, sprite, target, frame, p, view.ring_height);
+```
+
+`anchor_x/anchor_y` es el píxel del arte que se coloca sobre `world_x/world_y` (por defecto la esquina superior izquierda). `MapSprite` guarda posición, ancla y frame pintado para no repetir el blit si nada cambió. `draw_saved()` añade el save-under con un buffer del llamador: restaura el fondo anterior antes de guardar/pintar y lo restaura al salir de la ventana; `force` sirve cuando otro BOB pasa por detrás. El buffer y la capacidad de memoria siguen siendo de la capa que ordena los objetos. `MapSpriteCache<N>` agrupa instancias con `group`, reserva el save-under en Chip solo mientras el BOB está visible y lo devuelve al banco tras `idle_release` frames oculto; `draw_group()` y `restore_group()` cubren decorados de varios tiles. En el borde horizontal, `target_fits` culla el sprite que no cabe en el bitmap destino para no escribir fuera de la reserva; no hay wrap horizontal implícito. Gate: demos **208** (actor real con save-under y caché; cartel con overlay trasero) y la secuencia de **207** (decorado animado con restauración de base).
+
 ### 2.1.2 Color y paleta — `Color`, `ColorIndex`, `Palette`
 
 `Color` es un RGB444 con constructores con nombre (valida 0..15); `ColorIndex` es el índice `0..31`. La `Palette` da los métodos que hoy no existen (`set`/`get`/`mix`/`fade`) y puede ser la **paleta de una capa** o la global.
