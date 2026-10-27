@@ -88,7 +88,7 @@ public:
 
 	/// Configura el animador para `planes` planos y tiles cuadrados de `tile`
 	/// píxeles. `tile` debe ser múltiplo de 16 (una palabra Amiga por fila);
-	/// `planes` puede ser 1..8 y no se fija a los 6 de la demo 207. El ancho
+	/// `planes` puede ser 1..6 y no se fija a los 6 de la demo 207. El ancho
 	/// de frame, máscara y plano se valida en `configured()`.
 	void configure(eng::Span<const TileAnimationGroupView> groups,
 		       eng::Span<const TileAnimationLayerView> layers,
