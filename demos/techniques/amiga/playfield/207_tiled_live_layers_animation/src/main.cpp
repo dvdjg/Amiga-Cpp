@@ -181,7 +181,17 @@ const playfield::TileLayerBinding kLiveLayers[] = {
 };
 
 
-constexpr eng::u16 kTile = TILED_ANIM_TILE;
+#ifndef TILED_MAP_TILE_W
+#define TILED_MAP_TILE_W 16u
+#endif
+#ifndef TILED_MAP_TILE_H
+#define TILED_MAP_TILE_H TILED_MAP_TILE_W
+#endif
+static_assert(TILED_MAP_TILE_W == TILED_MAP_TILE_H,
+	      "la demo exige tiles cuadrados");
+static_assert(TILED_ANIM_TILE == TILED_MAP_TILE_W,
+	      "el frame animado debe usar el tamaño del mapa");
+constexpr eng::u16 kTile = TILED_MAP_TILE_W;
 constexpr eng::u16 kViewportW = 320u;
 constexpr eng::u16 kViewportH = 256u; // total: 208 de campo + 48 de HUD
 constexpr eng::u16 kFieldH = kViewportH - 48u;

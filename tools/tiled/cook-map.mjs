@@ -140,6 +140,8 @@ function writeSelected(outDir, profile, ir, plan) {
 		`#define TILED_MAP_H ${tiles.rows}u`,
 		`#define TILED_MAP_TILES ${tiles.stats.unique}u`,
 		`#define TILED_MAP_PLANES ${profile.planes}u`,
+		`#define TILED_MAP_TILE_W ${tiles.tile}u`,
+		`#define TILED_MAP_TILE_H ${tiles.tile}u`,
 		`#define TILED_MAP_STRIDE ${tiles.tile * tiles.tile}u`,
 		'',
 		'#include "tilebank_indexed.h"',

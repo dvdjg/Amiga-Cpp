@@ -107,7 +107,15 @@ inline void stat_value(eng::u8 slot, eng::u32 value) {
 #define DEMO_STAT_VALUE(slot, value) do { (void)sizeof(value); } while (0)
 #endif
 
-constexpr eng::u16 kTile = 16u;
+#ifndef TILED_MAP_TILE_W
+#define TILED_MAP_TILE_W 16u
+#endif
+#ifndef TILED_MAP_TILE_H
+#define TILED_MAP_TILE_H TILED_MAP_TILE_W
+#endif
+static_assert(TILED_MAP_TILE_W == TILED_MAP_TILE_H,
+	      "la demo exige tiles cuadrados");
+constexpr eng::u16 kTile = TILED_MAP_TILE_W;
 constexpr eng::u16 kViewportW = 320u;
 constexpr eng::u16 kViewportH = 256u; // total: 208 de campo + 48 de HUD
 constexpr eng::u16 kFieldH = kViewportH - 48u;
