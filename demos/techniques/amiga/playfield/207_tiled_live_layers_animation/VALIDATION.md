@@ -35,8 +35,8 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 
 ## Visión local (Ollama)
 
-- La pasada canónica detecta el desplazamiento de cámara, pero describe la escena como estática: falso negativo global sobre detalles de 16 px. La respuesta cruda queda en `src/VISION.md`.
-- La evidencia que prevalece es el frame-diff de la secuencia y los recortes por entidad: fogata y flores cambian con la cámara quieta y el fondo estable. El modelo no sustituye esa comprobación.
+- La pasada canónica sigue siendo un falso negativo global sobre detalles de 16 px: describe la escena como estática. La respuesta cruda queda en `src/VISION.md`; no se usa para dar la animación por válida.
+- La evidencia que prevalece es la **secuencia** y el frame-diff, no el análisis por-frame aislado (un frame suelto no permite comparar). En la secuencia posterior a la fusión, Ollama describe el cambio de llamas de la fogata 32×32 y no observa huecos, bloques negros, halos ni restos del frame anterior; `frame-diff` muestra cambios localizados.
 - El agua tiene 52 grupos y 161 celdas vivas; en la parada de agua congelada se ven sus celdas y sus frames cambian. La parada usa la primera celda del cluster, no el centro del bounding box.
 
 ## Telemetría Tiled

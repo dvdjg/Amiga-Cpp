@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-27T13:17:41.791Z
+- Fecha: 2026-10-28T12:45:51.587Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_006.png, frame_011.png, frame_017.png, frame_022.png, frame_028.png, frame_033.png, frame_039.png (8)
+- Frames: frame_000.png, frame_001.png (2)
 - Secuencia: `out/run/208_tiled_occlusion_objects/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,27 +15,32 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Análisis de las imágenes:**
+**Imagen observada:**
 
-Las cuatro imágenes muestran una escena de estilo pixel art, probablemente de un videojuego, desde una perspectiva isométrica. La escena es idéntica en contenido y composición en todas ellas, excepto por el movimiento de un personaje y los datos de rendimiento en la barra superior.
+- **Tipo de imagen:** Captura de pantalla de un programa de renderizado 3D (probablemente un motor de juego o demo de técnica de ocultación por teselas).
+- **Texto en la parte superior:** `208 TILED OCCLUSION v1.0.7234 | F25 0.6FPS | F=25 SPLIT=1 A0=194 A1=214` — indica versión del software, FPS (0.6, muy bajo), parámetros de renderizado (SPLIT, A0, A1).
+- **Contenido visual:**
+  - **Escena:** Vista isométrica de un entorno rural pixelado, estilo 2D/3D híbrido.
+  - **Elementos principales:**
+    - **Edificio central:** Casa de piedra con techo de paja, ventanas con flores, escaleras de piedra, puerta de madera.
+    - **Personaje:** Figura pequeña (pixelada) con camisa roja y pantalones azules, parada sobre el suelo.
+    - **Entorno:** Pasto verde, caminos de tierra marrón, árboles (uno grande a la derecha, uno pequeño en el centro inferior), arbustos, flores blancas, haces de paja, un poste con farola.
+    - **Objetos:** Un cartel de madera con un rectángulo en el centro (posiblemente un letrero o mapa), un montón de piedras a la izquierda, una cerca de piedra a la derecha.
+  - **Estilo visual:** Pixel art, colores pastel, sombras suaves, texturas de bloques (teselas).
+  - **Estado del renderizado:**
+    - **No hay movimiento ni cambio entre imágenes (solo una imagen).**
+    - **No hay artefactos visibles (halos, bandas, píxeles cortados, recortes).**
+    - **Todos los objetos tienen contornos limpios, sin restos de posición anterior.**
+    - **El fondo alrededor de los objetos es consistente, sin artefactos de ocultación o recorte.**
+    - **La escena está completamente renderizada, sin elementos incompletos o superpuestos.**
 
-**Elementos gráficos fijos:**
+**Observaciones:**
 
-*   **Edificio principal:** Una casa de piedra con techo de paja, ubicada en la parte superior central. Tiene ventanas con flores y una puerta de madera.
-*   **Personaje:** Un personaje de pixel art, vestido con camisa roja y pantalones azules, está ubicado en el centro de la imagen, sobre un camino de tierra. En las imágenes 1 y 2, el personaje está parado. En la imagen 3, se ha movido ligeramente hacia la derecha. En la imagen 4, se ha movido hacia arriba, cerca de la puerta de la casa.
-*   **Entorno:** El entorno incluye césped, caminos de tierra, árboles (uno grande a la derecha y un pino más pequeño en el centro inferior), un cartel de madera a la izquierda, haces de paja, y otros elementos decorativos como flores y arbustos.
-*   **Barra de información superior:** Muestra datos técnicos del motor de renderizado "208 TILED OCCLUSION v1.0.7019", como FPS, F (frames), SPLIT, y valores de AO (Ambient Occlusion) y A1.
-
-**Cambios entre imágenes:**
-
-*   **Movimiento del personaje:** El personaje cambia de posición en cada imagen, indicando que se está moviendo. La transición es suave y parece ser un movimiento de un paso o una animación de caminata.
-*   **Datos de rendimiento:** Los valores en la barra superior cambian ligeramente entre imágenes, lo que es esperable al cambiar la posición del personaje y la carga de la escena.
-
-**Observaciones sobre el contorno y el fondo:**
-
-*   **Contorno del personaje:** El contorno del personaje es limpio en todas las imágenes. No hay bandas, halos ni artefactos visibles alrededor de su figura. Los píxeles están bien definidos y no se cortan ni colgantes en los bordes.
-*   **Fondo:** El fondo inmediatamente alrededor del personaje permanece igual en todas las imágenes. No hay artefactos de renderizado, ni restos de su posición anterior. El personaje simplemente "aparece" en su nueva posición, sin dejar rastro ni tapar el fondo con un rectángulo de color uniforme.
+- La imagen es estática, no hay animación ni cambio de estado.
+- El texto en la parte superior sugiere que el programa está en modo de prueba o renderizado lento (0.6 FPS).
+- No hay elementos extraños, defectuosos o incoherentes visibles.
+- La escena es coherente y bien renderizada para su estilo visual.
 
 **Conclusión:**
 
-Las imágenes muestran una escena de videojuego con un personaje que se mueve de forma fluida. No hay artefactos visibles, ni defectos en el contorno del personaje ni en el fondo. La escena es coherente y bien renderizada.
+La imagen muestra una escena rural pixelada renderizada con una técnica de ocultación por teselas. Todo está bien definido, sin artefactos visibles, y el entorno es coherente y completo. No hay cambios ni movimientos observables.
