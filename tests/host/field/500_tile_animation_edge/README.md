@@ -10,6 +10,7 @@ Valida en host la geometría que usa el parche de animaciones de la demo 207, si
 - El segundo segmento conserva el offset de fuente correcto (fila 8 del frame) y comparte la máscara.
 - Con **3 planos**, `draw_group` emite UN job (`bitplane_count=3`) y el módulo usa `row_bytes * 3`, sin constante de 6.
 - Con **tile de 32×32**, cada fila usa 2 palabras, el offset de plano de fuente es 128 bytes y el frame mide 768 bytes.
+- Un **grupo fusionado de 32×16** declara pixel_width/pixel_height y su propio rame_stride; se dibuja como un solo job de 2 palabras por fila, 16 filas y stride de plano 64 bytes, sin depender del tile global.
 
 ## Contrato que fija
 

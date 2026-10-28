@@ -1004,6 +1004,8 @@ private:
             const bool changed = anim.group_changed(g); // frame distinto al anterior
             if (!m_redraw_visible_anim && !changed) return true;
             const TileAnimationGroupView& grp = anim.group(g);
+            const u16 group_w = anim.group_pixel_width(g); // caja del grupo (px)
+            const u16 group_h = anim.group_pixel_height(g);
             // Primera pasada: descartar las celdas fuera de la ventana (liberar
             // su save-under) y contar las que de verdad hay que repintar. Sin
             // esto, un grupo sin trabajo de dibujo consumía presupuesto y dejaba
@@ -1095,8 +1097,8 @@ private:
                             }
                         }
                         if (!saver.capture(plan, m_anim_target, ci, target_x,
-                                            static_cast<u16>(ring_y), anim.tile(),
-                                            anim.tile())) {
+                                            static_cast<u16>(ring_y), group_w,
+                                            group_h)) {
                             // Sin hueco de save-under no se pinta el overlay:
                             // se conserva el fondo y se reintenta en otro pase
                             // (no se limpia `changed` para no perder el frame).
@@ -1307,6 +1309,11 @@ private:
                 s32 ring_y = ring_base + sy;
                 if (ring_y >= dh) ring_y -= dh;
                 const u16 target_x = static_cast<u16>(wx);
+                const u16 cell_group = anim.group_for_cell(ci); // grupo dueño de la celda
+                const u16 cell_w = cell_group != 0xffffu
+                    ? anim.group_pixel_width(cell_group) : anim.tile();
+                const u16 cell_h = cell_group != 0xffffu
+                    ? anim.group_pixel_height(cell_group) : anim.tile();
                 if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
                     {
                         if (saver.painted(ci) &&
@@ -1314,8 +1321,8 @@ private:
                             return false;
                         }
                         if (!saver.capture(plan, m_anim_target, ci, target_x,
-                                            static_cast<u16>(ring_y), anim.tile(),
-                                            anim.tile())) {
+                                            static_cast<u16>(ring_y), cell_w,
+                                            cell_h)) {
                             if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
                             continue;
                         }

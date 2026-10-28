@@ -151,6 +151,130 @@ function objectCell(ir, object, cache, tile) {
 	return { x, y, gid: object.gid };
 }
 
+/// ¿Dos grupos comparten exactamente la misma línea temporal de frames?
+/// La fusión solo es válida si todos los componentes avanzan al unísono; si no,
+/// un sprite compuesto mostraría frames de instantes distintos.
+function sameTimeline(a, b) {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; ++i) {
+		if (a[i].ticks !== b[i].ticks) return false;
+	}
+	return true;
+}
+
+/// Busca **clusters rectangulares de celdas animadas contiguas** que puedan
+/// cocinarse como un único sprite de mapa. Reglas generales (no dependen de un
+/// mapa concreto):
+/// - misma capa y misma línea temporal de frames;
+/// - el bounding box está completamente ocupado por el cluster (sin huecos);
+/// - al menos 2 celdas y 2 grupos distintos (si comparten gid, el banco ya
+///   reutiliza sus frames y fusionarlos solo gastaría memoria);
+/// - tamaño acotado (`maxCells`) para que el save-under no crezca sin control.
+/// Devuelve los clusters sin mutar los grupos; el llamador decide y aplica.
+/// \param {object} opts `{ layers, groups, maxCells }`
+/// \returns {Array<object>} clusters `{layer,minx,miny,maxx,maxy,cells}`
+export function findFusedClusters({ layers, groups, maxCells = 8 }) {
+	const byLayer = layers.map(() => new Map());
+	const keyUses = new Map();
+	for (const group of groups.values()) {
+		for (const cell of group.cells) {
+			keyUses.set(cell.key, (keyUses.get(cell.key) ?? 0) + 1);
+			const li = layers.indexOf(cell.layer);
+			if (li < 0) continue;
+			byLayer[li].set(`${cell.x},${cell.y}`, { cell, group });
+		}
+	}
+	const clusters = [];
+	const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+	for (let li = 0; li < layers.length; ++li) {
+		const positions = byLayer[li];
+		const seen = new Set();
+		for (const [startKey, start] of positions) {
+			if (seen.has(startKey)) continue;
+			const comp = [];
+			const queue = [start];
+			seen.add(startKey);
+			while (queue.length > 0) {
+				const cur = queue.pop();
+				comp.push(cur);
+				for (const [dx, dy] of dirs) {
+					const nk = `${cur.cell.x + dx},${cur.cell.y + dy}`;
+					if (seen.has(nk)) continue;
+					const next = positions.get(nk);
+					if (next == null) continue;
+					if (cur.cell.dither !== next.cell.dither) continue;
+					if (!sameTimeline(cur.cell.frames, next.cell.frames)) continue;
+					seen.add(nk);
+					queue.push(next);
+				}
+			}
+			if (comp.length < 2 || comp.length > maxCells) continue;
+			let minx = comp[0].cell.x, maxx = minx;
+			let miny = comp[0].cell.y, maxy = miny;
+			for (const item of comp) {
+				minx = Math.min(minx, item.cell.x);
+				maxx = Math.max(maxx, item.cell.x);
+				miny = Math.min(miny, item.cell.y);
+				maxy = Math.max(maxy, item.cell.y);
+			}
+			const area = (maxx - minx + 1) * (maxy - miny + 1);
+			if (area !== comp.length) continue; // con huecos no es un sprite rectangular
+			const keys = new Set(comp.map((item) => item.cell.key));
+			if (keys.size < 2) continue; // mismo gid: ya comparte frames; no fusionar
+			// Si un gid se repite en el mapa, sus frames ya se comparten y una
+			// copia fusionada duplicaría el banco: eso es un tile repetido, no un
+			// objeto compuesto único. Solo se fusionan grupos de un solo uso.
+			if (comp.some((item) => (keyUses.get(item.cell.key) ?? 0) !== 1)) continue;
+			if (comp.some((item) => item.cell.frames.length < 2)) continue;
+			clusters.push({ layer: li, layerRef: start.cell.layer, minx, miny, maxx, maxy, cells: comp });
+		}
+	}
+	return clusters;
+}
+
+/// Compone los frames de un cluster fusionado en una sola caja planar. Cada
+/// frame del sprite final es la unión de los tiles de sus celdas en la misma
+/// posición relativa; la máscara también se compone. El banco resultante usa el
+/// mismo layout denso que `TileAnimator` espera (`[plano][fila][palabra]`).
+/// \param {object} opts `{ ir, cache, colors, planes, tile, group, shadowIndex }`
+/// \returns {Array<{frame:Buffer,mask:Buffer}>}
+function composeFusedFrames({ ir, cache, colors, planes, tile, group, shadowIndex }) {
+	const f = group.fused;
+	const width = (f.maxx - f.minx + 1) * tile;
+	const height = (f.maxy - f.miny + 1) * tile;
+	const tileRow = tile / 8;
+	const rowBytes = width / 8;
+	const planeStride = rowBytes * height;
+	const out = [];
+	for (let fi = 0; fi < group.frames.length; ++fi) {
+		const frame = Buffer.alloc(planes * planeStride);
+		const mask = Buffer.alloc(rowBytes * height);
+		for (const cell of f.cells) {
+			const flags = decodeGid(cell.gid);
+			const packed = packFrame(ir, cell.frames[fi].gid, flags, cache, colors, planes,
+				tile, cell.dither === true, shadowIndex);
+			const dx = (cell.x - f.minx) * tile / 8;
+			const dy = (cell.y - f.miny) * tile;
+			for (let p = 0; p < planes; ++p) {
+				const srcPlane = p * tileRow * tile;
+				const dstPlane = p * planeStride;
+				for (let r = 0; r < tile; ++r) {
+					const src = srcPlane + r * tileRow;
+					const dst = dstPlane + (dy + r) * rowBytes + dx;
+					packed.frame.copy(frame, dst, src, src + tileRow);
+				}
+			}
+			for (let r = 0; r < tile; ++r) {
+				const src = r * tileRow;
+				const dst = (dy + r) * rowBytes + dx;
+				packed.mask.copy(mask, dst, src, src + tileRow);
+			}
+		}
+		out.push({ frame, mask });
+	}
+	return out;
+}
+
 /// Cocina animaciones y escribe `animations.h`/bins en `outDir`.
 /// \param {object} opts `{ ir, plan, paletteFile, planes, tile, outDir }`
 export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedTile, outDir }) {
@@ -193,7 +317,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			groups.set(key, group);
 		}
 		layer.cells[cell.y * width + cell.x] = { gid: key };
-		group.cells.push({ layer, x: cell.x, y: cell.y });
+		group.cells.push({ layer, x: cell.x, y: cell.y, gid, key, frames, dither: shadow });
 	};
 	const flat = flattenLayers(ir.layers);
 
@@ -235,6 +359,45 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 		return null;
 	}
 
+	// Fusión automática de objetos compuestos: un cluster rectangular de celdas
+	// con la misma cadencia se cocina como **un grupo de un solo sprite** (un
+	// save-under y un blit por segmento) en vez de una plaqueta por celda. No
+	// depende de la fogata: cualquier mapa que produzca un cluster válido entra.
+	const fusedClusters = findFusedClusters({ layers, groups });
+	for (const cluster of fusedClusters) {
+		for (const item of cluster.cells) {
+			item.group.cells = item.group.cells.filter((c) =>
+				!(c.layer === item.cell.layer && c.x === item.cell.x && c.y === item.cell.y));
+		}
+		const key = `fused:${cluster.layer}:${cluster.minx}:${cluster.miny}`;
+		const layer = cluster.layerRef;
+		for (const item of cluster.cells) layer.cells[item.cell.y * width + item.cell.x] = null;
+		layer.cells[cluster.miny * width + cluster.minx] = { gid: key };
+		const frames = cluster.cells[0].cell.frames.map((frame) => ({ ticks: frame.ticks }));
+		groups.set(key, {
+			gid: 0,
+			key,
+			dither: cluster.cells[0].cell.dither,
+			frames,
+			cells: [{
+				layer,
+				x: cluster.minx,
+				y: cluster.miny,
+				gid: 0,
+				key,
+				frames,
+				dither: cluster.cells[0].cell.dither,
+			}],
+			fused: {
+				minx: cluster.minx,
+				miny: cluster.miny,
+				maxx: cluster.maxx,
+				maxy: cluster.maxy,
+				cells: cluster.cells.map((item) => item.cell),
+			},
+		});
+	}
+
 	// Agrupa como máximo 4 celdas por grupo: un grupo de agua puede tener 18
 	// celdas y 108 jobs (6 planos), lo que bloquea el parche entero. Varios
 	// grupos pequeños comparten los mismos frames y el FramePlan reparte el
@@ -270,10 +433,20 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	groupList.push(...roundRobin);
 	const sheetParts = [];
 	const maskParts = [];
-	const groupMeta = [];
+	const groupMeta = new Array(groupList.length);
 	const frameFirst = new Map();
+	const planeStride = (tile / 8) * tile;
+	const frameStride = p * planeStride;
+	const maskStride = (tile / 8) * tile;
 	let frameCursor = 0;
-	for (const group of groupList) {
+	let sheetCursor = 0;
+	let maskCursor = 0;
+	// Primero los frames de los grupos normales, para que `first_frame ×
+	// frame_stride` siga siendo válido. Los grupos fusionados se añaden después
+	// con su propio `sheet_offset`/`frame_stride` (frames más grandes).
+	for (let i = 0; i < groupList.length; ++i) {
+		const group = groupList[i];
+		if (group.fused != null) continue;
 		let first = frameFirst.get(group.key);
 		if (first == null) {
 			const flags = decodeGid(group.gid);
@@ -282,11 +455,13 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			for (const frame of frames) {
 				sheetParts.push(frame.frame);
 				maskParts.push(frame.mask);
+				sheetCursor += frame.frame.length;
+				maskCursor += frame.mask.length;
 				++frameCursor;
 			}
 			frameFirst.set(group.key, first);
 		}
-		groupMeta.push({
+		groupMeta[i] = {
 			gid: group.gid,
 			first_frame: first,
 			frame_count: group.frames.length,
@@ -295,7 +470,46 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			first_cell: 0,
 			cell_count: 0,
 			dither: group.dither === true,
-		});
+			pixel_width: 0,
+			pixel_height: 0,
+			sheet_offset: 0,
+			frame_stride: 0,
+			mask_offset: 0,
+			mask_stride: 0,
+		};
+	}
+	for (let i = 0; i < groupList.length; ++i) {
+		const group = groupList[i];
+		if (group.fused == null) continue;
+		const frames = composeFusedFrames({ ir, cache, colors, planes: p, tile, group, shadowIndex });
+		const sheetOffset = sheetCursor;
+		const maskOffset = maskCursor;
+		for (const frame of frames) {
+			sheetParts.push(frame.frame);
+			maskParts.push(frame.mask);
+			sheetCursor += frame.frame.length;
+			maskCursor += frame.mask.length;
+			++frameCursor;
+		}
+		const widthPx = (group.fused.maxx - group.fused.minx + 1) * tile;
+		const heightPx = (group.fused.maxy - group.fused.miny + 1) * tile;
+		groupMeta[i] = {
+			gid: group.gid,
+			first_frame: 0,
+			frame_count: group.frames.length,
+			durations: group.frames.map((f) => f.ticks),
+			cells: 1,
+			first_cell: 0,
+			cell_count: 0,
+			dither: group.dither === true,
+			pixel_width: widthPx,
+			pixel_height: heightPx,
+			sheet_offset: sheetOffset,
+			frame_stride: frames[0].frame.length,
+			mask_offset: maskOffset,
+			mask_stride: frames[0].mask.length,
+			fused: `${group.fused.minx},${group.fused.miny} ${widthPx}x${heightPx}`,
+		};
 	}
 
 	for (let g = 0; g < groupList.length; ++g) {
@@ -332,9 +546,6 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	fs.writeFileSync(path.join(outDir, 'anim_sheet.bin'), sheet);
 	fs.writeFileSync(path.join(outDir, 'anim_masks.bin'), masks);
 
-	const planeStride = (tile / 8) * tile;
-	const frameStride = p * planeStride;
-	const maskStride = (tile / 8) * tile;
 	const lines = [];
 	lines.push('// Animaciones Tiled cocinadas (T5): overlays planares + máscara 1bpp.');
 	lines.push(`// ${groupList.length} grupos, ${frameCursor} frames, ${layers.length} capas, ${p} planos.`);
@@ -356,7 +567,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	for (const group of groupMeta) {
 		const durations = group.durations;
 		const padded = [...durations, ...new Array(MAX_FRAMES - durations.length).fill(0)];
-		lines.push(`  {${group.first_frame}u, ${group.frame_count}u, 1u, ${group.first_cell}u, ${group.cell_count}u, {${padded.map((v) => `${v}u`).join(',')}}},`);
+		lines.push(`  {${group.first_frame}u, ${group.frame_count}u, 1u, ${group.first_cell}u, ${group.cell_count}u, {${padded.map((v) => `${v}u`).join(',')}}, ${group.pixel_width}u, ${group.pixel_height}u, ${group.sheet_offset}u, ${group.frame_stride}u, ${group.mask_offset}u, ${group.mask_stride}u},`);
 	}
 	lines.push('};');
 	lines.push('');
@@ -396,6 +607,15 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			groups: [...new Set(l.cells.filter((c) => c != null).map((c) => c.group))].length,
 		})),
 		groups: groupMeta,
+		fused: groupMeta
+			.filter((group) => group.pixel_width != null && group.pixel_width !== 0)
+			.map((group) => ({
+				origin: group.fused,
+				width: group.pixel_width,
+				height: group.pixel_height,
+				frames: group.frame_count,
+				bytes: group.frame_stride * group.frame_count,
+			})),
 	}, null, 2) + '\n', 'utf8');
 	return {
 		groups: groupList.length,
@@ -403,6 +623,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 		layers: layers.map((l) => l.name),
 		sheetBytes: sheet.length,
 		maskBytes: masks.length,
+		fused: groupMeta.filter((group) => group.pixel_width !== 0).length,
 	};
 }
 
@@ -434,7 +655,7 @@ function main() {
 		tile: tile == null ? undefined : Number(tile),
 		outDir: path.resolve(outDir),
 	});
-	console.log(`[anim] ${result.groups} grupos, ${result.frames} frames, ${result.layers.join('/')}, sheet=${(result.sheetBytes / 1024).toFixed(1)}KB masks=${(result.maskBytes / 1024).toFixed(1)}KB`);
+	console.log(`[anim] ${result.groups} grupos, ${result.frames} frames, ${result.layers.join('/')}, ${result.fused} fusionados, sheet=${(result.sheetBytes / 1024).toFixed(1)}KB masks=${(result.maskBytes / 1024).toFixed(1)}KB`);
 }
 
 if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

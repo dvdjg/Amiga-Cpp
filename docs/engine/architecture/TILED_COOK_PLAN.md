@@ -184,6 +184,7 @@ Un `Occluder` no se pinta en el pase normal. Se redibuja después de los actores
 - Overlay transparente: cookie-cut solo si hace falta conservar el fondo.
 - Overlay opaco (`opaque: true`): copia directa, sin máscara.
 - Actor: save-under del engine, no del tile.
+- Objeto compuesto: `cook-animations` fusiona automáticamente clusters rectangulares de celdas animadas con la misma cadencia y gids de un solo uso en un grupo de un sprite (un blit y un save-under para toda la caja); es una regla general, no una excepción por objeto. Los gids repetidos no se fusionan para no duplicar el banco.
 - Occluder: solo dirty rects, nunca la capa completa por frame.
 - El scroll compone la **banda entrante**, no la pantalla completa.
 

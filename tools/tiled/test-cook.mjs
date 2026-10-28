@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { parseTmxFile } from './parse-tmx.mjs';
 import { composeMap } from './compose-map.mjs';
+import { findFusedClusters } from './cook-animations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = path.join(ROOT, 'tools/tiled/fixtures/ortho.tmx');
@@ -123,6 +124,33 @@ try {
 		assert.equal(selected.planes, 5);
 		const proposal = JSON.parse(fs.readFileSync(path.join(out, 'proposal.json'), 'utf8'));
 		assert.equal(proposal.profiles[0].name, 'custom');
+	});
+
+	test('fuse: clusters rectangulares con la misma cadencia', () => {
+		const layer = { cells: [] };
+		const frames = [{ ticks: 5 }, { ticks: 5 }];
+		const make = (x, y, key, timeline = frames) => ({
+			layer, x, y, gid: key, key, frames: timeline, dither: false,
+		});
+		const g1 = { cells: [make(0, 0, 'a')] };
+		const g2 = { cells: [make(1, 0, 'b')] };
+		const groups = new Map([['a', g1], ['b', g2]]);
+		const fused = findFusedClusters({ layers: [layer], groups });
+		assert.equal(fused.length, 1);
+		assert.equal(fused[0].cells.length, 2);
+		assert.equal(fused[0].maxx - fused[0].minx, 1);
+
+		const gapLayer = { cells: [] };
+		const g3 = { cells: [make(0, 0, 'c')] };
+		const g4 = { cells: [make(2, 0, 'd')] };
+		const gap = findFusedClusters({ layers: [gapLayer], groups: new Map([['c', g3], ['d', g4]]) });
+		assert.equal(gap.length, 0, 'un hueco rompe la fusión');
+
+		const slow = [{ ticks: 5 }, { ticks: 7 }];
+		const g5 = { cells: [make(0, 0, 'e')] };
+		const g6 = { cells: [make(1, 0, 'f', slow)] };
+		const mismatch = findFusedClusters({ layers: [layer], groups: new Map([['e', g5], ['f', g6]]) });
+		assert.equal(mismatch.length, 0, 'cadencias distintas no se fusionan');
 	});
 } finally {
 	fs.rmSync(temp, { recursive: true, force: true });

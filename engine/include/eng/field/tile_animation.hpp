@@ -39,6 +39,17 @@ struct TileAnimationGroupView {
 	u16 first_cell = 0u;
 	u16 cell_count = 0u;
 	u8 durations[kTileAnimationMaxFrames] {};
+	// Grupos de un solo sprite (fusión de celdas contiguas): tamaño del frame en
+	// píxeles (0 = lado del tile del animador), y layout de sus frames en la hoja.
+	// Si `frame_stride`/`mask_stride` son 0, el grupo usa el stride global y
+	// `first_frame`; si no, `sheet_offset`/`mask_offset` son el byte del primer
+	// frame y el stride es el de este grupo (frames más grandes que un tile).
+	u16 pixel_width = 0u;  ///< ancho del grupo en px (0 = tile del animador)
+	u16 pixel_height = 0u; ///< alto del grupo en px (0 = tile del animador)
+	u32 sheet_offset = 0u; ///< byte del primer frame en `sheet` (si `frame_stride` != 0)
+	u32 frame_stride = 0u; ///< bytes entre frames del grupo (0 = stride global)
+	u32 mask_offset = 0u;  ///< byte de la primera máscara (si `mask_stride` != 0)
+	u32 mask_stride = 0u;  ///< bytes entre máscaras del grupo (0 = stride global)
 };
 
 /// Celda animada dispersa: coordenada de mapa y capa (índice en `layers`).
@@ -140,12 +151,38 @@ public:
 		}
 		// Cada fila de un plano ocupa palabras completas; el frame apila
 		// `m_planes` planos de `m_tile` filas y la máscara tiene una fila por
-		// fila de tile. Validarlo aquí evita leer fuera del bake.
-		const u16 words_per_row = static_cast<u16>((m_tile + 15u) / 16u);
-		const u32 source_plane_stride = static_cast<u32>(words_per_row) * 2u * m_tile;
-		return m_frame_stride >= source_plane_stride * m_planes &&
-		       m_mask_stride >= static_cast<u32>(words_per_row) * 2u * m_tile &&
-		       m_sheet.size() >= m_frame_stride && m_masks.size() >= m_mask_stride;
+		// fila de tile. Un grupo fusionado puede ser mayor: se valida con su
+		// tamaño y su layout propios. Validarlo aquí evita leer fuera del bake.
+		const u16 tile_words = static_cast<u16>((m_tile + 15u) / 16u);
+		const u32 tile_plane_stride = static_cast<u32>(tile_words) * 2u * m_tile;
+		if (m_frame_stride < tile_plane_stride * m_planes ||
+		    m_mask_stride < static_cast<u32>(tile_words) * 2u * m_tile ||
+		    m_sheet.size() < m_frame_stride || m_masks.size() < m_mask_stride) {
+			return false;
+		}
+		for (const TileAnimationGroupView& grp : m_groups) {
+			const u16 gw = grp.pixel_width != 0u ? grp.pixel_width : m_tile;
+			const u16 gh = grp.pixel_height != 0u ? grp.pixel_height : m_tile;
+			if (gw < 16u || (gw & 15u) != 0u || gh == 0u) return false;
+			const u16 words = static_cast<u16>(gw / 16u);
+			const u32 row_bytes = static_cast<u32>(words) * 2u;
+			const u32 frame_bytes = row_bytes * gh * m_planes;
+			const u32 mask_bytes = row_bytes * gh;
+			const u32 frame_stride = grp.frame_stride != 0u ? grp.frame_stride : m_frame_stride;
+			const u32 mask_stride = grp.mask_stride != 0u ? grp.mask_stride : m_mask_stride;
+			if (frame_stride < frame_bytes || mask_stride < mask_bytes) return false;
+			if (grp.frame_stride != 0u && grp.frame_count != 0u) {
+				const u32 last = grp.sheet_offset +
+					static_cast<u32>(grp.frame_count - 1u) * frame_stride;
+				if (last + frame_bytes > m_sheet.size()) return false;
+			}
+			if (grp.mask_stride != 0u && grp.frame_count != 0u) {
+				const u32 last = grp.mask_offset +
+					static_cast<u32>(grp.frame_count - 1u) * mask_stride;
+				if (last + mask_bytes > m_masks.size()) return false;
+			}
+		}
+		return true;
 	}
 	/// Número de planos del frame. El dibujo agrupa todos los planos en un único
 	/// job por segmento (`bitplane_count = plane_count`); el valor valida la
@@ -154,6 +191,16 @@ public:
 	/// Lado del tile en píxeles; debe ser múltiplo de 16 para que los frames
 	/// planares queden alineados a palabra.
 	[[nodiscard]] constexpr u16 tile() const noexcept { return m_tile; }
+	/// Ancho efectivo del grupo `group` en píxeles (tile si no declara tamaño).
+	[[nodiscard]] constexpr u16 group_pixel_width(u16 group) const noexcept {
+		return group < m_groups.size() && m_groups[group].pixel_width != 0u
+			? m_groups[group].pixel_width : m_tile;
+	}
+	/// Alto efectivo del grupo `group` en píxeles (tile si no declara tamaño).
+	[[nodiscard]] constexpr u16 group_pixel_height(u16 group) const noexcept {
+		return group < m_groups.size() && m_groups[group].pixel_height != 0u
+			? m_groups[group].pixel_height : m_tile;
+	}
 	[[nodiscard]] constexpr u16 group_count() const noexcept {
 		return static_cast<u16>(m_groups.size());
 	}
@@ -175,6 +222,15 @@ public:
 	}
 	[[nodiscard]] constexpr const TileAnimationCellView& cell(u16 index) const noexcept {
 		return m_cells[index];
+	}
+	/// Grupo que posee la celda `index` (0xffff si la celda/layer no existe).
+	/// Se resuelve con el mapa de capas del bake, no con un campo duplicado.
+	[[nodiscard]] u16 group_for_cell(u16 index) const noexcept {
+		if (index >= m_cells.size()) return 0xffffu;
+		const TileAnimationCellView& c = m_cells[index];
+		if (c.layer >= m_layers.size()) return 0xffffu;
+		const u16 group_plus_one = cell_group(m_layers[c.layer], c.x, c.y);
+		return group_plus_one == 0u ? 0xffffu : static_cast<u16>(group_plus_one - 1u);
 	}
 	[[nodiscard]] constexpr u8 frame_of(u16 group) const noexcept {
 		return group < m_groups.size() ? m_frame[group] : 0u;
@@ -312,26 +368,33 @@ public:
 		const u16 frame_index = static_cast<u16>(grp.first_frame + frame); // índice en sheet/masks
 		if (m_frame_stride == 0u || m_mask_stride == 0u) return false;
 		const u16 planes = m_planes; // planos del overlay (1..6)
-		const u16 tile = m_tile;     // lado del tile en píxeles (múltiplo de 16)
-		const u16 words_per_row = static_cast<u16>((tile + 15u) / 16u); // palabras/pintura por fila
+		const u16 gw = grp.pixel_width != 0u ? grp.pixel_width : m_tile;  // ancho del grupo (px)
+		const u16 gh = grp.pixel_height != 0u ? grp.pixel_height : m_tile; // alto del grupo (px)
+		const u16 words_per_row = static_cast<u16>(gw / 16u); // palabras/pintura por fila
 		const u16 source_row_bytes = static_cast<u16>(words_per_row * 2u); // bytes por fila de un plano
-		const u32 source_plane_stride = static_cast<u32>(source_row_bytes) * tile; // bytes entre planos
-		if (planes == 0u || tile < 16u || (tile & 15u) != 0u ||
+		const u32 source_plane_stride = static_cast<u32>(source_row_bytes) * gh; // bytes entre planos
+		if (planes == 0u || gw < 16u || (gw & 15u) != 0u || gh == 0u ||
 		    ring_height == 0u) {
 			return false;
 		}
+		const u32 frame_stride = grp.frame_stride != 0u ? grp.frame_stride : m_frame_stride;
+		const u32 mask_stride = grp.mask_stride != 0u ? grp.mask_stride : m_mask_stride;
+		const u32 frame_base = grp.frame_stride != 0u
+			? grp.sheet_offset + static_cast<u32>(frame) * frame_stride
+			: static_cast<u32>(frame_index) * m_frame_stride;
+		const u32 mask_base = grp.mask_stride != 0u
+			? grp.mask_offset + static_cast<u32>(frame) * mask_stride
+			: static_cast<u32>(frame_index) * m_mask_stride;
 		u16 first_row = 0u;   // primera fila del frame en este segmento
-		u16 remaining = tile; // filas que faltan por dibujar
+		u16 remaining = gh;   // filas que faltan por dibujar
 		s16 ry = static_cast<s16>(ring_y); // línea del anillo del segmento
 		while (remaining > 0u) {
 			const u16 seg = static_cast<u16>(static_cast<u32>(ry) + remaining > ring_height
 				? ring_height - static_cast<u16>(ry) : remaining); // filas hasta la costura o el final
 			// Offsets en bytes (sin aritmética de punteros): frame + fila del
 			// segmento; `BlitPtr` los aplica sobre la vista Chip del sheet/máscara.
-			const u32 sheet_off = static_cast<u32>(frame_index) * m_frame_stride +
-				static_cast<u32>(first_row) * source_row_bytes;
-			const u32 mask_off = static_cast<u32>(frame_index) * m_mask_stride +
-				static_cast<u32>(first_row) * source_row_bytes;
+			const u32 sheet_off = frame_base + static_cast<u32>(first_row) * source_row_bytes;
+			const u32 mask_off = mask_base + static_cast<u32>(first_row) * source_row_bytes;
 			const u32 dest_off = static_cast<u32>(ry) * planes * target.row_bytes + (x >> 3u);
 			const graphics::BlitPtr source_ptr {m_sheet, static_cast<s32>(sheet_off)};
 			const graphics::BlitPtr mask_ptr {m_masks, static_cast<s32>(mask_off)};

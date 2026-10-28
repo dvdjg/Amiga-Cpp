@@ -208,6 +208,37 @@ void test_tile_32() {
 	      "tile 32: módulo de fila");
 }
 
+void test_fused_group() {
+	FramePlan plan {};
+	const TileAnimationGroupView group {
+		0u, 1u, 1u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u},
+		32u, 16u, 0u, 384u, 0u, 64u};
+	const TileAnimationLayerView layer {nullptr, 0u, 0u, 0u, 0u};
+	const TileAnimationCellView cell {0u, 0u, 0u, 0u};
+	TileAnimator animator = make_animator(&group, &layer, &cell);
+	const BobTarget target = make_target(6u);
+
+	check(animator.configured(), "fused: configuracion valida");
+	check(animator.group_pixel_width(0u) == 32u &&
+		      animator.group_pixel_height(0u) == 16u,
+	      "fused: tamano del grupo");
+	check(animator.draw_group(plan, target, kHeight, 304u, 0u, 0u),
+	      "fused: draw_group");
+	check(plan.blit_job_count() == 1u, "fused: un job para los 6 planos");
+	const eng::graphics::BlitJob& job = plan.blit_job(0u);
+	check(reinterpret_cast<const eng::u8*>(job.source.cwords()) == g_sheet,
+	      "fused: base de la fuente");
+	check(reinterpret_cast<const eng::u8*>(job.mask.cwords()) == g_masks,
+	      "fused: base de la mascara");
+	check(job.words_per_row == 2u && job.height == 16u,
+	      "fused: dos palabras por fila y 16 filas");
+	check(job.source_plane_stride_bytes == 64u,
+	      "fused: stride de plano de fuente");
+	check(job.destination_modulo_bytes ==
+		      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * 6 - 4),
+	      "fused: modulo de fila");
+}
+
 } // namespace
 
 int main() {
@@ -217,6 +248,7 @@ int main() {
 	test_ring_wrap();
 	test_three_planes();
 	test_tile_32();
+	test_fused_group();
 	if (g_failures != 0) {
 		std::printf("HOST-500: %d fallos\n", g_failures);
 		return 1;

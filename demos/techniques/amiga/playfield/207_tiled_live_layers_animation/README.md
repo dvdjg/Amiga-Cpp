@@ -7,8 +7,8 @@ Demo T5: la base se cuece sin las celdas de `Flowers`, `Water` y `Object Layer 1
 - Cook-plan validado: `Ground` es la base cocida; `Flowers`, `Water` y la fogata se emiten como overlays animados. `Road`, `Shadows`, `Object Shadows` y `RockSlopes_Auto` siguen cocidos por encima de las flores; el validador lo declara como aviso, no como error.
 - La visita empieza centrada en la fogata, pasa por agua y flores, recorre las cuatro esquinas y el centro, y vuelve a la fogata. Durante el desplazamiento no se parchean las capas vivas; en cada parada de 3 s sí se actualizan.
 - `TileLayerStack` compone las celdas vivas y `XLimitedPlayfield::patch_animations` redibuja solo los grupos cuyo frame cambia. El overlay se coloca en la **columna de mundo** (`wx`) de su bloque base, no en la columna visible, y la visibilidad se decide con `sx`/`sy`.
-- `MapCellSaveCache` guarda el fondo real de cada celda en una única arena Chip (96 × 192 B = 18 KB): captura una vez, restaura antes del frame nuevo y libera la entrada al salir de la ventana. Nunca reconstruye el fondo con `add_draw` ni con el tile cocinado.
-- El parche recorre las capas de primer plano a fondo: la fogata es un objeto 2×2 de Tiled que el cooker emite como **cuatro grupos de una celda** de 16×16 (0, 3, 6 y 9); caben juntos en el tope de 24 jobs y se actualizan en el mismo pase. Agua y flores se reparten con el cursor round-robin. No se usa un `MapSprite` libre de 32×32: la ruta es de celdas alineadas a tile.
+- `MapCellSaveCacheSet` guarda el fondo real: arena pequeña de 96 × 192 B (18 KB) para tiles y arena grande de 8 × 1,5 KB (12 KB) para sprites fusionados. Captura una vez, restaura antes del frame nuevo y libera la entrada al salir de la ventana; nunca reconstruye el fondo con `add_draw` ni con el tile cocinado.
+- **Fusión automática**: el cooker detecta clusters rectangulares de celdas contiguas con la misma cadencia y gids de un solo uso, y los emite como **un grupo de un sprite** (la fogata 2×2 pasa a 32×32). El runtime dibuja un blit enmascarado por segmento y un único save-under; agua/flores, con gids repetidos, siguen como celdas. La decisión no conoce la fogata: cualquier mapa que cumpla las reglas entra solo. El parche recorre las capas de primer plano a fondo y reparte el resto con el cursor round-robin.
 - `TileAnimationPriority` ordena `Flowers` (fondo), `Water` (decorado) y la fogata (foreground). `kBudgetedAnimations=false` mantiene las tres activas para la validación funcional.
 
 ## Pipeline
@@ -37,11 +37,11 @@ Presets:
 
 La paleta la genera el cooker a partir de la composición completa del mapa (incluye capas animadas y objetos, no solo el bake) y se cuantiza a 32 bases EHB con `quantize-ehb.mjs`; no se usa una paleta fija del repositorio.
 
-`selected/` contiene `map.bundle`, `tilebank.xlimited.bin` (218 KB), `animations.h`, `anim_sheet.bin` (47,6 KB) y `anim_masks.bin` (7,9 KB): 76 grupos, 248 frames y 227 celdas vivas (`Flowers` + `Water` + fogata).
+`selected/` contiene `map.bundle`, `tilebank.xlimited.bin` (218 KB), `animations.h`, `anim_sheet.bin` (47,6 KB) y `anim_masks.bin` (7,9 KB): 73 grupos, 224 frames y 224 celdas vivas (`Flowers` + `Water` + la fogata fusionada).
 
 ## Medidas
 
-- `A500_release` con visita: **27,13 fps de media**, mínimo **21,17**, **261.468 ciclos/frame**, **1,84 campos/frame** (ventanas 21,17-36,05). La media supera el suelo de 25, pero el mínimo de ventana no y la cadencia no es 50 Hz: es la deuda de rendimiento abierta.
+- `A500_release` con visita y fusión: **29,12 fps de media**, mínimo **22,58**, **243.603 ciclos/frame**, **1,717 campos/frame** (ventanas 22,58-43,58). La media supera el suelo de 25, pero el mínimo de ventana no y la cadencia no es 50 Hz: es la deuda de rendimiento abierta. La fusión de la fogata en un solo sprite bajó el coste frente a los 27,13/21,17/261.468 previos.
 - Parada de agua congelada (`DEMO_TOUR_STOP=1`): **24,71 fps**, 287.046 ciclos/frame. Ablación sin parche: **49,90 fps**, 142.150 ciclos/frame; el coste está en el parche, no en el scroll ni en el HUD.
 - El avance circular sin `%` por grupo (`__umodsi3`) y el job único por celda (todos los planos) subieron la parada de 18,18 a 24,69 fps. El tope de 24 jobs reparte las celdas nuevas sin romper la fogata.
 - Secuencia de la parada de la fogata (8 frames): la fogata cambia de silueta con el anillo de piedras y la hierba estables; las flores blancas/rojas y el agua cambian sus frames. Diff de región estática = 0; los recortes 4× no muestran restos ni bloques negros/rojos.
@@ -51,8 +51,8 @@ La paleta la genera el cooker a partir de la composición completa del mapa (inc
 
 - `Flowers` viva convive con `Road/Shadows/RockSlopes` cocidos por encima; una celda de flor que quedara bajo esas capas podría ser tapada. El validador lo avisa. En esta ventana las flores visibles están sobre hierba y no se observa solape incorrecto.
 - El save-under por celda está implementado en `MapCellSaveCache` (una arena, captura única, restore antes del frame, release al salir). No se usa el mapa cocinado para el fondo.
-- La **caché background+frame** por celda/frame no se usa: para flores/agua costaría ~342 KB Chip (62+161 celdas × 8 frames × 192 B) y el fondo podría quedar obsoleto si otra capa lo tapa. Para la fogata (4 celdas, 6 KB) sería viable, pero hoy sus cuatro grupos ya caben en el pase. La comparación completa (objeto libre, bounding boxes, blit mayor) está en [`TILED_MAP_RUNTIME.md` §5.4.1](../../../../../docs/engine/architecture/TILED_MAP_RUNTIME.md#541-objetos-libres-y-caché-precompuesta-qué-aplica-y-qué-no).
-- El **fps** de las paradas es la deuda principal: media 27,13 pero mínimo 21,17 y sin 50 Hz estables. El pase `Occluder`/`after_actors` se valida en la demo 208.
+- La **caché background+frame** por celda/frame no se usa: para flores/agua costaría ~342 KB Chip (62+161 celdas × 8 frames × 192 B) y el fondo podría quedar obsoleto si otra capa lo tapa. La **fusión de frames** sí se usa para objetos compuestos únicos (fogata), que no duplica el banco porque sus gids no aparecen en otras celdas. La comparación completa (objeto libre, bounding boxes, blit mayor) está en [`TILED_MAP_RUNTIME.md` §5.4.1](../../../../../docs/engine/architecture/TILED_MAP_RUNTIME.md#541-objetos-libres-y-caché-precompuesta-qué-aplica-y-qué-no).
+- El **fps** de las paradas es la deuda principal: media 29,12 pero mínimo 22,58 y sin 50 Hz estables. El pase `Occluder`/`after_actors` se valida en la demo 208.
 
 ## Telemetría opcional
 

@@ -1,4 +1,4 @@
-# HOST-496: save-under de celdas vivas (`MapCellSaveCache`)
+# HOST-496: save-under de celdas vivas (`MapCellSaveCache`/`MapCellSaveCacheSet`)
 
 ## Qué cubre
 
@@ -11,6 +11,7 @@ Valida en host el cache de save-under por celda del surface (tiles animados de l
 - `restore` emite un `RestoreRect` inverso, deja `painted=false` y mantiene la captura para el siguiente frame.
 - `release` libera la entrada sin restaurar (celda fuera de la ventana).
 - Una celda mayor que el stride configurado se rechaza sin tocar el plan; sin slot libre, la captura falla y aumenta `failures()`.
+- `MapCellSaveCacheSet` reserva dos arenas (tiles y sprites fusionados) y enruta cada caja a la clase que puede contenerla; una captura de 32×32 no consume el stride de las celdas de 16×16.
 
 ## Contrato que fija
 

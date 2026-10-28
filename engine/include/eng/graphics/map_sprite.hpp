@@ -631,6 +631,9 @@ public:
 	[[nodiscard]] u32 bytes_held() const noexcept {
 		return m_storage.valid() ? static_cast<u32>(m_storage.size()) : 0u;
 	}
+	/// Bytes reservados por entrada (stride de la arena); `capture` rechaza
+	/// cajas que necesiten más.
+	[[nodiscard]] constexpr u32 cell_stride() const noexcept { return m_cell_stride; }
 
 private:
 	static constexpr u16 kNoSlot = 0xffffu;
@@ -751,6 +754,101 @@ private:
 	eng::Ref<MemBank<MemoryKind::Chip>> m_chip {};///< banco del que se reserva la arena (no propietario)
 	u32 m_cell_stride = 0u;                       ///< bytes reservados por celda en la arena
 	u16 m_failures = 0u;                          ///< capturas rechazadas (diagnóstico)
+};
+
+/// **Save-under por celda con dos clases de tamaño** (celdas de tile y sprites
+/// grandes fusionados). Mantiene dos arenas fijas independientes: la pequeña
+/// cubre la mayoría de celdas con `SmallCapacity × small_cell_bytes` y la grande
+/// reserva `LargeCapacity × large_cell_bytes` solo para las cajas mayores. Así
+/// un sprite de 32×32 no multiplica el stride de las 96 celdas de 16×16.
+///
+/// La clave (`key`) es la misma que en `MapCellSaveCache`: índice estable de la
+/// celda/grupo. Cada clave vive en una sola clase; `saved`/`painted`/`restore`
+/// consultan ambas y `release` la libera de las dos.
+///
+/// \tparam SmallCapacity entradas de la arena pequeña (celdas de tile).
+/// \tparam LargeCapacity entradas de la arena grande (sprites fusionados).
+/// \tparam KeyCount tamaño del espacio de claves (índices de celda).
+template <u16 SmallCapacity, u16 LargeCapacity, u16 KeyCount = 256u>
+class MapCellSaveCacheSet {
+public:
+	static_assert(SmallCapacity != 0u && LargeCapacity != 0u, "capacidades no nulas");
+
+	/// Liga el set al banco Chip y reserva las dos arenas.
+	/// \param chip banco Chip de las capturas (referencia no propietaria).
+	/// \param small_cell_bytes bytes por celda pequeña (tile × tile × planos / 8).
+	/// \param large_cell_bytes bytes por sprite grande (ancho × alto × planos / 8).
+	void configure(eng::Ref<MemBank<MemoryKind::Chip>> chip, u32 small_cell_bytes,
+		       u32 large_cell_bytes) noexcept {
+		m_small.configure(chip, small_cell_bytes);
+		m_large.configure(chip, large_cell_bytes);
+	}
+
+	/// `true` si `key` tiene fondo capturado en cualquiera de las dos arenas.
+	[[nodiscard]] bool saved(u16 key) const noexcept {
+		return m_small.saved(key) || m_large.saved(key);
+	}
+	/// `true` si el overlay de `key` está pintado en cualquiera de las dos arenas.
+	[[nodiscard]] bool painted(u16 key) const noexcept {
+		return m_small.painted(key) || m_large.painted(key);
+	}
+
+	/// Captura la caja `w×h` en la clase que pueda contenerla.
+	/// \param plan plan del frame.
+	/// \param target bitmap destino.
+	/// \param key índice estable de la celda/grupo.
+	/// \param x columna de mundo del borde izquierdo (px, múltiplo de 16).
+	/// \param y línea del anillo del borde superior (px).
+	/// \param w ancho de la caja (px, múltiplo de 16).
+	/// \param h alto de la caja (px).
+	/// \return `false` si ninguna arena tiene hueco/espacio para la caja.
+	[[nodiscard]] bool capture(FramePlan& plan, const BobTarget& target, u16 key,
+				   u16 x, u16 y, u16 w, u16 h) noexcept {
+		const u32 need = static_cast<u32>(w / 16u) * 2u * h *
+				 static_cast<u32>(target.plane_count);
+		if (need <= m_small.cell_stride()) {
+			return m_small.capture(plan, target, key, x, y, w, h);
+		}
+		return m_large.capture(plan, target, key, x, y, w, h);
+	}
+
+	/// Restaura el fondo de `key` desde la arena que lo tenga.
+	/// \param plan plan del frame.
+	/// \param target bitmap destino.
+	/// \param key índice estable de la celda/grupo.
+	/// \return `false` si el plan rechaza el trabajo.
+	[[nodiscard]] bool restore(FramePlan& plan, const BobTarget& target, u16 key) noexcept {
+		return m_small.restore(plan, target, key) &&
+		       m_large.restore(plan, target, key);
+	}
+
+	/// Libera `key` de ambas arenas (sin restaurar).
+	/// \param key índice estable de la celda/grupo.
+	void release(u16 key) noexcept {
+		m_small.release(key);
+		m_large.release(key);
+	}
+
+	/// Entradas vivas en las dos arenas.
+	[[nodiscard]] u16 used() const noexcept {
+		return static_cast<u16>(m_small.used() + m_large.used());
+	}
+	/// Capturas rechazadas de las dos arenas (diagnóstico).
+	[[nodiscard]] u16 failures() const noexcept {
+		return static_cast<u16>(m_small.failures() + m_large.failures());
+	}
+	/// Bytes Chip retenidos por ambas arenas.
+	[[nodiscard]] u32 bytes_held() const noexcept {
+		return m_small.bytes_held() + m_large.bytes_held();
+	}
+	/// Capacidad total de entradas (diagnóstico).
+	[[nodiscard]] constexpr u32 capacity() const noexcept {
+		return static_cast<u32>(SmallCapacity) + LargeCapacity;
+	}
+
+private:
+	MapCellSaveCache<SmallCapacity, KeyCount> m_small {}; ///< celdas de tile
+	MapCellSaveCache<LargeCapacity, KeyCount> m_large {}; ///< sprites grandes
 };
 
 // Borde horizontal: un sprite que no cabe en el bitmap destino se culla, no

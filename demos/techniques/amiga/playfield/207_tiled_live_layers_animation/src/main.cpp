@@ -245,8 +245,9 @@ struct DemoGame {
 
 	// Save-under por celda viva (fondo real bajo cada overlay). Vive en la
 	// escena/demo, no en el playfield; 96 cubre el máximo visible de la visita
-	// (~91 celdas en la parada de la fogata). Arena única de 96 × 192 B = 18 KB.
-	eng::graphics::MapCellSaveCache<96u> m_cell_save {};
+	// (~91 celdas en la parada de la fogata). Dos arenas: 96 × 192 B = 18 KB
+	// para celdas de tile y 8 × 1,5 KB = 12 KB para sprites fusionados de hasta 8 celdas.
+	eng::graphics::MapCellSaveCacheSet<96u, 8u> m_cell_save {};
 	struct CameraStop {
 		eng::s16 x = 0;
 		eng::s16 y = 0;
@@ -452,11 +453,13 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
 		}
-		// Arena única de save-under: una celda = tile × tile × planos (192 B con
-		// 16×16×6). Reservar por celda fragmenta el BlockPool (64 huecos).
+		// Dos arenas de save-under: celda = tile × tile × planos (192 B con
+		// 16×16×6) y sprite fusionado = hasta 8 celdas (1,5 KB). Reservar por celda
+		// fragmenta el BlockPool (64 huecos).
 		const eng::u32 cell_bytes = static_cast<eng::u32>(animator.tile()) *
 					    animator.tile() * animator.plane_count() / 8u; // 192 B (16×16×6)
-		m_cell_save.configure(backend.memory_manager().chip(), cell_bytes);
+		m_cell_save.configure(backend.memory_manager().chip(), cell_bytes,
+				      cell_bytes * 8u); // 8 celdas = hasta 2×4 tiles por sprite grande
 		if (!scene.draw_animation_stack(backend, plan, layer_stack, m_cell_save)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
 			return;

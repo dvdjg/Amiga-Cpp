@@ -35,6 +35,7 @@ using eng::graphics::BlitJobKind;
 using eng::graphics::BobTarget;
 using eng::graphics::FramePlan;
 using eng::graphics::MapCellSaveCache;
+using eng::graphics::MapCellSaveCacheSet;
 
 constexpr u16 kRowBytes = 44u;
 constexpr u16 kHeight = 288u;
@@ -42,9 +43,12 @@ constexpr u8 kPlanes = 6u;
 constexpr u16 kCell = 16u;
 constexpr u32 kCellBytes = static_cast<u32>(kCell) * kCell * kPlanes / 8u; // 192
 constexpr u16 kCapacity = 4u;
+constexpr u16 kLargeCapacity = 2u;
+constexpr u32 kLargeCellBytes = static_cast<u32>(32u) * 32u * kPlanes / 8u; // 768
 
 alignas(16) eng::u8 g_target[kRowBytes * kHeight * kPlanes] {};
 alignas(16) eng::u8 g_pool[kCapacity * kCellBytes] {};
+alignas(16) eng::u8 g_set_pool[kCapacity * kCellBytes + kLargeCapacity * kLargeCellBytes] {};
 
 int g_failures = 0;
 
@@ -157,12 +161,40 @@ void test_capture_and_restore() {
 	check(plan.blit_job_count() == 0u, "capacidad: no emite jobs");
 }
 
+void test_size_classes() {
+	eng::MemBank<eng::MemoryKind::Chip> bank {};
+	bank.configure(g_set_pool, sizeof(g_set_pool));
+	MapCellSaveCacheSet<kCapacity, kLargeCapacity> cache {};
+	cache.configure(bank, kCellBytes, kLargeCellBytes);
+	const BobTarget target = make_target();
+	FramePlan plan {};
+	plan.set_target_bounds(target.bound());
+	check(cache.bytes_held() == static_cast<u32>(kCapacity) * kCellBytes +
+					      static_cast<u32>(kLargeCapacity) * kLargeCellBytes,
+	      "set: dos arenas reservadas");
+	check(cache.capture(plan, target, 0u, 16u, 16u, kCell, kCell),
+	      "set: celda pequena");
+	check(cache.capture(plan, target, 1u, 32u, 32u, 32u, 32u),
+	      "set: sprite 32x32 en arena grande");
+	check(cache.used() == 2u, "set: dos entradas");
+	check(cache.saved(0u) && cache.saved(1u), "set: ambas capturadas");
+	check(plan.blit_job_count() == 2u, "set: un job por captura");
+	check(cache.restore(plan, target, 0u), "set: restore pequena");
+	check(cache.restore(plan, target, 1u), "set: restore grande");
+	check(cache.painted(0u) == false && cache.painted(1u) == false,
+	      "set: restore deja painted=false");
+	cache.release(0u);
+	cache.release(1u);
+	check(cache.used() == 0u, "set: release libera ambas clases");
+}
+
 } // namespace
 
 int main() {
 	std::memset(g_target, 0x5a, sizeof(g_target));
 	std::memset(g_pool, 0x00, sizeof(g_pool));
 	test_capture_and_restore();
+	test_size_classes();
 	if (g_failures != 0) {
 		std::printf("HOST-496: %d fallos\n", g_failures);
 		return 1;
