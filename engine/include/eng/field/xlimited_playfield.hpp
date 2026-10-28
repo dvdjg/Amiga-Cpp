@@ -358,17 +358,17 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
 
     /// Construye el `BlitJob` de un bloque (contrato de xlimited.c:201).
     ///
-    /// \param x  coordenada X en píxeles (será word-aligned)
-    /// \param y  coordenada Y en **planeline** (no píxeles)
-    /// \param mapx índice de bloque en X del mapa
-    /// \param mapy índice de bloque en Y del mapa
-graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
+    /// \param screen_x_px coordenada X de pantalla en píxeles (word-aligned al emitir)
+    /// \param planeline_y coordenada Y en **planelines** (una fila por plano, no píxeles)
+    /// \param map_cell_x índice de celda X del mapa
+    /// \param map_cell_y índice de celda Y del mapa
+graphics::BlitJob draw_block_job(u16 screen_x_px, u16 planeline_y, u16 map_cell_x, u16 map_cell_y) const {
         // x word-aligned como en DrawBlock: (x/8) & 0xFFFE
-        const u16 x_word = static_cast<u16>((x / 8u) & 0xFFFEu);
-        const u32 dst_offset = static_cast<u32>(y) * this->m_bytes_per_row + x_word;
+        const u16 x_word = static_cast<u16>((screen_x_px / 8u) & 0xFFFEu);
+        const u32 dst_offset = static_cast<u32>(planeline_y) * this->m_bytes_per_row + x_word;
 
         // Resolución del bloque del mapa (wrapping si el mapa es circular)
-        const u16 block = this->map_tile_at(mapx, mapy);
+        const u16 block = this->map_tile_at(map_cell_x, map_cell_y);
         // Layout del banco de bloques: el banco X-Limited es SIEMPRE de 320 px de
         // ancho (40 B/planelínea), con `320/tile_width` bloques por fila y cada
         // tile de `tile_width/8` bytes por planelínea. Antes estaba fijado a 20
