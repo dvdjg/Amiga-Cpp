@@ -710,6 +710,10 @@ struct DemoGame {
 		}
 		DEMO_PROF_END(3u);
 		DEMO_PROF_BEGIN(4u);
+		// El HUD de host cambia de frame cada VBlank, pero rehacer su texto
+		// cuesta ~52k ciclos/frame. Se refresca cada 4 frames: sigue mostrando
+		// frame/fps (con un salto de 4) y libera CPU para el pase de agua.
+		if ((context.frame.frame_index & 3u) == 0u) {
 		eng::util::TextLine<96> stats;
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
 		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count();
@@ -739,6 +743,7 @@ struct DemoGame {
 #endif
 		host_hud.draw(backend.debug(), "207 TILED LIVE", kVersion, context.frame.frame_index,
 			      eng::debug::prof_clock(), stats.c_str());
+		}
 		DEMO_PROF_END(4u);
 	}
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {

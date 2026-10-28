@@ -41,18 +41,18 @@ La paleta la genera el cooker a partir de la composición completa del mapa (inc
 
 ## Medidas
 
-- `A500_release` con visita y fusión: **29,12 fps de media**, mínimo **22,58**, **243.603 ciclos/frame**, **1,717 campos/frame** (ventanas 22,58-43,58). La media supera el suelo de 25, pero el mínimo de ventana no y la cadencia no es 50 Hz: es la deuda de rendimiento abierta. La fusión de la fogata en un solo sprite bajó el coste frente a los 27,13/21,17/261.468 previos.
-- Parada de agua congelada (`DEMO_TOUR_STOP=1`): **24,71 fps**, 287.046 ciclos/frame. Ablación sin parche: **49,90 fps**, 142.150 ciclos/frame; el coste está en el parche, no en el scroll ni en el HUD.
-- El avance circular sin `%` por grupo (`__umodsi3`) y el job único por celda (todos los planos) subieron la parada de 18,18 a 24,69 fps. El tope de 24 jobs reparte las celdas nuevas sin romper la fogata.
+- `A500_release` con visita, fusión y HUD cada 4 frames: **28,06 fps de media**, mínimo **22,19**, **252.792 ciclos/frame**, **1,782 campos/frame** (ventanas 22,19-40,66). La media supera el suelo de 25, pero el mínimo de ventana no y la cadencia no es 50 Hz: es la deuda de rendimiento abierta. La fusión de la fogata en un solo sprite bajó el coste frente a los 27,13/21,17/261.468 previos.
+- Parada de agua congelada (`DEMO_TOUR_STOP=1`) con HUD cada 4 frames: **25,50 fps**, 278.222 ciclos/frame, 1,961 campos/frame (2 campos estables). Ablación sin parche: **49,90 fps**, 142.150 ciclos/frame; el coste está en el parche, no en el scroll ni en el HUD.
+- El avance circular sin `%` por grupo (`__umodsi3`), el job único por celda (todos los planos) y refrescar el HUD cada 4 frames subieron la parada de 18,18 a 25,50 fps. El tope de 24 jobs reparte las celdas nuevas sin romper la fogata.
 - Secuencia de la parada de la fogata (8 frames): la fogata cambia de silueta con el anillo de piedras y la hierba estables; las flores blancas/rojas y el agua cambian sus frames. Diff de región estática = 0; los recortes 4× no muestran restos ni bloques negros/rojos.
 - La revisión canónica con Ollama describe la escena como estática: es un falso negativo global sobre detalles de 16 px. La evidencia canónica es la secuencia + diff de píxeles y los recortes por entidad.
 
 ## Alcance y deuda
 
 - `Flowers` viva convive con `Road/Shadows/RockSlopes` cocidos por encima; una celda de flor que quedara bajo esas capas podría ser tapada. El validador lo avisa. En esta ventana las flores visibles están sobre hierba y no se observa solape incorrecto.
-- El save-under por celda está implementado en `MapCellSaveCache` (una arena, captura única, restore antes del frame, release al salir). No se usa el mapa cocinado para el fondo.
+- El save-under por celda está implementado en `MapCellSaveCacheSet` (arenas pequeña/grande, captura única, restore antes del frame, release al salir). No se usa el mapa cocinado para el fondo.
 - La **caché background+frame** por celda/frame no se usa: para flores/agua costaría ~342 KB Chip (62+161 celdas × 8 frames × 192 B) y el fondo podría quedar obsoleto si otra capa lo tapa. La **fusión de frames** sí se usa para objetos compuestos únicos (fogata), que no duplica el banco porque sus gids no aparecen en otras celdas. La comparación completa (objeto libre, bounding boxes, blit mayor) está en [`TILED_MAP_RUNTIME.md` §5.4.1](../../../../../docs/engine/architecture/TILED_MAP_RUNTIME.md#541-objetos-libres-y-caché-precompuesta-qué-aplica-y-qué-no).
-- El **fps** de las paradas es la deuda principal: media 29,12 pero mínimo 22,58 y sin 50 Hz estables. El pase `Occluder`/`after_actors` se valida en la demo 208.
+- El **fps** de las paradas es la deuda principal: media 28,06 pero mínimo 22,19 y sin 50 Hz estables. El pase `Occluder`/`after_actors` se valida en la demo 208.
 
 ## Telemetría opcional
 

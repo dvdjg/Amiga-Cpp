@@ -2,17 +2,17 @@
 
 ## Estado
 
-**Funcional corregida y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`); el cooker fusiona automáticamente la fogata 2×2 en un sprite 32×32 y el fondo real de cada celda se restaura con `MapCellSaveCacheSet` (save-under del surface), sin usar el tile cocinado. **Rendimiento: 29,12 fps de media, mínimo 22,58**; la media supera el suelo de 25, pero el mínimo de ventana y el 50 Hz siguen abiertos.
+**Funcional corregida y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`); el cooker fusiona automáticamente la fogata 2×2 en un sprite 32×32 y el fondo real de cada celda se restaura con `MapCellSaveCacheSet` (save-under del surface), sin usar el tile cocinado. **Rendimiento: 28,06 fps de media, mínimo 22,19**; la media supera el suelo de 25, el HUD se refresca cada 4 frames y la parada de agua alcanza 25,50; el mínimo de ventana y el 50 Hz siguen abiertos.
 
 ## Medidas
 
 | Build | fps | ciclos/frame | campos/frame | Notas |
 |---|---:|---:|---:|---|
-| `A500_release` visita con fusión | 29,12 | 243 603 | 1,717 | 8 ventanas, 22,58-43,58 fps |
-| `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) | 24,64 | 287 899 | 2,029 | cuantiza a 2 campos |
+| `A500_release` visita con fusión + HUD/4 | 28,06 | 252 792 | 1,782 | 8 ventanas, 22,19-40,66 fps |
+| `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) + HUD/4 | 25,50 | 278 222 | 1,961 | 2 campos estables |
 | `A500_release` parada de agua sin parche (ablación) | 49,90 | 142 150 | 1,00 | el coste está en el parche, no en el scroll/HUD |
 
-La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí. La media no se usa como presupuesto. El avance circular sin `%` por grupo (`__umodsi3`) y el job único por celda subieron la parada de 18,18 a 24,69 fps.
+La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí. La media no se usa como presupuesto. El avance circular sin `%` por grupo (`__umodsi3`), el job único por celda y el HUD cada 4 frames subieron la parada de 18,18 a 25,50 fps.
 
 ## Contrato
 
@@ -20,7 +20,7 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 - Las celdas animadas usan el mismo destino que el bloque base: `target_x = wx` (mundo sin envolver), `ring_y = (display_offset + sy) mod display_height`; `sx`/`sy` sólo deciden visibilidad. `rx` no es el contrato del parche.
 - `MapCellSaveCacheSet<96, 8>`: arena pequeña de 96 × 192 B (18 KB) y arena grande de 8 × 1,5 KB (12 KB) para sprites fusionados; captura una vez (`CopyRect` de todos los planos en un job), restaura antes de repintar (`RestoreRect`), no recaptura mientras la celda sigue visible y libera la entrada al salir de la ventana.
 - El cooker fusiona clusters rectangulares de celdas contiguas con la misma cadencia y gids de un solo uso; la fogata 2×2 se emite como un grupo de 32×32 (un save-under y un blit por segmento). Agua/flores conservan sus celdas y se reparten con el cursor round-robin. La regla es general y no nombra la fogata.
-- `HOST-499` valida `TileLayerStack`; `HOST-500` la geometría del anillo con un job por segmento (todos los planos); `HOST-496` el ciclo de vida y la geometría de `MapCellSaveCache`.
+- `HOST-499` valida `TileLayerStack`; `HOST-500` la geometría del anillo con un job por segmento (todos los planos); `HOST-502` el ciclo de vida y la geometría de `MapCellSaveCache`.
 - Assets: `out/assets/tiled/beginning-fields-live-flowers/selected/` (73 grupos, 224 frames, 224 celdas, 47,6 KB de sheet y 7,9 KB de máscaras); la fusión elimina 3 grupos y 3 celdas sin cambiar el banco.
 - La paleta la genera `cook-map` a partir de `palette-source.png` (todas las capas y objetos, incluidos los animados) y la cuantiza a 32 bases EHB con `quantize-ehb.mjs`; no hay paleta fija en el repositorio. La fuente incluye agua, flores y fuego aunque no estén en el bake.
 
@@ -47,7 +47,7 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 
 ## Deuda
 
-- Rendimiento: media 29,12 pero mínimo 22,58 y sin 50 Hz estables; perfilar la parada más lenta y valorar doble buffer o repartir la entrada de celdas nuevas.
+- Rendimiento: media 28,06 pero mínimo 22,19 y sin 50 Hz estables; la parada de agua ya supera 25 con el HUD cada 4 frames. Perfilar la ventana más lenta y valorar doble buffer o repartir la entrada de celdas nuevas.
 - Confirmar el encaje de las flores en celdas tapadas por `Road/Shadows` si se amplía la ventana; el aviso del validador sigue abierto.
 - Repetir la validación de flicker de alta frecuencia cuando el coste permita una secuencia frame-step sin cuantización.
 - Mantener el tope de 24 jobs y el orden por capas si se añaden más objetos compuestos; validar que cada compuesto cabe entero en un pase.

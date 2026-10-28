@@ -236,14 +236,14 @@ El parche recorre las capas de **primer plano a fondo** (`TileAnimator::group_la
 
 ### Medidas finales
 
-- Release completa, visita con fusión automática: **29,12 fps de media, mínimo 22,58**, 243 603 ciclos/frame (1,717 campos/frame). La media supera el suelo de 25; el mínimo de ventana sigue por debajo y la cadencia no es 50 Hz (deuda abierta). Frente a los 27,13/21,17/261 468 previos, la fusión de la fogata en un sprite redujo el coste.
-- Parada de agua congelada (`DEMO_TOUR_STOP=1`): **24,71 fps**, 287 046 ciclos/frame; sin parche (ablación): **49,90 fps**, 142 150 ciclos/frame. El coste es el parche, no el scroll/HUD.
-- El `%` por grupo visitado (`__umodsi3`) era el coste dominante: sustituido por avance circular (`next_group`), la parada subió de 18,18 a 24,69 fps.
+- Release completa, visita con fusión automática y HUD cada 4 frames: **28,06 fps de media, mínimo 22,19**, 252 792 ciclos/frame (1,782 campos/frame). La media supera el suelo de 25; el mínimo de ventana sigue por debajo y la cadencia no es 50 Hz (deuda abierta).
+- Parada de agua congelada (`DEMO_TOUR_STOP=1`) con HUD cada 4 frames: **25,50 fps**, 278 222 ciclos/frame (1,961 campos); sin parche (ablación): **49,90 fps**, 142 150 ciclos/frame. El coste es el parche, no el scroll/HUD.
+- El `%` por grupo visitado (`__umodsi3`) era el coste dominante: sustituido por avance circular (`next_group`), la parada subió de 18,18 a 24,69 fps; refrescar el HUD cada 4 frames la llevó a 25,50.
 - Emitir **un job por celda** con todos los planos (en vez de uno por plano) redujo el coste de CPU del parche sin cambiar el trabajo del Blitter.
 
 ### Verificación visual
 
 - Secuencia de la parada de la fogata (8 frames): la fogata cambia de silueta con el anillo de piedras y la hierba estables; las flores blancas/rojas y el agua cambian sus frames. Diff de región estática = 0; los recortes 4× de fogata/flores muestran el cambio sin restos ni bloques negros/rojos.
 - La posición de la fogata coincide con su celda base (pantalla 144 en la primera parada), no con la posición desplazada de `sx`.
-- HOST-500 actualizado a la geometría de un job por segmento; HOST-496 añadido para el ciclo de vida y la geometría de `MapCellSaveCache`.
+- HOST-500 actualizado a la geometría de un job por segmento; HOST-502 añadido para el ciclo de vida y la geometría de `MapCellSaveCache`.
 - La capa de objetos (fogata) se cuece automáticamente como **un grupo de 32×32** cuando el cluster rectangular de celdas contiguas comparte cadencia y sus gids son de un solo uso; no es una regla específica de la fogata. El análisis de objetos libres, bounding boxes y caché precompuesta está en [`TILED_MAP_RUNTIME.md` §5.4.1](../../engine/architecture/TILED_MAP_RUNTIME.md#541-objetos-libres-y-caché-precompuesta-qué-aplica-y-qué-no).
