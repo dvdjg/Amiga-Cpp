@@ -1,10 +1,16 @@
 # Intencion de la demo 099 - foreground 3D por bitplanes
 
-## Que hace
+## Qué hace
 
 Muestra solo elementos de foreground en 3D sobre negro: Arwing, dos cazas, arco y edificio, con camara yaw/pitch/roll. No hay fondo, entrada, colision, puntuacion ni audio.
 
-## Que pretende demostrar
+## Elementos en pantalla
+
+- Arwing en primer plano, dos cazas, un arco y un edificio low-poly sobre fondo negro.
+- Cámara con yaw/pitch/roll y movimiento de la escena; sin HUD ni fondo.
+- Contornos y caras visibles de la geometría 3D, con 7 colores sobre 4 planos de display.
+
+## Qué pretende demostrar
 
 El coste real de rellenar poligonos por bitplane en A500 con **4 bitplanes de display pero solo 3 renderizados** y **7 colores** (1..7; plano 3 a 0).
 
@@ -21,6 +27,11 @@ El coste real de rellenar poligonos por bitplane en A500 con **4 bitplanes de di
 - CPU de referencia: 3,34 fps.
 - El reparto pequeño-CPU no gana en esta escena: las naves también van mejor con per-plane por objeto. El CPU del edificio se cuelga.
 - `VISION.md` ve movimiento y contornos limpios; flicker 7/220 dentro de baseline; 088/090 con la línea sin espera tienen capturas limpias; falta regresión completa.
+
+## Evolución temporal
+
+- La cámara recorre la escena con yaw/pitch/roll; el frame se repinta según el modo de relleno y el histórico de costes.
+- La animación y el movimiento se mantienen durante toda la demo; no hay cambios de escena ni de contenido.
 
 ## Límites
 
