@@ -222,6 +222,8 @@ enum class Fail : eng::u32 {
 	ComposeFrame = 0x00020711u,
 };
 
+volatile eng::u32 g_work_cycles = 0u; // CPU real del frame, sin espera de VBlank
+volatile eng::u32 g_work_max = 0u;    // peor frame medido (presupuesto real)
 eng::u16 g_palette[32] {};
 eng::u16 g_hud_palette[16] {};
 
@@ -260,6 +262,10 @@ struct DemoGame {
 	eng::s32 m_camera_y = 0;
 	bool ready = false;
 	bool m_compose_dirty = true;
+	eng::u32 m_update_start = 0u;
+	eng::u32 m_update_cycles = 0u;
+	eng::u32 m_render_start = 0u;
+	eng::u32 m_render_cycles = 0u;
 	bool m_install_dirty = true;
 
 	static constexpr eng::s16 wrap_camera(eng::s32 value, eng::s32 span) {
@@ -637,6 +643,7 @@ struct DemoGame {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!ready) return;
+		m_update_start = eng::debug::DebugPeripheral::cycle_counter();
 		DEMO_PROF_FRAME();
 		eng::debug::metrics.begin_frame(context.frame.frame_index);
 		DEMO_PROF_BEGIN(0u);
@@ -773,7 +780,8 @@ struct DemoGame {
 		if ((context.frame.frame_index & 3u) == 0u) {
 		eng::util::TextLine<96> stats;
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
-		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count();
+		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count()
+		      << " W=" << g_work_cycles << " M=" << g_work_max;
 #if defined(DEMO_PROF)
 		// Coste medio por frame de las secciones del demo (miles de ciclos):
 		// 0=scroll+execute, 1=parche (construcción), 2=parche (execute),
@@ -802,12 +810,17 @@ struct DemoGame {
 			      eng::debug::prof_clock(), stats.c_str());
 		}
 		DEMO_PROF_END(4u);
+		m_update_cycles = eng::debug::DebugPeripheral::cycle_counter() - m_update_start;
 	}
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		m_render_start = eng::debug::DebugPeripheral::cycle_counter();
 		if (ready && m_install_dirty) {
 			scene.install(backend);
 			m_install_dirty = false;
 		}
+		m_render_cycles = eng::debug::DebugPeripheral::cycle_counter() - m_render_start;
+		g_work_cycles = m_update_cycles + m_render_cycles;
+		if (g_work_cycles > g_work_max) g_work_max = g_work_cycles;
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 };
@@ -820,6 +833,9 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine {backend, game};
-	engine.run_frames_polling(0xffffu);
+	// Toma de control del SO: el bucle IRQ puede usar Wait() sin que el
+	// planificador de AmigaDOS apague el latido de VBlank.
+	if (!backend.takeover_system()) return 0;
+	engine.run_frames(0xffffu);
 	return 0;
 }

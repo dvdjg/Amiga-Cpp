@@ -2,19 +2,19 @@
 
 ## Estado
 
-**Funcional corregida y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`); el cooker fusiona automáticamente la fogata 2×2 en un sprite 32×32 y el fondo real de cada celda se restaura con `MapCellSaveCacheSet` (save-under del surface), sin usar el tile cocinado. **Rendimiento: 37,90 fps de media, mínimo 30,51**; la media supera el suelo de 25, el HUD se refresca cada 4 frames y la parada de agua alcanza 35,86; el mínimo de ventana y el 50 Hz siguen abiertos.
+**Funcional corregida y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`); el cooker fusiona automáticamente la fogata 2×2 en un sprite 32×32 y el fondo real de cada celda se restaura con `MapCellSaveCacheSet` (save-under del surface), sin usar el tile cocinado. **Rendimiento: 37,95 fps de media, mínimo 30,51**; la media supera el suelo de 25, el HUD se refresca cada 4 frames y la parada de agua alcanza 35,88; el mínimo de ventana y el 50 Hz siguen abiertos.
 
 ## Medidas
 
 | Build | fps | ciclos/frame | campos/frame | Notas |
 |---|---:|---:|---:|---|
-| `A500_release` visita con fusión + HUD/4 | 37,90 | 187 181 | 1,319 | 8 ventanas; mínimo 30,51 |
-| `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) + HUD/4 | 35,86 | 197 809 | 1,394 | 2 campos estables |
-| `A500_release` parada de flores (`DEMO_TOUR_STOP=2`) | 35,88 | 197 729 | 1,394 | solo flores; sin scroll |
+| `A500_release` visita con fusión + HUD/4 | 37,95 | 186 947 | 1,318 | 8 ventanas; mínimo 30,51 |
+| `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) + HUD/4 | 35,88 | 197 690 | 1,393 | 2 campos estables |
+| `A500_release` parada de flores (`DEMO_TOUR_STOP=2`) | 42,47 | 167 038 | 1,177 | solo flores; sin scroll |
 | `A500_release` flores con `DEMO_DISABLE_LAYER=0` | 37,87 | 187 308 | 1,320 | sin el pase de flores |
 | `A500_release` flores con `DEMO_DISABLE_LAYER=2` | 32,90 | 215 603 | 1,520 | el fuego está fuera de la ventana: no cambia |
 | `A500_release` flores con `DEMO_NO_PATCH=1` | 49,97 | 141 962 | 1,001 | techo sin ningún parche |
-| `A500_release` fogata (`DEMO_TOUR_STOP=0`) | 21,47 | 330 372 | 2,329 | peor caso |
+| `A500_release` fogata (`DEMO_TOUR_STOP=0`) | 22,56 | 314 432 | 2,216 | peor caso |
 | `A500_release` fogata con `DEMO_DISABLE_LAYER=1` | 37,44 | 189 469 | 1,335 | el agua es el coste dominante |
 | `A500_release` fogata con `DEMO_DISABLE_LAYER=0` | 21,11 | 335 961 | 2,368 | las flores visibles cuestan ~4 fps |
 | `A500_release` fogata con `DEMO_DISABLE_LAYER=2` | 17,45 | 406 619 | 2,866 | apagar el fuego solo ahorra ~0,2 fps |
@@ -22,9 +22,18 @@
 
 La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí. La media no se usa como presupuesto. El avance circular sin `%` por grupo (`__umodsi3`), el job único por celda y el HUD cada 4 frames subieron la parada de 18,18 a 35,9 fps.
 
-**Los 49,9 fps sin parche no son 142k de CPU.** El bucle de la demo espera VBlank: un campo PAL son ~141.984 ciclos, así que 141.962 es el **suelo de 50 Hz**, no trabajo. El perfil sin parche es `P=10/0/0/0/13`: unos **23k ciclos reales** (scroll/execute + HUD/4) y el resto es espera. El Blitter está a 0 jobs. Con el parche de flores el perfil es `P=10/50/17/0/13` (~90k): 50k de construcción y 17k de Blitter; la composición se salta cuando la cámara no cambia (0k), y aun así el frame supera un campo y cae a 35,9 fps. Si se quisiera bajar de ahí, el objetivo es el barrido de 50k, no el HUD.
+**Trabajo real, sin espera de VBlank (`W`) y peor frame (`M`).** La demo publica dos contadores independientes del tiempo de pared: `W` = ciclos consumidos entre el inicio de `update` y el final de `render`; `M` = peor `W` observado. El HUD los muestra como `W=... M=...`.
 
-**Cuentas de la parada de flores.** No hay scroll, pero el frame no es “solo flores”: el pase de parche recorre los 59 grupos y culla las celdas de agua/fuego fuera de la ventana; para las flores visibles construye `restore + capture + frame` (3 jobs por celda). El presupuesto de 24 jobs limita cuántas celdas entran por frame, pero no elimina el barrido. Medido: sin parche el frame cuesta **142.152 ciclos** (49,9 fps); con flores, **215.397** (32,9 fps). El parche añade **73.245 ciclos**, de los cuales ~51k son construcción y ~17k ejecución Blitter; el resto es el pase de métricas/plan. El fuego no explica nada en esta parada: está fuera de la ventana y apagarlo deja 215.603 ciclos (32,90 fps, diferencia <0,1%). El agua tampoco: 213.470 ciclos (33,23 fps). La deuda de 25 fps de versiones anteriores venía de ese barrido con 224 celdas/73 grupos y del pase de dos lecturas; con la receta actual son **32,9**, no 25. En la fogata, en cambio, el agua visible domina: 411.606 ciclos con todo frente a 189.469 sin agua (37,4 fps); el fuego solo pesa 5.187 ciclos (~0,2 fps) porque es **un grupo fusionado** de 32×32.
+| Caso | fps | W (último) | M (peor) | P perfil |
+|---|---:|---:|---:|---|
+| Sin parche | 49,97 | 11.404 | 63.450 | `10/0/0/0/13` |
+| Flores | 42,47 | 268.360 | 402.936 | `10/50/17/0/13` |
+| Agua | 35,88 | — | — | `10/50/17/0/13` |
+| Fogata | 22,56 | 101.980 | 678.942 | `12/93/38/0/13` |
+
+Sin parche el **trabajo real** es ~11k ciclos y el peor frame ~63k; los 141.962 ciclos de la tabla son el **suelo de VBlank** (un campo PAL), no CPU. El Blitter está a 0 jobs. `W` y `M` son los indicadores correctos para saber cuánto margen queda antes de 50→25.
+
+Con flores, el frame de parche puede llegar a **M=402.936 ciclos** (>2,8 campos): por eso el frame pierde VBlanks y la media cae a 42,47 aunque haya frames ligeros. El perfil `P=10/50/17/0/13` muestra que **50k son construcción del parche** y 17k Blitter; la composición ya se salta. El fuego está fuera de la ventana en esa parada y no aporta (M no cambia al apagarlo). En la fogata el peor frame es **678.942 ciclos** (>4,7 campos); ahí el agua visible domina y el fuego aporta solo ~0,2 fps porque es **un grupo fusionado** de 32×32. La deuda de 25 fps de versiones anteriores venía de un barrido más caro (224 celdas/73 grupos y dos lecturas); con la receta actual la media de flores es **42,47**, no 25, pero el **peor frame** sigue por encima de un campo.
 
 ## Contrato
 
@@ -47,8 +56,8 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 
 ## Análisis del mínimo
 
-- La visita mide **30,51 fps** en su ventana más lenta. La parada aislada de agua con el mismo build da **35,86 fps** (197.809 ciclos), así que el mínimo no está en esa parada.
-- La parada de la fogata (`DEMO_TOUR_STOP=0`) es el peor caso medido: **21,47 fps**, 330.372 ciclos/frame, 2,329 campos. El perfil de secciones es `P=12/93/38/0/13` (scroll+execute / construcción del parche / execute / compose / HUD) y `N=17` jobs. El coste está en el pase de parche/Blitter de la escena completa, no en el HUD. Sin la fusión del objeto compuesto baja a **13,58 fps**: la fusión ayuda, pero no elimina el cuello.
+- La visita mide **30,51 fps** en su ventana más lenta. La parada aislada de agua con el mismo build da **35,88 fps** (197.690 ciclos), así que el mínimo no está en esa parada.
+- La parada de la fogata (`DEMO_TOUR_STOP=0`) es el peor caso medido: **22,56 fps**, 314.432 ciclos/frame, 2,216 campos. El perfil de secciones es `P=12/93/38/0/13` (scroll+execute / construcción del parche / execute / compose / HUD) y `N=17` jobs. El coste está en el pase de parche/Blitter de la escena completa, no en el HUD. Sin la fusión del objeto compuesto baja a **13,58 fps**: la fusión ayuda, pero no elimina el cuello.
 - **Doble buffer opcional**: el anillo actual es 352×288×6 planos = 76.032 B; dos buffers = 152.064 B. Esa reserva **sí cabe** en los 512 KB de un A500, pero no en el perfil de 128 KB de 207 y deja muy poco margen al sumar tilebank (~233 KB), sheet (~24,8 KB), save-under (~30 KB) y HUD. El motor ya tiene XlimitedSceneConfig::double_buffer, swap y réplica por bandas; el build DEMO_DOUBLE_BUFFER=1 usa 256 KB y se midió en A1200: **11,10 fps** frente a **15,99** del mismo build sin doble buffer. No se activa por defecto. A500 sigue sin poder reservar el segundo ring con el ejecutable cargado en Chip.
 
 ## Visión local (Ollama)
