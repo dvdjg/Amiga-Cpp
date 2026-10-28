@@ -68,6 +68,7 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
 - **Aplicación retroactiva al tocar:** la regla se aplica a toda cabecera nueva y a cualquier cabecera existente que se modifique (añadir/cambiar un template, parámetro, campo o función). No se acepta un cambio que deje el contrato nuevo sin documentar; la deuda histórica se corrige en la misma pasada cuando se toca esa pieza. El gate `tools/check/doc-coverage.mjs` comprueba la presencia de comentario; la exhaustividad de parámetros/plantilla es revisión obligatoria (no hay atajo mecánico que sustituya el contrato).
 
 - **Unidades y espacios de coordenadas:** todo parámetro numérico documenta su unidad y, si aplica, el espacio de coordenadas (pantalla, mundo, superficie, índice). El nombre no sustituye el contrato; la aritmética directa con variables nombradas por unidad es preferible a crear tipos envoltorio para números ordinarios.
+- **El nombre es una pista, nunca el contrato.** No deduzcas unidades, espacio de coordenadas, nulabilidad, ownership ni efecto lateral de un nombre (`x`, `row`, `base`, `data`, `count`, `stats`, `saver`): el contrato está en el comentario, en el `\param` y en el **tipo**. Si el nombre sugiere algo distinto de la documentación, se renombra; si la documentación no lo dice, se escribe antes de usar el valor. Todo **parámetro** y toda **variable local con rol, unidad o efecto lateral** se documenta en su declaración (o en la cabecera de la función); los parámetros de una función pública, **sin excepción**.
 - **Corrección sobre la marcha:** si al tocar un fichero aparece una violación de estas reglas, se corrige en la misma pasada.
 
 ## Arquitectura
@@ -164,7 +165,7 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
 - **Puntero crudo a OBJETO: prohibido; solo memoria cruda.** Un `Tipo*` que apunta a un **objeto**
   (da igual el sitio: **miembro, parámetro, retorno o local**) es un error de estilo. La alternativa
   **de coste cero** (mismo tamaño y codegen, sin STL/heap/excepciones) es del propio engine:
-  - observador no propietario y anulable → **`eng::Ref<T>`** (`core/ptr.hpp`);
+  - observador no propietario y anulable → **`eng::Ref<T>`** (`core/types/ptr.hpp`);
   - observador que no puede ser nulo → **`eng::NonNull<T>`**;
     `Ref` se construye **implícitamente** desde `T&`, `T*` o `nullptr`, de modo que la llamada
     no expone el tipo: `f(t, table, range)` o `f(t, nullptr)`, nunca `f(t, eng::Ref<const Tabla>(table))`.
@@ -177,6 +178,8 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   El `T*` crudo queda **solo** para buffers escalares (`u8*`/`u16*`/`s16*`…) y la **frontera de
   hardware** (Copper/Blitter/DMA), y **citando el motivo**. Regla: si existe una alternativa C++23
   del engine que sea de coste cero, **usarla**; el `*` crudo hay que justificarlo.
+  - **Cero aritmética de punteros en la lógica (obligatorio).** Un cursor `u8* p` recorrido con `p++`, `p + n`, `p[i]` o `&p[off]` es un defecto de estilo **aunque el puntero sea crudo legítimo**: el tamaño/offset se pierde y el índice no se valida. Se calcula el **offset como entero** (`u32`/`s32`, en bytes o palabras) y se construye la dirección con `Address<Bank>::operator+`, `BlitPtr::operator+`, `Span::subspan`, `MemView::subview` o `TaggedSpan`. El único `T*` permitido es un **local transitorio de frontera** (`Address::ptr()`/`ChipView::raw()` para programar un registro) que **no se avanza** y se usa en la misma sentencia. Los errores de dirección se previenen con `box_within`/validadores de setup, no con aritmética manual.
+  - **Parámetros opcionales de objeto/cache: `Ref` o referencia, nunca `T*`.** Un `TilePatchStats*`, un `MapCellSaveCache*` o un `TileAnimator*` en una firma es el patrón que esta regla prohíbe: usa `eng::Ref<T>` (anulable) o una **referencia** (no nula) y un `concept` para las dependencias (`CellSaveUnder`). El cache/telemetría lo posee la escena/demo; el motor sólo lo observa.
   - **Gate**: `tools/check/raw-pointer-members.mjs` vigila **todo** `engine/include/eng/` (no solo
     la frontera): falla ante cualquier `Tipo*` nuevo no escalar en **miembro, parámetro, retorno o
     local**. La deuda histórica vive en `raw-pointer-members-baseline.txt` (triaje) y **se migra

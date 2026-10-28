@@ -113,10 +113,10 @@ Cada fase termina con un gate reproducible. Las fases no se solapan en implement
 ### T5 – Presenter XYLimited extendido – **PARCIAL (demos 206/207)**
 
 - Entregado: `206_tiled_beginning_fields_baked` usa la familia XYLimited existente (single EHB, X-only/toroidal) con banco prehecho; 49,93 fps en debug, 142 070 ciclos/frame, flicker OK y visión de secuencia sin artefactos.
-- Entregado: `207_tiled_live_layers_animation` (T5a) con `TileAnimator` cocinado (76 grupos, 248 frames, 227 celdas), parche enmascarado planar+máscara, presupuesto en 6 fases y cámara fija; 34,19 fps release, 207 498 ciclos/frame. La base se ve sin corrupción y las tres capas cambian en la secuencia; el parche de animación se confirma con frame-diff (la lectura global de Ollama es un falso negativo).
-- Entregado parcial: `TileLayerStack` con modos/prefijos/prioridad, cook-plan validado y demo 207 con base limpia + overlays de `Flowers`/`Water`/fogata; 34,19 fps. Pendiente: overlays estáticos por encima de capas vivas no-sufijo, cruce por detrás del cartel y `after_actors` completo.
+- Entregado: `207_tiled_live_layers_animation` (T5a) con `TileAnimator` cocinado (76 grupos, 248 frames, 227 celdas), overlay en la columna de mundo `wx` (no `sx`), `MapCellSaveCache` de save-under por celda (arena única Chip, captura única, restore antes del frame, release al salir) y parche por capas con tope de 24 jobs; 27,13 fps de media y mínimo 21,17 en release (1,84 campos/frame). La fogata completa (4 grupos de 1 celda) se actualiza en el mismo pase; el 50 Hz sigue pendiente.
+- Entregado parcial: `TileLayerStack` con modos/prefijos/prioridad, cook-plan validado y demo 207 con base limpia + overlays de `Flowers`/`Water`/fogata. Pendiente: overlays estáticos por encima de capas vivas no-sufijo, cruce por detrás del cartel, `after_actors` completo y el mínimo de fps.
 - Entregado: demo `208_tiled_occlusion_objects` (casa cocida + árbol foreground id 43 + farola occluder id 143 + explorador móvil + guardia horneado) sobre `MapObjectsView`. Props y actor usan hoja par interleaved de un blit; el actor móvil añade save-under por Blitter. Visión confirma árbol detrás/delante y farola encima, sin estelas ni huecos; flicker OK. Rendimiento **24,94 fps (2 campos)**, excepción documentada por 6 planos EHB + props + save-under.
-- El parche actual usa la base con el primer frame; los píxeles transparentes de frames posteriores pueden revelar ese primer frame (ghosting) y las celdas entrantes esperan al siguiente cambio de grupo.
+- El ghosting de los frames transparentes queda resuelto en 207 con el save-under por celda; las celdas que entran capturan su fondo real y las que cambian restauran antes de pintar. Las celdas no visibles se liberan y el scroll repinta su columna al volver.
 - X+Y simultáneo baja a ~25 fps; el recorrido entregado es Y-only.
 - Integración con `ScrollLayer`/`App`: un nivel se registra y el `App` lo conduce; visibilidad/modo validados contra el bundle.
 - DPF/paralaje: un segundo campo cuando la paleta y la prioridad lo permitan; sin prometer N campos.
@@ -167,7 +167,7 @@ Demos previstas (números a confirmar con `tools/check/next-number.mjs`):
 | Demo | Nivel | Gate |
 |---|---|---|
 | `206_tiled_beginning_fields_baked` | N1 | Cooker + base cocida + cámara X/Y + 50 fps + visión |
-| `207_tiled_live_layers_animation` | N2 | Animación por parche (flores/agua/fogata) + presupuesto; 50 fps Y-only |
+| `207_tiled_live_layers_animation` | N2 | Animación por parche (flores/agua/fogata) + save-under + presupuesto; 27,13 fps media/21,17 mínimo (50 fps pendiente) |
 | `208_tiled_occlusion_objects` | N2 | Occluder tras actores + objetos + colisión + profundidad |
 | `209_tiled_iso_room` | N3a | Proyección/picking/orden iso + sala + actores |
 | `210_tiled_stream_world` | N4 | Chunks/páginas + prefetch/pin/eviction + mapa grande |

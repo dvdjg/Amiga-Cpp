@@ -18,6 +18,8 @@ Sin embargo, la fórmula propuesta no coincide con el contrato real del motor:
 
 ## Contrato real comprobado
 
+> **Corrección posterior (ver «Cierre de la investigación»):** el destino correcto del parche es `wx` (columna de mundo sin envolver); `sx` sólo decide visibilidad. El contrato `target_x = sx` de esta sección describía la instrumentación antigua y desplazaba el overlay `camx` píxeles a la izquierda.
+
 Con una celda de mapa `(tx, ty)`:
 
 ```text
@@ -195,3 +197,53 @@ Esta parte no cierra 1–4: falta el valor real de `dest`, el checksum y la cost
 - Añadidos `magic`, `target_base`, `row_bytes`, `plane_stride`, `planes` y checksums antes/después al global; la build normal no los incluye.
 - El segundo intento de búsqueda por patrón en caliente agotó el tiempo del MCP; no se obtuvo el checksum en esta sesión. El destino ya está verificado, pero el checksum y la costura siguen pendientes.
 - Comando estable: arrancar `runner.uae`, reset, `continue`, pausar tras unos segundos, buscar el patrón `414E494D` en RAM y leer `dest/source/mask/checksum_before/checksum_after`.
+
+## Cierre de la investigación (2026-10-28)
+
+### Causa de la ejecución inestable (Kickstart / frame 0)
+
+La demo llamaba a `scene.patch_animations(plan, 0u, patch_stats_out)` con `patch_stats_out = nullptr` en la build normal. La sobrecarga con estadísticas instanciaba `Collect=true` y hacía `*stats = TilePatchStats{}` sin comprobar el puntero: en el 68000 la escritura caía en la dirección 0 (tabla de vectores / `ExecBase`), corrompía memoria baja y dejaba la máquina colgada o en Kickstart. El `run-status` seguía leyendo READY porque se había escrito antes del parche.
+
+Corrección: la demo usa la sobrecarga sin estadísticas en la build normal, y la sobrecarga con `TilePatchStats*` del playfield cae a `Collect=false` si el puntero es nulo (`xlimited_playfield.hpp`, `patch_animations(..., stats)`). Con esto la demo avanza frames y muestra el mapa.
+
+### Posición correcta de una celda viva
+
+El contrato del parche es el **mismo que el bloque base**, en coordenadas de mundo:
+
+```text
+sx = (wx - camx) mod map_width          # sólo visibilidad (ventana)
+sy = (wy - camy - tile_h) mod map_height
+ring_y = (display_offset + sy) mod display_height
+target_x = wx                            # columna de mundo SIN envolver
+```
+
+`wx` es la columna física que pinta el bloque base (puede caer en la zona "unrolled" del anillo); no hay que restarle la cámara. Con `target_x = sx` el overlay quedaba desplazado `camx` píxeles a la izquierda: en la primera parada (cam 112,376) la fogata aparecía en pantalla x=32 en vez de x=144. La prueba antigua con `rx = wx % bitmap_width` duplicaba la fogata porque sólo cambiaba el parche y la pasada inicial (`draw_animation_stack`) seguía usando `sx`; el destino del checksum GDB de la celda 116 también usaba `sx`. El oráculo no es el valor que se escribió, sino la columna que el display lee para esa celda.
+
+### Save-under real del surface
+
+`MapCellSaveCache<Capacity>` (`engine/include/eng/graphics/map_sprite.hpp`) gestiona el fondo real de cada celda:
+
+- **un único bloque Chip** de `Capacity × cell_bytes` (96 × 192 B = 18 KB en 207), no una reserva por celda (el `BlockPool` tiene 64 huecos y fragmentaba);
+- **una captura por celda y posición** (`CopyRect` de todos los planos en un solo job, `bitplane_count = planes`);
+- el fondo se **conserva** mientras la celda está visible: al cambiar el frame se hace `restore` (`RestoreRect`), no se recaptura; si la celda sale de la ventana, `release` libera la entrada sin restaurar (el scroll repinta la columna al volver a entrar);
+- nunca se reconstruye con `add_draw` ni con el tile del `Baked`.
+
+El overlay y el save-under comparten el direccionamiento del anillo (`x = wx`, `y = ring_y`, paso entre planos `row_bytes`, módulo `row_bytes × planes - palabras × 2`). El parche no necesita el mapa cocinado para el fondo.
+
+### Fogata completa y reparto
+
+El parche recorre las capas de **primer plano a fondo** (`TileAnimator::group_layer`) antes de repartir el presupuesto. La fogata son cuatro grupos de una celda (0, 3, 6, 9) en la capa superior; con un tope de **24 jobs** (3 por celda: restore + captura + frame) los cuatro caben en el mismo pase y nunca se queda media fogata con el frame anterior. Las capas de agua/flores siguen repartiéndose con el cursor round-robin; el tope se toma de `plan.blit_budget_limits().max_jobs` (24 en la demo).
+
+### Medidas finales
+
+- Release completa, visita: **27,13 fps de media, mínimo 21,17**, 261 468 ciclos/frame (1,84 campos/frame). La media supera el suelo de 25; el mínimo de ventana sigue por debajo y la cadencia no es 50 Hz (deuda abierta).
+- Parada de agua congelada (`DEMO_TOUR_STOP=1`): **24,71 fps**, 287 046 ciclos/frame; sin parche (ablación): **49,90 fps**, 142 150 ciclos/frame. El coste es el parche, no el scroll/HUD.
+- El `%` por grupo visitado (`__umodsi3`) era el coste dominante: sustituido por avance circular (`next_group`), la parada subió de 18,18 a 24,69 fps.
+- Emitir **un job por celda** con todos los planos (en vez de uno por plano) redujo el coste de CPU del parche sin cambiar el trabajo del Blitter.
+
+### Verificación visual
+
+- Secuencia de la parada de la fogata (8 frames): la fogata cambia de silueta con el anillo de piedras y la hierba estables; las flores blancas/rojas y el agua cambian sus frames. Diff de región estática = 0; los recortes 4× de fogata/flores muestran el cambio sin restos ni bloques negros/rojos.
+- La posición de la fogata coincide con su celda base (pantalla 144 en la primera parada), no con la posición desplazada de `sx`.
+- HOST-500 actualizado a la geometría de un job por segmento; HOST-496 añadido para el ciclo de vida y la geometría de `MapCellSaveCache`.
+- La capa de objetos (fogata) se cuece como cuatro grupos de una celda de 16×16, no como un sprite libre de 32×32; el análisis de objetos libres, bounding boxes y caché precompuesta está en [`TILED_MAP_RUNTIME.md` §5.4.1](../../engine/architecture/TILED_MAP_RUNTIME.md#541-objetos-libres-y-caché-precompuesta-qué-aplica-y-qué-no).

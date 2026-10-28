@@ -40,7 +40,7 @@ if (patch_stats.groups_deferred != 0u) {
 | 8 | `tiled_groups_deferred` | grupos que no cupieron en el plan |
 | 9 | `tiled_cells_patched` | celdas Tiled repintadas |
 | 10 | `tiled_cells_culled` | celdas descartadas por visibilidad |
-| 11 | `tiled_base_restores` | bloques base repintados bajo overlays |
+| 11 | `tiled_base_restores` | celdas cuyo fondo real se restauró con save-under (no se repinta el bake) |
 | 12 | `object_draws` | props/objetos dibujados |
 | 13 | `actor_draws` | actores dibujados |
 | 14 | `actor_restores` | restauraciones de save-under |
