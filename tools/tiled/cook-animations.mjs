@@ -592,6 +592,20 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 
 	const sheet = Buffer.concat(sheetParts);
 	const masks = Buffer.concat(maskParts);
+	// Un grupo solo se marca como enmascarado si ALGUNO de sus frames tiene un
+	// bit transparente. Las capas de fondo (agua/flores) suelen ser opacas:
+	// cookie-cut + save-under por celda es trabajo inútil para ellas.
+	for (const group of groupMeta) {
+		const stride = group.mask_stride !== 0 ? group.mask_stride : maskStride;
+		const off = group.mask_stride !== 0 ? group.mask_offset : group.first_frame * maskStride;
+		let masked = false;
+		for (let f = 0; f < group.frame_count && !masked; ++f) {
+			for (let j = 0; j < stride; ++j) {
+				if (masks[off + f * stride + j] !== 0xff) { masked = true; break; }
+			}
+		}
+		group.flags = masked ? 1 : 0;
+	}
 	fs.mkdirSync(outDir, { recursive: true });
 	fs.writeFileSync(path.join(outDir, 'anim_sheet.bin'), sheet);
 	fs.writeFileSync(path.join(outDir, 'anim_masks.bin'), masks);
@@ -617,7 +631,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	for (const group of groupMeta) {
 		const durations = group.durations;
 		const padded = [...durations, ...new Array(MAX_FRAMES - durations.length).fill(0)];
-		lines.push(`  {${group.first_frame}u, ${group.frame_count}u, 1u, ${group.first_cell}u, ${group.cell_count}u, {${padded.map((v) => `${v}u`).join(',')}}, ${group.pixel_width}u, ${group.pixel_height}u, ${group.sheet_offset}u, ${group.frame_stride}u, ${group.mask_offset}u, ${group.mask_stride}u},`);
+		lines.push(`  {${group.first_frame}u, ${group.frame_count}u, ${group.flags}u, ${group.first_cell}u, ${group.cell_count}u, {${padded.map((v) => `${v}u`).join(',')}}, ${group.pixel_width}u, ${group.pixel_height}u, ${group.sheet_offset}u, ${group.frame_stride}u, ${group.mask_offset}u, ${group.mask_stride}u},`);
 	}
 	lines.push('};');
 	lines.push('');

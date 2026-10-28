@@ -217,6 +217,12 @@ public:
 	/// celda. El parche ordena por capa para que un objeto compuesto (varios
 	/// grupos de una celda, p. ej. la fogata) se actualice antes de que las
 	/// capas de tiles consuman el presupuesto del `FramePlan`.
+	/// **¿El grupo es opaco en todos sus frames?** El cooker marca
+	/// kTileAnimationFlagMasked solo si alguna máscara tiene bits a 0; un grupo
+	/// opaco no necesita cookie-cut ni save-under para cubrir su celda.
+	[[nodiscard]] constexpr bool group_opaque(u16 index) const noexcept {
+		return index < m_groups.size() && (m_groups[index].flags & kTileAnimationFlagMasked) == 0u;
+	}
 	[[nodiscard]] constexpr u8 group_layer(u16 index) const noexcept {
 		return index < m_groups.size() ? m_group_layer[index] : 0u;
 	}
@@ -405,11 +411,12 @@ public:
 			// `destination_plane_stride_bytes` (paso entre planos del anillo).
 			// Emitir un job por plano multiplicaba por 6 el coste de CPU del
 			// parche (validación/copias del FramePlan) sin cambiar el Blitter.
-			graphics::BlitJob& job = plan.begin_blit_job(opaque
+			const bool use_opaque = opaque || group_opaque(group);
+			graphics::BlitJob& job = plan.begin_blit_job(use_opaque
 				? graphics::BlitJobKind::CopyRect
 				: graphics::BlitJobKind::MaskedBobCookieCut);
 			job.source = source_ptr;
-			job.mask = opaque ? graphics::BlitPtr {} : mask_ptr;
+			job.mask = use_opaque ? graphics::BlitPtr {} : mask_ptr;
 			job.destination = dest_ptr;
 			job.words_per_row = words_per_row;
 			job.height = seg;
@@ -423,7 +430,7 @@ public:
 			job.source_shift = 0u;
 			job.source_plane_stride_bytes = source_plane_stride;
 			job.destination_plane_stride_bytes = target.plane_pointer_step();
-			job.minterm = opaque ? 0x00f0u : 0x00cau;
+			job.minterm = use_opaque ? 0x00f0u : 0x00cau;
 			job.interleaved = false;
 			job.source_words_per_row = 0u;
 			job.descending = false;

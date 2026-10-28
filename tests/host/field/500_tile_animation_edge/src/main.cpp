@@ -90,7 +90,7 @@ u32 destination_offset(u16 x, u16 y, u8 plane, u8 planes = kPlanes) {
 
 void test_last_word() {
 	FramePlan plan {};
-	const TileAnimationGroupView group {0u, 1u, 0u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
+	const TileAnimationGroupView group {0u, 1u, 1u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
 	const TileAnimationLayerView layer {nullptr, 0u, 0u, 0u, 0u};
 	const TileAnimationCellView cell {0u, 0u, 0u, 0u};
 	TileAnimator animator = make_animator(&group, &layer, &cell);
@@ -120,7 +120,7 @@ void test_last_word() {
 
 void test_ring_wrap() {
 	FramePlan plan {};
-	const TileAnimationGroupView group {0u, 1u, 0u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
+	const TileAnimationGroupView group {0u, 1u, 1u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
 	const TileAnimationLayerView layer {nullptr, 0u, 0u, 0u, 0u};
 	const TileAnimationCellView cell {0u, 0u, 0u, 0u};
 	TileAnimator animator = make_animator(&group, &layer, &cell);
@@ -150,7 +150,7 @@ void test_ring_wrap() {
 
 void test_three_planes() {
 	FramePlan plan {};
-	const TileAnimationGroupView group {0u, 1u, 0u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
+	const TileAnimationGroupView group {0u, 1u, 1u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
 	const TileAnimationLayerView layer {nullptr, 0u, 0u, 0u, 0u};
 	const TileAnimationCellView cell {0u, 0u, 0u, 0u};
 	TileAnimator animator = make_animator(&group, &layer, &cell, 96u, 32u, 3u, 16u);
@@ -178,7 +178,7 @@ void test_three_planes() {
 
 void test_tile_32() {
 	FramePlan plan {};
-	const TileAnimationGroupView group {0u, 1u, 0u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
+	const TileAnimationGroupView group {0u, 1u, 1u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
 	const TileAnimationLayerView layer {nullptr, 0u, 0u, 0u, 0u};
 	const TileAnimationCellView cell {0u, 0u, 0u, 0u};
 	TileAnimator animator = make_animator(&group, &layer, &cell,
@@ -239,6 +239,24 @@ void test_fused_group() {
 	      "fused: modulo de fila");
 }
 
+void test_opaque_group() {
+	FramePlan plan {};
+	// flags=0: el cooker declara el grupo opaco; su mascara no debe usarse.
+	const TileAnimationGroupView group {0u, 1u, 0u, 0u, 1u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u}};
+	const TileAnimationLayerView layer {nullptr, 0u, 0u, 0u, 0u};
+	const TileAnimationCellView cell {0u, 0u, 0u, 0u};
+	TileAnimator animator = make_animator(&group, &layer, &cell);
+	const BobTarget target = make_target();
+
+	check(animator.draw_group(plan, target, kHeight, 336u, 0u, 0u),
+	      "opaco: draw_group");
+	check(plan.blit_job_count() == 1u, "opaco: un job");
+	const eng::graphics::BlitJob& job = plan.blit_job(0u);
+	check(job.kind == eng::graphics::BlitJobKind::CopyRect, "opaco: CopyRect");
+	check(job.mask.words() == nullptr, "opaco: sin mascara");
+	check(job.minterm == 0x00f0u, "opaco: minterm de copia");
+}
+
 } // namespace
 
 int main() {
@@ -249,6 +267,7 @@ int main() {
 	test_three_planes();
 	test_tile_32();
 	test_fused_group();
+	test_opaque_group();
 	if (g_failures != 0) {
 		std::printf("HOST-500: %d fallos\n", g_failures);
 		return 1;

@@ -1119,6 +1119,7 @@ private:
         auto patch_group = [&](u16 g) -> bool {
             if constexpr (Collect) if (stats.valid()) ++stats->groups_scanned;
             const bool changed = anim.group_changed(g); // frame distinto al anterior
+            const bool group_opaque = anim.group_opaque(g); // el frame cubre la celda
             if (!anim.layer_animation_enabled(anim.group_layer(g))) {
                 // Capa desactivada por presupuesto/diagnóstico: no se captura ni
                 // se pinta. Se limpia changed para que no mantenga despierto el
@@ -1217,7 +1218,7 @@ private:
                 const u16 ring_y = pending[pi].ring_y;
                 const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
                 if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
-                    {
+                    if (!group_opaque) {
                         const bool was_painted = saver.painted(ci);
                         if (was_painted &&
                             !saver.restore(plan, m_anim_target, ci)) {
@@ -1247,7 +1248,7 @@ private:
                 // Se usa el mismo dibujo de grupo que la pasada inicial: el
                 // overlay vive en el anillo, no en el espejo lineal del display.
                 if (!anim.draw_group(plan, m_anim_target, static_cast<u16>(dh),
-                        target_x, static_cast<u16>(ring_y), g, false)) {
+                        target_x, static_cast<u16>(ring_y), g, group_opaque)) {
                     return false;
                 }
                 if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
@@ -1445,12 +1446,13 @@ private:
                 if (ring_y >= dh) ring_y -= dh;
                 const u16 target_x = static_cast<u16>(wx);
                 const u16 cell_group = anim.group_for_cell(ci); // grupo dueño de la celda
+                const bool opaque_group = cell_group != 0xffffu && anim.group_opaque(cell_group);
                 const u16 cell_w = cell_group != 0xffffu
                     ? anim.group_pixel_width(cell_group) : anim.tile();
                 const u16 cell_h = cell_group != 0xffffu
                     ? anim.group_pixel_height(cell_group) : anim.tile();
                 if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
-                    {
+                    if (!opaque_group) {
                         if (saver.painted(ci) &&
                             !saver.restore(plan, m_anim_target, ci)) {
                             return false;
@@ -1466,7 +1468,7 @@ private:
                 if (!anim.draw_layer_block(plan, m_anim_target,
                         static_cast<u16>(dh), target_x,
                         static_cast<u16>(ring_y), cell.x, cell.y,
-                        static_cast<u16>(layer), false)) {
+                        static_cast<u16>(layer), opaque_group)) {
                     return false;
                 }
                 if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;

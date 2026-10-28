@@ -125,6 +125,10 @@ Una celda animada puede quedar debajo de un objeto estático posterior (por ejem
 
 Es una regla **conservadora**: no redibuja el sprite superpuesto en cada frame, sino que deja de animar la celda que quedaría tapada. Si se necesita animar debajo del sprite, el camino correcto es emitirlo como objeto `foreground`/`occluder` y dibujarlo después del parche (208); el cooker no inventa esa separación.
 
+## 4.2 Máscara solo si hace falta
+
+El cooker inspecciona todas las máscaras de un grupo: TileAnimationGroupView.flags & kTileAnimationFlagMasked solo se activa si algún frame tiene un bit transparente. Un grupo opaco usa CopyRect, no cookie-cut, y el parche no captura/restaura save-under para sus celdas. En Beginning Fields, 8 de 59 grupos (27 celdas) son opacos; el resto (flores, agua y fogata) conserva transparencia y necesita cookie-cut + save-under. La decisión se registra en nimations.json (lags) y se prueba en HOST-500.
+
 ## 5. Objetos en una sola capa
 
 Tiled solo tiene `Object Layer 1`; no hace falta separar capas para cocer casas y mantener props en primer plano. Lo recomendable es **no tocar el TMX original** y trabajar con una **copia de cocina** (`*.cook.tmx`) donde cada objeto declare su rol mediante clase/propiedades:
