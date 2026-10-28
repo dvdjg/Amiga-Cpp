@@ -67,6 +67,9 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
 - **Miembros y campos con unidades:** cada dato miembro/campo de `struct` documenta qué guarda, unidades, rango y relación con el layout/hardware; los arrays fijos indican su capacidad y qué ocurre al llenarse. Los contadores y handles indican si son generacionales y qué invalidación sufren.
 - **Aplicación retroactiva al tocar:** la regla se aplica a toda cabecera nueva y a cualquier cabecera existente que se modifique (añadir/cambiar un template, parámetro, campo o función). No se acepta un cambio que deje el contrato nuevo sin documentar; la deuda histórica se corrige en la misma pasada cuando se toca esa pieza. El gate `tools/check/doc-coverage.mjs` comprueba la presencia de comentario; la exhaustividad de parámetros/plantilla es revisión obligatoria (no hay atajo mecánico que sustituya el contrato).
 
+- **Unidades y espacios de coordenadas:** todo parámetro numérico documenta su unidad y, si aplica, el espacio de coordenadas (pantalla, mundo, superficie, índice). El nombre no sustituye el contrato; la aritmética directa con variables nombradas por unidad es preferible a crear tipos envoltorio para números ordinarios.
+- **Corrección sobre la marcha:** si al tocar un fichero aparece una violación de estas reglas, se corrige en la misma pasada.
+
 ## Arquitectura
 
 La logica de juego debe depender de abstracciones del engine, no del Amiga. El Amiga

@@ -155,6 +155,17 @@ La sonda de la demo 207 usa 6 planos y tiles de 16 px, pero el camino común ya 
 
 El checksum valida los **seis planos** de la celda 5 y de la celda 116 en las cámaras indicadas, y el test host valida la geometría del borde. La capa completa se ha movido en una secuencia, pero sigue mostrando celdas rojas/oscurecidas en la zona inferior derecha, **SIN VERIFICAR**; el mínimo de fps tampoco se cumple.
 
+## Contrato de fondo de las celdas vivas
+
+Esta decisión pertenece al runtime Tiled/surface, no al documento de estilo:
+
+- el mapa cocinado está pensado para acelerar el scroll; no es la fuente de fondo de una celda viva;
+- cada celda animada debe capturar su fondo real mediante el cache/save-under del surface sprite map antes de pintar el overlay;
+- la captura se restaura en la misma posición del anillo;
+- no se debe usar `add_draw` ni el tile del bake para reconstruir ese fondo;
+- las celdas de un objeto compuesto comparten sincronización; el reparto por paridad no puede separar partes de una misma fogata.
+- En Beginning Fields, la fogata son las celdas `0`, `9`, `17` y `25`, repartidas en los grupos `0`, `3`, `6` y `9`; las cuatro deben actualizarse en el mismo pase aunque la paridad reparta otros grupos independientes.
+
 ## Capa completa / escena
 
 - 207 release tras corregir la visibilidad y el límite: una sola fogata en la primera parada (la duplicación de la prueba `rx` desapareció). Persisten celdas rojas/oscurecidas en la zona inferior-derecha; no se declaran corregidas.

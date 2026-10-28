@@ -201,7 +201,19 @@ Cada capa lógica declara: `id`, `name`, `mode`, `role`, `width`, `height`, `wra
 
 La celda guarda el `VisualId` base; el catálogo asocia ese id a un `AnimationId`. La duración en milisegundos de Tiled se convierte a ticks de juego con aritmética acumulada (no se redondea cada frame, para no derivar). El animador mantiene un reloj de juego determinista y resuelve `frame(animation_id, tick) -> VisualId`. El renderer dibuja el frame actual al llenar la banda y, si el frame cambia después, emite un parche para las celdas visibles afectadas. El cooker emite por chunk una lista dispersa de celdas animadas (`x, y, group`) para que el runtime no recorra la capa completa. Los frames de un grupo se colocan en la misma página o en páginas contiguas para evitar *page miss*; el informe declara cuántos frames y bytes añade cada animación.
 
-### 5.4 Objetos, colisión y coordenadas
+### 5.4 Fondo de celdas vivas
+
+El mapa cocinado acelera el scroll, pero **no es la fuente del fondo de una celda viva**. Para cada celda animada o de overlay que se parchea:
+
+- el surface sprite map captura el fondo real de su destino antes de pintar el overlay;
+- guarda la captura por celda y posición del anillo, no por índice de tile;
+- restaura esa captura antes del siguiente frame y la invalida al cambiar de posición o al recomponer el surface;
+- nunca reconstruye el fondo con `add_draw` ni con el tile del `Baked`, porque el bake puede no contener el píxel real bajo la celda;
+- las celdas que forman un objeto compuesto (fogata, cascada, estructura multiparte) comparten un identificador de sincronización y se actualizan en el mismo pase; la paridad puede repartir grupos independientes, nunca partes de un mismo objeto.
+
+El contrato de memoria y la política de evacuación del save-under pertenecen al cache del surface; el render solo pide `capture`/`restore` para las celdas visibles.
+
+### 5.5 Objetos, colisión y coordenadas
 
 Los objetos se guardan con posición en píxeles de mundo (`s32`), tamaño, `gid`/`VisualId` si es *tile object*, anclaje (`objectalignment`), offsets, flips y referencias a propiedades. Para *tile objects* de colecciones, el visual es un sprite de tamaño variable, no un tile de 16×16. La **política de objetos** del cook-plan decide su materialización: `Bake` (fundido estático en el base), `Decor` (objeto estático de mundo dibujado sobre el base y antes de los actores, sin orden por profundidad de actor), `Actors` (spawn con orden por foot point, profundidad y occlusión) o `Collision` (solo metadata). La colisión se guarda aparte:
 
