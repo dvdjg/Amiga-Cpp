@@ -70,9 +70,6 @@ eng/api/game.hpp:template:Game
 eng/api/game.hpp:template:Ladder
 eng/api/game.hpp:template:N
 eng/api/game.hpp:template:Scene
-eng/api/objects.hpp:template:MaxActors
-eng/api/objects.hpp:template:MaxIntents
-eng/api/objects.hpp:template:Sched
 eng/assets/uaf.hpp:template:S
 eng/assets/uaf.hpp:template:Tag
 eng/audio/acp1_stream.hpp:template:NumBuffers
@@ -393,14 +390,17 @@ eng/field/xlimited_composer.hpp:template:Backend
 eng/field/xlimited_composer.hpp:template:Sched
 eng/field/xlimited_mapping.hpp:template:MapT
 eng/field/xlimited_mapping.hpp:template:SC
+eng/field/xlimited_playfield.hpp:template:Backend
 eng/field/xlimited_playfield.hpp:template:MapT
 eng/field/xlimited_playfield.hpp:template:Profile
+eng/field/xlimited_playfield.hpp:template:Saver
 eng/field/xlimited_robocod.hpp:template:Backend
 eng/field/xlimited_robocod.hpp:template:SceneT
 eng/field/xlimited_scene.hpp:template:Backend
 eng/field/xlimited_scene.hpp:template:MapT
 eng/field/xlimited_scene.hpp:template:Profile
 eng/field/xlimited_scene.hpp:template:SC
+eng/field/xlimited_scene.hpp:template:Saver
 eng/field/xlimited_scroll_layer.hpp:template:MapT
 eng/field/xlimited_scroll_layer.hpp:template:Scene
 eng/graphics/blit_job.hpp:template:Off
@@ -427,6 +427,7 @@ eng/graphics/intent_queue.hpp:template:Done
 eng/graphics/intent_queue.hpp:template:Executor
 eng/graphics/intent_queue.hpp:template:N
 eng/graphics/intent_queue.hpp:template:Queue
+eng/graphics/map_sprite.hpp:template:Capacity
 eng/graphics/palette_generator.hpp:template:Capacity
 eng/graphics/palette_generator.hpp:template:Mode
 eng/graphics/palette_generator.hpp:template:Planes

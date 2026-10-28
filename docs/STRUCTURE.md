@@ -104,6 +104,7 @@ engine/
 │   │   ├── effects/      →   efectos (palette_cycle, …)
 │   │   └── tilemap/      →   tile schedulers / upload (tile_scroll.hpp)
 │   ├── field/            → playfield / scroll / X-Limited (escena 2D)
+├── map/              → runtime de mapas Tiled (MapBundle, objetos y animaciones)
 │   ├── scene/            → escena virtual / cámara
 │   ├── ai/               → IA de juego (ai/planning: GOAP; familias decision/navigation/steering/perception/design)
 │   ├── sim/              → ecosistema vivo (eng::sim): criaturas, necesidades, mente, sociedad y LOD abstracto/realizado

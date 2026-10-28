@@ -50,3 +50,8 @@ hud/model.hpp
 # graphics/render3d.hpp (860): renderer 3D cohesivo; el corte de camara/clip ya esta en detalle3d,
 #   el resto comparte el mismo pipeline y no se parte en trozos arbitrarios.
 graphics/render3d.hpp
+
+# graphics/map_sprite.hpp (863): map sprites + save-under por celda; el save-under
+#   y su variante de dos clases comparten el mismo contrato de superficie y se
+#   mantienen juntos hasta extraer un modulo de placement/render comun.
+graphics/map_sprite.hpp

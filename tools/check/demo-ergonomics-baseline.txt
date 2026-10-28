@@ -138,3 +138,7 @@ games/101_go
 games/200_holdem
 games/300_sim_world
 games/400_rpg_slice
+
+demos/techniques/amiga/playfield/206_tiled_beginning_fields_baked
+demos/techniques/amiga/playfield/207_tiled_live_layers_animation
+demos/techniques/amiga/playfield/208_tiled_occlusion_objects

@@ -33,6 +33,12 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 - La fogata aparece en su celda base (pantalla 144 en la primera parada), no desplazada por la cámara.
 - La paleta generada conserva agua azul con patrón y rojos de flores; el cuantizador incluye las capas vivas en `palette-source.png`.
 
+## Análisis del mínimo
+
+- La visita mide **22,19 fps** en su ventana más lenta. Las paradas aisladas de agua y flores con el mismo build dan **25,50 fps** (278.222 y 278.134 ciclos), así que el mínimo no está en esas paradas.
+- La parada de la fogata (`DEMO_TOUR_STOP=0`) es el peor caso medido: **15,45 fps**, 459.113 ciclos/frame, 3,236 campos. El perfil de secciones es `P=12/115/36/51/13` (scroll+execute / construcción del parche / execute / compose / HUD) y `N=17` jobs. El coste está en el pase de parche/Blitter de la escena completa, no en el HUD.
+- **Doble buffer opcional**: el anillo actual es 352×288×6 planos = 76.032 B; dos buffers = 152.064 B, por encima de los 128 KB Chip configurados (y antes de HUD/tiles). No es viable sin subir el perfil de memoria y duplicar el estado del scroll; la alternativa de menor coste es repartir el parche por rectángulos sucios o bajar el presupuesto de grupos por frame, no duplicar el framebuffer.
+
 ## Visión local (Ollama)
 
 - La pasada canónica sigue siendo un falso negativo global sobre detalles de 16 px: describe la escena como estática. La respuesta cruda queda en `src/VISION.md`; no se usa para dar la animación por válida.
