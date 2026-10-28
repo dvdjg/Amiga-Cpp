@@ -36,8 +36,8 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 ## Análisis del mínimo
 
 - La visita mide **22,19 fps** en su ventana más lenta. Las paradas aisladas de agua y flores con el mismo build dan **25,50 fps** (278.222 y 278.134 ciclos), así que el mínimo no está en esas paradas.
-- La parada de la fogata (`DEMO_TOUR_STOP=0`) es el peor caso medido: **15,45 fps**, 459.113 ciclos/frame, 3,236 campos. El perfil de secciones es `P=12/115/36/51/13` (scroll+execute / construcción del parche / execute / compose / HUD) y `N=17` jobs. El coste está en el pase de parche/Blitter de la escena completa, no en el HUD.
-- **Doble buffer opcional**: el anillo actual es 352×288×6 planos = 76.032 B; dos buffers = 152.064 B, por encima de los 128 KB Chip configurados (y antes de HUD/tiles). No es viable sin subir el perfil de memoria y duplicar el estado del scroll; la alternativa de menor coste es repartir el parche por rectángulos sucios o bajar el presupuesto de grupos por frame, no duplicar el framebuffer.
+- La parada de la fogata (`DEMO_TOUR_STOP=0`) es el peor caso medido: **15,45 fps**, 459.113 ciclos/frame, 3,236 campos. El perfil de secciones es `P=12/115/36/51/13` (scroll+execute / construcción del parche / execute / compose / HUD) y `N=17` jobs. El coste está en el pase de parche/Blitter de la escena completa, no en el HUD. Sin la fusión del objeto compuesto baja a **13,58 fps**: la fusión ayuda, pero no elimina el cuello.
+- **Doble buffer opcional**: el anillo actual es 352×288×6 planos = 76.032 B; dos buffers = 152.064 B. Esa reserva **sí cabe** en los 512 KB de un A500, pero no en el perfil de 128 KB de 207 y deja muy poco margen al sumar tilebank (~218 KB), sheet (~47,6 KB), save-under (~30 KB) y HUD. Además no basta con reservar: el segundo buffer necesita swap del compositor y replicar/copiar la banda que entra cada frame, porque el scroll solo escribe en el buffer activo. Es una opción de motor (perfil de 256/384 KB), no un cambio local; para el mínimo actual la vía más barata es reducir el parche sucio, no duplicar el framebuffer.
 
 ## Visión local (Ollama)
 
