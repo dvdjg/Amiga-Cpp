@@ -259,6 +259,8 @@ struct DemoGame {
 	eng::s32 m_camera_x = 0;
 	eng::s32 m_camera_y = 0;
 	bool ready = false;
+	bool m_compose_dirty = true;
+	bool m_install_dirty = true;
 
 	static constexpr eng::s16 wrap_camera(eng::s32 value, eng::s32 span) {
 		value %= span;
@@ -482,11 +484,13 @@ struct DemoGame {
 			return;
 		}
 		scene.flip();
+		m_compose_dirty = true;
 #endif
 		if (!scene.compose()) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeInit);
 			return;
 		}
+		m_compose_dirty = false;
 		scene.takeover(backend);
 		ready = true;
 		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
@@ -742,16 +746,24 @@ struct DemoGame {
 			return;
 		}
 		scene.flip();
+		m_compose_dirty = true;
 #endif
 #if defined(DEMO_DEBUG_ONE_CELL)
 		verify_debug_jobs();
 #endif
 		DEMO_PROF_END(2u);
 		DEMO_PROF_BEGIN(3u);
-		if (!scene.compose()) {
-			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeFrame);
-			return;
+		// Con la cámara quieta y sin flip, la copperlist no cambia: el parche
+		// escribe en el bitmap, no en los registros de scroll. Recomponer cada
+		// frame era ~51k ciclos de CPU sin ningún trabajo visible.
+		if (m_compose_dirty || tour_dx != 0 || tour_dy != 0) {
+			if (!scene.compose()) {
+				ready = false;
+				eng::debug::mark_failed(g_eng_run_status, Fail::ComposeFrame);
+				return;
+			}
+			m_compose_dirty = false;
+			m_install_dirty = true;
 		}
 		DEMO_PROF_END(3u);
 		DEMO_PROF_BEGIN(4u);
@@ -792,7 +804,10 @@ struct DemoGame {
 		DEMO_PROF_END(4u);
 	}
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		if (ready) scene.install(backend);
+		if (ready && m_install_dirty) {
+			scene.install(backend);
+			m_install_dirty = false;
+		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 };
