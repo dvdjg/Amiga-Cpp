@@ -10,9 +10,19 @@
 |---|---:|---:|---:|---|
 | `A500_release` visita con fusión + HUD/4 | 31,90 | 222 392 | 1,568 | 8 ventanas, 21,79-44,37 fps |
 | `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) + HUD/4 | 30,37 | 233 602 | 1,647 | 2 campos estables |
-| `A500_release` parada de agua sin parche (ablación) | 49,90 | 142 150 | 1,00 | el coste está en el parche, no en el scroll/HUD |
+| `A500_release` parada de flores (`DEMO_TOUR_STOP=2`) | 32,93 | 215 397 | 1,518 | solo flores; sin scroll |
+| `A500_release` flores con `DEMO_DISABLE_LAYER=0` | 37,87 | 187 308 | 1,320 | sin el pase de flores |
+| `A500_release` flores con `DEMO_DISABLE_LAYER=2` | 32,90 | 215 603 | 1,520 | el fuego está fuera de la ventana: no cambia |
+| `A500_release` flores con `DEMO_NO_PATCH=1` | 49,90 | 142 152 | 1,002 | techo sin ningún parche |
+| `A500_release` fogata (`DEMO_TOUR_STOP=0`) | 17,23 | 411 606 | 2,901 | peor caso |
+| `A500_release` fogata con `DEMO_DISABLE_LAYER=1` | 37,44 | 189 469 | 1,335 | el agua es el coste dominante |
+| `A500_release` fogata con `DEMO_DISABLE_LAYER=0` | 21,11 | 335 961 | 2,368 | las flores visibles cuestan ~4 fps |
+| `A500_release` fogata con `DEMO_DISABLE_LAYER=2` | 17,45 | 406 619 | 2,866 | apagar el fuego solo ahorra ~0,2 fps |
+| `A500_release` fogata con `DEMO_NO_PATCH=1` | 49,87 | 142 243 | 1,003 | techo sin parche |
 
 La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí. La media no se usa como presupuesto. El avance circular sin `%` por grupo (`__umodsi3`), el job único por celda y el HUD cada 4 frames subieron la parada de 18,18 a 30,37 fps.
+
+**Cuentas de la parada de flores.** No hay scroll, pero el frame no es “solo flores”: el pase de parche recorre los 59 grupos y culla las celdas de agua/fuego fuera de la ventana; para las flores visibles construye `restore + capture + frame` (3 jobs por celda). El presupuesto de 24 jobs limita cuántas celdas entran por frame, pero no elimina el barrido. Medido: sin parche el frame cuesta **142.152 ciclos** (49,9 fps); con flores, **215.397** (32,9 fps). El parche añade **73.245 ciclos**, de los cuales ~51k son construcción y ~17k ejecución Blitter; el resto es el pase de métricas/plan. El fuego no explica nada en esta parada: está fuera de la ventana y apagarlo deja 215.603 ciclos (32,90 fps, diferencia <0,1%). El agua tampoco: 213.470 ciclos (33,23 fps). La deuda de 25 fps de versiones anteriores venía de ese barrido con 224 celdas/73 grupos y del pase de dos lecturas; con la receta actual son **32,9**, no 25. En la fogata, en cambio, el agua visible domina: 411.606 ciclos con todo frente a 189.469 sin agua (37,4 fps); el fuego solo pesa 5.187 ciclos (~0,2 fps) porque es **un grupo fusionado** de 32×32.
 
 ## Contrato
 
@@ -21,7 +31,7 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 - `MapCellSaveCacheSet<96, 8>`: arena pequeña de 96 × 192 B (18 KB) y arena grande de 8 × 1,5 KB (12 KB) para sprites fusionados; captura una vez (`CopyRect` de todos los planos en un job), restaura antes de repintar (`RestoreRect`), no recaptura mientras la celda sigue visible y libera la entrada al salir de la ventana.
 - El cooker fusiona clusters rectangulares de celdas contiguas con la misma cadencia y gids de un solo uso; la fogata 2×2 se emite como un grupo de 32×32 (un save-under y un blit por segmento). Agua/flores conservan sus celdas y se reparten con el cursor round-robin. La regla es general y no nombra la fogata.
 - `HOST-499` valida `TileLayerStack`; `HOST-500` la geometría del anillo con un job por segmento (todos los planos); `HOST-502` el ciclo de vida y la geometría de `MapCellSaveCache`.
-- Assets: `out/assets/tiled/beginning-fields-live-flowers/selected/` (73 grupos, 224 frames, 224 celdas, 47,6 KB de sheet y 7,9 KB de máscaras); la fusión elimina 3 grupos y 3 celdas sin cambiar el banco.
+- Assets: `out/assets/tiled/beginning-fields-live-flowers/selected/` (59 grupos, 220 frames, 156 celdas, 46,8 KB de sheet y 7,8 KB de máscaras); 34 celdas de agua bajo objetos estáticos quedan cocidas.
 - La paleta la genera `cook-map` a partir de `palette-source.png` (todas las capas y objetos, incluidos los animados) y la cuantiza a 32 bases EHB con `quantize-ehb.mjs`; no hay paleta fija en el repositorio. La fuente incluye agua, flores y fuego aunque no estén en el bake.
 
 ## Secuencia

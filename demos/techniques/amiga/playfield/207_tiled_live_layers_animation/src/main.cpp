@@ -498,6 +498,10 @@ struct DemoGame {
 		if (!kBudgetedAnimations) {
 			animator.set_layer_animation_enabled(0u, true);
 			animator.set_layer_animation_enabled(1u, true);
+			animator.set_layer_animation_enabled(2u, true);
+#if defined(DEMO_DISABLE_LAYER)
+			animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
+#endif
 			return;
 		}
 		const eng::u32 fps10 = host_hud.fps10();
@@ -666,9 +670,17 @@ struct DemoGame {
 		if (tour_paused) {
 #if defined(DEMO_BLIT_STATS) || defined(ENG_METRICS)
 			m_patch_stats = {};
+#if defined(DEMO_NO_PATCH)
+			const bool patch_ok = true;
+#else
 			const bool patch_ok = scene.patch_animations(plan, 0u, m_cell_save, &m_patch_stats);
+#endif
+#else
+#if defined(DEMO_NO_PATCH)
+			const bool patch_ok = true;
 #else
 			const bool patch_ok = scene.patch_animations(plan, 0u, m_cell_save);
+#endif
 #endif
 			if (!patch_ok) {
 				ready = false;

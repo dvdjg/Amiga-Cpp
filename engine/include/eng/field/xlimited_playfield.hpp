@@ -1119,6 +1119,14 @@ private:
         auto patch_group = [&](u16 g) -> bool {
             if constexpr (Collect) if (stats.valid()) ++stats->groups_scanned;
             const bool changed = anim.group_changed(g); // frame distinto al anterior
+            if (!anim.layer_animation_enabled(anim.group_layer(g))) {
+                // Capa desactivada por presupuesto/diagnóstico: no se captura ni
+                // se pinta. Se limpia changed para que no mantenga despierto el
+                // pase completo cada frame; al reactivarla se fuerza un redraw.
+                if (changed) anim.clear_group(g);
+                m_anim_patch_cursor = next_group(g);
+                return true;
+            }
             if (!m_redraw_visible_anim && !changed) return true;
             const TileAnimationGroupView& grp = anim.group(g);
             const u16 group_w = anim.group_pixel_width(g); // caja del grupo (px)

@@ -1117,6 +1117,9 @@ public:
     Surface bg_surface() {
         return Surface(m_field[0], {0, 0, m_field[0].width(), m_field[0].display_height()});
     }
+    /// Destino BOB del anillo de PF1 (render, no display).
+    [[nodiscard]] const graphics::BobTarget& actor_target() const noexcept { return m_actor_target; }
+
     /// Vista de colocación de un sprite de mapa sobre el ring de PF1.
     ///
     /// Evita que cada demo reconstruya a mano `MapSpriteView` (viewport, ring,
