@@ -614,7 +614,7 @@ struct DemoGame {
 			m_patch_stats = {};
 			patch_stats_out = &m_patch_stats;
 #endif
-			if (!scene.patch_animations(plan, 0xffu, patch_stats_out)) {
+			if (!scene.patch_animations(plan, 0u, patch_stats_out)) {
 				ready = false;
 				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
 				return;

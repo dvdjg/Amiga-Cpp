@@ -282,6 +282,7 @@ public:
 	[[nodiscard]] bool draw_group(graphics::FramePlan& plan, const graphics::BobTarget& target,
 				      u16 ring_height, u16 x, u16 ring_y, u16 group, bool opaque = false) const noexcept {
 		if (group >= m_groups.size() || m_sheet == nullptr || m_masks == nullptr) return false;
+		if (!layer_animation_enabled(m_group_layer[group])) return true;
 		const TileAnimationGroupView& grp = m_groups[group];
 		if (grp.frame_count == 0u) return false;
 		const u8 frame = m_frame[group] < grp.frame_count ? m_frame[group] : 0u;

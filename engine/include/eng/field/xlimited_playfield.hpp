@@ -335,11 +335,13 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
                 if (this->m_cfg.map.is_empty(this->map_tile_at(a, b))) continue; // vacío: no pintar
-                const u16 x = a * this->ctw();
-                const u16 y = b * this->m_block_planes_lines; // planeline
-                const u16 mapx = a;
-                const u16 mapy = b;
-                if (!add_draw(plan, x, y, mapx, mapy)) return false;
+                const u16 screen_x_px = a * this->ctw();
+                const u16 planeline_y = b * this->m_block_planes_lines;
+                const u16 map_cell_x = a;
+                const u16 map_cell_y = b;
+                if (!add_draw(plan, screen_x_px, planeline_y, map_cell_x, map_cell_y)) {
+                    return false;
+                }
             }
         }
         return true;
@@ -447,30 +449,45 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// (x, y_planeline). Se pinta despuǸs del bloque base y comparte su destino.
     void set_animator(const TileAnimator* animator) { this->m_cfg.animator = animator; }
 
-    bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
+    /// Dibuja un bloque del mapa en el bitmap de destination.
+    /// \param plan destino de los trabajos.
+    /// \param screen_x_px X de pantalla en píxeles (se alinea a palabra al emitir).
+    /// \param planeline_y fila de destino en **planelines** (una fila por plano).
+    /// \param map_cell_x índice de celda X en el mapa.
+    /// \param map_cell_y índice de celda Y en el mapa.
+    /// \return `false` si el plan no puede aceptar el trabajo.
+    bool add_draw(graphics::FramePlan& plan, u16 screen_x_px, u16 planeline_y,
+                  u16 map_cell_x, u16 map_cell_y) {
         // Política de borde en mapa NO envolvente (wrap_x/y = 0): el corkscrew
         // pre-pinta con bitmaps de margen "bitmap_blocks_per_row" (22) por delante
         // de la cámara. Al acercarse al borde derecho del mapa (40 columnas),
-        // `mapx = mapblockx + bpr` supera this->map_width_blocks y `tile_at` devolvería
+        // `map_cell_x = mapblockx + bpr` supera this->map_width_blocks y `tile_at` devolvería
         // `edge_tile` (=0 en la demo 201, índice de tile REAL del banco, no
         // empty_tile 0xFFFF): el Blitter pintaría contenido equivocado que la
         // ventana revela junto al borde (tiles "top/right" rotos). Como en un mapa
         // edge-clamped no hay tiles al otro lado, se CLAMPA el origen a la última
         // columna/fila del mapa: repetición del borde con índice válido (misma
         // semántica que wrap=0 en tile_at, pero con una celda existente).
-        if (this->m_cfg.map.wrap_x == 0 && mapx >= this->map_width_blocks()) {
-            mapx = static_cast<u16>(this->map_width_blocks() - 1);
+        if (this->m_cfg.map.wrap_x == 0 && map_cell_x >= this->map_width_blocks()) {
+            map_cell_x = static_cast<u16>(this->map_width_blocks() - 1);
         }
-        if (this->m_cfg.map.wrap_y == 0 && mapy >= this->map_height_blocks()) {
-            mapy = static_cast<u16>(this->map_height_blocks() - 1);
+        if (this->m_cfg.map.wrap_y == 0 && map_cell_y >= this->map_height_blocks()) {
+            map_cell_y = static_cast<u16>(this->map_height_blocks() - 1);
         }
         // Tile 'vacío' (empty_tile): NO se pinta (no consume slot de Blitter).
-        if (this->m_cfg.map.is_empty(this->map_tile_at(mapx, mapy))) return true;
-        if (!plan.add_tile_block_copy(draw_block_job(x, y, mapx, mapy))) return false;
+        if (this->m_cfg.map.is_empty(this->map_tile_at(map_cell_x, map_cell_y))) return true;
+        if (!plan.add_tile_block_copy(draw_block_job(screen_x_px, planeline_y,
+                                                     map_cell_x, map_cell_y))) {
+            return false;
+        }
         if (this->m_linear_display) {
-            // Espejo: mismo bloque en planelínea y + this->m_mirror_planelines (copia del bucle).
-            const u16 ym = static_cast<u16>(static_cast<u32>(y) + this->m_mirror_planelines);
-            if (!plan.add_tile_block_copy(draw_block_job(x, ym, mapx, mapy))) return false;
+            // Espejo: mismo bloque en planeline y + this->m_mirror_planelines (copia del bucle).
+            const u16 mirror_y = static_cast<u16>(static_cast<u32>(planeline_y) +
+                                                  this->m_mirror_planelines);
+            if (!plan.add_tile_block_copy(draw_block_job(screen_x_px, mirror_y,
+                                                         map_cell_x, map_cell_y))) {
+                return false;
+            }
         }
         return true;
     }
@@ -875,35 +892,38 @@ private:
         if (camy_mod < 0) camy_mod += maph;
         const s32 ring_base = this->display_offset();
         const s32 dh = static_cast<s32>(this->display_height());
-        const u16 parity = static_cast<u16>(anim.tick() % 6u);
-        // Presupuesto de CPU por turno (no de geometría): `jobs_per_cell` se
-        // deriva de la animación configurada y el límite impide que un solo
-        // grupo acapare el plan. 24 = cuatro celdas de 6 planos o ocho de 3.
-        constexpr u16 kPatchJobBudget = 24u;
-        const u16 patch_job_limit = static_cast<u16>(
-            plan.max_blit_jobs < kPatchJobBudget ? plan.max_blit_jobs : kPatchJobBudget);
+        // Un objeto compuesto puede ser varios grupos con el mismo reloj (por
+        // ejemplo, las cuatro celdas de una fogata). No se puede repartir por
+        // paridad: eso actualiza una parte del objeto y deja el resto con el
+        // frame anterior. Se procesan todos los grupos cambiados que quepan en
+        // el presupuesto y los demás conservan `changed` para el siguiente frame.
+        // Se usa la capacidad real del FramePlan para que una fogata (4
+        // grupos/celdas) y las flores visibles se actualicen en el mismo turno;
+        // el cursor round-robin reparte el trabajo entre frames cuando el
+        // conjunto visible excede el plan.
+        const u16 patch_job_limit = static_cast<u16>(plan.max_blit_jobs);
         const u16 jobs_per_cell = anim.plane_count();
+        const u16 group_count = anim.group_count();
         bool pass_deferred = false;
-        for (u16 g = 0u; g < anim.group_count(); ++g) {
+        if (group_count == 0u) return true;
+        u16 g = static_cast<u16>(m_anim_patch_cursor % group_count);
+        for (u16 visited = 0u; visited < group_count;
+             ++visited, g = static_cast<u16>((g + 1u) % group_count)) {
             if constexpr (Collect) ++stats->groups_scanned;
             const bool changed = anim.group_changed(g);
-            const bool parity_ok = ((g % 6u) == parity);
-            if (!m_redraw_visible_anim && (!changed || !parity_ok)) continue;
+            if (!m_redraw_visible_anim && !changed) continue;
             const TileAnimationGroupView& grp = anim.group(g);
             if (static_cast<u32>(plan.blit_job_count()) +
                     static_cast<u32>(grp.cell_count) * jobs_per_cell >
                 patch_job_limit) {
+                // No se corta el barrido: un grupo pequeño posterior puede
+                // caber aunque este no. El cursor evita que los últimos grupos
+                // se queden sin turno cuando todos cambian.
                 pass_deferred = true;
                 if constexpr (Collect) {
-                    // Cuenta también los grupos posteriores que sí tocaban en
-                    // este turno y quedan pendientes para el siguiente.
-                    for (u16 pending = g; pending < anim.group_count(); ++pending) {
-                        if (anim.group_changed(pending) && ((pending % 6u) == parity)) {
-                            ++stats->groups_deferred;
-                        }
-                    }
+                    if (changed) ++stats->groups_deferred;
                 }
-                break;
+                continue;
             }
             bool group_drawn = false;
             for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
@@ -936,20 +956,6 @@ private:
                     m_anim_cell_y[ci] == static_cast<u16>(ring_y)) {
                     continue;
                 }
-                // Las celdas transparentes no deben conservar restos del frame
-                // anterior: repinta el bloque base y después el frame encima.
-                if ((restore_background_layers & static_cast<u8>(1u << cell.layer)) != 0u) {
-                    if (!this->add_draw(plan, static_cast<u16>(sx),
-                            static_cast<u16>(ring_y), cell.x, cell.y)) {
-                        return false;
-                    }
-                    if constexpr (Collect) {
-                        ++stats->base_restores;
-                        if (cell.layer < kTileAnimationMaxLayers) {
-                            ++stats->base_restores_by_layer[cell.layer];
-                        }
-                    }
-                }
                 // Se usa el mismo dibujo de grupo que la pasada inicial: el
                 // overlay vive en el anillo, no en el espejo lineal del display.
                 if (!anim.draw_group(plan, m_anim_target, static_cast<u16>(dh),
@@ -972,7 +978,8 @@ private:
             if constexpr (Collect) {
                 if (group_drawn) ++stats->groups_patched;
             }
-            if (changed && (parity_ok || m_redraw_visible_anim)) anim.clear_group(g);
+            if (changed) anim.clear_group(g);
+            m_anim_patch_cursor = static_cast<u16>((g + 1u) % group_count);
         }
         if (m_redraw_visible_anim && !pass_deferred) m_redraw_visible_anim = false;
         return true;
@@ -1127,7 +1134,6 @@ public:
 
 private:
 
-
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
     Address<MemoryKind::Chip> m_real_base {};
     // Soft DPF (RoboCod): la composición (vista del plano de fondo + doble buffer)
@@ -1141,6 +1147,7 @@ private:
     s32 m_last_anim_camx = 0x7fffffff;            // cámara del último parche
     s32 m_last_anim_camy = 0x7fffffff;
     bool m_redraw_visible_anim = true;            // pasada de entrada tras scroll
+    u16 m_anim_patch_cursor = 0;                  // round-robin de grupos
     mutable u8 m_anim_cell_visible[kTileAnimationMaxCells] {};
     mutable u16 m_anim_cell_x[kTileAnimationMaxCells] {};
     mutable u16 m_anim_cell_y[kTileAnimationMaxCells] {};
