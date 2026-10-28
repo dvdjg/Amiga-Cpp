@@ -794,8 +794,8 @@ struct DemoGame {
 		DEMO_PROF_END(3u);
 		DEMO_PROF_BEGIN(4u);
 		// El HUD de host cambia de frame cada VBlank, pero rehacer su texto
-		// cuesta ~52k ciclos/frame. Se refresca cada 4 frames: sigue mostrando
-		// frame/fps (con un salto de 4) y libera CPU para el pase de agua.
+		// cuesta ~52k ciclos. Se refresca cada 4 frames y nunca en un frame de
+		// parche; sigue mostrando frame/fps con un salto de 4.
 		if ((context.frame.frame_index & 3u) == 0u) m_hud_pending = true;
 		if (m_hud_pending && !m_patch_busy) {
 		eng::util::TextLine<96> stats;
