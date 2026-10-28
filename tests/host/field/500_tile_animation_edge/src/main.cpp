@@ -77,7 +77,9 @@ TileAnimator make_animator(const TileAnimationGroupView* groups,
 		eng::Span<const TileAnimationGroupView> {groups, 1u},
 		eng::Span<const TileAnimationLayerView> {layers, 1u},
 		eng::Span<const TileAnimationCellView> {cells, 1u},
-		g_sheet, g_masks, frame_stride, mask_stride, planes, tile);
+		eng::as_chip(eng::Pattern {g_sheet, sizeof(g_sheet)}),
+		eng::as_chip(eng::MaskBytes {g_masks, sizeof(g_masks)}),
+		frame_stride, mask_stride, planes, tile);
 	animator.set_tick(0u);
 	return animator;
 }
@@ -96,22 +98,24 @@ void test_last_word() {
 
 	check(animator.draw_group(plan, target, kHeight, 336u, 0u, 0u),
 	      "draw_group en x=336: true");
-	check(plan.blit_job_count() == kPlanes, "x=336: un job por plano");
-	for (u8 p = 0u; p < kPlanes; ++p) {
-		const eng::graphics::BlitJob& job = plan.blit_job(p);
-		const eng::u8* expected = target.data() + destination_offset(336u, 0u, p);
-		check(reinterpret_cast<const eng::u8*>(job.destination.cwords()) == expected,
-		      "x=336: destino de la última palabra");
-		check(job.words_per_row == 1u && job.height == kTile,
-		      "x=336: 1 palabra x 16 filas");
-		check(job.destination_plane_stride_bytes ==
-			      static_cast<u32>(kRowBytes) * kPlanes,
-		      "x=336: stride de fila interleaved");
-		check(job.destination_modulo_bytes ==
-			      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * kPlanes - 2),
-		      "x=336: módulo de fila interleaved");
-		check(job.minterm == 0x00cau, "x=336: minterm cookie-cut");
-	}
+	check(plan.blit_job_count() == 1u, "x=336: un job para todos los planos");
+	const eng::graphics::BlitJob& job = plan.blit_job(0u);
+	const eng::u8* expected = target.data() + destination_offset(336u, 0u, 0u);
+	check(reinterpret_cast<const eng::u8*>(job.destination.cwords()) == expected,
+	      "x=336: destino de la última palabra (plano 0)");
+	check(job.bitplane_count == kPlanes, "x=336: bitplane_count = planos");
+	check(job.words_per_row == 1u && job.height == kTile,
+	      "x=336: 1 palabra x 16 filas");
+	check(job.source_plane_stride_bytes == 32u,
+	      "x=336: stride de plano de fuente");
+	check(job.destination_plane_stride_bytes == kRowBytes,
+	      "x=336: paso entre planos del anillo");
+	check(job.destination_modulo_bytes ==
+		      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * kPlanes - 2),
+	      "x=336: módulo de fila interleaved");
+	check(reinterpret_cast<const eng::u8*>(job.mask.cwords()) == g_masks,
+	      "x=336: máscara compartida por los planos");
+	check(job.minterm == 0x00cau, "x=336: minterm cookie-cut");
 }
 
 void test_ring_wrap() {
@@ -124,29 +128,24 @@ void test_ring_wrap() {
 
 	check(animator.draw_group(plan, target, kHeight, 336u, 280u, 0u),
 	      "ring wrap: draw_group true");
-	check(plan.blit_job_count() == static_cast<u16>(kPlanes) * 2u,
-	      "ring wrap: 2 segmentos x 6 planos");
-
-	for (u8 p = 0u; p < kPlanes; ++p) {
-		const eng::graphics::BlitJob& first = plan.blit_job(p);
-		const eng::graphics::BlitJob& second = plan.blit_job(static_cast<u16>(kPlanes) + p);
-		const eng::u8* first_expected = target.data() + destination_offset(336u, 280u, p);
-		const eng::u8* second_expected = target.data() + destination_offset(336u, 0u, p);
-		check(reinterpret_cast<const eng::u8*>(first.destination.cwords()) == first_expected,
-		      "ring wrap: primer segmento en fila 280");
-		check(reinterpret_cast<const eng::u8*>(second.destination.cwords()) == second_expected,
-		      "ring wrap: segundo segmento en fila 0");
-		check(first.height == 8u && second.height == 8u,
-		      "ring wrap: mitades de 8 filas");
-		check(reinterpret_cast<const eng::u8*>(first.source.cwords()) ==
-			      g_sheet + p * 32u,
-		      "ring wrap: fuente del primer segmento");
-		check(reinterpret_cast<const eng::u8*>(second.source.cwords()) ==
-			      g_sheet + p * 32u + 8u * 2u,
-		      "ring wrap: fuente del segundo segmento");
-		check(reinterpret_cast<const eng::u8*>(first.mask.cwords()) == g_masks,
-		      "ring wrap: máscara compartida");
-	}
+	check(plan.blit_job_count() == 2u, "ring wrap: 2 segmentos (uno por tramo)");
+	const eng::graphics::BlitJob& first = plan.blit_job(0u);
+	const eng::graphics::BlitJob& second = plan.blit_job(1u);
+	const eng::u8* first_expected = target.data() + destination_offset(336u, 280u, 0u);
+	const eng::u8* second_expected = target.data() + destination_offset(336u, 0u, 0u);
+	check(reinterpret_cast<const eng::u8*>(first.destination.cwords()) == first_expected,
+	      "ring wrap: primer segmento en fila 280");
+	check(reinterpret_cast<const eng::u8*>(second.destination.cwords()) == second_expected,
+	      "ring wrap: segundo segmento en fila 0");
+	check(first.height == 8u && second.height == 8u, "ring wrap: mitades de 8 filas");
+	check(first.bitplane_count == kPlanes && second.bitplane_count == kPlanes,
+	      "ring wrap: bitplane_count en ambos tramos");
+	check(reinterpret_cast<const eng::u8*>(first.source.cwords()) == g_sheet,
+	      "ring wrap: fuente del primer segmento");
+	check(reinterpret_cast<const eng::u8*>(second.source.cwords()) == g_sheet + 8u * 2u,
+	      "ring wrap: fuente del segundo segmento");
+	check(reinterpret_cast<const eng::u8*>(first.mask.cwords()) == g_masks,
+	      "ring wrap: máscara compartida");
 }
 
 void test_three_planes() {
@@ -161,19 +160,20 @@ void test_three_planes() {
 	check(animator.plane_count() == 3u, "3 planos: plane_count");
 	check(animator.draw_group(plan, target, kHeight, 336u, 0u, 0u),
 	      "3 planos: draw_group");
-	check(plan.blit_job_count() == 3u, "3 planos: 3 jobs");
-	for (u8 p = 0u; p < 3u; ++p) {
-		const eng::graphics::BlitJob& job = plan.blit_job(p);
-		const eng::u8* expected = target.data() + destination_offset(336u, 0u, p, 3u);
-		check(reinterpret_cast<const eng::u8*>(job.destination.cwords()) == expected,
-		      "3 planos: destino");
-		check(job.words_per_row == 1u && job.height == kTile,
-		      "3 planos: una palabra por fila");
-		check(job.source_plane_stride_bytes == 32u, "3 planos: stride de plano");
-		check(job.destination_modulo_bytes ==
-			      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * 3 - 2),
-		      "3 planos: módulo de fila");
-	}
+	check(plan.blit_job_count() == 1u, "3 planos: un job para los 3 planos");
+	const eng::graphics::BlitJob& job = plan.blit_job(0u);
+	const eng::u8* expected = target.data() + destination_offset(336u, 0u, 0u, 3u);
+	check(reinterpret_cast<const eng::u8*>(job.destination.cwords()) == expected,
+	      "3 planos: destino");
+	check(job.bitplane_count == 3u, "3 planos: bitplane_count");
+	check(job.words_per_row == 1u && job.height == kTile,
+	      "3 planos: una palabra por fila");
+	check(job.source_plane_stride_bytes == 32u, "3 planos: stride de plano");
+	check(job.destination_plane_stride_bytes == kRowBytes,
+	      "3 planos: paso entre planos del anillo");
+	check(job.destination_modulo_bytes ==
+		      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * 3 - 2),
+	      "3 planos: módulo de fila");
 }
 
 void test_tile_32() {
@@ -189,23 +189,23 @@ void test_tile_32() {
 	check(animator.tile() == 32u, "tile 32: tile()");
 	check(animator.draw_group(plan, target, kHeight, 304u, 0u, 0u),
 	      "tile 32: draw_group");
-	check(plan.blit_job_count() == 6u, "tile 32: 6 planos");
-	for (u8 p = 0u; p < 6u; ++p) {
-		const eng::graphics::BlitJob& job = plan.blit_job(p);
-		const eng::u8* expected = target.data() + destination_offset(304u, 0u, p);
-		check(reinterpret_cast<const eng::u8*>(job.destination.cwords()) == expected,
-		      "tile 32: destino");
-		check(reinterpret_cast<const eng::u8*>(job.source.cwords()) ==
-			      g_sheet + p * 128u,
-		      "tile 32: offset de plano de fuente");
-		check(job.words_per_row == 2u && job.height == 32u,
-		      "tile 32: dos palabras por fila");
-		check(job.source_plane_stride_bytes == 128u,
-		      "tile 32: stride de plano de fuente");
-		check(job.destination_modulo_bytes ==
-			      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * 6 - 4),
-		      "tile 32: módulo de fila");
-	}
+	check(plan.blit_job_count() == 1u, "tile 32: un job para los 6 planos");
+	const eng::graphics::BlitJob& job = plan.blit_job(0u);
+	const eng::u8* expected = target.data() + destination_offset(304u, 0u, 0u);
+	check(reinterpret_cast<const eng::u8*>(job.destination.cwords()) == expected,
+	      "tile 32: destino");
+	check(job.bitplane_count == 6u, "tile 32: bitplane_count");
+	check(reinterpret_cast<const eng::u8*>(job.source.cwords()) == g_sheet,
+	      "tile 32: base de la fuente (plano 0)");
+	check(job.words_per_row == 2u && job.height == 32u,
+	      "tile 32: dos palabras por fila");
+	check(job.source_plane_stride_bytes == 128u,
+	      "tile 32: stride de plano de fuente");
+	check(job.destination_plane_stride_bytes == kRowBytes,
+	      "tile 32: paso entre planos del anillo");
+	check(job.destination_modulo_bytes ==
+		      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * 6 - 4),
+	      "tile 32: módulo de fila");
 }
 
 } // namespace

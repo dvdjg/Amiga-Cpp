@@ -310,6 +310,7 @@
 /// \see eng::playfield::XlimitedDisplayComposer
 
 #include <eng/core/math/fast_div.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>
@@ -487,7 +488,7 @@ template <class MapT = TileLayerMap>
 struct XlimitedConfigT {
     static_assert(TileMap<MapT>, "MapT debe cumplir TileMap");
     MapT map {};
-    const TileAnimator* animator = nullptr; // overlay animado opcional (T5)
+    eng::Ref<const TileAnimator> animator {}; // overlay animado opcional (T5; no propietario)
     const u16* tileset = nullptr;      // banco de bloques (BlocksBitmap->Planes[0])
     u16 tileset_count = 0;
     u8 planes = 4;                     // BLOCKSDEPTH, rango 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3)

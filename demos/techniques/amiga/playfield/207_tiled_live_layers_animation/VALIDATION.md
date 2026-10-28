@@ -2,48 +2,52 @@
 
 ## Estado
 
-**Funcional: validada con visita de cámara.** `Flowers`, `Water` y la fogata están vivas; la cámara recorre el mapa con paradas de 3 s y las animaciones se actualizan en ellas. **Rendimiento: 30,89 fps de media**, mínimo 24,68 fps; no se declara 50 fps. `patch_animations(0xff)` restaura el bloque base de las tres capas antes del frame enmascarado, no solo la fogata.
+**Funcional corregida y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`), la fogata completa se actualiza en el mismo pase y el fondo real de cada celda se restaura con `MapCellSaveCache` (save-under del surface), sin usar el tile cocinado. **Rendimiento: 27,13 fps de media, mínimo 21,17**; la media supera el suelo de 25, pero el mínimo de ventana y el 50 Hz siguen abiertos.
 
 ## Medidas
 
 | Build | fps | ciclos/frame | campos/frame | Notas |
 |---|---:|---:|---:|---|
-| `A500_release` visita | 30,89 | 229 619 | 1,618 | 8 ventanas, 24,68-46,73 fps |
-| `A500_release` live anterior | 22,71 | 312 315 | 2,20 | referencia de agua + fogata con flores cocidas |
+| `A500_release` visita | 27,13 | 261 468 | 1,84 | 8 ventanas, 21,17-36,05 fps |
+| `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) | 24,71 | 287 046 | 2,02 | cuantiza a 2 campos |
+| `A500_release` parada de agua sin parche (ablación) | 49,90 | 142 150 | 1,00 | el coste está en el parche, no en el scroll/HUD |
 
-La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí; la media no se usa como presupuesto y el mínimo medido queda por encima de 25 fps.
+La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí. La media no se usa como presupuesto. El avance circular sin `%` por grupo (`__umodsi3`) y el job único por celda subieron la parada de 18,18 a 24,69 fps.
 
 ## Contrato
 
 - `tools/tiled/validate-cook-plan.mjs` valida el plan `beginning-fields.live-flowers`: `baked_through=Ground`, `ok=true` y avisos por `Road`, `Shadows`, `Object Shadows` y `RockSlopes_Auto` cocidos por encima de `Flowers`.
-- `HOST-499` valida `TileLayerStack` (modos, `live_count`, `is_live`, prioridad).
+- Las celdas animadas usan el mismo destino que el bloque base: `target_x = wx` (mundo sin envolver), `ring_y = (display_offset + sy) mod display_height`; `sx`/`sy` sólo deciden visibilidad. `rx` no es el contrato del parche.
+- `MapCellSaveCache<96>`: arena única Chip de 96 × 192 B (18 KB); captura una vez (`CopyRect` de todos los planos en un job), restaura antes de repintar (`RestoreRect`), no recaptura mientras la celda sigue visible y libera la entrada al salir de la ventana.
+- El parche recorre capas de primer plano a fondo: la fogata es un objeto 2×2 de Tiled cocinado como cuatro grupos de una celda de 16×16 (0, 3, 6, 9), no un sprite libre; caben juntos en el tope de 24 jobs. Agua/flores se reparten con el cursor round-robin.
+- `HOST-499` valida `TileLayerStack`; `HOST-500` la geometría del anillo con un job por segmento (todos los planos); `HOST-496` el ciclo de vida y la geometría de `MapCellSaveCache`.
 - Assets: `out/assets/tiled/beginning-fields-live-flowers/selected/` (76 grupos, 248 frames, 227 celdas, 47,6 KB de sheet y 7,9 KB de máscaras).
 - La paleta la genera `cook-map` a partir de `palette-source.png` (todas las capas y objetos, incluidos los animados) y la cuantiza a 32 bases EHB con `quantize-ehb.mjs`; no hay paleta fija en el repositorio. La fuente incluye agua, flores y fuego aunque no estén en el bake.
 
 ## Secuencia
 
-`A500_release`, 60 frames cada 250 ms, visita con paradas de 3 s:
+`A500_release`, parada de la fogata con la cámara congelada, 8 frames cada 100 ms:
 
 - `run-status`: estado READY (`detail=0x20700000`), sin fallo de `AnimationDraw`.
-- La secuencia muestra la visita completa y las paradas; el frame-diff incluye el scroll y las capas vivas. No hay pares idénticos ni huecos negros.
+- La fogata cambia de silueta con el anillo de piedras y la hierba estables; las flores blancas/rojas y el agua cambian sus frames. El diff de una región estática es 0; los recortes 4× de fogata y flores no muestran restos, huecos ni bloques negros/rojos.
+- La fogata aparece en su celda base (pantalla 144 en la primera parada), no desplazada por la cámara.
 - La paleta generada conserva agua azul con patrón y rojos de flores; el cuantizador incluye las capas vivas en `palette-source.png`.
-- Sin huecos negros, sin bloques ausentes y sin parpadeo de campos en la secuencia.
 
 ## Visión local (Ollama)
 
-- La pasada canónica (8 frames de la secuencia de 90) detecta el **desplazamiento de cámara**, pero describe la escena como estática: falso negativo global sobre detalles de 16 px. La respuesta cruda queda en `src/VISION.md`.
-- La evidencia que prevalece es el frame-diff de la secuencia y el recorte 4x de la fogata durante la primera parada: las llamas cambian de silueta entre frames consecutivos. El modelo no sustituye esa comprobación.
-- Recortes separados de la primera parada (frames 0/2/4): fogata 816/696 píxeles cambiados y flores 126/150; la cámara está quieta en esos frames. El agua tiene 52 grupos y 161 celdas vivas y su parada usa la primera celda del cluster (no el centro del bounding box, que caía entre clusters); la restauración de base de `layer 1` usa el mismo `patch_animations(0xff)`. Queda pendiente un recorte visual de agua en una pausa alineada al cambio de su grupo.
+- La pasada canónica detecta el desplazamiento de cámara, pero describe la escena como estática: falso negativo global sobre detalles de 16 px. La respuesta cruda queda en `src/VISION.md`.
+- La evidencia que prevalece es el frame-diff de la secuencia y los recortes por entidad: fogata y flores cambian con la cámara quieta y el fondo estable. El modelo no sustituye esa comprobación.
+- El agua tiene 52 grupos y 161 celdas vivas; en la parada de agua congelada se ven sus celdas y sus frames cambian. La parada usa la primera celda del cluster, no el centro del bounding box.
 
 ## Telemetría Tiled
 
 - Build `-DENG_METRICS=1`: `node tools/debug/metrics-report.mjs 207_tiled_live_layers_animation A500_eng_metrics1_release` lee el bloque `g_eng_metrics`.
-- Muestras reales: `tiled_groups_scanned` 18-47, `tiled_groups_patched` 1, `tiled_groups_deferred` 10-13, `tiled_cells_patched` 1, `tiled_cells_culled` 0-12. El contador de diferidos dispara un evento en el anillo cuando el plan no admite todos los grupos del turno.
-- La lectura confirma que el coste no es solo “pintar”: una parte del barrido se descarta y otra queda pendiente. Es la señal que hay que usar antes de tocar el reparto de jobs.
+- Build `-DDEMO_BLIT_STATS=1`: el HUD añade `J`, `B0/B1/B2` y `S/F` (entradas y fallos del cache). `DEMO_TOUR_STOP=N` congela una parada para capturar su secuencia.
+- El contador de diferidos sigue siendo la señal para ajustar el reparto; el tope de 24 jobs no parte la fogata porque su capa se procesa primero.
 
 ## Deuda
 
-- Optimizar si se quiere acercar a 50 fps; ahora el frame con visita ocupa 1,234 campos y el mínimo medido es 34,04 fps.
+- Rendimiento: media 27,13 pero mínimo 21,17 y sin 50 Hz estables; perfilar la parada más lenta y valorar doble buffer o repartir la entrada de celdas nuevas.
 - Confirmar el encaje de las flores en celdas tapadas por `Road/Shadows` si se amplía la ventana; el aviso del validador sigue abierto.
-- Repetir la validación de flicker de alta frecuencia en 207 cuando el coste permita una secuencia frame-step sin cuantización.
-- Comparar el reparto de grupos con los contadores `tiled_groups_deferred` y `tiled_cells_culled` antes de cambiar el límite de 24 jobs o la paridad; vigilar que la cadencia de las tres capas siga siendo suficiente.
+- Repetir la validación de flicker de alta frecuencia cuando el coste permita una secuencia frame-step sin cuantización.
+- Mantener el tope de 24 jobs y el orden por capas si se añaden más objetos compuestos; validar que cada compuesto cabe entero en un pase.

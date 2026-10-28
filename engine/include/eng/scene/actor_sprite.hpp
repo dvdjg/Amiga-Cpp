@@ -5,6 +5,7 @@
 /// funciones de compose). Definido aparte de `actor_types.hpp`; `actor.hpp` es la
 /// cabecera de familia.
 
+#include <eng/core/types/ptr.hpp>
 #include <eng/graphics/sprite_attached.hpp>
 #include <eng/graphics/sprite_channel_window.hpp>
 #include <eng/graphics/sprite_limits.hpp>
@@ -34,7 +35,7 @@ struct SpriteComposeResult {
 struct AttachedCookedCache {
 	eng::ChipView<eng::SpriteTag> even {}; ///< estructura DMA de los planos 0–1
 	eng::ChipView<eng::SpriteTag> odd {};  ///< estructura DMA attached de los planos 2–3
-	const eng::u16* source = nullptr;       ///< inicio del frame planar que produjo ambas estructuras
+	eng::Span<const eng::u16> source {};     ///< frame planar que produjo ambas estructuras (no propietario)
 	eng::u16 height = 0u;                   ///< alto en filas incluido en las vistas
 	bool valid = false;                     ///< falso hasta completar la primera cocción
 };
@@ -69,11 +70,11 @@ struct AttachedPairData {
 /// \param word_off  offset del frame dentro de `visual.pixels` (words).
 /// \param pool      pool Chip del llamador para estructuras DMA.
 /// \param used      cursor del pool (in/out); avanza si reserva estructuras nuevas.
-/// \param cache     caché por actor (puede ser nula).
+/// \param cache     caché por actor (`Ref` vacío = sin caché).
 /// \return las dos vistas cocinadas, o vacías si la hoja/pool no alcanzan.
 [[nodiscard]] inline AttachedPairData cook_actor_attached_pair(
 	const Actor& a, eng::u16 h, eng::usize word_off, eng::ChipView<eng::SpriteTag> pool,
-	eng::usize& used, AttachedCookedCache* cache) noexcept {
+	eng::usize& used, eng::Ref<AttachedCookedCache> cache) noexcept {
 	AttachedPairData out {};
 	const eng::usize src_words = static_cast<eng::usize>(h) * 4u;
 	if (word_off > a.desc.visual.pixels.size() ||
@@ -85,11 +86,11 @@ struct AttachedPairData {
 	const eng::Span<const eng::u16> source =
 		a.desc.visual.pixels.subspan(word_off, src_words);
 	bool cook_needed = true;
-	if (cache != nullptr && cache->valid && cache->even.size() >= struct_bytes &&
+	if (cache.valid() && cache->valid && cache->even.size() >= struct_bytes &&
 	    cache->odd.size() >= struct_bytes) {
 		out.even = cache->even.subview(0u, struct_bytes);
 		out.odd = cache->odd.subview(0u, struct_bytes);
-		cook_needed = cache->source != source.data() || cache->height != h;
+		cook_needed = cache->source.data() != source.data() || cache->height != h;
 	}
 	if (out.even.empty() || out.odd.empty()) {
 		if (pool.empty() || used > pool.size() ||
@@ -105,10 +106,10 @@ struct AttachedPairData {
 				   eng::graphics::kSpriteOffCtl, out.even, out.odd)) {
 		return {};
 	}
-	if (cache != nullptr) {
+	if (cache.valid()) {
 		cache->even = out.even;
 		cache->odd = out.odd;
-		cache->source = source.data();
+		cache->source = source;
 		cache->height = h;
 		cache->valid = true;
 	}
@@ -433,9 +434,8 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			}
 			const eng::usize cache_slot =
 				s.cooked_pairs.size() > slot ? slot : s.cooked_pairs.size();
-			AttachedCookedCache* cache = cache_slot < s.cooked_pairs.size()
-							     ? &s.cooked_pairs[cache_slot]
-							     : nullptr;
+			eng::Ref<AttachedCookedCache> cache {};
+			if (cache_slot < s.cooked_pairs.size()) cache = s.cooked_pairs[cache_slot];
 			const AttachedPairData pair = cook_actor_attached_pair(
 				*a, h, word_off, s.cooked, s.cooked_used, cache);
 			if (pair.even.empty() || pair.odd.empty()) {

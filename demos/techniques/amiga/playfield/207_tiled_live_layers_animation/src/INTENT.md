@@ -15,10 +15,10 @@ Extiende el bake de `Beginning Fields` con **celdas animadas vivas**: flores, ag
 
 - Mapa `Beginning Fields` completo, EHB 6 planos, 320×208 visibles (más 48 px de franja HUD negra), cámara en una visita que empieza centrada en la fogata, pasa por agua y flores y recorre las cuatro esquinas y el centro del mapa.
 - Flores rojas/blancas y agua animadas por parche de tiles; fogata de 32×32 (4 celdas) animada; banderolas, edificios y terreno estáticos.
-- HUD de host con `X`, `Y`, frame de animación (`A`) y número de grupos (`G`).
+- HUD de host con nombre/número/versión/frames/fps y, como diagnóstico, `X`, `Y`, frame de animación (`A`) y número de grupos (`G`). Las builds `DEMO_BLIT_STATS`/`DEMO_PROF` añaden jobs, celdas por capa y estado del cache.
 
 ## Evolución temporal
 
-1. **Init**: base cocida con `Ground` y capas estáticas, se construye la lista de paradas desde las celdas vivas (fogata, agua, flores) y las esquinas, `pre_scroll` a la fogata y se compone la pila de tres capas vivas.
-2. **Frames**: la cámara avanza 2 px por eje y frame; durante el desplazamiento no se parchean las capas vivas. En cada parada de 3 s, `patch_animations` pinta las celdas visibles de los grupos cuyo frame cambia, reparte grupos pequeños en round-robin por capa y, en las tres capas, repinta primero el bloque base y después el frame enmascarado.
-3. **Cierre**: bucle continuo de visita. El scroll mantiene más de 25 fps; en las paradas el coste sube por el parcheo de las tres capas.
+1. **Init**: base cocida con `Ground` y capas estáticas, se construye la lista de paradas desde las celdas vivas (fogata, agua, flores) y las esquinas, `pre_scroll` a la fogata, se captura el fondo real de cada celda visible en `MapCellSaveCache` y se compone la pila de tres capas vivas.
+2. **Frames**: la cámara avanza 2 px por eje y frame; durante el desplazamiento no se parchean las capas vivas. En cada parada de 3 s, `patch_animations` restaura el fondo guardado de las celdas cuyo frame cambia, pinta el frame nuevo y captura una sola vez el fondo de las celdas que entran; el overlay va en la columna de mundo (`wx`) y la visibilidad se decide con `sx`/`sy`. La capa superior (fogata) se procesa primero: sus cuatro grupos de una celda caben juntos en el tope de 24 jobs. Agua y flores se reparten con el cursor round-robin.
+3. **Cierre**: bucle continuo de visita. El scroll se mantiene por encima de 25 fps; en las paradas el coste del save-under baja la ventana a ~20-25 fps (deuda abierta).

@@ -13,6 +13,7 @@
 /// izquierda. El dibujo usa `bob_draw_ring`, que parte el objeto en la costura
 /// vertical del anillo sin que el llamador tenga que hacerlo.
 
+#include <eng/core/types/ptr.hpp>
 #include <eng/graphics/bob_ring.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_asset.hpp>
@@ -271,7 +272,10 @@ public:
 		bool used = false;
 	};
 
-	void configure(MemBank<MemoryKind::Chip>* chip, u16 idle_release = 90u) noexcept {
+	/// Liga la caché al banco Chip (referencia no propietaria; puede estar vacía).
+	/// \param chip banco del que se reservan los save-under (Chip/DMA).
+	/// \param idle_release frames oculto antes de devolver el buffer al banco.
+	void configure(eng::Ref<MemBank<MemoryKind::Chip>> chip, u16 idle_release = 90u) noexcept {
 		m_chip = chip;
 		m_idle_release = idle_release;
 	}
@@ -423,7 +427,7 @@ public:
 private:
 	[[nodiscard]] bool ensure_save(Entry& e, const BobTarget& target) noexcept {
 		if (e.save.valid()) return true;
-		if (m_chip == nullptr || !e.sprite.valid() || target.plane_count == 0u) return false;
+		if (!m_chip.valid() || !e.sprite.valid() || target.plane_count == 0u) return false;
 		const u16 words = bob_detail::box_words(e.sprite.sprite.bob(),
 							e.sprite.sprite.width(), 0);
 		const u32 bytes = static_cast<u32>(words) * 2u *
@@ -436,16 +440,317 @@ private:
 		return true;
 	}
 	void release_buffer(Entry& e) noexcept {
-		if (e.save.valid() && m_chip != nullptr) m_chip->release(e.save);
+		if (e.save.valid() && m_chip.valid()) m_chip->release(e.save);
 		e.save = {};
 		e.save_words_per_row = 0u;
 		e.save_height = 0u;
 		e.idle = 0u;
 	}
 
-	Entry m_entries[Capacity] {};
-	MemBank<MemoryKind::Chip>* m_chip = nullptr;
-	u16 m_idle_release = 90u;
+	Entry m_entries[Capacity] {};                  ///< instancias registradas (capacidad fija)
+	eng::Ref<MemBank<MemoryKind::Chip>> m_chip {}; ///< banco de los save-under (no propietario)
+	u16 m_idle_release = 90u;                      ///< frames oculto antes de devolver el buffer
+};
+
+/// **Save-under por celda viva del surface** (tiles animados y overlays de mapa).
+///
+/// El overlay de una celda se pinta con cookie-cut sobre el framebuffer; para
+/// repintar el siguiente frame sin dejar restos hay que devolver el fondo REAL
+/// que había bajo la celda. Este cache guarda, por clave estable (el índice de
+/// celda del animador), un rectángulo `w×h` de todos los planos del destino.
+///
+/// Contrato de direccionamiento: usa el **mundo sin envolver** del corkscrew
+/// (`x` es la columna de mundo en píxeles, no la columna visible). El bloque
+/// base de una celda se pinta en esa misma dirección (`x` puede caer en la
+/// zona "unrolled" del anillo), de modo que overlay y save-under comparten
+/// píxeles aunque la cámara no esté alineada. No consulta el mapa cocinado.
+///
+/// Memoria: **un único bloque Chip** de `Capacity × cell_bytes` (el Blitter es
+/// el que copia). El consumo es fijo y no fragmenta el `BlockPool` con una
+/// reserva por celda. Al salir de la ventana, `release` libera la entrada SIN
+/// restaurar: la zona ya no se ve y el scroll la repinta cuando la columna
+/// vuelve a entrar.
+///
+/// **Invariante de captura**: el fondo se guarda una vez y se reutiliza en los
+/// repintados mientras la celda siga visible (su posición física en el anillo es
+/// única y el scroll no la toca). Si otra capa/actor modifica ese fondo, el
+/// llamador debe `release` la clave (o re-capturarla) antes de volver a pintar.
+///
+/// \tparam Capacity nº máximo de celdas con save-under simultáneo.
+/// \tparam KeyCount tamaño del espacio de claves (índices de celda del animador).
+template <u16 Capacity, u16 KeyCount = 256u>
+class MapCellSaveCache {
+public:
+	MapCellSaveCache() = default;
+
+	/// Liga el cache al banco Chip y reserva **un único bloque** para todas las
+	/// celdas (`Capacity × cell_bytes`). Una reserva por celda fragmenta el
+	/// `BlockPool` (64 huecos) y hace fallar las capturas.
+	/// \param chip       banco Chip del que se reserva el arena (referencia no propietaria; puede estar vacía).
+	/// \param cell_bytes bytes de una celda `w×h` con todos los planos
+	///        (`(w/16)·2·h·planos`); las capturas mayores se rechazan.
+	void configure(eng::Ref<MemBank<MemoryKind::Chip>> chip, u32 cell_bytes) noexcept {
+		// `chip` puede estar vacío: el cache queda sin arena y `capture` falla.
+		if (m_storage.valid() && m_chip.valid()) m_chip->release(m_storage);
+		m_storage = {};
+		m_chip = chip;
+		m_cell_stride = cell_bytes; // bytes reservados por celda (stride de la arena)
+		for (u16 i = 0u; i < KeyCount; ++i) m_slot[i] = kNoSlot; // sin claves
+		for (u16 i = 0u; i < Capacity; ++i) m_entries[i] = Entry {}; // sin entradas
+		m_failures = 0u;
+		if (chip.valid() && cell_bytes != 0u) {
+			m_storage = chip->template reserve<BobTag>(
+				static_cast<u32>(Capacity) * cell_bytes, 16u);
+		}
+	}
+
+	/// ¿La clave tiene un fondo capturado? El fondo se captura UNA vez y se
+	/// conserva mientras la celda siga en la ventana; el overlay se pinta encima.
+	[[nodiscard]] bool saved(u16 key) const noexcept {
+		const u16 slot = slot_of(key); // entrada asociada a `key` (o kNoSlot)
+		return slot != kNoSlot && m_entries[slot].captured;
+	}
+	/// ¿El overlay de la clave está pintado ahora (hay que restaurar antes de
+	/// repintarlo)? Una celda capturada pero no pintada no necesita restore.
+	[[nodiscard]] bool painted(u16 key) const noexcept {
+		const u16 slot = slot_of(key); // entrada asociada a `key` (o kNoSlot)
+		return slot != kNoSlot && m_entries[slot].painted;
+	}
+
+	/// Captura el fondo actual de la celda `key` en `(x, y)`.
+	///
+	/// El fondo es estático mientras la celda permanece en la ventana (el scroll
+	/// no repinta su posición física única). Se captura UNA vez: si `saved(key)`
+	/// ya hay captura, esta llamada no emite trabajo. Antes de repintar un
+	/// overlay ya pintado hay que llamar a `restore` (el llamador lo decide con
+	/// `painted(key)`).
+	///
+	/// \param plan   plan del frame (recibe un `CopyRect` con todos los planos).
+	/// \param target bitmap destino del overlay (interleaved del anillo).
+	/// \param key    índice estable de la celda (0..KeyCount-1).
+	/// \param x      columna de MUNDO en píxeles (múltiplo de 16).
+	/// \param y      línea del anillo, en píxeles.
+	/// \param w,h    tamaño de la celda en píxeles (`w` múltiplo de 16).
+	/// \return `false` si no hay banco/capacidad/buffer o la caja no cabe en la
+	///         reserva del destino; en ese caso no se emite ningún trabajo.
+	[[nodiscard]] bool capture(FramePlan& plan, const BobTarget& target, u16 key,
+				   u16 x, u16 y, u16 w, u16 h) noexcept {
+		if (!m_chip.valid() || key >= KeyCount || target.plane_count == 0u ||
+		    w == 0u || (w & 15u) != 0u || h == 0u || !box_within(target, x, y, w, h)) {
+			++m_failures;
+			return false;
+		}
+		u16 slot = slot_of(key); // entrada de la clave; kNoSlot = aún sin asignar
+		if (slot != kNoSlot && m_entries[slot].captured) {
+			// Ya hay fondo: no se recaptura (sería el overlay). La llamada
+			// sirve de "overlay pintado" para el siguiente restore.
+			m_entries[slot].painted = true;
+			return true;
+		}
+		if (slot == kNoSlot) {
+			slot = acquire(); // busca una entrada libre (o recuperable)
+			if (slot == kNoSlot) {
+				++m_failures;
+				return false;
+			}
+			m_slot[key] = slot;
+			m_entries[slot] = Entry {};
+			m_entries[slot].key = key;
+		}
+		if (static_cast<u32>(plan.blit_job_count()) + 1u >
+		    static_cast<u32>(plan.max_blit_jobs)) {
+			++m_failures;
+			return false;
+		}
+		// Bytes necesarios para esta celda: palabras por fila × 2 × alto × planos.
+		const u32 need = static_cast<u32>(w / 16u) * 2u * h * target.plane_count;
+		if (!m_storage.valid() || need > m_cell_stride) {
+			if (slot_of(key) == slot) m_slot[key] = kNoSlot;
+			m_entries[slot] = Entry {};
+			++m_failures;
+			return false;
+		}
+		Entry& e = m_entries[slot]; // entrada que describe la captura
+		e.x = x;
+		e.y = y;
+		e.w = w;
+		e.h = h;
+		e.used = true;
+		const bool ok = emit_copy(plan, target, e, slot, true);
+		if (ok) {
+			e.captured = true;
+			e.painted = true; // el llamador pinta el overlay a continuación
+		} else {
+			++m_failures;
+		}
+		return ok;
+	}
+
+	/// Restaura el fondo guardado de `key` encima del overlay pintado. La
+	/// captura se conserva (`saved(key)` sigue siendo true) para el siguiente
+	/// frame; sólo se libera al salir de la ventana.
+	/// \param plan   plan del frame (recibe un `RestoreRect`).
+	/// \param target bitmap destino del overlay.
+	/// \param key    índice estable de la celda.
+	/// \return `false` si el trabajo no cabe en el plan; `true` si no había nada
+	///         pintado o la restauración se encoló.
+	[[nodiscard]] bool restore(FramePlan& plan, const BobTarget& target, u16 key) noexcept {
+		const u16 slot = slot_of(key); // entrada de la clave (kNoSlot = no guardada)
+		if (slot == kNoSlot || !m_entries[slot].painted || !m_entries[slot].captured) {
+			return true;
+		}
+		if (static_cast<u32>(plan.blit_job_count()) + 1u >
+		    static_cast<u32>(plan.max_blit_jobs)) {
+			return false;
+		}
+		Entry& e = m_entries[slot]; // entrada con la captura a devolver
+		if (!emit_copy(plan, target, e, slot, false)) return false;
+		e.painted = false;
+		return true;
+	}
+
+	/// Olvida una celda que sale de la ventana. NO restaura: su posición queda
+	/// fuera del display y el scroll la repinta al volver a entrar.
+	/// \param key índice estable de la celda.
+	void release(u16 key) noexcept {
+		const u16 slot = slot_of(key); // entrada de la clave (kNoSlot = nada que soltar)
+		if (slot == kNoSlot) return;
+		m_entries[slot] = Entry {};
+		m_slot[key] = kNoSlot;
+	}
+
+	/// Celdas con entrada viva (buffer reservado o capturado).
+	[[nodiscard]] u16 used() const noexcept {
+		u16 n = 0u;
+		for (u16 i = 0u; i < Capacity; ++i) n += m_entries[i].used ? 1u : 0u;
+		return n;
+	}
+	/// Capturas rechazadas desde `configure` (diagnóstico de capacidad/plan).
+	[[nodiscard]] u16 failures() const noexcept { return m_failures; }
+	/// Bytes Chip retenidos por el arena de save-under.
+	[[nodiscard]] u32 bytes_held() const noexcept {
+		return m_storage.valid() ? static_cast<u32>(m_storage.size()) : 0u;
+	}
+
+private:
+	static constexpr u16 kNoSlot = 0xffffu;
+
+	struct Entry {
+		u16 key = 0u;         ///< clave de la celda (índice estable del animador)
+		u16 x = 0u;           ///< columna de mundo del borde izquierdo (px)
+		u16 y = 0u;           ///< línea del anillo del borde superior (px)
+		u16 w = 0u;           ///< ancho capturado (px)
+		u16 h = 0u;           ///< alto capturado (px)
+		bool used = false;    ///< slot asignado a una celda
+		bool captured = false;///< el buffer contiene el fondo real de la celda
+		bool painted = false; ///< el overlay está pintado sobre esa captura
+	};
+
+	/// Entrada asociada a `key` (`kNoSlot` si no está en el cache).
+	[[nodiscard]] u16 slot_of(u16 key) const noexcept {
+		return key < KeyCount ? m_slot[key] : kNoSlot;
+	}
+
+	/// Busca una entrada libre; si no hay, recupera una **no pintada** (no hay
+	/// nada en pantalla que dependa de su captura). Nunca descarta una pintada:
+	/// el llamador debe liberar las celdas fuera de la ventana con `release`.
+	/// \return índice de la entrada o `kNoSlot` si todas están pintadas.
+	[[nodiscard]] u16 acquire() noexcept {
+		for (u16 i = 0u; i < Capacity; ++i) {
+			if (!m_entries[i].used) {
+				m_entries[i].used = true;
+				return i;
+			}
+		}
+		for (u16 i = 0u; i < Capacity; ++i) {
+			if (!m_entries[i].painted) {
+				m_entries[i] = Entry {};
+				m_entries[i].used = true;
+				return i;
+			}
+		}
+		return kNoSlot;
+	}
+
+	/// ¿La caja `w×h` en `(x,y)` cae dentro de la reserva real del destino?
+	/// `x` puede superar el ancho de fila (walk horizontal del corkscrew); el
+	/// límite es la reserva completa (`planes.size()`), no `width`.
+	/// \param t destino interleaved del anillo (row_bytes/plane_count/planes).
+	/// \param x columna de mundo del borde izquierdo (px, múltiplo de 16).
+	/// \param y línea del anillo del borde superior (px).
+	/// \param w ancho de la caja (px, múltiplo de 16).
+	/// \param h alto de la caja (px).
+	/// \return `true` si la caja completa cae en la reserva (sin desbordar).
+	[[nodiscard]] static bool box_within(const BobTarget& t, u16 x, u16 y, u16 w, u16 h) noexcept {
+		if (t.row_bytes == 0u || t.plane_count == 0u || t.planes.empty()) return false;
+		const u32 row_step = static_cast<u32>(t.row_bytes) * t.plane_count; // bytes por fila del anillo
+		const u32 base = static_cast<u32>(y) * row_step + (x >> 3u);      // offset de la palabra inicial
+		const u32 last_plane = static_cast<u32>(t.plane_count - 1u) * t.row_bytes;
+		const u32 end = base + last_plane +
+				static_cast<u32>(h - 1u) * row_step + static_cast<u32>(w / 8u);
+		return end <= static_cast<u32>(t.planes.size());
+	}
+
+	/// Copia `planes` rectángulos entre el destino interleaved y el buffer
+	/// planar `[plano][fila][palabra]`. El paso entre filas del destino es
+	/// `row_bytes × planes` (una fila física del anillo); el del buffer es
+	/// `words × 2`.
+	/// \param plan destino de los trabajos (recibe un `CopyRect`/`RestoreRect`).
+	/// \param t bitmap destino interleaved del anillo.
+	/// \param e entrada con posición (`x,y`), tamaño (`w,h`) y `captured`/`painted`.
+	/// \param slot índice en la arena de save-under (origen del stride `cell_stride`).
+	/// \param capture `true` = destino→buffer (guardar); `false` = buffer→destino.
+	/// \return `false` si el plan rechaza el trabajo.
+	[[nodiscard]] bool emit_copy(FramePlan& plan, const BobTarget& t, const Entry& e,
+				     u16 slot, bool capture) const noexcept {
+		// Unidades: `words` palabras por fila; `row_step` bytes entre filas del
+		// anillo interleaved; `save_row_bytes` bytes por fila del buffer;
+		// `save_plane_step` bytes entre planos del buffer.
+		const u16 words = static_cast<u16>(e.w / 16u);
+		const u32 row_step = static_cast<u32>(t.row_bytes) * t.plane_count;
+		const u32 save_row_bytes = static_cast<u32>(words) * 2u;
+		const u32 save_plane_step = save_row_bytes * e.h;
+		// Direcciones calculadas como offset de byte desde la base de cada vista
+		// Chip; `BlitPtr` las convierte a la dirección DMA sin punteros crudos.
+		const u32 target_off = static_cast<u32>(e.y) * t.plane_count * t.row_bytes +
+			(static_cast<u32>(e.x) >> 3u);
+		const u32 save_off = static_cast<u32>(slot) * m_cell_stride;
+		const BlitPtr target_ptr {t.planes, static_cast<s32>(target_off)};
+		const BlitPtr save_ptr {m_storage.mem_view(), static_cast<s32>(save_off)};
+		// UN trabajo para los `planes` planos (como `bob_save_box`): el backend
+		// recorre los planos con `source/destination_plane_stride`. Emitir uno
+		// por plano multiplicaba por 6 los jobs del plan y el coste de CPU del
+		// parche sin cambiar el trabajo del Blitter.
+		// `job` = ranura del plan; kind CopyRect (guardar) o RestoreRect (devolver).
+		graphics::BlitJob& job = plan.begin_blit_job(capture
+			? BlitJobKind::CopyRect : BlitJobKind::RestoreRect);
+		job.source = capture ? target_ptr : save_ptr;
+		job.destination = capture ? save_ptr : target_ptr;
+		job.source_modulo_bytes = capture
+			? mod16(static_cast<s32>(row_step) - static_cast<s32>(words) * 2)
+			: mod16(static_cast<s32>(save_row_bytes) - static_cast<s32>(words) * 2);
+		job.destination_modulo_bytes = capture
+			? mod16(static_cast<s32>(save_row_bytes) - static_cast<s32>(words) * 2)
+			: mod16(static_cast<s32>(row_step) - static_cast<s32>(words) * 2);
+		job.words_per_row = words;
+		job.height = e.h;
+		job.bitplane_count = t.plane_count;
+		job.source_shift = 0u;
+		job.source_plane_stride_bytes = capture ? t.plane_pointer_step() : save_plane_step;
+		job.destination_plane_stride_bytes = capture ? save_plane_step : t.plane_pointer_step();
+		job.source_words_per_row = 0u;
+		job.descending = false;
+		job.interleaved = false;
+		job.minterm = 0u;
+		return plan.commit_blit_job();
+	}
+
+	Entry m_entries[Capacity] {};                 ///< entradas de save-under (capacidad fija)
+	u16 m_slot[KeyCount] {};                      ///< key → slot de `m_entries` (kNoSlot = sin asignar)
+	Block<BobTag, MemoryKind::Chip> m_storage {}; ///< arena única de Capacity × cell_stride bytes
+	eng::Ref<MemBank<MemoryKind::Chip>> m_chip {};///< banco del que se reserva la arena (no propietario)
+	u32 m_cell_stride = 0u;                       ///< bytes reservados por celda en la arena
+	u16 m_failures = 0u;                          ///< capturas rechazadas (diagnóstico)
 };
 
 // Borde horizontal: un sprite que no cabe en el bitmap destino se culla, no

@@ -240,8 +240,13 @@ struct DemoGame {
 	playfield::XlimitedSceneConfigT<eng::map::LayerView> scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::debug::HostHud host_hud {};
-	eng::playfield::TilePatchStats m_patch_stats {};
-	eng::playfield::TilePatchStats m_last_patch_stats {};
+	eng::playfield::TilePatchStats m_patch_stats {};      // acumulado para ENG_METRICS
+	eng::playfield::TilePatchStats m_last_patch_stats {}; // último frame para el HUD J/B0..B2
+
+	// Save-under por celda viva (fondo real bajo cada overlay). Vive en la
+	// escena/demo, no en el playfield; 96 cubre el máximo visible de la visita
+	// (~91 celdas en la parada de la fogata). Arena única de 96 × 192 B = 18 KB.
+	eng::graphics::MapCellSaveCache<96u> m_cell_save {};
 	struct CameraStop {
 		eng::s16 x = 0;
 		eng::s16 y = 0;
@@ -356,7 +361,9 @@ struct DemoGame {
 		DEMO_STAT_NAME(4u, "groups");
 		DEMO_STAT_NAME(5u, "tick");
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({104u * 1024u, 16u * 1024u, 0u})) {
+		// 128K chip: bitmap corkscrew + HUD + Copper + save-under de celdas vivas
+		// (96 × 16×16 × 6 planos = 18 KB). 16K slow para el resto de estructuras.
+		if (!backend.configure_memory({128u * 1024u, 16u * 1024u, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
 			return;
 		}
@@ -378,7 +385,10 @@ struct DemoGame {
 				kTiledAnimLayers, TILED_ANIM_LAYER_COUNT},
 			eng::Span<const playfield::TileAnimationCellView> {
 				kTiledAnimCells, TILED_ANIM_CELL_COUNT},
-			g_anim_sheet, g_anim_masks,
+			// Los incbin viven en la sección `.MEMF_CHIP` del asset; `as_chip`
+			// certifica esa procedencia y `configured()` valida tamaños/planos.
+			eng::as_chip(eng::Pattern {g_anim_sheet, TILED_ANIM_SHEET_BYTES}),
+			eng::as_chip(eng::MaskBytes {g_anim_masks, TILED_ANIM_MASK_BYTES}),
 			TILED_ANIM_FRAME_STRIDE, TILED_ANIM_MASK_STRIDE,
 			TILED_ANIM_PLANES, TILED_ANIM_TILE);
 		if (!animator.configured() || g_anim_sheet_size != TILED_ANIM_SHEET_BYTES ||
@@ -396,6 +406,15 @@ struct DemoGame {
 		m_camera_x = m_stops[0].x;
 		m_camera_y = m_stops[0].y;
 		m_pause_frames = 0xffffu; // congelar cámara para la celda única
+#endif
+#if defined(DEMO_TOUR_STOP)
+		// Diagnóstico: congelar la visita en una parada concreta (0=fogata,
+		// 1=agua, 2=flores, 3..=esquinas/centro) para capturar su animación.
+		constexpr eng::u8 kTourStop = static_cast<eng::u8>(DEMO_TOUR_STOP);
+		m_stop_index = kTourStop < m_stop_count ? kTourStop : 0u;
+		m_camera_x = m_stops[m_stop_index].x;
+		m_camera_y = m_stops[m_stop_index].y;
+		m_pause_frames = 0xffffu;
 #endif
 		layer_stack.configure(eng::Span<const playfield::TileLayerBinding> {kLiveLayers, 3u});
 
@@ -417,7 +436,7 @@ struct DemoGame {
 		scene_cfg.blocks_prebuilt = g_tiled_bank;
 		scene_cfg.blocks_prebuilt_size = g_tiled_bank_size;
 		scene_cfg.palette = g_palette;
-		scene_cfg.animator = &animator;
+		scene_cfg.animator = animator; // referencia no propietaria al animador de la demo
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::SceneBegin);
@@ -429,11 +448,16 @@ struct DemoGame {
 		}
 		// La visita arranca centrada en la fogata; las capas vivas siguen
 		// visibles mientras la cámara recorre el mapa.
-		if (!scene.pre_scroll(backend, plan, m_stops[0].x, m_stops[0].y)) {
+		if (!scene.pre_scroll(backend, plan, m_camera_x, m_camera_y)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
 			return;
 		}
-		if (!scene.draw_animation_stack(backend, plan, layer_stack)) {
+		// Arena única de save-under: una celda = tile × tile × planos (192 B con
+		// 16×16×6). Reservar por celda fragmenta el BlockPool (64 huecos).
+		const eng::u32 cell_bytes = static_cast<eng::u32>(animator.tile()) *
+					    animator.tile() * animator.plane_count() / 8u; // 192 B (16×16×6)
+		m_cell_save.configure(backend.memory_manager().chip(), cell_bytes);
+		if (!scene.draw_animation_stack(backend, plan, layer_stack, m_cell_save)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
 			return;
 		}
@@ -607,14 +631,18 @@ struct DemoGame {
 		DEMO_PROF_END(0u);
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();
-		plan.set_blit_budget_limits({16384, 65536, 120, 512});
+		// Tope del parche: 24 jobs = 8 celdas con save-under (3 jobs/celda).
+		// La fogata (4 grupos de 1 celda) cabe completa en el mismo pase; el
+		// resto de celdas nuevas se reparten por el cursor entre frames.
+		plan.set_blit_budget_limits({16384, 65536, 24, 24});
 		if (tour_paused) {
-			eng::playfield::TilePatchStats* patch_stats_out = nullptr;
 #if defined(DEMO_BLIT_STATS) || defined(ENG_METRICS)
 			m_patch_stats = {};
-			patch_stats_out = &m_patch_stats;
+			const bool patch_ok = scene.patch_animations(plan, 0u, m_cell_save, &m_patch_stats);
+#else
+			const bool patch_ok = scene.patch_animations(plan, 0u, m_cell_save);
 #endif
-			if (!scene.patch_animations(plan, 0u, patch_stats_out)) {
+			if (!patch_ok) {
 				ready = false;
 				eng::debug::mark_failed(g_eng_run_status, Fail::AnimationDraw);
 				return;
@@ -682,10 +710,25 @@ struct DemoGame {
 		eng::util::TextLine<96> stats;
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
 		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count();
+#if defined(DEMO_PROF)
+		// Coste medio por frame de las secciones del demo (miles de ciclos):
+		// 0=scroll+execute, 1=parche (construcción), 2=parche (execute),
+		// 3=compose, 4=HUD. Diagnóstico de reparto, no camino de producción.
+		const eng::u32 pf = eng::debug::g_eng_prof.frames != 0u
+			? eng::debug::g_eng_prof.frames : 1u;
+		stats << " P=" << (eng::debug::g_eng_prof.cycles[0] / pf / 1000u) << '/'
+		      << (eng::debug::g_eng_prof.cycles[1] / pf / 1000u) << '/'
+		      << (eng::debug::g_eng_prof.cycles[2] / pf / 1000u) << '/'
+		      << (eng::debug::g_eng_prof.cycles[3] / pf / 1000u) << '/'
+		      << (eng::debug::g_eng_prof.cycles[4] / pf / 1000u)
+		      << " Q=" << (eng::debug::g_eng_prof.max_cycles[1] / 1000u)
+		      << " N=" << eng::debug::g_eng_prof.calls[1];
+#endif
 #if defined(DEMO_BLIT_STATS)
 		stats << " J=" << budget.jobs << " B0=" << m_last_patch_stats.cells_patched_by_layer[0]
 		      << " B1=" << m_last_patch_stats.cells_patched_by_layer[1]
-		      << " B2=" << m_last_patch_stats.cells_patched_by_layer[2];
+		      << " B2=" << m_last_patch_stats.cells_patched_by_layer[2]
+		      << " S=" << m_cell_save.used() << " F=" << m_cell_save.failures();
 #if defined(DEMO_DEBUG_ONE_CELL)
 		stats << " M=" << g_debug_anim_blit.mismatch_count
 		      << " N=" << g_debug_anim_blit.job_count;

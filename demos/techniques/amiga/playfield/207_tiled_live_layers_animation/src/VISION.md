@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-27T13:02:12.576Z
+- Fecha: 2026-10-28T11:12:16.840Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_013.png, frame_025.png, frame_038.png, frame_051.png, frame_064.png, frame_076.png, frame_089.png (8)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png, frame_005.png, frame_006.png, frame_007.png (8)
 - Secuencia: `out/run/207_tiled_live_layers_animation/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,55 +15,47 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Análisis de las imágenes en orden temporal:**
+**Análisis de las imágenes:**
 
-**Imagen 1:**
-- **Escena:** Vista isométrica de un entorno pixelado, que parece un pueblo o aldea rural.
-- **Elementos visibles:**
-  - En la parte superior izquierda, hay una fogata con llamas naranjas y amarillas.
-  - A la derecha, una casa con techo de paja y una chimenea.
-  - En el centro, un camino de piedras que rodea una zona de césped.
-  - Un tronco de árbol (stump) en el centro del camino.
-  - Un pequeño charco de agua en la parte inferior izquierda.
-  - Árboles y arbustos verdes dispersos.
-  - Un contenedor de madera con un líquido azul (posiblemente un pozo o fuente).
-  - Un objeto rojo pequeño en el suelo, cerca del centro.
-- **Estado:** La escena está completamente estática. No hay ningún elemento en movimiento.
+Las cuatro imágenes muestran exactamente el mismo contenido gráfico, sin cambios visibles en los elementos, su posición o su estado. Se trata de una captura de pantalla de un entorno de juego en estilo pixel art, probablemente en modo de edición o visualización en tiempo real.
 
-**Imagen 2:**
-- **Cambios respecto a la imagen 1:**
-  - La cámara se ha desplazado hacia arriba y a la izquierda, mostrando más de la casa de la izquierda y menos de la derecha.
-  - El contenedor de madera con líquido azul ahora está más a la izquierda, cerca de la casa.
-  - El tronco de árbol se ha movido ligeramente hacia la derecha.
-  - El objeto rojo pequeño ha desaparecido.
-  - La fogata y el charco de agua están fuera del encuadre.
-- **Estado:** La escena sigue siendo estática. No hay movimiento.
+**Elementos gráficos observados:**
 
-**Imagen 3:**
-- **Cambios respecto a la imagen 2:**
-  - La cámara se ha desplazado hacia arriba y a la derecha.
-  - Se ha añadido un nuevo elemento: un poste de madera con una bandera morada en la parte superior derecha.
-  - Se ha añadido un árbol grande con forma de pino en la parte superior central.
-  - El tronco de árbol se ha movido hacia la izquierda.
-  - El contenedor de madera con líquido azul ahora está más a la derecha.
-- **Estado:** La escena sigue siendo estática. No hay movimiento.
+*   **Entorno:** Un paisaje con tierra verde, agua azul, piedras, árboles y arbustos.
+*   **Objetos fijos:**
+    *   Un fuego en una hoguera de piedra, ubicado en el centro de la imagen.
+    *   Un tronco de árbol cortado (stump) a la derecha del fuego.
+    *   Un contenedor de madera (como un barril o caja) a la izquierda del fuego.
+    *   Un camino de piedra que rodea el fuego y se extiende hacia la derecha.
+    *   Un pequeño edificio de madera en la esquina superior derecha.
+    *   Un puente de madera sobre el agua, a la izquierda del fuego.
+    *   Un montículo de piedras en el centro inferior.
+    *   Árboles y arbustos en los bordes izquierdo y derecho.
+*   **Elementos decorativos:**
+    *   Flores rojas y blancas dispersas por el terreno.
+    *   Un pequeño arbusto verde en la esquina inferior derecha.
 
-**Imagen 4:**
-- **Cambios respecto a la imagen 3:**
-  - La cámara se ha desplazado hacia abajo y a la izquierda.
-  - El tronco de árbol se ha movido hacia la izquierda.
-  - Se ha añadido un nuevo elemento: una fogata con llamas naranjas y amarillas en la parte superior izquierda.
-  - Se ha añadido un nuevo elemento: un objeto rojo pequeño en el suelo, cerca del centro.
-  - El contenedor de madera con líquido azul ahora está más a la izquierda.
-  - El poste de madera con la bandera morada se ha movido hacia la derecha.
-- **Estado:** La escena sigue siendo estática. No hay movimiento.
+**Cambios entre imágenes:**
+
+No hay ningún cambio en la composición visual. Todos los elementos permanecen en la misma posición y estado en las cuatro imágenes.
+
+**Elementos que parecen extraños o defectuosos:**
+
+*   **No hay elementos que parezcan defectuosos o incoherentes.** Todos los objetos tienen contornos limpios y no presentan bandas, halos, píxeles cortados ni artefactos visibles.
+*   **No hay recortes ni superposiciones.** El fondo inmediato alrededor de cada objeto es consistente y no muestra restos de posiciones anteriores.
+*   **No hay objetos que se muevan.** El fuego está encendido y parece estar en movimiento, pero su comportamiento es consistente en todas las imágenes.
+
+**Información del encabezado (top bar):**
+
+El encabezado en la parte superior de cada imagen muestra información del programa "207 TILED LIVE". Los valores cambian ligeramente entre imágenes, lo que sugiere que las capturas fueron tomadas en momentos distintos, pero el contenido visual del juego permanece inalterado.
+
+*   **Imagen 1:** `F30 19.2FPS | X=112 Y=376 A=6 G=76`
+*   **Imagen 2:** `F35 19.2FPS | X=112 Y=376 A=7 G=76`
+*   **Imagen 3:** `F37 13.5FPS | X=112 Y=376 A=7 G=76`
+*   **Imagen 4:** `F42 13.5FPS | X=112 Y=376 A=0 G=76`
+
+Estos cambios en los valores de `F` (marcador de frame), `FPS` (frames por segundo) y `A` (alfa, probablemente transparencia) son normales en un entorno de desarrollo o edición de juegos, pero no afectan la apariencia visual del mapa.
 
 **Conclusión:**
-- Las imágenes muestran una secuencia de desplazamientos de la cámara en un entorno pixelado, sin elementos en movimiento.
-- Los elementos gráficos se mueven de posición entre imágenes, pero no cambian de forma ni se superponen.
-- No hay artefactos visibles, como bandas, halos o píxeles cortados.
-- El fondo permanece intacto en cada imagen, sin evidencia de recortes o recolocaciones.
 
-## Seguimiento de la visita y de las capas vivas
-
-La lectura canónica detecta el desplazamiento de cámara, pero describe la escena como estática: es un falso negativo sobre detalles de 16 px. La secuencia de 90 frames (22,5 s) recorre fogata, agua, flores, casa, esquinas y centro; un recorte 4x de la fogata en la primera parada muestra cómo cambia la silueta de las llamas entre frames consecutivos, y el frame-diff de la secuencia completa no deja pares idénticos durante las paradas. La evidencia válida es la secuencia + frame-diff + recorte, no la frase «no hay movimiento» del modelo. Queda pendiente una pasada por entidad con recortes separados de agua y flores para cerrar la validación visual; no se declara cubierta por el VLM.
+Las imágenes muestran una escena de juego estática, sin cambios visibles en los elementos gráficos. La única variación es en los datos del encabezado, que indican que las capturas fueron tomadas en momentos distintos durante la ejecución del programa. No hay artefactos visibles ni elementos defectuosos.

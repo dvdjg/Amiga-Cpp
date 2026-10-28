@@ -443,7 +443,7 @@ struct DemoGame {
 	}
 
 	bool init_actor_cache(eng::amiga::AmigaBackend& backend) {
-		m_actor_cache.configure(&backend.memory_manager().chip(), 60u);
+		m_actor_cache.configure(backend.memory_manager().chip(), 60u);
 		for (eng::u8 slot = 0u; slot < 2u; ++slot) {
 			for (eng::u8 frame = 0u; frame < 2u; ++frame) {
 				const eng::u16 index = m_actor_cache.add(

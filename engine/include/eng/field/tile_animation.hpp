@@ -6,14 +6,16 @@
 /// El cooker emite grupos (frames contiguos en un banco planar + máscaras 1bpp),
 /// mapas dispersos de celdas (`group + 1`, 0 = vacío) y duraciones en ticks de
 /// juego. El runtime no parsea Tiled ni cuantiza: resuelve `frame(group, tick)` y
-/// emite un blit enmascarado planar por plano en el mismo destino físico que el
-/// bloque base. Los frames se empaquetan planar sin guarda porque las celdas están
-/// alineadas a tile; no hay subpíxel horizontal.
+/// emite un blit enmascarado por segmento con todos los planos en el mismo destino
+/// físico que el bloque base. Los frames se empaquetan planar sin guarda porque las
+/// celdas están alineadas a tile; no hay subpíxel horizontal.
 ///
 /// `XLimitedPlayfield::patch_animations` redibuja solo celdas visibles de grupos
-/// que cambiaron de frame, repartidas en 6 fases para no desbordar el FramePlan.
+/// que cambiaron de frame, por capas (primer plano primero) y con cursor
+/// round-robin, con un tope de jobs para no desbordar el FramePlan.
 /// El bake omite las celdas de capas vivas; la composición inicial pinta su
 /// frame actual y el parche restaura el bloque base de la capa antes del overlay.
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/bob.hpp>
@@ -60,16 +62,16 @@ struct TileAnimationLayerView {
 /// Resultado de un parche de animación, para telemetría y diagnóstico de carga.
 ///
 /// El parche recorre los grupos, descarta los que no cambian o no tocan en este
-/// turno de paridad y puede dejar grupos pendientes si no caben en el
-/// `FramePlan`. Estos contadores permiten distinguir trabajo útil de barrido
-/// redundante sin instrumentar el interior del motor:
+/// turno y puede dejar grupos pendientes si no caben en el `FramePlan`. Estos
+/// contadores permiten distinguir trabajo útil de barrido redundante sin
+/// instrumentar el interior del motor:
 ///
 /// - `groups_scanned`: grupos visitados por el bucle.
 /// - `groups_patched`: grupos con al menos una celda visible repintada.
 /// - `groups_deferred`: grupos que tocaban pero no cupieron en el plan.
 /// - `cells_patched`: celdas visibles repintadas.
-/// - `cells_culled`: celdas descartadas por quedar fuera de la ventana.
-/// - `base_restores`: bloques base repintados bajo overlays transparentes.
+/// - `cells_culled`: celdas descartadas por quedar fuera de la ventana (también las que no caben en el save-under).
+/// - `base_restores`: celdas cuyo fondo real se restauró con save-under (no se repinta el bake); `base_restores_by_layer` lo desglosa.
 struct TilePatchStats {
 	u16 groups_scanned = 0u;
 	u16 groups_patched = 0u;
@@ -90,10 +92,21 @@ public:
 	/// píxeles. `tile` debe ser múltiplo de 16 (una palabra Amiga por fila);
 	/// `planes` puede ser 1..6 y no se fija a los 6 de la demo 207. El ancho
 	/// de frame, máscara y plano se valida en `configured()`.
+	/// \param groups grupos de animación (frames/duración/celdas).
+	/// \param layers capas de overlay (mapas de celdas).
+	/// \param cells celdas animadas dispersas (mapa/capa).
+	/// \param sheet banco planar de frames en **Chip** (`ChipView<PatternTag>`).
+	/// \param masks banco 1bpp de máscaras en **Chip** (`ChipView<MaskTag>`).
+	/// \param frame_stride bytes entre frames consecutivos de `sheet`.
+	/// \param mask_stride bytes entre máscaras consecutivas de `masks`.
+	/// \param planes planos por frame (1..6).
+	/// \param tile lado del tile en píxeles (múltiplo de 16).
 	void configure(eng::Span<const TileAnimationGroupView> groups,
 		       eng::Span<const TileAnimationLayerView> layers,
 		       eng::Span<const TileAnimationCellView> cells,
-		       const u8* sheet, const u8* masks, u16 frame_stride, u16 mask_stride,
+		       eng::ChipView<eng::PatternTag> sheet,
+		       eng::ChipView<eng::MaskTag> masks,
+		       u16 frame_stride, u16 mask_stride,
 		       u8 planes, u16 tile = 16u) noexcept {
 		m_groups = groups;
 		m_layers = layers;
@@ -120,8 +133,8 @@ public:
 	}
 
 	[[nodiscard]] constexpr bool configured() const noexcept {
-		if (m_groups.empty() || m_layers.empty() || m_sheet == nullptr ||
-		    m_masks == nullptr || m_frame_stride == 0u || m_planes == 0u ||
+		if (m_groups.empty() || m_layers.empty() || m_sheet.empty() ||
+		    m_masks.empty() || m_frame_stride == 0u || m_planes == 0u ||
 		    m_tile < 16u || (m_tile & 15u) != 0u) {
 			return false;
 		}
@@ -131,10 +144,12 @@ public:
 		const u16 words_per_row = static_cast<u16>((m_tile + 15u) / 16u);
 		const u32 source_plane_stride = static_cast<u32>(words_per_row) * 2u * m_tile;
 		return m_frame_stride >= source_plane_stride * m_planes &&
-		       m_mask_stride >= static_cast<u32>(words_per_row) * 2u * m_tile;
+		       m_mask_stride >= static_cast<u32>(words_per_row) * 2u * m_tile &&
+		       m_sheet.size() >= m_frame_stride && m_masks.size() >= m_mask_stride;
 	}
-	/// Número de planos del frame; también es el número de jobs por celda en
-	/// `draw_group` cuando no hay cruce vertical.
+	/// Número de planos del frame. El dibujo agrupa todos los planos en un único
+	/// job por segmento (`bitplane_count = plane_count`); el valor valida la
+	/// hoja planar y la máscara del bake.
 	[[nodiscard]] constexpr u8 plane_count() const noexcept { return m_planes; }
 	/// Lado del tile en píxeles; debe ser múltiplo de 16 para que los frames
 	/// planares queden alineados a palabra.
@@ -150,6 +165,13 @@ public:
 	}
 	[[nodiscard]] constexpr const TileAnimationGroupView& group(u16 index) const noexcept {
 		return m_groups[index];
+	}
+	/// Capa (índice de `layers`) a la que pertenece un grupo: la de su primera
+	/// celda. El parche ordena por capa para que un objeto compuesto (varios
+	/// grupos de una celda, p. ej. la fogata) se actualice antes de que las
+	/// capas de tiles consuman el presupuesto del `FramePlan`.
+	[[nodiscard]] constexpr u8 group_layer(u16 index) const noexcept {
+		return index < m_groups.size() ? m_group_layer[index] : 0u;
 	}
 	[[nodiscard]] constexpr const TileAnimationCellView& cell(u16 index) const noexcept {
 		return m_cells[index];
@@ -252,6 +274,14 @@ public:
 
 	/// Dibuja todas las capas para la celda de mapa `(mapx,mapy)` en el destino
 	/// físico `(x, ring_y)` (x en píxeles, y en filas del anillo).
+	/// \param plan plan del frame donde se encolan los blits.
+	/// \param target bitmap destino (anillo/interleaved).
+	/// \param ring_height alto del anillo en filas (0 no se usa aquí).
+	/// \param x columna de mundo en píxeles (destino físico).
+	/// \param ring_y fila del anillo del borde superior (px).
+	/// \param mapx columna lógica del mapa (índice de celda).
+	/// \param mapy fila lógica del mapa (índice de celda).
+	/// \return `false` si un grupo no se pudo encolar.
 	[[nodiscard]] bool draw_block(graphics::FramePlan& plan, const graphics::BobTarget& target,
 				      u16 ring_height, u16 x, u16 ring_y,
 				      u16 mapx, u16 mapy) const noexcept {
@@ -263,78 +293,82 @@ public:
 		}
 		return true;
 	}
-	/// Fuente planar y máscara del frame actual de un grupo (para el parche).
-	[[nodiscard]] bool frame_data(u16 group, eng::Span<const u16>& src,
-				    eng::Span<const u16>& mask) const noexcept {
-		if (group >= m_groups.size() || m_sheet == nullptr || m_masks == nullptr) return false;
-		const TileAnimationGroupView& grp = m_groups[group];
-		if (grp.frame_count == 0u) return false;
-		const u8 frame = m_frame[group] < grp.frame_count ? m_frame[group] : 0u;
-		const u32 idx = static_cast<u32>(grp.first_frame + frame);
-		const u8* image = m_sheet + idx * m_frame_stride;
-		const u8* m = m_masks + idx * m_mask_stride;
-		const u16 words_per_row = static_cast<u16>((m_tile + 15u) / 16u);
-		src = eng::Span<const u16> {reinterpret_cast<const u16*>(image),
-					    static_cast<usize>(m_planes) * words_per_row * m_tile};
-		mask = eng::Span<const u16> {reinterpret_cast<const u16*>(m), m_mask_stride / 2u};
-		return true;
-	}	/// Dibuja un grupo concreto (usado por el parche de animación).
+	/// Dibuja un grupo concreto (usado por el parche de animación).
+	/// \param plan plan del frame donde se encolan los blits.
+	/// \param target bitmap destino (anillo/interleaved).
+	/// \param ring_height alto del anillo en filas; parte el tile en la costura.
+	/// \param x columna de mundo en píxeles (destino físico; múltiplo de 16).
+	/// \param ring_y fila del anillo del borde superior (px).
+	/// \param group índice de grupo en el bake (0..group_count()-1).
+	/// \param opaque `true` = copia opaca (sin máscara); `false` = cookie-cut.
+	/// \return `false` si el grupo/asset/frame no es válido o el plan rechaza el job.
 	[[nodiscard]] bool draw_group(graphics::FramePlan& plan, const graphics::BobTarget& target,
 				      u16 ring_height, u16 x, u16 ring_y, u16 group, bool opaque = false) const noexcept {
-		if (group >= m_groups.size() || m_sheet == nullptr || m_masks == nullptr) return false;
+		if (group >= m_groups.size() || m_sheet.empty() || m_masks.empty()) return false;
 		if (!layer_animation_enabled(m_group_layer[group])) return true;
 		const TileAnimationGroupView& grp = m_groups[group];
 		if (grp.frame_count == 0u) return false;
-		const u8 frame = m_frame[group] < grp.frame_count ? m_frame[group] : 0u;
-		const u16 frame_index = static_cast<u16>(grp.first_frame + frame);
+		const u8 frame = m_frame[group] < grp.frame_count ? m_frame[group] : 0u; // frame actual del grupo
+		const u16 frame_index = static_cast<u16>(grp.first_frame + frame); // índice en sheet/masks
 		if (m_frame_stride == 0u || m_mask_stride == 0u) return false;
-		const u8* sheet = m_sheet + static_cast<u32>(frame_index) * m_frame_stride;
-		const u8* mask = m_masks + static_cast<u32>(frame_index) * m_mask_stride;
-		const u16 planes = m_planes;
-		const u16 tile = m_tile;
-		const u16 words_per_row = static_cast<u16>((tile + 15u) / 16u);
-		const u16 source_row_bytes = static_cast<u16>(words_per_row * 2u);
-		const u32 source_plane_stride = static_cast<u32>(source_row_bytes) * tile;
+		const u16 planes = m_planes; // planos del overlay (1..6)
+		const u16 tile = m_tile;     // lado del tile en píxeles (múltiplo de 16)
+		const u16 words_per_row = static_cast<u16>((tile + 15u) / 16u); // palabras/pintura por fila
+		const u16 source_row_bytes = static_cast<u16>(words_per_row * 2u); // bytes por fila de un plano
+		const u32 source_plane_stride = static_cast<u32>(source_row_bytes) * tile; // bytes entre planos
 		if (planes == 0u || tile < 16u || (tile & 15u) != 0u ||
 		    ring_height == 0u) {
 			return false;
 		}
-		u16 first_row = 0u;
-		u16 remaining = tile;
-		s16 ry = static_cast<s16>(ring_y);
+		u16 first_row = 0u;   // primera fila del frame en este segmento
+		u16 remaining = tile; // filas que faltan por dibujar
+		s16 ry = static_cast<s16>(ring_y); // línea del anillo del segmento
 		while (remaining > 0u) {
 			const u16 seg = static_cast<u16>(static_cast<u32>(ry) + remaining > ring_height
-				? ring_height - static_cast<u16>(ry) : remaining);
-			for (u8 p = 0u; p < planes; ++p) {
-				const u8* src = sheet + static_cast<u32>(p) * source_plane_stride +
-						static_cast<u32>(first_row) * source_row_bytes;
-				const u8* msk = mask + static_cast<u32>(first_row) * source_row_bytes;
-				graphics::BlitJob& job = plan.begin_blit_job(opaque ? graphics::BlitJobKind::CopyRect : graphics::BlitJobKind::MaskedBobCookieCut);
-				job.source = graphics::BlitPtr::from_storage(reinterpret_cast<const u16*>(src));
-				job.mask = graphics::BlitPtr::from_storage(opaque ? nullptr : reinterpret_cast<const u16*>(msk));
-				job.destination = graphics::BlitPtr::from_storage(
-					reinterpret_cast<u16*>(target.data() +
-						(static_cast<u32>(ry) * planes + p) * target.row_bytes + (x >> 3u)));
-				job.words_per_row = words_per_row;
-				job.height = seg;
-				job.source_modulo_bytes = 0;
-				job.destination_modulo_bytes = eng::graphics::mod16(
-					static_cast<s32>(target.row_bytes) * static_cast<s32>(target.plane_count) -
-					static_cast<s32>(words_per_row) * 2);
-				job.bitplane_count = 1u;
-				job.source_shift = 0u;
-				job.source_plane_stride_bytes = source_plane_stride;
-				job.destination_plane_stride_bytes = static_cast<u32>(target.row_bytes) * static_cast<u32>(target.plane_count);
-				job.minterm = opaque ? 0x00f0u : 0x00cau;
-				job.interleaved = false;
-				job.source_words_per_row = 0u;
-				job.descending = false;
-				if (!plan.commit_blit_job()) return false;
-			}
+				? ring_height - static_cast<u16>(ry) : remaining); // filas hasta la costura o el final
+			// Offsets en bytes (sin aritmética de punteros): frame + fila del
+			// segmento; `BlitPtr` los aplica sobre la vista Chip del sheet/máscara.
+			const u32 sheet_off = static_cast<u32>(frame_index) * m_frame_stride +
+				static_cast<u32>(first_row) * source_row_bytes;
+			const u32 mask_off = static_cast<u32>(frame_index) * m_mask_stride +
+				static_cast<u32>(first_row) * source_row_bytes;
+			const u32 dest_off = static_cast<u32>(ry) * planes * target.row_bytes + (x >> 3u);
+			const graphics::BlitPtr source_ptr {m_sheet, static_cast<s32>(sheet_off)};
+			const graphics::BlitPtr mask_ptr {m_masks, static_cast<s32>(mask_off)};
+			const graphics::BlitPtr dest_ptr {target.planes, static_cast<s32>(dest_off)};
+			// UN trabajo por segmento con `bitplane_count = planes`: el backend
+			// recorre los planos con `source_plane_stride_bytes` (hoja planar) y
+			// `destination_plane_stride_bytes` (paso entre planos del anillo).
+			// Emitir un job por plano multiplicaba por 6 el coste de CPU del
+			// parche (validación/copias del FramePlan) sin cambiar el Blitter.
+			graphics::BlitJob& job = plan.begin_blit_job(opaque
+				? graphics::BlitJobKind::CopyRect
+				: graphics::BlitJobKind::MaskedBobCookieCut);
+			job.source = source_ptr;
+			job.mask = opaque ? graphics::BlitPtr {} : mask_ptr;
+			job.destination = dest_ptr;
+			job.words_per_row = words_per_row;
+			job.height = seg;
+			job.source_modulo_bytes = 0;
+			const u32 target_row_step = target.interleaved()
+				? static_cast<u32>(target.row_bytes) * target.plane_count
+				: target.row_bytes;
+			job.destination_modulo_bytes = eng::graphics::mod16(
+				static_cast<s32>(target_row_step) - static_cast<s32>(words_per_row) * 2);
+			job.bitplane_count = static_cast<u8>(planes);
+			job.source_shift = 0u;
+			job.source_plane_stride_bytes = source_plane_stride;
+			job.destination_plane_stride_bytes = target.plane_pointer_step();
+			job.minterm = opaque ? 0x00f0u : 0x00cau;
+			job.interleaved = false;
+			job.source_words_per_row = 0u;
+			job.descending = false;
+			if (!plan.commit_blit_job()) return false;
 			remaining = static_cast<u16>(remaining - seg);
 			first_row = static_cast<u16>(first_row + seg);
 			ry = 0;
-		}		return true;
+		}
+		return true;
 	}
 
 	/// Dibuja solo la capa `layer_index` de una celda (para `TileLayerStack`).
@@ -371,8 +405,8 @@ private:
 	eng::Span<const TileAnimationGroupView> m_groups {};
 	eng::Span<const TileAnimationLayerView> m_layers {};
 	eng::Span<const TileAnimationCellView> m_cells {};
-	const u8* m_sheet = nullptr;
-	const u8* m_masks = nullptr;
+	eng::ChipView<eng::PatternTag> m_sheet {}; // banco planar de frames (Chip)
+	eng::ChipView<eng::MaskTag> m_masks {};    // banco 1bpp de máscaras (Chip)
 	u16 m_frame_stride = 0u;
 	u16 m_mask_stride = 0u;
 	u8 m_planes = 0u;

@@ -42,6 +42,7 @@
 /// ```
 
 #include <eng/core/math/sinetable.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
@@ -264,7 +265,7 @@ struct XlimitedSceneConfigT {
     MapT map {};                     // mapa de PF1 (cells/wrap/edge)
     MapT map2 {};                    // mapa de PF2 (si dual y no vacío; si no, reusa map)
     eng::u16 tileset_count = 64;
-    TileAnimator* animator = nullptr; // overlays animados cocinados (T5)
+    eng::Ref<const TileAnimator> animator {}; // overlays animados cocinados (T5; no propietario)
     BlocksRowFn fg_row_fn = nullptr; // generador de filas de PF1 (incrusta base/transparencia)
     BlocksRowFn bg_row_fn = nullptr; // generador de filas de PF2 (DPF)
     // Tilebank INDEXADO REAL (pipeline EHB): si se suministra, el banco se
@@ -465,7 +466,7 @@ public:
             fc.map = (pf == 0) ? cfg.map : (cfg.map2.has_data() ? cfg.map2 : cfg.map);
             fc.tileset = m_tiles[pf].words();
             fc.tileset_count = cfg.tileset_count;
-            fc.animator = isPf0 ? cfg.animator : nullptr;
+            fc.animator = isPf0 ? cfg.animator : eng::Ref<const TileAnimator>{};
             fc.planes = cfg.planes;
             fc.tile_width = tw;
             fc.tile_height = th;
@@ -687,16 +688,46 @@ public:
         return true;
     }
 
+    /// Variante con **save-under por celda** (cache del surface, propiedad del
+    /// llamador). El playfield sólo pide restaurar/capturar antes del overlay.
+    /// \param plan plan donde se encolan los parches.
+    /// \param restore_background_layers máscara de capas que repintan la base.
+    /// \param saver cache de save-under de celdas vivas (referencia no propietaria).
+    template <CellSaveUnder Saver>
+    bool patch_animations(graphics::FramePlan& plan, eng::u8 restore_background_layers,
+                          Saver& saver) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].patch_animations(plan, restore_background_layers, saver)) return false;
+        }
+        return true;
+    }
+
     /// Variante con estadísticas de parche para telemetría; no se usa en la
     /// build normal.
     /// \param plan plan donde se encolan los parches.
     /// \param restore_background_layers máscara de capas que repintan la base.
-    /// \param stats salida con el recuento del parche.
+    /// \param stats salida con el recuento del parche (`Ref` vacío = sin telemetría).
     bool patch_animations(graphics::FramePlan& plan, eng::u8 restore_background_layers,
-                          eng::playfield::TilePatchStats* stats) {
+                          eng::Ref<eng::playfield::TilePatchStats> stats) {
         const eng::u8 n = fields();
         for (eng::u8 pf = 0; pf < n; ++pf) {
             if (!m_field[pf].patch_animations(plan, restore_background_layers, stats)) return false;
+        }
+        return true;
+    }
+
+    /// Variante con estadísticas y save-under por celda.
+    /// \param plan plan donde se encolan los parches.
+    /// \param restore_background_layers máscara de capas que repintan la base.
+    /// \param saver cache de save-under de celdas vivas (referencia no propietaria).
+    /// \param stats salida con el recuento del parche (`Ref` vacío = sin telemetría).
+    template <CellSaveUnder Saver>
+    bool patch_animations(graphics::FramePlan& plan, eng::u8 restore_background_layers,
+                          Saver& saver, eng::Ref<eng::playfield::TilePatchStats> stats) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].patch_animations(plan, restore_background_layers, saver, stats)) return false;
         }
         return true;
     }
@@ -707,6 +738,21 @@ public:
         const eng::u8 n = fields();
         for (eng::u8 pf = 0; pf < n; ++pf) {
             if (!m_field[pf].draw_animation_stack(backend, plan, stack, only_map_row, screen_y)) return false;
+        }
+        return true;
+    }
+
+    /// Pasada inicial de capas vivas con save-under por celda.
+    /// \param backend backend que ejecuta los lotes.
+    /// \param plan plan reutilizable.
+    /// \param stack pila de capas vivas.
+    /// \param saver cache de save-under (referencia no propietaria).
+    template <class Backend, CellSaveUnder Saver>
+    bool draw_animation_stack(Backend& backend, graphics::FramePlan& plan,
+                              const TileLayerStack& stack, Saver& saver) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].draw_animation_stack(backend, plan, stack, saver)) return false;
         }
         return true;
     }
@@ -875,7 +921,7 @@ public:
     template <typename Backend>
     void frame_from_source(Backend& backend) noexcept {
         if (!advance_layer(backend)) return;
-        if (m_sprite_plan_ext != nullptr) {
+        if (m_sprite_plan_ext.valid()) {
             if (m_sprite_plan_ext->blit_job_count() != 0u &&
                 !backend.execute_frame_plan(*m_sprite_plan_ext)) {
                 m_initialized = false;
@@ -976,9 +1022,9 @@ public:
     /// ejecuta entre el scroll y `compose` (`frame_from_source`). El plan lo posee el
     /// llamador y debe sobrevivir hasta el final del frame; se limpia tras ejecutarlo.
     /// \param plan  plan de blits con los BOB degradados/forzados del frame.
-    void attach_sprite_plan(graphics::FramePlan& plan) noexcept { m_sprite_plan_ext = &plan; }
+    void attach_sprite_plan(graphics::FramePlan& plan) noexcept { m_sprite_plan_ext = plan; }
     /// Suelta el plan externo (p. ej. al desmontar la capa de sprites).
-    void detach_sprite_plan() noexcept { m_sprite_plan_ext = nullptr; }
+    void detach_sprite_plan() noexcept { m_sprite_plan_ext.reset(); }
 
     /// Compone un frame de `SpriteDirector` y publica sus placements en la copperlist.
     /// `SpriteDirector` es la fachada pública; la escena no expone `SpriteManager`.
@@ -1067,7 +1113,7 @@ private:
     eng::Span<const graphics::HwSpritePlacement> m_sprite_placements {};
     eng::graphics::FramePlan m_sprite_plan {}; ///< plan interno de `emit_sprite_director`
     graphics::BobTarget m_actor_target {};      ///< destino BOB/CPU del anillo (PF1)
-    graphics::FramePlan* m_sprite_plan_ext = nullptr; ///< plan de BOB de la capa de sprites
+    eng::Ref<graphics::FramePlan> m_sprite_plan_ext {}; ///< plan de BOB de la capa de sprites (no propietario)
     XlimitedTileBank m_tiles[2] {};
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};

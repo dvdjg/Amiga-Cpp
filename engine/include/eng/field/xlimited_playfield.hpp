@@ -4,14 +4,33 @@
 /// `XLimitedPlayfield`: corkscrew 8-way con bitmap interleaved y wrap vertical. Definido
 /// aparte de `xlimited_base.hpp`; `xlimited.hpp` es la cabecera de familia.
 
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/util/type_traits.hpp>
 #include <eng/field/actor_target.hpp>
 #include <eng/field/tile_animation.hpp>
 
 #include <eng/field/tile_layer_stack.hpp>
+#include <eng/graphics/map_sprite.hpp>
 #include <eng/field/xlimited_base.hpp>
 #include <eng/field/xlimited_mapping.hpp>
 
 namespace eng::playfield {
+
+/// Contrato del **cache de save-under por celda viva** que consume el parche.
+/// El cache lo posee la escena/demo; el playfield sólo pide estas operaciones.
+/// Se expresa como concepto para que una sobrecarga con un tipo que no lo cumple
+/// no compita con la de estadísticas (sin punteros crudos en la API).
+/// \tparam S tipo del cache (p. ej. `graphics::MapCellSaveCache<Capacity>`).
+template <class S>
+concept CellSaveUnder = requires(S& saver, graphics::FramePlan& plan,
+                                 const graphics::BobTarget& target, u16 key,
+                                 u16 x, u16 y, u16 w, u16 h) {
+    saver.saved(key);
+    saver.painted(key);
+    saver.capture(plan, target, key, x, y, w, h);
+    saver.restore(plan, target, key);
+    saver.release(key);
+};
 
 /// Campo XLimited: scroll infinito en X con bitmap interleaved y wrap vertical.
 ///
@@ -446,8 +465,9 @@ graphics::BlitJob draw_block_job(u16 screen_x_px, u16 planeline_y, u16 map_cell_
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
     /// Overlays animados de la celda de mapa (mapx,mapy) en el destino físico
-    /// (x, y_planeline). Se pinta despuǸs del bloque base y comparte su destino.
-    void set_animator(const TileAnimator* animator) { this->m_cfg.animator = animator; }
+    /// (x, y_planeline). Se pinta después del bloque base y comparte su destino.
+    /// \param animator overlay animado opcional (Ref no propietario; vacío = sin overlay).
+    void set_animator(eng::Ref<const TileAnimator> animator) { this->m_cfg.animator = animator; }
 
     /// Dibuja un bloque del mapa en el bitmap de destination.
     /// \param plan destino de los trabajos.
@@ -847,30 +867,85 @@ graphics::BlitJob draw_block_job(u16 screen_x_px, u16 planeline_y, u16 map_cell_
     ///        del frame anterior en celdas transparentes (por ejemplo, fogata).
     /// \return `false` si algún job no cabe o falla el dibujo del grupo.
     bool patch_animations(graphics::FramePlan& plan, u8 restore_background_layers = 0u) {
-        return patch_animations_impl<false>(plan, restore_background_layers, nullptr);
+        NoCellSaver none {};
+        return patch_animations_impl<false>(plan, restore_background_layers,
+                                            eng::Ref<TilePatchStats> {}, none);
+    }
+
+    /// Variante con **save-under del surface** por celda viva. `Saver` debe
+    /// cumplir `CellSaveUnder` (ver `graphics::MapCellSaveCache`). El cache lo
+    /// posee la escena/demo, no el playfield: aquí sólo se piden capturas y
+    /// restauraciones. Se pasa por **referencia**, nunca por puntero.
+    /// \param plan destino de los trabajos.
+    /// \param restore_background_layers máscara de capas que repintan la base.
+    /// \param saver cache de save-under (referencia no propietaria).
+    /// \return `false` si algún job no cabe o falla el dibujo del grupo.
+    template <CellSaveUnder Saver>
+    bool patch_animations(graphics::FramePlan& plan, u8 restore_background_layers,
+                          Saver& saver) {
+        return patch_animations_impl<false>(plan, restore_background_layers,
+                                            eng::Ref<TilePatchStats> {}, saver);
     }
 
     /// Variante que recoge estadísticas; no se usa en la build normal.
+    /// `stats` inválido desactiva la recogida y cae en la ruta sin contadores:
+    /// el llamador no debe tener que elegir la sobrecarga desde una macro de
+    /// build (un `nullptr` desreferenciado escribía en el vector 0 del 68000).
     /// \param plan destino de los trabajos.
     /// \param restore_background_layers máscara de capas que repintan la base.
     /// \param stats salida con grupos/celdas visitados, pintados, diferidos y
-    ///        descartados.
+    ///        descartados; `Ref` vacío = sin telemetría.
     /// \return `false` si algún job no cabe o falla el dibujo del grupo.
     bool patch_animations(graphics::FramePlan& plan, u8 restore_background_layers,
-                          TilePatchStats* stats) {
-        return patch_animations_impl<true>(plan, restore_background_layers, stats);
+                          eng::Ref<TilePatchStats> stats) {
+        NoCellSaver none {};
+        if (!stats.valid()) {
+            return patch_animations_impl<false>(plan, restore_background_layers,
+                                                eng::Ref<TilePatchStats> {}, none);
+        }
+        return patch_animations_impl<true>(plan, restore_background_layers, stats, none);
+    }
+
+    /// Variante con estadísticas y save-under.
+    /// \param plan destino de los trabajos.
+    /// \param restore_background_layers máscara de capas que repintan la base.
+    /// \param saver cache de save-under de celdas (referencia no propietaria).
+    /// \param stats salida de telemetría; `Ref` vacío = sin contadores.
+    /// \return `false` si algún job no cabe o falla el dibujo del grupo.
+    template <CellSaveUnder Saver>
+    bool patch_animations(graphics::FramePlan& plan, u8 restore_background_layers,
+                          Saver& saver, eng::Ref<TilePatchStats> stats) {
+        if (!stats.valid()) {
+            return patch_animations_impl<false>(plan, restore_background_layers,
+                                                eng::Ref<TilePatchStats> {}, saver);
+        }
+        return patch_animations_impl<true>(plan, restore_background_layers, stats, saver);
     }
 
 private:
+    /// Etiqueta de "sin save-under" para que la implementación única no
+    /// instancie llamadas al cache cuando la build/demo no lo usa.
+    struct NoCellSaver {};
+
     /// Implementación única; `Collect` elimina en compilación los contadores
-    /// cuando la demo no pide estadísticas.
-    template <bool Collect>
+    /// cuando la demo no pide estadísticas; `Saver` elimina el save-under.
+    /// `stats` es una referencia no propietaria (posiblemente vacía); `saver`
+    /// siempre es una referencia válida (`NoCellSaver` cuando no hay cache).
+    template <bool Collect, class Saver>
     bool patch_animations_impl(graphics::FramePlan& plan, u8 restore_background_layers,
-                               TilePatchStats* stats) {
-        if constexpr (Collect) *stats = TilePatchStats {};
-        else (void)stats;
-        if (this->m_cfg.animator == nullptr) return true;
+                               eng::Ref<TilePatchStats> stats, Saver& saver) {
+        if constexpr (Collect) {
+            if (stats.valid()) *stats = TilePatchStats {};
+        } else {
+            (void)stats;
+        }
+        if (!this->m_cfg.animator.valid()) return true;
         const TileAnimator& anim = *this->m_cfg.animator;
+        // Capas vivas de tiles (agua/flores) y de objetos (fogata) llegan como
+        // grupos de celdas alineadas a 16×16: la fogata son 4 grupos de 1 celda.
+        // No hay un sprite libre de 32×32; cada grupo captura/restaura SU celda
+        // con `saver` y dibuja su frame encima
+        // (docs/engine/architecture/TILED_MAP_RUNTIME.md §5.4.1).
         const s32 camx = m_scroll.state().mapposx;
         const s32 camy = m_scroll.state().mapposy;
         if (camx != m_last_anim_camx || camy != m_last_anim_camy) {
@@ -886,12 +961,12 @@ private:
         if (mapw <= 0 || maph <= 0) return false;
         // Una división por frame (no 2 por celda): las comparaciones de visibilidad
         // se resuelven con un ajuste de rango porque wx/cam están normalizados.
-        s32 camx_mod = camx % mapw;
+        s32 camx_mod = (camx >= 0 && camx < mapw) ? camx : camx % mapw; // cámara X en [0,mapw)
         if (camx_mod < 0) camx_mod += mapw;
-        s32 camy_mod = camy % maph;
+        s32 camy_mod = (camy >= 0 && camy < maph) ? camy : camy % maph; // cámara Y en [0,maph)
         if (camy_mod < 0) camy_mod += maph;
-        const s32 ring_base = this->display_offset();
-        const s32 dh = static_cast<s32>(this->display_height());
+        const s32 ring_base = this->display_offset(); // fila del anillo de la ventana visible (px)
+        const s32 dh = static_cast<s32>(this->display_height()); // alto del anillo (px)
         // Un objeto compuesto puede ser varios grupos con el mismo reloj (por
         // ejemplo, las cuatro celdas de una fogata). No se puede repartir por
         // paridad: eso actualiza una parte del objeto y deja el resto con el
@@ -901,85 +976,172 @@ private:
         // grupos/celdas) y las flores visibles se actualicen en el mismo turno;
         // el cursor round-robin reparte el trabajo entre frames cuando el
         // conjunto visible excede el plan.
-        const u16 patch_job_limit = static_cast<u16>(plan.max_blit_jobs);
-        const u16 jobs_per_cell = anim.plane_count();
-        const u16 group_count = anim.group_count();
-        bool pass_deferred = false;
+        // Presupuesto de jobs del parche: el menor entre la capacidad del
+        // `FramePlan` y el `max_jobs` declarado por el llamador. Un tope bajo
+        // reparte las celdas nuevas/alteradas entre varios frames (el cursor y
+        // `m_redraw_visible_anim` conservan el trabajo pendiente) y evita el
+        // frame de 3+ campos que rompe la cadencia.
+        const u16 cfg_job_limit = plan.blit_budget_limits().max_jobs;
+        const u16 patch_job_limit = (cfg_job_limit != 0u && cfg_job_limit < plan.max_blit_jobs)
+            ? cfg_job_limit : static_cast<u16>(plan.max_blit_jobs);
+        // Con save-under cada celda repintada encola restore + captura + frame
+        // (3 jobs: cada uno cubre todos los planos); sin él, solo el frame.
+        constexpr bool has_saver = !eng::util::is_same_v<Saver, NoCellSaver>;
+        const u16 jobs_per_cell = static_cast<u16>(
+            has_saver ? 3u : 1u);
+        const u16 group_count = anim.group_count(); // grupos de animación del bake
+        bool pass_deferred = false;                 // algún grupo quedó pendiente
         if (group_count == 0u) return true;
-        u16 g = static_cast<u16>(m_anim_patch_cursor % group_count);
-        for (u16 visited = 0u; visited < group_count;
-             ++visited, g = static_cast<u16>((g + 1u) % group_count)) {
-            if constexpr (Collect) ++stats->groups_scanned;
-            const bool changed = anim.group_changed(g);
-            if (!m_redraw_visible_anim && !changed) continue;
+        // Avance circular SIN `%`: un `__umodsi3` por grupo visitado (~228 por
+        // pase) era el coste dominante del parche en las paradas.
+        // `g` = índice de grupo; devuelve el siguiente con wrap.
+        auto next_group = [group_count](u16 g) -> u16 {
+            return static_cast<u16>(g + 1u >= group_count ? 0u : g + 1u);
+        };
+        // Procesa un grupo; devuelve false si el plan/Blitter rechaza un job.
+        auto patch_group = [&](u16 g) -> bool {
+            if constexpr (Collect) if (stats.valid()) ++stats->groups_scanned;
+            const bool changed = anim.group_changed(g); // frame distinto al anterior
+            if (!m_redraw_visible_anim && !changed) return true;
             const TileAnimationGroupView& grp = anim.group(g);
+            // Primera pasada: descartar las celdas fuera de la ventana (liberar
+            // su save-under) y contar las que de verdad hay que repintar. Sin
+            // esto, un grupo sin trabajo de dibujo consumía presupuesto y dejaba
+            // `m_redraw_visible_anim` prendido, reescaneando toda la capa cada
+            // frame (coste de CPU dominante en las paradas).
+            u16 draw_count = 0u; // celdas visibles que este grupo debe repintar
+            for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
+                const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
+                if (!anim.test_cell_allowed(ci)) continue;
+                const s32 wx = static_cast<s32>(cell.x) * this->ctw(); // mundo X (px, sin envolver)
+                const s32 wy = static_cast<s32>(cell.y) * this->cth(); // mundo Y (px)
+                s32 sx = wx - camx_mod; // pantalla X (px) para visibilidad
+                if (sx < 0) sx += mapw;
+                s32 sy = wy - camy_mod - static_cast<s32>(this->cth()); // pantalla Y (px)
+                if (sy < 0) sy += maph;
+                if (sx >= this->m_cfg.viewport_w || sy >= this->m_cfg.viewport_h) {
+                    if (ci < kTileAnimationMaxCells) {
+                        if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
+                            saver.release(ci);
+                        }
+                        m_anim_cell_visible[ci] = 0u;
+                    }
+                    if constexpr (Collect) if (stats.valid()) ++stats->cells_culled;
+                    continue;
+                }
+                // El overlay es fijo en el MUNDO: al mover la cámara no hay que
+                // repintar las celdas que ya lo tenían. Sólo las celdas que
+                // entran (bit a 0) o los grupos que cambiaron de frame.
+                if (!changed && (!m_redraw_visible_anim ||
+                                 (ci < kTileAnimationMaxCells &&
+                                  m_anim_cell_visible[ci] != 0u))) {
+                    continue;
+                }
+                ++draw_count;
+            }
+            if (draw_count == 0u) {
+                // El grupo no toca ninguna celda visible en este pase.
+                if (changed) anim.clear_group(g);
+                m_anim_patch_cursor = next_group(g);
+                return true;
+            }
             if (static_cast<u32>(plan.blit_job_count()) +
-                    static_cast<u32>(grp.cell_count) * jobs_per_cell >
+                    static_cast<u32>(draw_count) * jobs_per_cell >
                 patch_job_limit) {
                 // No se corta el barrido: un grupo pequeño posterior puede
                 // caber aunque este no. El cursor evita que los últimos grupos
                 // se queden sin turno cuando todos cambian.
                 pass_deferred = true;
                 if constexpr (Collect) {
-                    if (changed) ++stats->groups_deferred;
+                    if (changed) if (stats.valid()) ++stats->groups_deferred;
                 }
-                continue;
+                return true;
             }
-            bool group_drawn = false;
+            bool group_drawn = false;    // al menos una celda del grupo se pintó
+            bool capture_failed = false; // no se pudo guardar el fondo de una celda
             for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
-                const TileAnimationCellView& cell = anim.cell(ci);
+                const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
                 if (!anim.test_cell_allowed(ci)) continue;
-                const s32 wx = static_cast<s32>(cell.x) * this->ctw();
-                const s32 wy = static_cast<s32>(cell.y) * this->cth();
-                s32 sx = wx - camx_mod;
+                const s32 wx = static_cast<s32>(cell.x) * this->ctw(); // mundo X (px, sin envolver)
+                const s32 wy = static_cast<s32>(cell.y) * this->cth(); // mundo Y (px)
+                s32 sx = wx - camx_mod; // pantalla X (px) para visibilidad
                 if (sx < 0) sx += mapw;
-                if (sx >= this->m_cfg.viewport_w) {
-                    if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
-                    if constexpr (Collect) ++stats->cells_culled;
-                    continue;
-                }
-                s32 sy = wy - camy_mod - static_cast<s32>(this->cth());
+                s32 sy = wy - camy_mod - static_cast<s32>(this->cth()); // pantalla Y (px)
                 if (sy < 0) sy += maph;
-                if (sy >= this->m_cfg.viewport_h) {
-                    if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
-                    if constexpr (Collect) ++stats->cells_culled;
+                if (sx >= this->m_cfg.viewport_w || sy >= this->m_cfg.viewport_h) {
                     continue;
                 }
-                s32 ring_y = ring_base + sy;
-                if (ring_y >= dh) ring_y -= dh;
-                // La caché debe incluir la POSICIÓN del overlay, no solo el
-                // índice de celda: al mover la cámara el mismo tile cambia de
-                // fila/columna del anillo y el bit antiguo dejaría un resto.
-                if (m_redraw_visible_anim && !changed && ci < kTileAnimationMaxCells &&
-                    m_anim_cell_visible[ci] != 0u &&
-                    m_anim_cell_x[ci] == static_cast<u16>(sx) &&
-                    m_anim_cell_y[ci] == static_cast<u16>(ring_y)) {
+                if (!changed && (!m_redraw_visible_anim ||
+                                 (ci < kTileAnimationMaxCells &&
+                                  m_anim_cell_visible[ci] != 0u))) {
                     continue;
+                }
+                s32 ring_y = ring_base + sy; // línea del anillo (px)
+                if (ring_y >= dh) ring_y -= dh;
+                const u16 target_x = static_cast<u16>(wx); // destino físico: mundo sin envolver
+                if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
+                    {
+                        const bool was_painted = saver.painted(ci);
+                        if (was_painted &&
+                            !saver.restore(plan, m_anim_target, ci)) {
+                            return false;
+                        }
+                        if constexpr (Collect) {
+                            if (was_painted) {
+                                if (stats.valid()) ++stats->base_restores;
+                                if (cell.layer < kTileAnimationMaxLayers) {
+                                    if (stats.valid()) ++stats->base_restores_by_layer[cell.layer];
+                                }
+                            }
+                        }
+                        if (!saver.capture(plan, m_anim_target, ci, target_x,
+                                            static_cast<u16>(ring_y), anim.tile(),
+                                            anim.tile())) {
+                            // Sin hueco de save-under no se pinta el overlay:
+                            // se conserva el fondo y se reintenta en otro pase
+                            // (no se limpia `changed` para no perder el frame).
+                            capture_failed = true;
+                            if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
+                            if constexpr (Collect) if (stats.valid()) ++stats->cells_culled;
+                            continue;
+                        }
+                    }
                 }
                 // Se usa el mismo dibujo de grupo que la pasada inicial: el
                 // overlay vive en el anillo, no en el espejo lineal del display.
                 if (!anim.draw_group(plan, m_anim_target, static_cast<u16>(dh),
-                        static_cast<u16>(sx), static_cast<u16>(ring_y), g, false)) {
+                        target_x, static_cast<u16>(ring_y), g, false)) {
                     return false;
                 }
-                if (ci < kTileAnimationMaxCells) {
-                    m_anim_cell_visible[ci] = 1u;
-                    m_anim_cell_x[ci] = static_cast<u16>(sx);
-                    m_anim_cell_y[ci] = static_cast<u16>(ring_y);
-                }
+                if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
                 group_drawn = true;
                 if constexpr (Collect) {
-                    ++stats->cells_patched;
+                    if (stats.valid()) ++stats->cells_patched;
                     if (cell.layer < kTileAnimationMaxLayers) {
-                        ++stats->cells_patched_by_layer[cell.layer];
+                        if (stats.valid()) ++stats->cells_patched_by_layer[cell.layer];
                     }
                 }
             }
             if constexpr (Collect) {
-                if (group_drawn) ++stats->groups_patched;
+                if (group_drawn) if (stats.valid()) ++stats->groups_patched;
             }
-            if (changed) anim.clear_group(g);
-            m_anim_patch_cursor = static_cast<u16>((g + 1u) % group_count);
+            if (changed && !capture_failed) anim.clear_group(g);
+            m_anim_patch_cursor = next_group(g);
+            return true;
+        };
+        // Primer plano primero: la capa superior se parchea completa antes de
+        // que las capas de tiles consuman el plan. En este mapa la fogata son
+        // cuatro grupos de UNA celda (0, 3, 6 y 9) en la capa superior: si se
+        // barajasen con agua/flores, el presupuesto podría dejar media fogata
+        // con el frame anterior. Dentro de cada capa el cursor sigue siendo
+        // round-robin para repartir los grupos que no caben.
+        const u16 start = m_anim_patch_cursor < group_count ? m_anim_patch_cursor : 0u; // inicio round-robin
+        for (u8 layer = anim.layer_count(); layer-- > 0u;) {
+            u16 g = start; // grupo actual dentro de la capa
+            for (u16 visited = 0u; visited < group_count; ++visited) {
+                if (anim.group_layer(g) == layer && !patch_group(g)) return false;
+                g = next_group(g);
+            }
         }
         if (m_redraw_visible_anim && !pass_deferred) m_redraw_visible_anim = false;
         return true;
@@ -992,71 +1154,23 @@ public:
     bool draw_animation_stack(Backend& backend, graphics::FramePlan& plan,
                               const TileLayerStack& stack,
                               s16 only_map_row = -1, s16 screen_y = -1) {
-        if (this->m_cfg.animator == nullptr || !stack.configured()) return true;
-        const TileAnimator& anim = *this->m_cfg.animator;
-        const s32 camx = m_scroll.state().mapposx;
-        const s32 camy = m_scroll.state().mapposy;
-        const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
-        const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
-        if (mapw <= 0 || maph <= 0) return false;
-        s32 camx_mod = camx % mapw;
-        if (camx_mod < 0) camx_mod += mapw;
-        s32 camy_mod = camy % maph;
-        if (camy_mod < 0) camy_mod += maph;
-        const s32 ring_base = this->display_offset();
-        const s32 dh = static_cast<s32>(this->display_height());
-        plan.clear();
-        plan.set_blit_budget_limits({8192, 16384, 64, 120});
-        for (u16 layer = 0u; layer < anim.layer_count(); ++layer) {
-            if (!stack.is_live(static_cast<u8>(layer))) continue;
-            for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
-                const TileAnimationCellView& cell = anim.cell(ci);
-                if (cell.layer != layer) continue;
-                if (!anim.test_cell_allowed(ci)) continue;
-                if (only_map_row >= 0 && static_cast<s16>(cell.y) != only_map_row) continue;
-                const s32 wx = static_cast<s32>(cell.x) * this->ctw();
-                const s32 wy = static_cast<s32>(cell.y) * this->cth();
-                s32 sx = wx - camx_mod;
-                if (sx < 0) sx += mapw;
-                if (sx >= this->m_cfg.viewport_w) {
-                    if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
-                    continue;
-                }
-                s32 sy = (only_map_row >= 0) ? static_cast<s32>(screen_y)
-                    : wy - camy_mod - static_cast<s32>(this->cth());
-                if (only_map_row < 0) {
-                    if (sy < 0) sy += maph;
-                    if (sy < 0) sy += maph;
-                    if (sy >= this->m_cfg.viewport_h) {
-                        if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
-                        continue;
-                    }
-                }
-                s32 ring_y = ring_base + sy;
-                if (ring_y >= dh) ring_y -= dh;
-                if (!anim.draw_layer_block(plan, m_anim_target,
-                        static_cast<u16>(dh), static_cast<u16>(sx),
-                        static_cast<u16>(ring_y), cell.x, cell.y,
-                        static_cast<u16>(layer), false)) {
-                    return false;
-                }
-                if (ci < kTileAnimationMaxCells) {
-                    m_anim_cell_visible[ci] = 1u;
-                    m_anim_cell_x[ci] = static_cast<u16>(sx);
-                    m_anim_cell_y[ci] = static_cast<u16>(ring_y);
-                }
-                if (plan.blit_job_count() >= 64u) {
-                    if (!backend.execute_frame_plan(plan)) return false;
-                    plan.clear();
-                    plan.set_blit_budget_limits({8192, 16384, 64, 120});
-                }
-            }
-        }
-        if (plan.blit_job_count() > 0u) {
-            if (!backend.execute_frame_plan(plan)) return false;
-            plan.clear();
-        }
-        return true;
+        NoCellSaver none {};
+        return draw_animation_stack_impl<Backend, NoCellSaver>(
+            backend, plan, stack, only_map_row, screen_y, none);
+    }
+
+    /// Pasada inicial con **save-under del surface**: captura el fondo real de
+    /// cada celda antes de pintar su overlay. El cache lo posee la escena/demo.
+    /// \param backend backend que ejecuta los lotes del plan.
+    /// \param plan plan reutilizable (se vacía por lotes).
+    /// \param stack pila de capas vivas a componer.
+    /// \param saver cache de save-under por celda (referencia no propietaria).
+    /// \return `false` si un blit o una captura no se pudo encolar/ejecutar.
+    template <class Backend, CellSaveUnder Saver>
+    bool draw_animation_stack(Backend& backend, graphics::FramePlan& plan,
+                              const TileLayerStack& stack, Saver& saver) {
+        return draw_animation_stack_impl<Backend, Saver>(
+            backend, plan, stack, -1, -1, saver);
     }
 
     /// Pase `after_actors`: redibuja celdas de capas `Occluder` solo si su rect
@@ -1065,19 +1179,19 @@ public:
     bool draw_animation_occluders(Backend& backend, graphics::FramePlan& plan,
                                   const TileLayerStack& stack,
                                   eng::Span<const graphics::DirtyRect> dirty) {
-        if (this->m_cfg.animator == nullptr || !stack.has_occluders()) return true;
+        if (!this->m_cfg.animator.valid() || !stack.has_occluders()) return true;
         const TileAnimator& anim = *this->m_cfg.animator;
         const s32 camx = m_scroll.state().mapposx;
         const s32 camy = m_scroll.state().mapposy;
         const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
         const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
         if (mapw <= 0 || maph <= 0) return false;
-        s32 camx_mod = camx % mapw;
+        s32 camx_mod = (camx >= 0 && camx < mapw) ? camx : camx % mapw; // cámara X en [0,mapw)
         if (camx_mod < 0) camx_mod += mapw;
-        s32 camy_mod = camy % maph;
+        s32 camy_mod = (camy >= 0 && camy < maph) ? camy : camy % maph; // cámara Y en [0,maph)
         if (camy_mod < 0) camy_mod += maph;
-        const s32 ring_base = this->display_offset();
-        const s32 dh = static_cast<s32>(this->display_height());
+        const s32 ring_base = this->display_offset(); // fila del anillo de la ventana visible (px)
+        const s32 dh = static_cast<s32>(this->display_height()); // alto del anillo (px)
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 64, 120});
         for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
@@ -1133,6 +1247,100 @@ public:
     }
 
 private:
+    /// Implementación única de la pasada inicial; `Saver` elimina el save-under
+    /// cuando la demo no lo usa. El destino X es la columna de MUNDO (`wx`), la
+    /// misma que pinta el bloque base; `sx`/`sy` sólo deciden visibilidad.
+    template <class Backend, class Saver>
+    bool draw_animation_stack_impl(Backend& backend, graphics::FramePlan& plan,
+                                   const TileLayerStack& stack, s16 only_map_row,
+                                   s16 screen_y, Saver& saver) {
+        if (!this->m_cfg.animator.valid() || !stack.configured()) return true;
+        const TileAnimator& anim = *this->m_cfg.animator;
+        const s32 camx = m_scroll.state().mapposx;
+        const s32 camy = m_scroll.state().mapposy;
+        const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
+        const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
+        if (mapw <= 0 || maph <= 0) return false;
+        s32 camx_mod = (camx >= 0 && camx < mapw) ? camx : camx % mapw; // cámara X en [0,mapw)
+        if (camx_mod < 0) camx_mod += mapw;
+        s32 camy_mod = (camy >= 0 && camy < maph) ? camy : camy % maph; // cámara Y en [0,maph)
+        if (camy_mod < 0) camy_mod += maph;
+        const s32 ring_base = this->display_offset(); // fila del anillo de la ventana visible (px)
+        const s32 dh = static_cast<s32>(this->display_height()); // alto del anillo (px)
+        plan.clear();
+        plan.set_blit_budget_limits({8192, 16384, 64, 120});
+        for (u16 layer = 0u; layer < anim.layer_count(); ++layer) {
+            if (!stack.is_live(static_cast<u8>(layer))) continue;
+            for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
+                const TileAnimationCellView& cell = anim.cell(ci);
+                if (cell.layer != layer) continue;
+                if (!anim.test_cell_allowed(ci)) continue;
+                if (only_map_row >= 0 && static_cast<s16>(cell.y) != only_map_row) continue;
+                const s32 wx = static_cast<s32>(cell.x) * this->ctw();
+                const s32 wy = static_cast<s32>(cell.y) * this->cth();
+                s32 sx = wx - camx_mod;
+                if (sx < 0) sx += mapw;
+                if (sx >= this->m_cfg.viewport_w) {
+                    if (ci < kTileAnimationMaxCells) {
+                        if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
+                            saver.release(ci);
+                        }
+                        m_anim_cell_visible[ci] = 0u;
+                    }
+                    continue;
+                }
+                s32 sy = (only_map_row >= 0) ? static_cast<s32>(screen_y)
+                    : wy - camy_mod - static_cast<s32>(this->cth());
+                if (only_map_row < 0) {
+                    if (sy < 0) sy += maph;
+                    if (sy < 0) sy += maph;
+                    if (sy >= this->m_cfg.viewport_h) {
+                        if (ci < kTileAnimationMaxCells) {
+                            if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
+                                saver.release(ci);
+                            }
+                            m_anim_cell_visible[ci] = 0u;
+                        }
+                        continue;
+                    }
+                }
+                s32 ring_y = ring_base + sy;
+                if (ring_y >= dh) ring_y -= dh;
+                const u16 target_x = static_cast<u16>(wx);
+                if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
+                    {
+                        if (saver.painted(ci) &&
+                            !saver.restore(plan, m_anim_target, ci)) {
+                            return false;
+                        }
+                        if (!saver.capture(plan, m_anim_target, ci, target_x,
+                                            static_cast<u16>(ring_y), anim.tile(),
+                                            anim.tile())) {
+                            if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
+                            continue;
+                        }
+                    }
+                }
+                if (!anim.draw_layer_block(plan, m_anim_target,
+                        static_cast<u16>(dh), target_x,
+                        static_cast<u16>(ring_y), cell.x, cell.y,
+                        static_cast<u16>(layer), false)) {
+                    return false;
+                }
+                if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
+                if (plan.blit_job_count() >= 64u) {
+                    if (!backend.execute_frame_plan(plan)) return false;
+                    plan.clear();
+                    plan.set_blit_budget_limits({8192, 16384, 64, 120});
+                }
+            }
+        }
+        if (plan.blit_job_count() > 0u) {
+            if (!backend.execute_frame_plan(plan)) return false;
+            plan.clear();
+        }
+        return true;
+    }
 
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
     Address<MemoryKind::Chip> m_real_base {};
@@ -1149,8 +1357,6 @@ private:
     bool m_redraw_visible_anim = true;            // pasada de entrada tras scroll
     u16 m_anim_patch_cursor = 0;                  // round-robin de grupos
     mutable u8 m_anim_cell_visible[kTileAnimationMaxCells] {};
-    mutable u16 m_anim_cell_x[kTileAnimationMaxCells] {};
-    mutable u16 m_anim_cell_y[kTileAnimationMaxCells] {};
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
 };
 
