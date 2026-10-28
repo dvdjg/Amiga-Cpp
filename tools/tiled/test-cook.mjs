@@ -18,6 +18,8 @@ import { findFusedClusters } from './cook-animations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = path.join(ROOT, 'tools/tiled/fixtures/ortho.tmx');
+const ANIM_OBJECTS = path.join(ROOT, 'tools/tiled/fixtures/animated-objects.tmx');
+const FUSED_TILES = path.join(ROOT, 'tools/tiled/fixtures/fused-tiles.tmx');
 const COMPOSE = path.join(ROOT, 'tools/tiled/compose-map.mjs');
 const COOK = path.join(ROOT, 'tools/tiled/cook-map.mjs');
 
@@ -114,6 +116,45 @@ try {
 		assert.ok(selected.objects.header.endsWith('objects.h'));
 	});
 
+	test('cook: objeto animado no alineado conserva frames y cadencia', () => {
+		const out = path.join(temp, 'animated-objects');
+		const planFile = path.join(temp, 'animated-plan.json');
+		fs.writeFileSync(planFile, JSON.stringify({
+			render: { modes: { Objects: 'foreground' } },
+			objects: { Objects: { default: 'foreground' } },
+		}), 'utf8');
+		run(COOK, [ANIM_OBJECTS, '--plan', planFile, '--out', out, '--profiles', '16c', '--select', '16c']);
+		const objects = JSON.parse(fs.readFileSync(path.join(out, 'selected', 'objects.json'), 'utf8'));
+		assert.equal(objects.foreground, 1);
+		assert.equal(objects.images[0].frame_count, 2);
+		assert.equal(objects.images[0].animated, true);
+		assert.equal(objects.objects[0].x, 11);
+		assert.equal(objects.objects[0].y, -13);
+		const header = fs.readFileSync(path.join(out, 'selected', 'objects.h'), 'utf8');
+		assert.match(header, /kMapObjectAnimations/);
+		assert.match(header, /\{128u, 2u, 0u, \{5u,8u/);
+	});
+
+	test('cook: fusiona un 2x2 en otro mapa con presupuesto de gids repetidos', () => {
+		const out = path.join(temp, 'fused-tiles');
+		const planFile = path.join(temp, 'fused-plan.json');
+		fs.writeFileSync(planFile, JSON.stringify({
+			animations: {
+				mode: 'live',
+				layers: ['Animated'],
+				fusion: { max_cells: 8, max_duplicate_bytes: 8192 },
+			},
+			layers: { Animated: 'animated' },
+		}), 'utf8');
+		run(COOK, [FUSED_TILES, '--plan', planFile, '--out', out, '--profiles', '16c', '--select', '16c']);
+		const animations = JSON.parse(fs.readFileSync(path.join(out, 'selected', 'animations.json'), 'utf8'));
+		assert.equal(animations.fused.length, 1);
+		assert.equal(animations.fused[0].width, 32);
+		assert.equal(animations.fused[0].height, 32);
+		assert.ok(animations.fused[0].bytes > 0);
+		assert.ok(animations.fused[0].origin.includes('32x32'));
+	});
+
 	test('cook: paleta impuesta (custom)', () => {
 		const out = path.join(temp, 'custom');
 		const source = path.join(temp, 'profiles', 'profiles', '32c', 'quant', 'palette.json');
@@ -151,6 +192,18 @@ try {
 		const g6 = { cells: [make(1, 0, 'f', slow)] };
 		const mismatch = findFusedClusters({ layers: [layer], groups: new Map([['e', g5], ['f', g6]]) });
 		assert.equal(mismatch.length, 0, 'cadencias distintas no se fusionan');
+
+		const g7 = { cells: [make(0, 0, 'g'), make(1, 0, 'g')] };
+		const g8 = { cells: [make(0, 1, 'h'), make(1, 1, 'h')] };
+		const repeated = new Map([['g', g7], ['h', g8]]);
+		const noBudget = findFusedClusters({ layers: [layer], groups: repeated });
+		assert.equal(noBudget.length, 0, 'gids repetidos: sin presupuesto no se fusionan');
+		const budget = findFusedClusters({
+			layers: [layer], groups: repeated, tile: 16, planes: 6, maxDuplicateBytes: 4096,
+		});
+		assert.equal(budget.length, 1, 'gids repetidos: el presupuesto permite fusionar');
+		assert.equal(budget[0].duplicate_bytes, 1536);
+		assert.equal(budget[0].jobs_saved, 6);
 	});
 } finally {
 	fs.rmSync(temp, { recursive: true, force: true });

@@ -52,15 +52,7 @@ function applyTileOffset(rect, image) {
 /// \param {number[][]} colors paleta del perfil.
 /// \param {number} planes planos destino.
 /// \returns {{sheet:Buffer, mask:Buffer, rowWords:number, width:number, height:number}}
-function packObject(image, colors, planes) {
-	const png = image.image.png;
-	const sx = image.image.sx;
-	const sy = image.image.sy;
-	const nativeW = image.width;
-	const nativeH = image.height;
-	const width = Math.ceil(nativeW / 16) * 16;
-	const rowWords = width / 16 + 1;
-	const flags = image.flags ?? decodeGid(image.gid);
+function packOneFrame(png, sx, sy, nativeW, nativeH, flags, colors, planes, width, rowWords) {
 	const indices = new Uint8Array(width * nativeH);
 	const mask = new Uint8Array(rowWords * 2 * nativeH);
 	for (let y = 0; y < nativeH; ++y) {
@@ -129,6 +121,34 @@ function packObject(image, colors, planes) {
 	return { sheet, mask: Buffer.from(mask), pair, rowWords, width, height: nativeH };
 }
 
+/// Empaqueta una imagen estática o todos los frames de su animación. Los frames
+/// quedan contiguos; el runtime los recorre con `frame_stride_words`.
+/// \param {object} image entrada de `collectMapObjects().images`.
+/// \param {number[][]} colors paleta del perfil.
+/// \param {number} planes planos destino.
+/// \returns {{sheet:Buffer,mask:Buffer,pair:Buffer,rowWords:number,width:number,height:number,frameCount:number,frameStrideWords:number,maskFrameStrideWords:number,pairFrameStrideWords:number}}
+function packObject(image, colors, planes) {
+	const width = Math.ceil(image.width / 16) * 16;
+	const rowWords = width / 16 + 1;
+	const flags = image.flags ?? decodeGid(image.gid);
+	const sources = image.frames?.length ? image.frames : [{ image: image.image }];
+	const parts = sources.map((source) => {
+		const src = source.image ?? image.image;
+		return packOneFrame(src.png, src.sx, src.sy, image.width, image.height,
+			flags, colors, planes, width, rowWords);
+	});
+	const sheet = Buffer.concat(parts.map((part) => part.sheet));
+	const mask = Buffer.concat(parts.map((part) => part.mask));
+	const pair = Buffer.concat(parts.map((part) => part.pair));
+	return {
+		sheet, mask, pair, rowWords, width, height: image.height,
+		frameCount: parts.length,
+		frameStrideWords: parts[0].sheet.length / 2,
+		maskFrameStrideWords: parts[0].mask.length / 2,
+		pairFrameStrideWords: parts[0].pair.length / 2,
+	};
+}
+
 /// Cocina objetos y escribe los assets en `outDir`.
 /// \param {object} opts `{ ir, plan, paletteFile, planes, outDir }`.
 /// \returns {object|null} resumen o null si no hay objetos de runtime.
@@ -164,6 +184,10 @@ export function cookObjects({ ir, plan, paletteFile, planes, outDir }) {
 			sheet_bytes: packed.sheet.length,
 			mask_bytes: packed.mask.length,
 			pair_bytes: packed.pair.length,
+			frame_count: packed.frameCount,
+			frame_stride_words: packed.frameStrideWords,
+			mask_frame_stride_words: packed.maskFrameStrideWords,
+			pair_frame_stride_words: packed.pairFrameStrideWords,
 		});
 		sheetParts.push(packed.sheet);
 		maskParts.push(packed.mask);
@@ -190,6 +214,7 @@ export function cookObjects({ ir, plan, paletteFile, planes, outDir }) {
 	lines.push(`#define TILED_MAP_OBJECT_OCCLUDER_COUNT ${collected.occluder_count}u`);
 	lines.push(`#define TILED_MAP_OBJECT_COUNT ${collected.objects.length}u`);
 	lines.push(`#define TILED_MAP_OBJECT_IMAGE_COUNT ${imageMeta.length}u`);
+	lines.push(`#define TILED_MAP_OBJECT_ANIMATION_COUNT ${collected.objects.length}u`);
 	lines.push(`#define TILED_MAP_OBJECT_PLANES ${p}u`);
 	lines.push(`#define TILED_MAP_OBJECT_SHEET_WORDS ${sheetWords}u`);
 	lines.push(`#define TILED_MAP_OBJECT_MASK_WORDS ${maskWords}u`);
@@ -201,6 +226,15 @@ export function cookObjects({ ir, plan, paletteFile, planes, outDir }) {
 	lines.push(`static const eng::map::MapObjectImageView kMapObjectImages[TILED_MAP_OBJECT_IMAGE_COUNT] = {`);
 	for (const image of imageMeta) {
 		lines.push(`  {${image.sheet_word_offset}u, ${image.mask_word_offset}u, ${image.width}u, ${image.height}u, ${image.row_words}u},`);
+	}
+	lines.push('};');
+	lines.push('');
+	lines.push(`static const eng::map::MapObjectAnimationView kMapObjectAnimations[TILED_MAP_OBJECT_COUNT] = {`);
+	for (const object of collected.objects) {
+		const image = imageMeta[object.image];
+		const durations = collected.images[object.image].frames?.map((frame) => frame.ticks) ?? [1];
+		const padded = [...durations, ...new Array(8 - durations.length).fill(0)];
+		lines.push(`  {${image.frame_stride_words}u, ${image.frame_count}u, 0u, {${padded.map((v) => `${v}u`).join(',')}}},`);
 	}
 	lines.push('};');
 	lines.push('');
@@ -224,7 +258,10 @@ export function cookObjects({ ir, plan, paletteFile, planes, outDir }) {
 		planes: p,
 		foreground: collected.foreground_count,
 		occluders: collected.occluder_count,
-		images: imageMeta,
+		images: imageMeta.map((image, index) => ({
+			...image,
+			animated: (collected.images[index].frames?.length ?? 1) > 1,
+		})),
 		objects: collected.objects.map((object) => ({
 			id: object.id,
 			layer: object.layer,

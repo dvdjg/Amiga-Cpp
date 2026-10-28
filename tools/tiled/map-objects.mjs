@@ -13,7 +13,7 @@
 // dibuja su arte nativo a escala 1:1.
 
 import { decodeGid } from './parse-tmx.mjs';
-import { ImageCache, objectRect, resolveTileImage } from './compose-map.mjs';
+import { ImageCache, objectRect, resolveTileImage, tileNode, tileSetFor } from './compose-map.mjs';
 
 export const OBJECT_COOK_MODES = Object.freeze(['baked', 'foreground', 'occluder', 'collision', 'skip']);
 export const OBJECT_SORT_Y = Object.freeze(['base', 'top']);
@@ -173,6 +173,22 @@ function flattenObjectLayers(layers, out = []) {
 	return out;
 }
 
+/// Frames de la animación de un tile object (`null` si es estático).
+/// \param {object} ir IR de Tiled.
+/// \param {number} gid GID del objeto (los flips se decodifican aparte).
+/// \returns {Array<{gid:number,ticks:number}>|null}
+function tileAnimationFrames(ir, gid) {
+	const match = tileSetFor(ir, gid);
+	if (match == null) return null;
+	const tile = tileNode(match.tileset, match.local);
+	const frames = tile?.animation?.frames;
+	if (!frames || frames.length === 0) return null;
+	return frames.map((frame) => ({
+		gid: match.tileset.firstgid + frame.tileid,
+		ticks: Math.max(1, Math.round(Number(frame.duration) / 20)),
+	}));
+}
+
 /// Genera los `MapObject` de runtime (solo `foreground`/`occluder`) y las
 /// imágenes únicas que necesitan. No escribe ficheros: `cook-objects.mjs` hace
 /// la emisión binaria.
@@ -207,6 +223,14 @@ export function collectMapObjects(ir, plan = {}, { cache = new ImageCache() } = 
 				errors.push(`${layerName(layer)}: objeto ${object.id}: ${image.error}`);
 				continue;
 			}
+			const animation = tileAnimationFrames(ir, object.gid);
+			const frames = animation == null ? null : animation.map((frame) => {
+				const resolved = resolveTileImage(ir, frame.gid, cache, { useFirstFrame: true });
+				if (resolved.error != null) {
+					throw new Error(`${layerName(layer)}: objeto ${object.id}: ${resolved.error}`);
+				}
+				return { ...frame, image: resolved };
+			});
 			const nativeW = image.sw;
 			const nativeH = image.sh;
 			if ((object.width > 0 && Math.abs(object.width - nativeW) > 1e-6) ||
@@ -234,8 +258,10 @@ export function collectMapObjects(ir, plan = {}, { cache = new ImageCache() } = 
 					width: nativeW,
 					height: nativeH,
 					image,
+					frames,
 				});
 			}
+			if (frames != null) ++stats.animated;
 			const footY = rect.y + rect.h;
 			objects.push({
 				id: object.id,

@@ -167,13 +167,15 @@ function sameTimeline(a, b) {
 /// mapa concreto):
 /// - misma capa y misma línea temporal de frames;
 /// - el bounding box está completamente ocupado por el cluster (sin huecos);
-/// - al menos 2 celdas y 2 grupos distintos (si comparten gid, el banco ya
-///   reutiliza sus frames y fusionarlos solo gastaría memoria);
+/// - al menos 2 celdas y 2 grupos distintos;
+/// - si algún gid se repite en el mapa, el sprite fusionado duplicaría frames:
+///   solo se acepta si `duplicate_bytes` (sheet completa × frames) cabe en
+///   `maxDuplicateBytes`; con 0 se exige que cada gid se use una sola vez;
 /// - tamaño acotado (`maxCells`) para que el save-under no crezca sin control.
 /// Devuelve los clusters sin mutar los grupos; el llamador decide y aplica.
-/// \param {object} opts `{ layers, groups, maxCells }`
-/// \returns {Array<object>} clusters `{layer,minx,miny,maxx,maxy,cells}`
-export function findFusedClusters({ layers, groups, maxCells = 8 }) {
+/// \param {object} opts `{ layers, groups, maxCells, tile, planes, maxDuplicateBytes }`
+/// \returns {Array<object>} clusters `{layer,minx,miny,maxx,maxy,cells,duplicate_bytes,jobs_saved}`
+export function findFusedClusters({ layers, groups, maxCells = 8, tile = 16, planes = 6, maxDuplicateBytes = 0 }) {
 	const byLayer = layers.map(() => new Map());
 	const keyUses = new Map();
 	for (const group of groups.values()) {
@@ -221,12 +223,19 @@ export function findFusedClusters({ layers, groups, maxCells = 8 }) {
 			if (area !== comp.length) continue; // con huecos no es un sprite rectangular
 			const keys = new Set(comp.map((item) => item.cell.key));
 			if (keys.size < 2) continue; // mismo gid: ya comparte frames; no fusionar
-			// Si un gid se repite en el mapa, sus frames ya se comparten y una
-			// copia fusionada duplicaría el banco: eso es un tile repetido, no un
-			// objeto compuesto único. Solo se fusionan grupos de un solo uso.
-			if (comp.some((item) => (keyUses.get(item.cell.key) ?? 0) !== 1)) continue;
 			if (comp.some((item) => item.cell.frames.length < 2)) continue;
-			clusters.push({ layer: li, layerRef: start.cell.layer, minx, miny, maxx, maxy, cells: comp });
+			const duplicate = comp.some((item) => (keyUses.get(item.cell.key) ?? 0) !== 1);
+			const width = (maxx - minx + 1) * tile;
+			const height = (maxy - miny + 1) * tile;
+			const duplicateBytes = duplicate
+				? (width / 8) * height * planes * comp[0].cell.frames.length
+				: 0;
+			if (duplicateBytes > maxDuplicateBytes) continue;
+			clusters.push({
+				layer: li, layerRef: start.cell.layer, minx, miny, maxx, maxy,
+				cells: comp, duplicate_bytes: duplicateBytes,
+				jobs_saved: 2 * (comp.length - 1),
+			});
 		}
 	}
 	return clusters;
@@ -363,7 +372,12 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	// con la misma cadencia se cocina como **un grupo de un solo sprite** (un
 	// save-under y un blit por segmento) en vez de una plaqueta por celda. No
 	// depende de la fogata: cualquier mapa que produzca un cluster válido entra.
-	const fusedClusters = findFusedClusters({ layers, groups });
+	const fusionPolicy = plan?.animations?.fusion ?? {};
+	const fusedClusters = findFusedClusters({
+		layers, groups, tile, planes: p,
+		maxCells: asNumber(fusionPolicy.max_cells, 8),
+		maxDuplicateBytes: asNumber(fusionPolicy.max_duplicate_bytes, 0),
+	});
 	for (const cluster of fusedClusters) {
 		for (const item of cluster.cells) {
 			item.group.cells = item.group.cells.filter((c) =>
@@ -394,6 +408,8 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 				maxx: cluster.maxx,
 				maxy: cluster.maxy,
 				cells: cluster.cells.map((item) => item.cell),
+				duplicate_bytes: cluster.duplicate_bytes,
+				jobs_saved: cluster.jobs_saved,
 			},
 		});
 	}
@@ -509,6 +525,8 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			mask_offset: maskOffset,
 			mask_stride: frames[0].mask.length,
 			fused: `${group.fused.minx},${group.fused.miny} ${widthPx}x${heightPx}`,
+			duplicate_bytes: group.fused.duplicate_bytes,
+			jobs_saved: group.fused.jobs_saved,
 		};
 	}
 

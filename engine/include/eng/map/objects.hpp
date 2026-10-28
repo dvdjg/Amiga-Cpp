@@ -26,8 +26,10 @@
 /// No reserva memoria y no usa heap; los arrays generados deben sobrevivir a la
 /// vista (`.rodata`/Chip, según el asset).
 
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 
 namespace eng::map {
 
@@ -82,6 +84,79 @@ struct MapObjectImageView {
 
 static_assert(sizeof(MapObjectImageView) == 16u, "MapObjectImageView empaquetado");
 
+/// Animación de un objeto de mapa con arte planar. Los frames están contiguos
+/// en `object_sheet.bin`/`object_masks.bin`, separados por
+/// `frame_stride_words` palabras (imagen) y `row_words*height` (máscara). El
+/// objeto puede estar en cualquier píxel de mundo: lo coloca `MapSprite`/
+/// `MapSpriteCache`, no una rejilla de tiles.
+inline constexpr u8 kMapObjectMaxFrames = 8u; ///< máximo de frames por objeto.
+
+struct MapObjectAnimationView {
+	u16 frame_stride_words = 0u; ///< palabras entre frames consecutivos del sheet.
+	u8 frame_count = 0u;         ///< frames válidos (1 = estático).
+	u8 reserved = 0u;            ///< reservado.
+	u8 durations[kMapObjectMaxFrames] {}; ///< ticks de juego por frame (50 Hz).
+};
+static_assert(sizeof(MapObjectAnimationView) == 12u, "MapObjectAnimationView empaquetado");
+
+/// Frame visible de una animación para el tick de juego `tick` (0..).
+/// Si `frame_count <= 1` o no hay duraciones válidas, devuelve 0.
+[[nodiscard]] constexpr u8 object_frame_at_tick(const MapObjectAnimationView& anim,
+						u16 tick) noexcept {
+	if (anim.frame_count <= 1u) return 0u;
+	u32 cycle = 0u;
+	for (u8 i = 0u; i < anim.frame_count && i < kMapObjectMaxFrames; ++i) {
+		cycle += anim.durations[i];
+	}
+	if (cycle == 0u) return 0u;
+	u32 t = tick % cycle;
+	for (u8 i = 0u; i < anim.frame_count && i < kMapObjectMaxFrames; ++i) {
+		if (t < anim.durations[i]) return i;
+		t -= anim.durations[i];
+	}
+	return static_cast<u8>(anim.frame_count - 1u);
+}
+
+/// Construye el `Sprite` que dibuja un objeto de mapa con `MapSprite`/
+/// `MapSpriteCache`. El objeto puede estar en cualquier píxel de mundo; el
+/// `Bob` usa el layout planar con guarda del cooker y el frame actual se elige
+/// con `object_frame_at_tick`.
+/// \param image   imagen del objeto (offset y geometría en el sheet).
+/// \param anim    animación del objeto (frame_count, stride y duraciones).
+/// \param planes  planos del sheet (1..6).
+/// \param sheet   banco Chip de imágenes (p. ej. `object_sheet.bin`).
+/// \param mask    banco Chip de máscaras (p. ej. `object_masks.bin`).
+/// \return sprite no propietario; vacío si la geometría no es válida.
+[[nodiscard]] inline graphics::Sprite map_object_sprite(
+	const MapObjectImageView& image, const MapObjectAnimationView& anim,
+	u8 planes, ChipView<BobTag> sheet, ChipView<BobTag> mask) noexcept {
+	if (planes == 0u || image.width == 0u || image.height == 0u ||
+	    image.row_words == 0u || anim.frame_count == 0u ||
+	    anim.frame_stride_words == 0u) {
+		return {};
+	}
+	const u32 frame_bytes = static_cast<u32>(anim.frame_stride_words) * 2u;
+	const u32 mask_frame_bytes = static_cast<u32>(image.row_words) * 2u * image.height;
+	const u32 sheet_bytes = frame_bytes * anim.frame_count;
+	const u32 mask_bytes = mask_frame_bytes * anim.frame_count;
+	if (image.sheet_word_offset * 2u + sheet_bytes > sheet.size() ||
+	    image.mask_word_offset * 2u + mask_bytes > mask.size()) {
+		return {};
+	}
+	graphics::Bob bob {};
+	bob.sheet = sheet.subview(image.sheet_word_offset * 2u, sheet_bytes);
+	bob.mask = mask.subview(image.mask_word_offset * 2u, mask_bytes);
+	bob.width = image.width;
+	bob.height = image.height;
+	bob.planes = planes;
+	bob.frame_count = anim.frame_count;
+	bob.frame_stride = frame_bytes;
+	bob.layout = graphics::BobLayout::Planar;
+	bob.draw = graphics::BobDraw::CookieCut;
+	bob.mask_pack = graphics::BobMaskPack::SeparatePlane;
+	return graphics::Sprite {bob, sheet_bytes, mask_bytes};
+}
+
 /// Vista validada de la tabla de objetos y su catálogo. Los `objects` deben
 /// llegar **ordenados**: primero los `Foreground` por `sort_key` ascendente y,
 /// a igualdad, por `id`; después los `Occluder` con la misma regla.
@@ -91,14 +166,18 @@ public:
 	/// \param objects          registros generados (`kMapObjects`).
 	/// \param images           catálogo generado (`kMapObjectImages`).
 	/// \param foreground_count objetos `Foreground` al inicio de `objects`.
+	/// \param animations       tabla opcional `kMapObjectAnimations` (paralela a objects).
 	constexpr MapObjectsView(Span<const MapObjectView> objects,
 				 Span<const MapObjectImageView> images,
-				 u16 foreground_count) noexcept
-		: m_objects(objects), m_images(images), m_foreground(foreground_count) {}
+				 u16 foreground_count,
+				 Span<const MapObjectAnimationView> animations = {}) noexcept
+		: m_objects(objects), m_images(images), m_animations(animations),
+		  m_foreground(foreground_count) {}
 
 	/// `true` si los spans son coherentes (el conteo de foreground cabe).
 	[[nodiscard]] constexpr bool valid() const noexcept {
-		return m_foreground <= m_objects.size();
+		return m_foreground <= m_objects.size() &&
+		       (m_animations.empty() || m_animations.size() == m_objects.size());
 	}
 	[[nodiscard]] constexpr u16 count() const noexcept {
 		return static_cast<u16>(m_objects.size());
@@ -122,6 +201,18 @@ public:
 	[[nodiscard]] constexpr const MapObjectImageView& image_of(const MapObjectView& object) const noexcept {
 		return m_images[object.image];
 	}
+	/// ¿El objeto `index` tiene animación con más de un frame?
+	[[nodiscard]] constexpr bool animated(u16 index) const noexcept {
+		return index < m_animations.size() && m_animations[index].frame_count > 1u;
+	}
+	/// Animación de `index`; requiere `animated(index)`.
+	[[nodiscard]] constexpr const MapObjectAnimationView& animation(u16 index) const noexcept {
+		return m_animations[index];
+	}
+	/// Número de entradas de la tabla de animación (0 = sin tabla).
+	[[nodiscard]] constexpr u16 animation_count() const noexcept {
+		return static_cast<u16>(m_animations.size());
+	}
 
 	/// Primer índice de `foreground` con `sort_key() > key`.
 	///
@@ -144,6 +235,7 @@ public:
 private:
 	Span<const MapObjectView> m_objects {};
 	Span<const MapObjectImageView> m_images {};
+	Span<const MapObjectAnimationView> m_animations {};
 	u16 m_foreground = 0u;
 };
 

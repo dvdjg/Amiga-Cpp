@@ -69,7 +69,8 @@ El cooker no acepta un tile transparente “por convención”: una capa `overla
     "mode": "live",
     "layers": ["Water"],
     "objects": ["Object Layer 1"],
-    "max_visible_cells": 64
+    "max_visible_cells": 64,
+    "fusion": { "max_cells": 8, "max_duplicate_bytes": 0 }
   },
   "animation_budget": {
     "policy": "preserve50",
@@ -84,6 +85,7 @@ El cooker no acepta un tile transparente “por convención”: una capa `overla
 - `opaque` es una pista: permite copia directa en una capa viva. Si el arte tiene transparencia, el cooker debe rechazarla o el runtime debe usar máscara.
 - `occluders` debe coincidir con las capas en modo `occluder`.
 - `animations.mode: "patch"` es **legacy** (base con primer frame); se acepta con aviso para no romper assets antiguos, pero no es el camino recomendado.
+- `animations.fusion` controla la fusión automática de clusters: `max_cells` limita la caja (8) y `max_duplicate_bytes` el banco extra si un gid se repite (0 = solo gids únicos). El coste que se compara es el banco duplicado frente a los jobs ahorrados (`2 × (celdas - 1)` por cambio); el informe `animations.json` lo registra por grupo.
 
 ## 4. Fallback y presupuesto
 
@@ -164,7 +166,7 @@ El cook-plan puede llevar reglas de respaldo para una copia aún sin propiedades
 
 Las reglas por `gid` son una muleta para el fixture; para producción, clases y propiedades en la copia de cocina son la fuente de verdad. Los nombres de los objetos están vacíos, así que no son una clave fiable.
 
-`map-objects.mjs` resuelve cada objeto así: propiedades del objeto (`cook`, `sort_y`, `occluder`) → reglas de `objects.<capa>.rules` en orden (gana la primera coincidencia por `id`/`gid`/`class`/`type`/`name`) → `default`. Los modos son `baked`, `foreground`, `occluder`, `collision` y `skip`; `sort_y` es `base` (pie = `y + h`) o `top`; un `foreground` con `occluder=canopy` pasa a `occluder` y se dibuja después de los actores. El cooker emite `objects.h` con `MapObjectView` (posición de mundo, `foot_y`, `sort_key`, imagen y rol) ordenado por profundidad, `object_sheet.bin` (planos con guarda por fila) y `object_masks.bin` (1bpp). El runtime consume `eng::map::MapObjectsView` y `upper_bound_foreground(foot_y)` para intercalar props y actores; los objetos escalados, rotados o sin `gid` se rechazan en host. La demo 208 es el consumidor de referencia.
+`map-objects.mjs` resuelve cada objeto así: propiedades del objeto (`cook`, `sort_y`, `occluder`) → reglas de `objects.<capa>.rules` en orden (gana la primera coincidencia por `id`/`gid`/`class`/`type`/`name`) → `default`. Los modos son `baked`, `foreground`, `occluder`, `collision` y `skip`; `sort_y` es `base` (pie = `y + h`) o `top`; un `foreground` con `occluder=canopy` pasa a `occluder` y se dibuja después de los actores. El cooker emite `objects.h` con `MapObjectView` (posición de mundo, `foot_y`, `sort_key`, imagen y rol) ordenado por profundidad, `object_sheet.bin` (planos con guarda por fila) y `object_masks.bin` (1bpp). El runtime consume `eng::map::MapObjectsView` y `upper_bound_foreground(foot_y)` para intercalar props y actores; los objetos escalados, rotados o sin `gid` se rechazan en host. La demo 208 es el consumidor de referencia. Los objetos con animación de Tiled conservan sus frames contiguos en el mismo sheet y una tabla `MapObjectAnimationView` por objeto; `map_object_sprite` + `MapSpriteCache` los dibujan en píxeles arbitrarios, sin exigir alineación a tile.
 
 ## 6. Orden y occluders
 
@@ -184,7 +186,7 @@ Un `Occluder` no se pinta en el pase normal. Se redibuja después de los actores
 - Overlay transparente: cookie-cut solo si hace falta conservar el fondo.
 - Overlay opaco (`opaque: true`): copia directa, sin máscara.
 - Actor: save-under del engine, no del tile.
-- Objeto compuesto: `cook-animations` fusiona automáticamente clusters rectangulares de celdas animadas con la misma cadencia y gids de un solo uso en un grupo de un sprite (un blit y un save-under para toda la caja); es una regla general, no una excepción por objeto. Los gids repetidos no se fusionan para no duplicar el banco.
+- Objeto compuesto: `cook-animations` fusiona automáticamente clusters rectangulares de celdas animadas con la misma cadencia en un grupo de un sprite (un blit y un save-under para toda la caja); es una regla general, no una excepción por objeto. Si un gid se repite, solo se fusiona dentro del presupuesto `animations.fusion.max_duplicate_bytes` para no duplicar el banco sin control.
 - Occluder: solo dirty rects, nunca la capa completa por frame.
 - El scroll compone la **banda entrante**, no la pantalla completa.
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="2" height="2" tilewidth="16" tileheight="16" infinite="0" nextlayerid="3" nextobjectid="2">
+ <tileset firstgid="1" source="ortho.tsx"/>
+ <layer id="1" name="Ground" width="2" height="2">
+  <data encoding="csv">
+1,2,
+3,4
+</data>
+ </layer>
+ <objectgroup id="2" name="Objects" draworder="topdown">
+  <object id="1" name="animated" gid="2" x="10" y="5" width="16" height="16"/>
+ </objectgroup>
+</map>

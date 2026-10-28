@@ -45,3 +45,4 @@ Categoría `field` de la batería host (L1). El índice de categorías está en 
 | HOST-498 | [map_asset](498_map_asset/README.md) | `eng/map/asset.hpp`: `MapBundle` v1 big-endian, `MapAssetView` (magic/version/rangos), paleta `0x0RGB`, capas `u16` BE y `LayerView` como `TileMap` (wrap/borde/vac?o). |
 | HOST-499 | [tile_layer_stack](499_tile_layer_stack/README.md) | `eng/field/tile_layer_stack.hpp`: modos `Baked`/`Overlay`/`AnimatedOverlay`/`Occluder`, `live_count`, `is_live`, `baked_through` y prioridad de degradación. |
 | HOST-500 | [tile_animation_edge](500_tile_animation_edge/README.md) | `TileAnimator::draw_group`: última palabra de una fila de 352 px, cruce vertical del anillo, segmentación y jobs por plano. |
+| HOST-501 | [object_sprite](501_object_sprite/README.md) | `eng::map::map_object_sprite` y `object_frame_at_tick`: frames de un tile object animado y sprite planar con stride. |

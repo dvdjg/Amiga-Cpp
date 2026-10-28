@@ -1,4 +1,4 @@
-# HOST-496: save-under de celdas vivas (`MapCellSaveCache`/`MapCellSaveCacheSet`)
+# HOST-502: save-under de celdas vivas (`MapCellSaveCache`/`MapCellSaveCacheSet`)
 
 ## Qué cubre
 
@@ -29,10 +29,10 @@ Valida en host el cache de save-under por celda del surface (tiles animados de l
 ## Ejecución
 
 ```bash
-bash tools/run-host-tests.sh tests/host/graphics/496_cell_save_cache
+bash tools/run-host-tests.sh tests/host/graphics/502_cell_save_cache
 ```
 
-Salida esperada: `HOST-496: save-under de celdas OK`.
+Salida esperada: `HOST-502: save-under de celdas OK`.
 
 ## Alcance
 

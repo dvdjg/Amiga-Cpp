@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-496: MapCellSaveCache (save-under por celda viva del surface).
+// Test HOST-502: MapCellSaveCache (save-under por celda viva del surface).
 // ============================================================================
 //
 // Valida sin emulador:
@@ -16,7 +16,7 @@
 //   7) Sin slot libre (todas las entradas pintadas) la captura falla.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/graphics/496_cell_save_cache
+//   bash tools/run-host-tests.sh tests/host/graphics/502_cell_save_cache
 
 #include <cstdio>
 #include <cstring>
@@ -196,9 +196,9 @@ int main() {
 	test_capture_and_restore();
 	test_size_classes();
 	if (g_failures != 0) {
-		std::printf("HOST-496: %d fallos\n", g_failures);
+		std::printf("HOST-502: %d fallos\n", g_failures);
 		return 1;
 	}
-	std::printf("HOST-496: save-under de celdas OK\n");
+	std::printf("HOST-502: save-under de celdas OK\n");
 	return 0;
 }
