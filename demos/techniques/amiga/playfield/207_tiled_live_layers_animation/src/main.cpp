@@ -266,6 +266,9 @@ struct DemoGame {
 	eng::u32 m_update_cycles = 0u;
 	eng::u32 m_render_start = 0u;
 	eng::u32 m_render_cycles = 0u;
+	eng::u8 m_pause_warmup = 0u;
+	bool m_hud_pending = false;
+	bool m_patch_busy = false;
 	bool m_install_dirty = true;
 
 	static constexpr eng::s16 wrap_camera(eng::s32 value, eng::s32 span) {
@@ -354,6 +357,7 @@ struct DemoGame {
 		m_camera_y += dy;
 		if (m_camera_x == target.x && m_camera_y == target.y) {
 			m_pause_frames = pause_frames();
+			m_pause_warmup = 2u;
 			m_stop_index = static_cast<eng::u8>((m_stop_index + 1u) % m_stop_count);
 		}
 	}
@@ -430,6 +434,7 @@ struct DemoGame {
 		m_camera_x = m_stops[m_stop_index].x;
 		m_camera_y = m_stops[m_stop_index].y;
 		m_pause_frames = 0xffffu;
+		m_pause_warmup = 2u;
 #endif
 		layer_stack.configure(eng::Span<const playfield::TileLayerBinding> {kLiveLayers, 3u});
 
@@ -654,6 +659,19 @@ struct DemoGame {
 		eng::s16 tour_dx = 0, tour_dy = 0;
 		update_tour(tour_dx, tour_dy);
 		const bool tour_paused = m_pause_frames != 0u;
+		// M de régimen: el primer frame de la parada incluye la pasada completa
+		// de llegada. Se mide, y desde el segundo frame se reinicia para que M
+		// describa el coste estable de la animación, no la transición.
+		if (tour_paused) {
+			if (m_pause_warmup == 2u) {
+				m_pause_warmup = 1u;
+			} else if (m_pause_warmup == 1u) {
+				g_work_max = 0u;
+				m_pause_warmup = 0u;
+			}
+		} else {
+			m_pause_warmup = 0u;
+		}
 		if (!scene.update(plan, tour_dx, tour_dy, context.frame.frame_index)) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, Fail::Scroll);
@@ -674,10 +692,10 @@ struct DemoGame {
 		DEMO_PROF_END(0u);
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();
-		// Tope del parche: 24 jobs = 8 celdas con save-under (3 jobs/celda).
-		// La fogata (4 grupos de 1 celda) cabe completa en el mismo pase; el
-		// resto de celdas nuevas se reparten por el cursor entre frames.
-		plan.set_blit_budget_limits({16384, 65536, 24, 24});
+		// Tope del parche: 12 jobs por frame. Un grupo de 4 celdas enmascaradas
+		// necesita 12 jobs; con menos, el grupo nunca cabe y pass_deferred
+		// mantiene el redraw completo para siempre.
+		plan.set_blit_budget_limits({16384, 65536, 12, 12});
 		if (tour_paused) {
 #if defined(DEMO_BLIT_STATS) || defined(ENG_METRICS)
 			m_patch_stats = {};
@@ -740,6 +758,7 @@ struct DemoGame {
 		g_eng_frame_telemetry.blit_jobs = budget.jobs;
 		g_eng_frame_telemetry.blit_words = static_cast<eng::u16>(budget.words > 0xffffu ? 0xffffu : budget.words);
 #endif
+		m_patch_busy = plan.blit_job_count() != 0u;
 		DEMO_PROF_BEGIN(2u);
 		if (plan.blit_job_count() != 0u && !backend.execute_frame_plan(plan)) {
 			ready = false;
@@ -777,7 +796,8 @@ struct DemoGame {
 		// El HUD de host cambia de frame cada VBlank, pero rehacer su texto
 		// cuesta ~52k ciclos/frame. Se refresca cada 4 frames: sigue mostrando
 		// frame/fps (con un salto de 4) y libera CPU para el pase de agua.
-		if ((context.frame.frame_index & 3u) == 0u) {
+		if ((context.frame.frame_index & 3u) == 0u) m_hud_pending = true;
+		if (m_hud_pending && !m_patch_busy) {
 		eng::util::TextLine<96> stats;
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
 		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count()
@@ -808,6 +828,7 @@ struct DemoGame {
 #endif
 		host_hud.draw(backend.debug(), "207 TILED LIVE", kVersion, context.frame.frame_index,
 			      eng::debug::prof_clock(), stats.c_str());
+		m_hud_pending = false;
 		}
 		DEMO_PROF_END(4u);
 		m_update_cycles = eng::debug::DebugPeripheral::cycle_counter() - m_update_start;
