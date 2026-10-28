@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { decodeGid, parseTmxFile } from './parse-tmx.mjs';
 import {
 	ImageCache,
+	objectHasAnimation,
 	objectRect,
 	resolveTileImage,
 	tileHasAnimation,
@@ -329,20 +330,50 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 		group.cells.push({ layer, x: cell.x, y: cell.y, gid, key, frames, dither: shadow });
 	};
 	const flat = flattenLayers(ir.layers);
+	// Celdas animadas bajo un objeto/capa estatica posterior: no se animan para
+	// que el frame del agua no borre el sprite horneado que va encima.
+	const staticOverlapCells = (fromIndex) => {
+		const covered = new Set();
+		for (let i = fromIndex + 1; i < flat.length; ++i) {
+			const above = flat[i];
+			if (above.kind === 'object') {
+				for (const object of above.objects ?? []) {
+					if (object.gid == null || objectHasAnimation(ir, object, cache)) continue;
+					const image = resolveTileImage(ir, object.gid, cache, { useFirstFrame: true });
+					if (image.error != null) continue;
+					const rect = objectRect(ir, object, image.sw, image.sh);
+					const x0 = Math.max(0, Math.floor(rect.x / tile));
+					const y0 = Math.max(0, Math.floor(rect.y / tile));
+					const x1 = Math.min(width - 1, Math.floor((rect.x + rect.w - 0.001) / tile));
+					const y1 = Math.min(height - 1, Math.floor((rect.y + rect.h - 0.001) / tile));
+					for (let y = y0; y <= y1; ++y) {
+						for (let x = x0; x <= x1; ++x) covered.add(`${x},${y}`);
+					}
+				}
+			}
+			// Las capas de tiles estaticas pueden tener pixeles transparentes; no
+			// se suprimen celdas enteras por ellas. El solape que rompe el agua
+			// es el de los objetos/sprites (p. ej. la copa del arbol).
+		}
+		return covered;
+	};
 
-	for (const layer of flat) {
+	for (let li = 0; li < flat.length; ++li) {
+		const layer = flat[li];
 		if (layer.kind === 'tile') {
 			const policy = layerPolicy[layerName(layer)];
 			if (policy !== 'overlay' && policy !== 'animated' && policy !== 'live' && !animLayers.has(layerName(layer))) continue;
 			if (layer.width !== width || layer.height !== height) {
 				throw new Error(`${layerName(layer)}: capa ${layer.width}x${layer.height}, mapa ${width}x${height}`);
 			}
+			const suppressed = staticOverlapCells(li);
 			const out = { name: layerName(layer), cells: new Array(width * height).fill(null) };
 			for (let y = 0; y < height; ++y) {
 				for (let x = 0; x < width; ++x) {
 					const gid = layer.data?.cells?.[y * width + x] ?? 0;
 					if (gid === 0) continue;
 					if (policy !== 'live' && !tileHasAnimation(ir, gid) && !animLayers.has(layerName(layer))) continue;
+					if (suppressed.has(`${x},${y}`)) continue;
 					addCell(out, { x, y }, gid, policy === 'live', shadowDither && /shadow|sombra/i.test(layerName(layer)));
 				}
 			}
@@ -350,13 +381,14 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 		} else if (layer.kind === 'object') {
 			const policy = objectPolicy[layerName(layer)];
 			if (policy !== 'overlay' && policy !== 'animated' && policy !== 'live' && !animObjects.has(layerName(layer))) continue;
+			const suppressed = staticOverlapCells(li);
 			const out = { name: layerName(layer), cells: new Array(width * height).fill(null) };
 			for (const object of layer.objects ?? []) {
 				if (object.gid == null) continue;
 				if (policy !== 'live' && !tileHasAnimation(ir, object.gid) && !animObjects.has(layerName(layer))) continue;
 				const cell = objectCell(ir, object, cache, tile);
 
-				if (cell == null) continue;
+				if (cell == null || suppressed.has(`${cell.x},${cell.y}`)) continue;
 
 				addCell(out, cell, object.gid, policy === 'live', shadowDither && /shadow|sombra/i.test(layerName(layer)));
 			}

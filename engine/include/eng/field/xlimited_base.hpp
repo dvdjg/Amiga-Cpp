@@ -532,6 +532,10 @@ struct XlimitedConfigT {
     // izquierda contienen map[-1], resuelto por el wrap del mapa.
     u16 visible_tile_bias_x = 0;
     u16 visible_tile_bias_y = 0;
+    /// Reserva un segundo bitmap del mismo tamaño y activa el swap de display.
+    /// El consumidor debe llamar a `replicate_to_display()` y `flip()` por frame;
+    /// ver `XlimitedScene::double_buffer`.
+    bool double_buffer = false;
 };
 
 /// Alias del caso denso/disperso (`TileLayerMap`), retrocompatible.

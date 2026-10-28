@@ -300,6 +300,7 @@ function applyPlan(ir, plan) {
 /// Compone la imagen baked. Devuelve `{png, bounds, warnings, errors, stats}`.
 export function composeMap(ir, plan = null, { layerPreview = false, palette = false } = {}) {
 	const flat = applyPlan(ir, plan);
+	const bakeAnimatedFirstFrame = plan?.render?.bake_animated_first_frame === true;
 	const cache = new ImageCache();
 	const bounds = collectPixelBounds(ir, flat);
 	const align16 = (v) => Math.floor(v / 16) * 16;
@@ -334,7 +335,8 @@ export function composeMap(ir, plan = null, { layerPreview = false, palette = fa
 				++tileCount.cells;
 				if (gid === 0) return;
 				const animatedTile = tileHasAnimation(ir, gid);
-				if (!palette && (item.policy === 'overlay' || item.policy === 'animated') && animatedTile) {
+				if (!palette && !bakeAnimatedFirstFrame &&
+				    (item.policy === 'overlay' || item.policy === 'animated') && animatedTile) {
 					++tileCount.animated;
 					++tileCount.skippedAnimated;
 					return;

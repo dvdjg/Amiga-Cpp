@@ -240,6 +240,22 @@ public:
         this->m_total_bytes = m_bitmap.total_bytes();
         m_real_base = m_bitmap.allocation_start(); // base del bloque (BPLxPT)
         this->m_frontbuffer = m_bitmap.front(); // vía cruda interna (núcleo)
+        // Segundo ring opcional. El render escribe en `m_frontbuffer`; el display
+        // lee de `m_display_frontbuffer`. Sin doble buffer ambos son el mismo
+        // bloque y el camino no cambia.
+        m_display_real_base = m_real_base;
+        m_display_frontbuffer = this->m_frontbuffer;
+        if (this->m_cfg.double_buffer) {
+            // Soft DPF ya gestiona su propio buffer de plano de fondo; mezclarlo
+            // con el ring duplicado multiplica estados sin un contrato claro.
+            if (this->m_cfg.parallax_plane != 0xffu) return false;
+            if (!m_bitmap_back.init(memory, bc)) return false;
+            // El primer frame se dibuja en el ring A y se presenta en el B tras
+            // la réplica inicial; si ambos nacieran iguales, `flip()` no alternaría.
+            m_display_real_base = m_bitmap_back.allocation_start();
+            m_display_frontbuffer = m_bitmap_back.front();
+            m_double_buffer = true;
+        }
         // Soft DPF (RoboCod): configurar la composición y enlazar el bitmap
         // principal; si está activa reserva UN bitmap extra (doble buffer del plano
         // de fondo). Ver `soft_dpf.hpp`.
@@ -271,7 +287,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         // Patrón del plano de parallax (RoboCod) pintado una vez (CPU).
         fill_parallax_pattern();
         this->m_initialized = true;
-        m_anim_target = make_actor_target(hardware_view());
+        m_anim_target = make_actor_target(render_view());
         return true;
     }
 
@@ -753,11 +769,112 @@ graphics::BlitJob draw_block_job(u16 screen_x_px, u16 planeline_y, u16 map_cell_
         return m_scroll.scroll_up(plan, *this);
     }
 
+    /// `true` si el campo reservó un segundo ring y `flip()` alterna display/render.
+    constexpr bool double_buffered() const noexcept { return m_double_buffer; }
+
+    /// Vista del buffer **donde se dibuja** (el que consume el parche de animaciones).
+    /// Sin doble buffer coincide con `hardware_view()`.
+    PlayfieldHardwareView render_view() const {
+        PlayfieldHardwareView v = hardware_view();
+        if (m_double_buffer) {
+            v.bitplanes = this->m_frontbuffer;
+            v.real_base = m_real_base;
+        }
+        return v;
+    }
+
+    /// Replica en el buffer de display las regiones que acaba de tocar el plan.
+    ///
+    /// Es la **réplica de banda**: recorre los jobs ejecutados y copia cada
+    /// rectángulo destino al buffer visible con el mismo ancho/alto/módulo. No
+    /// duplica el scroll ni el parche: el Blitter hace copias `D=A` de las zonas
+    /// modificadas. Requiere que los jobs del plan sigan vivos (llamar antes de
+    /// `plan.clear()`).
+    ///
+    /// \param backend backend que materializa los jobs.
+    /// \param source  plan ya ejecutado cuyos destinos se copian.
+    /// \return `false` si el plan de réplica no cabe o el backend falla.
+    template <typename Backend>
+    bool replicate_to_display(Backend& backend, const graphics::FramePlan& source) {
+        if (!m_double_buffer || this->m_frontbuffer == m_display_frontbuffer) return true;
+        graphics::FramePlan replica {};
+        replica.set_blit_budget_limits({65536u, 131072u, 16u, 32u});
+        const s32 delta = static_cast<s32>(m_display_frontbuffer.value) -
+                          static_cast<s32>(this->m_frontbuffer.value);
+        for (u8 i = 0u; i < source.blit_job_count(); ++i) {
+            const graphics::BlitJob& src = source.blit_job(i);
+            if (src.destination.words() == nullptr || src.words_per_row == 0u || src.height == 0u) continue;
+            // Solo las escrituras dentro del ring de render se replican; los
+            // destinos auxiliares (save-under/máscaras) no son display.
+            const s32 rel = static_cast<s32>(src.destination.addr.value) -
+                            static_cast<s32>(this->m_frontbuffer.value);
+            if (rel < 0 || static_cast<u32>(rel) >= this->m_total_bytes) continue;
+            graphics::BlitJob copy = src;
+            copy.kind = graphics::BlitJobKind::CopyRect;
+            copy.minterm = 0xF0u;
+            copy.source = src.destination;
+            copy.destination = graphics::BlitPtr {src.destination.addr + delta};
+            copy.descending = false;
+            copy.source_plane_stride_bytes = src.interleaved ? 2u : src.source_plane_stride_bytes;
+            copy.destination_plane_stride_bytes = src.interleaved ? 2u : src.destination_plane_stride_bytes;
+            if (!replica.add_copy_rect(copy)) return false;
+        }
+        if (replica.blit_job_count() == 0u) return true;
+        if (!backend.execute_frame_plan(replica)) return false;
+        return true;
+    }
+
+    /// Copia el ring completo al buffer de display. Fallback para consumidores que
+    /// no conservan el plan de trabajo; la ruta recomendada es la réplica por banda.
+    template <typename Backend>
+    bool replicate_full_to_display(Backend& backend) {
+        if (!m_double_buffer || this->m_frontbuffer == m_display_frontbuffer) return true;
+        graphics::FramePlan replica {};
+        replica.set_blit_budget_limits({131072u, 262144u, 4u, 8u});
+        const u16 words = static_cast<u16>(this->m_bytes_per_row / 2u);
+        const u32 rows = static_cast<u32>(this->m_bitmap_height) * this->cplanes();
+        u32 made = 0u;
+        while (made < rows) {
+            const u16 chunk = static_cast<u16>((rows - made) > 1024u ? 1024u : (rows - made));
+            const u32 off = made * this->m_bytes_per_row;
+            graphics::BlitJob job {};
+            job.kind = graphics::BlitJobKind::CopyRect;
+            job.source = graphics::BlitPtr {this->m_frontbuffer + off};
+            job.destination = graphics::BlitPtr {m_display_frontbuffer + off};
+            job.words_per_row = words;
+            job.height = chunk;
+            job.source_modulo_bytes = 0;
+            job.destination_modulo_bytes = 0;
+            job.bitplane_count = 1u;
+            job.minterm = 0xF0u;
+            job.interleaved = true;
+            job.source_plane_stride_bytes = 2u;
+            job.destination_plane_stride_bytes = 2u;
+            if (!replica.add_copy_rect(job)) return false;
+            made += chunk;
+        }
+        if (!backend.execute_frame_plan(replica)) return false;
+        return true;
+    }
+
+    /// Intercambia display y render. Debe llamarse después de replicar y antes de
+    /// componer el siguiente frame; `hardware_view()` pasa a mirar el nuevo display.
+    void flip() {
+        if (!m_double_buffer) return;
+        const Address<MemoryKind::Chip> display = m_display_frontbuffer;
+        m_display_frontbuffer = this->m_frontbuffer;
+        this->m_frontbuffer = display;
+        const Address<MemoryKind::Chip> display_base = m_display_real_base;
+        m_display_real_base = m_real_base;
+        m_real_base = display_base;
+        m_anim_target = make_actor_target(render_view());
+    }
+
     /// Vista de hardware para el compositor (planeaddx + BPLCON1 + offset Y).
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v {};
-        v.bitplanes = this->m_frontbuffer;
-        v.real_base = m_real_base;
+        v.bitplanes = m_double_buffer ? m_display_frontbuffer : this->m_frontbuffer;
+        v.real_base = m_double_buffer ? m_display_real_base : m_real_base;
         v.bitmap_bytes_per_row = this->m_bytes_per_row;
         v.planes = this->cplanes();
         v.bitmap_height = this->m_bitmap_height;
@@ -1011,6 +1128,16 @@ private:
             // esto, un grupo sin trabajo de dibujo consumía presupuesto y dejaba
             // `m_redraw_visible_anim` prendido, reescaneando toda la capa cada
             // frame (coste de CPU dominante en las paradas).
+            // Una sola pasada: se guardan las celdas visibles con su destino ya
+            // resuelto. Antes se recorrían dos veces (visibilidad y pintura) y
+            // se recalculaban wx/wy/ring_y; era el coste dominante del parche.
+            struct PendingCell {
+                u16 cell;
+                u16 target_x;
+                u16 ring_y;
+            };
+            constexpr u16 kMaxPendingCells = 16u;
+            PendingCell pending[kMaxPendingCells];
             u16 draw_count = 0u; // celdas visibles que este grupo debe repintar
             for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
                 const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
@@ -1039,7 +1166,22 @@ private:
                                   m_anim_cell_visible[ci] != 0u))) {
                     continue;
                 }
-                ++draw_count;
+                if (draw_count >= kMaxPendingCells) {
+                    // Un grupo patológico supera la capacidad local; se difiere
+                    // entero para no pintar medio objeto.
+                    pass_deferred = true;
+                    if constexpr (Collect) {
+                        if (changed) if (stats.valid()) ++stats->groups_deferred;
+                    }
+                    return true;
+                }
+                s32 ring_y = ring_base + sy; // línea del anillo (px)
+                if (ring_y >= dh) ring_y -= dh;
+                pending[draw_count++] = PendingCell {
+                    ci,
+                    static_cast<u16>(wx),
+                    static_cast<u16>(ring_y),
+                };
             }
             if (draw_count == 0u) {
                 // El grupo no toca ninguna celda visible en este pase.
@@ -1061,26 +1203,11 @@ private:
             }
             bool group_drawn = false;    // al menos una celda del grupo se pintó
             bool capture_failed = false; // no se pudo guardar el fondo de una celda
-            for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
+            for (u16 pi = 0u; pi < draw_count; ++pi) {
+                const u16 ci = pending[pi].cell;
+                const u16 target_x = pending[pi].target_x;
+                const u16 ring_y = pending[pi].ring_y;
                 const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
-                if (!anim.test_cell_allowed(ci)) continue;
-                const s32 wx = static_cast<s32>(cell.x) * this->ctw(); // mundo X (px, sin envolver)
-                const s32 wy = static_cast<s32>(cell.y) * this->cth(); // mundo Y (px)
-                s32 sx = wx - camx_mod; // pantalla X (px) para visibilidad
-                if (sx < 0) sx += mapw;
-                s32 sy = wy - camy_mod - static_cast<s32>(this->cth()); // pantalla Y (px)
-                if (sy < 0) sy += maph;
-                if (sx >= this->m_cfg.viewport_w || sy >= this->m_cfg.viewport_h) {
-                    continue;
-                }
-                if (!changed && (!m_redraw_visible_anim ||
-                                 (ci < kTileAnimationMaxCells &&
-                                  m_anim_cell_visible[ci] != 0u))) {
-                    continue;
-                }
-                s32 ring_y = ring_base + sy; // línea del anillo (px)
-                if (ring_y >= dh) ring_y -= dh;
-                const u16 target_x = static_cast<u16>(wx); // destino físico: mundo sin envolver
                 if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
                     {
                         const bool was_painted = saver.painted(ci);
@@ -1350,7 +1477,11 @@ private:
     }
 
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
-    Address<MemoryKind::Chip> m_real_base {};
+    gfx::Bitmap m_bitmap_back {}; // segundo ring (solo con double_buffer)
+    Address<MemoryKind::Chip> m_real_base {}; // base del ring de render (BPLxPT)
+    Address<MemoryKind::Chip> m_display_real_base {}; // base del ring visible
+    Address<MemoryKind::Chip> m_display_frontbuffer {}; // buffer visible (+ fetch offset)
+    bool m_double_buffer = false;
     // Soft DPF (RoboCod): la composición (vista del plano de fondo + doble buffer)
     // vive en `soft_dpf.hpp`; el playfield solo la configura y la consulta.
     SoftDpfComposition m_soft_dpf {};

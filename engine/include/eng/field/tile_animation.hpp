@@ -241,11 +241,12 @@ public:
 		return group < m_groups.size() && m_changed[group] != 0u;
 	}
 	void clear_group(u16 g) const noexcept {
-		if (g < kTileAnimationMaxGroups) m_changed[g] = 0u;
-		bool any = false;
-		for (u16 i = 0u; i < m_groups.size() && i < kTileAnimationMaxGroups; ++i) any = any || m_changed[i] != 0u;
-		m_any_changed = any;
-		if (!any) m_changed_count = 0u;
+		if (g >= kTileAnimationMaxGroups || m_changed[g] == 0u) return;
+		m_changed[g] = 0u;
+		// `m_changed_count` lo mantiene `set_tick`; recalcularlo aquí recorriendo
+		// todos los grupos convertía el parche en O(grupos²) por frame.
+		if (m_changed_count != 0u) --m_changed_count;
+		if (m_changed_count == 0u) m_any_changed = false;
 	}
 	void clear_changes() const noexcept {
 		m_any_changed = false;

@@ -116,6 +116,15 @@ La base no debe contener el primer frame de una capa viva si el frame animado ti
 
 Así el fallback no necesita un segundo bitmap completo: la base limpia + un frame válido por celda viva es suficiente. Si el desarrollador quiere una variante totalmente estática, cuece otra selección con `baked_through` al final y sin `animations`.
 
+### 4.1 Solape con sprites estáticos
+
+Una celda animada puede quedar debajo de un objeto estático posterior (por ejemplo, la copa de un árbol sobre el agua). El runtime pinta el overlay animado **después** del bake, así que ese objeto horneado desaparecería. El cooker resuelve el solape en dos pasos:
+
+- `animations` no emite como vivas las celdas cubiertas por un objeto estático de una capa/objeto posterior (los objetos con animación propia no cuentan como estáticos). La consulta es por bounding box del objeto; las capas de tiles no suprimen celdas completas porque pueden tener transparencia.
+- `render.bake_animated_first_frame: true` incluye el primer frame de las capas animadas en la base. Las celdas suprimidas conservan así agua/flores + objeto, y el parche no puede borrar el objeto.
+
+Es una regla **conservadora**: no redibuja el sprite superpuesto en cada frame, sino que deja de animar la celda que quedaría tapada. Si se necesita animar debajo del sprite, el camino correcto es emitirlo como objeto `foreground`/`occluder` y dibujarlo después del parche (208); el cooker no inventa esa separación.
+
 ## 5. Objetos en una sola capa
 
 Tiled solo tiene `Object Layer 1`; no hace falta separar capas para cocer casas y mantener props en primer plano. Lo recomendable es **no tocar el TMX original** y trabajar con una **copia de cocina** (`*.cook.tmx`) donde cada objeto declare su rol mediante clase/propiedades:

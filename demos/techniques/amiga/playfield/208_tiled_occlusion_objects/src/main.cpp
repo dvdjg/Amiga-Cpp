@@ -481,17 +481,8 @@ struct DemoGame {
 	/// mundo → ventana → anillo vive en `MapSpriteView`, no en la demo.
 	bool draw_sprite(eng::graphics::FramePlan& frame_plan, const eng::graphics::Sprite& sprite,
 			 eng::u16 visible_w, eng::s32 world_x, eng::s32 world_y) {
-		const eng::graphics::MapSpriteView view {
-			scene.bg().mapposx(),
-			scene.bg().display_offset(),
-			static_cast<eng::u16>(m_layer.width * kTile),
-			kDisplayH,
-			kViewportW,
-			kFieldH,
-			m_bob_target.width,
-			m_bob_target.height,
-			m_bob_target.height,
-		};
+		const eng::graphics::MapSpriteView view =
+			scene.map_sprite_view(m_bob_target.width, m_bob_target.height);
 		const eng::graphics::MapSpritePlacement placement =
 			eng::graphics::place_map_sprite(static_cast<eng::s16>(world_x),
 						       static_cast<eng::s16>(world_y), visible_w,
@@ -511,17 +502,7 @@ struct DemoGame {
 	}
 
 	eng::graphics::MapSpriteView actor_view() const noexcept {
-		return eng::graphics::MapSpriteView {
-			scene.bg().mapposx(),
-			scene.bg().display_offset(),
-			static_cast<eng::u16>(m_layer.width * kTile),
-			kDisplayH,
-			kViewportW,
-			kFieldH,
-			m_bob_target.width,
-			m_bob_target.height,
-			m_bob_target.height,
-		};
+		return scene.map_sprite_view(m_bob_target.width, m_bob_target.height);
 	}
 
 	/// Restaura los dos frames posibles antes de ordenar props/actores. El

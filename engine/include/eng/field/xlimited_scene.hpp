@@ -314,6 +314,12 @@ struct XlimitedSceneConfigT {
     eng::playfield::AxisPolicy x_mode = eng::playfield::AxisPolicy::Ring; // eje X: Ring (XLimited) o
                                        // Finite (lineal acotado, sin guardas). Para un
                                        // juego de scroll Y largo con X corto (shooter).
+    /// **Doble buffer opcional**: reserva un segundo ring por playfield y muestra el
+    /// buffer copiado. El llamador debe ejecutar `replicate_to_display()` y `flip()`
+    /// antes de `compose()`/`install()` en cada frame. El coste es un bitmap extra
+    /// (p. ej. 76.032 B en 352×288×6) más la copia de las bandas tocadas; no reduce
+    /// el trabajo de scroll/parche, así que se mide antes de activarlo por defecto.
+    bool double_buffer = false;
     eng::u8 parallax_plane = 0xff;    // plano con parallax (RoboCod); 0xff = off
     eng::u8 parallax_div = 2;         // divisor de velocidad de ese plano
 
@@ -496,6 +502,7 @@ public:
             fc.visible_tile_bias_x = cfg.visible_tile_bias_x;
             fc.visible_tile_bias_y = cfg.visible_tile_bias_y;
             fc.fetch_mode = cfg.fetch_mode;
+            fc.double_buffer = cfg.double_buffer;
             if (!m_field[pf].begin(memory, fc)) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         // Compositores. Con franja HUD la ventana DIW queda abierta al TOTAL
@@ -546,7 +553,7 @@ public:
         if (cfg.hud.height != 0u) m_hud.clear(); // HUD limpio por defecto, sin trabajo del llamador
         // Destino de los actores BOB/CPU sobre el anillo (PF1). La base y el alto no
         // cambian con el scroll; la fila visible se corrige con `bob_y_offset`.
-        m_actor_target = make_actor_target(m_field[0].hardware_view());
+        m_actor_target = make_actor_target(m_field[0].render_view());
         m_initialized = true;
         return {};
     }
@@ -806,6 +813,43 @@ public:
             default: dx = 1; dy = 0; break;
         }
         return update(plan, dx, dy, frame);
+    }
+
+    /// `true` si la escena tiene doble buffer (uno por playfield).
+    constexpr bool double_buffered() const noexcept { return m_cfg.double_buffer; }
+
+    /// Replica en los buffers visibles las bandas tocadas por `source`.
+    /// Sin doble buffer es un no-op. Llamar antes de `flip()` y antes de limpiar
+    /// el plan; si no se conserva el plan, usar `replicate_full_to_display()`.
+    template <typename Backend>
+    bool replicate_to_display(Backend& backend, const graphics::FramePlan& source) {
+        if (!m_cfg.double_buffer) return true;
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].replicate_to_display(backend, source)) return false;
+        }
+        return true;
+    }
+
+    /// Fallback de réplica completa (ring entero) cuando no se conserva el plan.
+    template <typename Backend>
+    bool replicate_full_to_display(Backend& backend) {
+        if (!m_cfg.double_buffer) return true;
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            if (!m_field[pf].replicate_full_to_display(backend)) return false;
+        }
+        return true;
+    }
+
+    /// Presenta el buffer replicado: invierte display/render en cada playfield.
+    /// Debe ejecutarse antes de `compose()`/`install()`; el siguiente frame dibuja
+    /// en el buffer que deja de mostrarse.
+    void flip() {
+        if (!m_cfg.double_buffer) return;
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) m_field[pf].flip();
+        m_actor_target = make_actor_target(m_field[0].render_view());
     }
 
     /// Fuerza la re-emision de la copperlist en el proximo `compose()`.
@@ -1073,6 +1117,30 @@ public:
     Surface bg_surface() {
         return Surface(m_field[0], {0, 0, m_field[0].width(), m_field[0].display_height()});
     }
+    /// Vista de colocación de un sprite de mapa sobre el ring de PF1.
+    ///
+    /// Evita que cada demo reconstruya a mano `MapSpriteView` (viewport, ring,
+    /// wrap y tamaño del destino): el sprite se posiciona con el contrato de
+    /// `place_map_sprite`. `target_w/target_h` son el bitmap destino (p. ej.
+    /// `m_bob_target.width/height`).
+    /// \param target_w ancho del bitmap destino en píxeles.
+    /// \param target_h alto del bitmap destino en píxeles (anillo completo).
+    /// \return vista lista para `place_map_sprite`/`draw_map_sprite`.
+    [[nodiscard]] graphics::MapSpriteView map_sprite_view(u16 target_w, u16 target_h) const noexcept {
+        const XLimitedPlayfield<SC, MapT, Profile>& field = m_field[0];
+        return graphics::MapSpriteView {
+            field.mapposx(),
+            field.display_offset(),
+            static_cast<u16>(field.map_width_blocks() * m_cfg.tile_width),
+            static_cast<u16>(field.display_height()),
+            m_cfg.viewport_w,
+            m_cfg.viewport_h,
+            target_w,
+            target_h,
+            static_cast<u16>(field.display_height()),
+        };
+    }
+
     /// Superficie de dibujo sobre el lienzo HUD (coordenadas de lienzo = pantalla). El
     /// lienzo nace limpio a negro en `begin`; dibuja el contenido después.
     Surface hud_surface() {

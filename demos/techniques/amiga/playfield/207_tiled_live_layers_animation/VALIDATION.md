@@ -2,17 +2,17 @@
 
 ## Estado
 
-**Funcional corregida y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`); el cooker fusiona automáticamente la fogata 2×2 en un sprite 32×32 y el fondo real de cada celda se restaura con `MapCellSaveCacheSet` (save-under del surface), sin usar el tile cocinado. **Rendimiento: 28,06 fps de media, mínimo 22,19**; la media supera el suelo de 25, el HUD se refresca cada 4 frames y la parada de agua alcanza 25,50; el mínimo de ventana y el 50 Hz siguen abiertos.
+**Funcional corregida y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`); el cooker fusiona automáticamente la fogata 2×2 en un sprite 32×32 y el fondo real de cada celda se restaura con `MapCellSaveCacheSet` (save-under del surface), sin usar el tile cocinado. **Rendimiento: 31,90 fps de media, mínimo 21,79**; la media supera el suelo de 25, el HUD se refresca cada 4 frames y la parada de agua alcanza 30,37; el mínimo de ventana y el 50 Hz siguen abiertos.
 
 ## Medidas
 
 | Build | fps | ciclos/frame | campos/frame | Notas |
 |---|---:|---:|---:|---|
-| `A500_release` visita con fusión + HUD/4 | 28,06 | 252 792 | 1,782 | 8 ventanas, 22,19-40,66 fps |
-| `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) + HUD/4 | 25,50 | 278 222 | 1,961 | 2 campos estables |
+| `A500_release` visita con fusión + HUD/4 | 31,90 | 222 392 | 1,568 | 8 ventanas, 21,79-44,37 fps |
+| `A500_release` parada de agua congelada (`DEMO_TOUR_STOP=1`) + HUD/4 | 30,37 | 233 602 | 1,647 | 2 campos estables |
 | `A500_release` parada de agua sin parche (ablación) | 49,90 | 142 150 | 1,00 | el coste está en el parche, no en el scroll/HUD |
 
-La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí. La media no se usa como presupuesto. El avance circular sin `%` por grupo (`__umodsi3`), el job único por celda y el HUD cada 4 frames subieron la parada de 18,18 a 25,50 fps.
+La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas y las paradas sí. La media no se usa como presupuesto. El avance circular sin `%` por grupo (`__umodsi3`), el job único por celda y el HUD cada 4 frames subieron la parada de 18,18 a 30,37 fps.
 
 ## Contrato
 
@@ -35,15 +35,15 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 
 ## Análisis del mínimo
 
-- La visita mide **22,19 fps** en su ventana más lenta. Las paradas aisladas de agua y flores con el mismo build dan **25,50 fps** (278.222 y 278.134 ciclos), así que el mínimo no está en esas paradas.
-- La parada de la fogata (`DEMO_TOUR_STOP=0`) es el peor caso medido: **15,45 fps**, 459.113 ciclos/frame, 3,236 campos. El perfil de secciones es `P=12/115/36/51/13` (scroll+execute / construcción del parche / execute / compose / HUD) y `N=17` jobs. El coste está en el pase de parche/Blitter de la escena completa, no en el HUD. Sin la fusión del objeto compuesto baja a **13,58 fps**: la fusión ayuda, pero no elimina el cuello.
-- **Doble buffer opcional**: el anillo actual es 352×288×6 planos = 76.032 B; dos buffers = 152.064 B. Esa reserva **sí cabe** en los 512 KB de un A500, pero no en el perfil de 128 KB de 207 y deja muy poco margen al sumar tilebank (~218 KB), sheet (~47,6 KB), save-under (~30 KB) y HUD. Además no basta con reservar: el segundo buffer necesita swap del compositor y replicar/copiar la banda que entra cada frame, porque el scroll solo escribe en el buffer activo. Es una opción de motor (perfil de 256/384 KB), no un cambio local; para el mínimo actual la vía más barata es reducir el parche sucio, no duplicar el framebuffer.
+- La visita mide **21,79 fps** en su ventana más lenta. La parada aislada de agua con el mismo build da **30,37 fps** (233.602 ciclos), así que el mínimo no está en esa parada.
+- La parada de la fogata (`DEMO_TOUR_STOP=0`) es el peor caso medido: **17,25 fps**, 411.241 ciclos/frame, 2,899 campos. El perfil de secciones es `P=12/93/38/51/13` (scroll+execute / construcción del parche / execute / compose / HUD) y `N=17` jobs. El coste está en el pase de parche/Blitter de la escena completa, no en el HUD. Sin la fusión del objeto compuesto baja a **13,58 fps**: la fusión ayuda, pero no elimina el cuello.
+- **Doble buffer opcional**: el anillo actual es 352×288×6 planos = 76.032 B; dos buffers = 152.064 B. Esa reserva **sí cabe** en los 512 KB de un A500, pero no en el perfil de 128 KB de 207 y deja muy poco margen al sumar tilebank (~233 KB), sheet (~24,8 KB), save-under (~30 KB) y HUD. El motor ya tiene XlimitedSceneConfig::double_buffer, swap y réplica por bandas; el build DEMO_DOUBLE_BUFFER=1 usa 256 KB y se midió en A1200: **11,10 fps** frente a **15,99** del mismo build sin doble buffer. No se activa por defecto. A500 sigue sin poder reservar el segundo ring con el ejecutable cargado en Chip.
 
 ## Visión local (Ollama)
 
 - La pasada canónica sigue siendo un falso negativo global sobre detalles de 16 px: describe la escena como estática. La respuesta cruda queda en `src/VISION.md`; no se usa para dar la animación por válida.
 - La evidencia que prevalece es la **secuencia** y el frame-diff, no el análisis por-frame aislado (un frame suelto no permite comparar). En la secuencia posterior a la fusión, Ollama describe el cambio de llamas de la fogata 32×32 y no observa huecos, bloques negros, halos ni restos del frame anterior; `frame-diff` muestra cambios localizados.
-- El agua tiene 52 grupos y 161 celdas vivas; en la parada de agua congelada se ven sus celdas y sus frames cambian. La parada usa la primera celda del cluster, no el centro del bounding box.
+- El agua tiene 44 grupos y 127 celdas vivas (34 celdas bajo objetos estáticos quedan cocidas); en la parada de agua congelada se ven sus celdas y sus frames cambian. La parada usa la primera celda del cluster, no el centro del bounding box.
 
 ## Telemetría Tiled
 
@@ -53,7 +53,8 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 
 ## Deuda
 
-- Rendimiento: media 28,06 pero mínimo 22,19 y sin 50 Hz estables; la parada de agua ya supera 25 con el HUD cada 4 frames. Perfilar la ventana más lenta y valorar doble buffer o repartir la entrada de celdas nuevas.
+- Rendimiento: media 31,90 pero mínimo 21,79 y sin 50 Hz estables; la parada de agua ya supera 30 con el HUD cada 4 frames. La fogata sigue en 17,25 y el doble buffer medido no compensa en este frame. Perfilar el pase de parche y repartir la entrada de celdas nuevas.
+- `build_tour`/las paradas siguen locales: solo 207 las consume. `ScrollTour` se extraerá cuando aparezca un segundo consumidor real, no antes.
 - Confirmar el encaje de las flores en celdas tapadas por `Road/Shadows` si se amplía la ventana; el aviso del validador sigue abierto.
 - Repetir la validación de flicker de alta frecuencia cuando el coste permita una secuencia frame-step sin cuantización.
 - Mantener el tope de 24 jobs y el orden por capas si se añaden más objetos compuestos; validar que cada compuesto cabe entero en un pase.

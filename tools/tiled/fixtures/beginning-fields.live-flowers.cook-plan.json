@@ -5,6 +5,7 @@
   "chunk": { "cells": 16 },
   "render": {
     "schema": 1,
+    "bake_animated_first_frame": true,
     "modes": {
       "Ground": "baked",
       "Flowers": "animated",

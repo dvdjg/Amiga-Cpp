@@ -364,7 +364,13 @@ struct DemoGame {
 		eng::debug::mark_init_started(g_eng_run_status);
 		// 128K chip: bitmap corkscrew + HUD + Copper + save-under de celdas vivas
 		// (96 × 16×16 × 6 planos = 18 KB). 16K slow para el resto de estructuras.
-		if (!backend.configure_memory({128u * 1024u, 16u * 1024u, 0u})) {
+		// La variante DEMO_DOUBLE_BUFFER reserva 256K para el segundo ring.
+#if defined(DEMO_DOUBLE_BUFFER)
+		constexpr eng::u32 kChipBytes = 256u * 1024u;
+#else
+		constexpr eng::u32 kChipBytes = 128u * 1024u;
+#endif
+		if (!backend.configure_memory({kChipBytes, 16u * 1024u, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
 			return;
 		}
@@ -438,6 +444,9 @@ struct DemoGame {
 		scene_cfg.blocks_prebuilt_size = g_tiled_bank_size;
 		scene_cfg.palette = g_palette;
 		scene_cfg.animator = animator; // referencia no propietaria al animador de la demo
+#if defined(DEMO_DOUBLE_BUFFER)
+		scene_cfg.double_buffer = true;
+#endif
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::SceneBegin);
@@ -465,6 +474,15 @@ struct DemoGame {
 			return;
 		}
 		animator.clear_changes();
+#if defined(DEMO_DOUBLE_BUFFER)
+		// El fill/pre_scroll y el pase inicial de animaciones se hicieron en el
+		// ring de render; volcar el frame completo al display antes de presentar.
+		if (!scene.replicate_full_to_display(backend)) {
+			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
+			return;
+		}
+		scene.flip();
+#endif
 		if (!scene.compose()) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::ComposeInit);
 			return;
@@ -631,6 +649,13 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 			return;
 		}
+#if defined(DEMO_DOUBLE_BUFFER)
+		if (!scene.replicate_to_display(backend, plan)) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
+			return;
+		}
+#endif
 		DEMO_PROF_END(0u);
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();
@@ -698,6 +723,14 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
 			return;
 		}
+#if defined(DEMO_DOUBLE_BUFFER)
+		if (!scene.replicate_to_display(backend, plan)) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, Fail::Blitter);
+			return;
+		}
+		scene.flip();
+#endif
 #if defined(DEMO_DEBUG_ONE_CELL)
 		verify_debug_jobs();
 #endif
