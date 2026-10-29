@@ -268,6 +268,7 @@ struct DemoGame {
 	eng::u32 m_render_cycles = 0u;
 	eng::u8 m_pause_warmup = 0u;
 	eng::u8 m_budget_hold = 0u; // frames de histéresis de la degradación del agua
+	eng::u8 m_scroll_patch_skip = 0u; // frames que faltan para el próximo parche en scroll
 	bool m_hud_pending = false;
 	bool m_patch_busy = false;
 	eng::u8 m_hud_busy_frames = 0u; // frames seguidos con parche pendiente (tope de refresco del HUD)
@@ -549,11 +550,33 @@ struct DemoGame {
 	static constexpr eng::u32 kDegradeFps10 = 410u;
 	static constexpr eng::u32 kRestoreFps10 = 450u;
 	static constexpr eng::u8 kBudgetHold = 4u;
+	/// Durante el scroll el parche solo toca la fogata y se ejecuta cada
+	/// `kScrollPatchPeriod` frames: el fuego conserva ~10 fps (su cadencia de
+	/// arte) y las flores/agua se quedan en su último frame. Parchear cada
+	/// frame durante el scroll disparaba el coste de la tabla de visibilidad.
+	static constexpr eng::u8 kScrollPatchPeriod = 5u;
 
-	void apply_animation_budget() {
+	void apply_animation_budget(bool paused) {
+#if defined(DEMO_NO_LIVE)
+		// Ablación base-vs-vivo: las capas se quedan desactivadas del init.
+		(void)paused;
+		return;
+#else
 		if (!kBudgetedAnimations) {
-			animator.set_layer_animation_enabled(0u, true);
-			animator.set_layer_animation_enabled(1u, true);
+			// Tope fijo de 8 jobs: en las paradas se animan las tres capas;
+			// durante el scroll solo la fogata (las flores/agua se quedan en
+			// el último frame, que es menos visible que congelar el fuego).
+			animator.set_layer_animation_enabled(0u, paused);
+			animator.set_layer_animation_enabled(1u, paused);
+			animator.set_layer_animation_enabled(2u, true);
+#if defined(DEMO_DISABLE_LAYER)
+			animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
+#endif
+			return;
+		}
+		if (!paused) {
+			animator.set_layer_animation_enabled(0u, false);
+			animator.set_layer_animation_enabled(1u, false);
 			animator.set_layer_animation_enabled(2u, true);
 #if defined(DEMO_DISABLE_LAYER)
 			animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
@@ -572,6 +595,7 @@ struct DemoGame {
 		animator.set_layer_animation_enabled(0u, true);
 		animator.set_layer_animation_enabled(1u, water);
 		animator.set_layer_animation_enabled(2u, true);
+#endif
 	}
 
 #if defined(DEMO_DEBUG_ONE_CELL)
@@ -701,13 +725,14 @@ struct DemoGame {
 		DEMO_PROF_FRAME();
 		eng::debug::metrics.begin_frame(context.frame.frame_index);
 		DEMO_PROF_BEGIN(0u);
-		apply_animation_budget();
-		animator.set_tick(context.frame.frame_index);
 		plan.clear();
 		plan.set_blit_budget_limits({16384, 65536, 120, 512});
 		eng::s16 tour_dx = 0, tour_dy = 0;
 		update_tour(tour_dx, tour_dy);
 		const bool tour_paused = m_pause_frames != 0u;
+		if (tour_paused) m_scroll_patch_skip = 0u;
+		apply_animation_budget(tour_paused);
+		animator.set_tick(context.frame.frame_index);
 		// M de régimen: el primer frame de la parada incluye la pasada completa
 		// de llegada. Se mide, y desde el segundo frame se reinicia para que M
 		// describa el coste estable de la animación, no la transición.
@@ -746,8 +771,13 @@ struct DemoGame {
 		// suma). Las celdas de silueta fija (agua) cuestan un blit. Con 6 el
 		// grupo de 4 no cabe nunca y `pass_deferred` no termina; con 12 medido
 		// peor: más jobs por frame suben el pico sin reducir el trabajo total.
+		// El parche se ejecuta también durante el scroll: la política de capas
+		// deja activa solo la fogata (las flores/agua se quedan en su último
+		// frame) y el pase se repite cada `kScrollPatchPeriod` frames para que
+		// el fuego siga sin pagar la tabla de visibilidad en cada frame.
 		plan.set_blit_budget_limits({16384, 65536, 8, 8});
-		if (tour_paused) {
+		const bool patch_now = m_scroll_patch_skip == 0u;
+		if (patch_now) {
 #if defined(DEMO_BLIT_STATS) || defined(ENG_METRICS)
 			m_patch_stats = {};
 #if defined(DEMO_NO_PATCH)
@@ -783,6 +813,9 @@ struct DemoGame {
 						eng::debug::Metric::TiledGroupsDeferred, m_patch_stats.groups_deferred);
 				}
 			}
+			if (!tour_paused) m_scroll_patch_skip = kScrollPatchPeriod - 1u;
+		} else if (m_scroll_patch_skip != 0u) {
+			--m_scroll_patch_skip;
 		}
 #if defined(DEMO_DEBUG_ONE_CELL)
 		capture_debug_jobs(plan);
