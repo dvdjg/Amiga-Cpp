@@ -26,6 +26,7 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 | [hardware-zoom.md](hardware-zoom.md) | **Zoom hardware**: vertical por `BPLxMOD` (repetir/saltar líneas) + horizontal por `BPLCON1` a mitad de línea (truco `$102`, magic table, límite de 4 planos) + pre-escalados y Blitter; contrasta con el rotozoom software del engine |
 | [copper-timing-and-budget.md](copper-timing-and-budget.md) | Presupuesto de bus/ciclos PAL, coste de instrucciones 68000, límites de Copper por línea y la técnica SMC (parchear la copperlist); incluye lo medido en la demo 125 |
 | [blitter-cpu-interleaving.md](blitter-cpu-interleaving.md) | Solape Blitter/CPU: arrancar el blit y hacer cómputo solo-registros durante la espera; estado del seam (`wait_blitter`, servicio de fondo, espera diferida) |
+| [beam-safe-bobs.md](beam-safe-bobs.md) | **BOBs sobre fondos animados**: carrera con el haz en buffer único; scheduler por deadlines con `VPOSR`, blits disparados por Copper y doble buffer por banda; qué puede hacer el engine sin duplicar la pantalla |
 | [cpu-blit-assist.md](cpu-blit-assist.md) | CPU + blitter en paralelo (A1200+) |
 | [audio-mixing.md](audio-mixing.md) | Mezcla de audio para juegos |
 | [sprite-layer.md](sprite-layer.md) | Sprites hardware (OCS/ECS/AGA): formato, colores por par, **attached (15 colores)**, prioridad `BPLCON2`, multiplexado vertical/horizontal, **sprite-as-playfield**, colisión `CLXCON/CLXDAT`, antipatrones y estado en el engine |
