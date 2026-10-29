@@ -281,6 +281,19 @@ No inventes coordenadas en píxeles; usa zonas relativas. Sé literal y señala 
 
 La lección operativa es que **la pregunta debe nombrar la entidad y la transición**. «¿Ves algún parpadeo?» sobre una escena completa produce respuestas genéricas y a veces falsas; «¿en qué frames A queda oculto por C y la transición es continua?» sobre un recorte temporal es verificable.
 
+### 6.4.4 Pase de artefactos oscuros: base frente a vivo (obligatorio con capas vivas sobre sombras u objetos)
+
+Cuando una capa viva (flores, agua, objetos animados) se repinta **encima de una sombra u objeto estático**, la pasada de visión puede describir la escena como correcta y no ver una cuña/bloque oscuro de 16 px. Caso real (207, 2026-10-29): una flor junto a un tocón mostraba una **cuña de 196 px con luminancia 44** (34,51,34, casi negra a 2×) que la pasada canónica no marcó y que una pregunta amplia sobre las flores tampoco. La cuña era la capa de cobertura reestampando la sombra horneada como un sprite sólido.
+
+Procedimiento obligatorio cuando haya solape con sombras/objetos:
+
+1. **Referencia base**: capturar la misma parada con las capas vivas desactivadas (`DEMO_NO_LIVE=1` en 207; la base cocida, sin overlays ni coberturas) y la misma cámara.
+2. **Detector objetivo**: `node tools/analyze/dark-clusters.mjs <frame.png> --reference <base.png> --region x,y,w,h` busca clusters de píxeles con luminancia < `--max-luma` (48 por defecto; calibrar con el color legítimo más oscuro de la referencia, p. ej. 59 en 207) que **no estaban** en la base. Un cluster ≥12 px es un candidato.
+3. **Visión dirigida**: recorte 4–10× del candidato (no la escena completa) + pregunta concreta («¿hay una cuña/triángulo/bloque oscuro entre X e Y? ¿la sombra es continua o está a bloques?»). El modelo es un filtro de sospecha: en 207 confirmó la cuña antes del arreglo y después dio un **falso positivo** (dijo que seguía) mientras el píxel más oscuro de la zona era marrón (85,51,34); manda el píxel, no la respuesta.
+4. **Registro**: guardar en `VALIDATION.md` el bbox/tamaño del cluster, el comando, el recorte y la respuesta cruda. Sin el detector y la referencia, un «no veo nada raro» no acredita ausencia de artefactos oscuros.
+
+Regla de origen: las **sombras horneadas** cuentan para decidir si una celda queda mayormente tapada (se cuece para conservarlas), pero **no se reestampan** en la cobertura; la cobertura es solo para objetos opacos. Reestampar una sombra con su sprite la convierte en un bloque sólido.
+
 ### 6.5 Artefactos de una pasada de visión: nombres y ubicación
 
 Toda pasada de visión deja **dos artefactos** con nombre canónico, **en la propia carpeta de la demo** (junto a su `src/`), ignorados por git (reglas `demos/**/vision/` y `demos/**/*_report.md` del `.gitignore`; **nunca** se copian a `docs/`):

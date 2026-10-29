@@ -386,7 +386,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 Antes de dar un turno por cerrado, repasar en orden; cada punto enlaza su regla completa:
 
 1. **Evidencia y alcance** (§1.5): lo afirmado no excede lo probado; lo no cubierto queda **«SIN VERIFICAR»**, no «correcto».
-2. **Visión Ollama** (§0 y `DEMO_VISUAL_DEBUG.md` §6.4): si hay demo/efecto/imagen, mirar la salida real con el modelo de visión — para animación, **secuencia**, no una captura suelta.
+2. **Visión Ollama** (§0 y `DEMO_VISUAL_DEBUG.md` §6.4): si hay demo/efecto/imagen, mirar la salida real con el modelo de visión — para animación, **secuencia**, no una captura suelta. Si hay capas vivas sobre sombras u objetos, pasar además el **pase de artefactos oscuros base-vs-vivo** (§6.4.4) con `tools/analyze/dark-clusters.mjs` y una captura `DEMO_NO_LIVE=1` de referencia.
 3. **Presupuesto y estabilidad** (§3): fps, cadencia sin tirones y flicker medidos; `VALIDATION.md` de la demo actualizado si cambió el render o el coste.
 4. **HUD de depuración del host** (§0): la demo muestra en `app.debug().text` nombre + número + versión + contador de frames + fps; el viewport/`VersionStrip` no sustituye esa obligación.
 5. **Docs en regla**: hallazgos indexados en su README de carpeta y en `DOC-MAP` §3; `node tools/check/doc-index.mjs`, `links.mjs`, `encoding.mjs` y `entrypoints.mjs` en verde (§1.3, §1.4).
