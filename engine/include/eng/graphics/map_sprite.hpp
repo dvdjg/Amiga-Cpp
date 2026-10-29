@@ -694,21 +694,30 @@ private:
 		return end <= static_cast<u32>(t.planes.size());
 	}
 
-	/// Copia `planes` rectángulos entre el destino interleaved y el buffer
-	/// planar `[plano][fila][palabra]`. El paso entre filas del destino es
-	/// `row_bytes × planes` (una fila física del anillo); el del buffer es
-	/// `words × 2`.
+	/// Copia la celda entre el destino y el buffer de save-under.
+	///
+	/// **Destino interleaved**: el buffer se guarda en el mismo orden
+	/// `[fila][plano][palabra]` que el anillo. Así el paso de una fila-plano a
+	/// la siguiente es constante en ambos lados (`row_bytes` en el anillo y
+	/// `words×2` en el buffer) y basta **un solo blit** con
+	/// `height = h × planos` y `bitplane_count = 1` (el truco de los BOB
+	/// interleaved aplicado a una copia). Antes se encolaba un job por plano
+	/// (6 BLTSIZE con sus esperas) para la misma celda.
+	///
+	/// **Destino planar**: se conserva el camino multi-plano con strides por
+	/// plano, porque las filas de un plano no son contiguas entre planos.
+	///
 	/// \param plan destino de los trabajos (recibe un `CopyRect`/`RestoreRect`).
-	/// \param t bitmap destino interleaved del anillo.
+	/// \param t bitmap destino del anillo.
 	/// \param e entrada con posición (`x,y`), tamaño (`w,h`) y `captured`/`painted`.
 	/// \param slot índice en la arena de save-under (origen del stride `cell_stride`).
 	/// \param capture `true` = destino→buffer (guardar); `false` = buffer→destino.
 	/// \return `false` si el plan rechaza el trabajo.
 	[[nodiscard]] bool emit_copy(FramePlan& plan, const BobTarget& t, const Entry& e,
 				     u16 slot, bool capture) const noexcept {
-		// Unidades: `words` palabras por fila; `row_step` bytes entre filas del
-		// anillo interleaved; `save_row_bytes` bytes por fila del buffer;
-		// `save_plane_step` bytes entre planos del buffer.
+		// Unidades: `words` palabras por fila de un plano; `row_step` bytes entre
+		// filas de display del anillo; `save_row_bytes` bytes de una fila-plano
+		// del buffer; `save_plane_step` bytes entre planos (solo destino planar).
 		const u16 words = static_cast<u16>(e.w / 16u);
 		const u32 row_step = static_cast<u32>(t.row_bytes) * t.plane_count;
 		const u32 save_row_bytes = static_cast<u32>(words) * 2u;
@@ -720,13 +729,32 @@ private:
 		const u32 save_off = static_cast<u32>(slot) * m_cell_stride;
 		const BlitPtr target_ptr {t.planes, static_cast<s32>(target_off)};
 		const BlitPtr save_ptr {m_storage.mem_view(), static_cast<s32>(save_off)};
-		// UN trabajo para los `planes` planos (como `bob_save_box`): el backend
-		// recorre los planos con `source/destination_plane_stride`. Emitir uno
-		// por plano multiplicaba por 6 los jobs del plan y el coste de CPU del
-		// parche sin cambiar el trabajo del Blitter.
 		// `job` = ranura del plan; kind CopyRect (guardar) o RestoreRect (devolver).
 		graphics::BlitJob& job = plan.begin_blit_job(capture
 			? BlitJobKind::CopyRect : BlitJobKind::RestoreRect);
+		if (t.interleaved()) {
+			// Buffer `[fila][plano][palabra]`: el anillo avanza `row_bytes` por
+			// fila-plano (las filas de display tienen los planos contiguos) y el
+			// buffer avanza `words×2`. Un BLTSIZE recorre h×planos filas.
+			// Diferencia pequeña y positiva (la celda cabe en la fila); el
+			// `mod16` la recibe como s32 por promoción, sin cast de tipo.
+			const s32 ring_mod = mod16(t.row_bytes - words * 2u);
+			job.source = capture ? target_ptr : save_ptr;
+			job.destination = capture ? save_ptr : target_ptr;
+			job.source_modulo_bytes = capture ? ring_mod : 0;
+			job.destination_modulo_bytes = capture ? 0 : ring_mod;
+			job.words_per_row = words;
+			job.height = static_cast<u16>(e.h * t.plane_count); // h*planos, contrato u16 de BlitJob
+			job.bitplane_count = 1;
+			job.source_shift = 0u;
+			job.source_plane_stride_bytes = 0u;
+			job.destination_plane_stride_bytes = 0u;
+			job.source_words_per_row = 0u;
+			job.descending = false;
+			job.interleaved = true;
+			job.minterm = 0u;
+			return plan.commit_blit_job();
+		}
 		job.source = capture ? target_ptr : save_ptr;
 		job.destination = capture ? save_ptr : target_ptr;
 		job.source_modulo_bytes = capture

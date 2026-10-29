@@ -29,12 +29,33 @@ inline constexpr u8 kTileAnimationMaxGroups = 255u;
 inline constexpr u8 kTileAnimationMaxLayers = 8u;
 inline constexpr u16 kTileAnimationMaxCells = 256u;
 inline constexpr u8 kTileAnimationFlagMasked = 1u;
+/// La máscara es la misma en todos los frames del grupo. El cookie-cut sobre el
+/// frame anterior conserva el fondo de los píxeles transparentes (ya lo eran
+/// antes), así que repintar la celda no necesita `save-under` ni `restore`.
+inline constexpr u8 kTileAnimationFlagStableMask = 2u;
+/// Con `StableMask`, el bake emite **una sola máscara** para todos los frames y
+/// `mask_offset` apunta a ella; el runtime no avanza `mask_stride` por frame.
+/// Evita duplicar la máscara en el banco (p. ej. agua: 4 copias → 1).
+inline constexpr u8 kTileAnimationFlagSharedMask = 4u;
+/// Los frames del grupo van interleaved `[fila][plano] = [imagen w][máscara w]`
+/// (máscara expandida por plano). El runtime los dibuja con **un solo blit**
+/// sobre un `BobTarget` interleaved (`make_interleaved_masked_bob`); sobre un
+/// destino planar `draw_group` los rechaza (no hay recorrido válido en un blit).
+inline constexpr u8 kTileAnimationFlagInterleaved = 8u;
+/// Buckets del anillo de vencimientos de `set_tick`: 256 cubre cualquier
+/// duración `u8` (1..255) y se indexa con el byte bajo del tick.
+inline constexpr u16 kTileAnimationBuckets = 256u;
 
 /// Un grupo de animación: frames contiguos en `sheet`/`mask` y duración por
 /// frame en ticks de juego (50 Hz). `frame_count` <= `kTileAnimationMaxFrames`.
 struct TileAnimationGroupView {
 	u16 first_frame = 0u;
 	u8 frame_count = 0u;
+	/// `kTileAnimationFlagMasked` = algún frame tiene transparencia;
+	/// `kTileAnimationFlagStableMask` = todos los frames comparten máscara;
+	/// `kTileAnimationFlagSharedMask` = el banco guarda una sola máscara;
+	/// `kTileAnimationFlagInterleaved` = los frames incluyen la máscara expandida
+	/// por plano (`[fila][plano] = imagen+máscara`) para un blit único.
 	u8 flags = 0u;
 	u16 first_cell = 0u;
 	u16 cell_count = 0u;
@@ -48,8 +69,12 @@ struct TileAnimationGroupView {
 	u16 pixel_height = 0u; ///< alto del grupo en px (0 = tile del animador)
 	u32 sheet_offset = 0u; ///< byte del primer frame en `sheet` (si `frame_stride` != 0)
 	u32 frame_stride = 0u; ///< bytes entre frames del grupo (0 = stride global)
-	u32 mask_offset = 0u;  ///< byte de la primera máscara (si `mask_stride` != 0)
-	u32 mask_stride = 0u;  ///< bytes entre máscaras del grupo (0 = stride global)
+	u32 mask_offset = 0u;  ///< byte de la primera máscara (con `SharedMask`, la única)
+	u32 mask_stride = 0u;  ///< bytes entre máscaras del grupo (0 = stride global; ignorado con `SharedMask`)
+	/// Bit `f` = el frame `f` es **opaco** (su máscara es toda 1). En un frame
+	/// opaco se dibuja con copia y no hace falta restaurar el fondo de la celda:
+	/// el frame cubre la celda entera. 0 si el bake no lo declaró (conservador).
+	u8 opaque_mask = 0u;
 };
 
 /// Celda animada dispersa: coordenada de mapa y capa (índice en `layers`).
@@ -139,6 +164,7 @@ public:
 			m_group_layer[g] = (cells.empty() || grp.first_cell >= cells.size())
 				? 0u : cells[grp.first_cell].layer;
 		}
+		clear_schedule();
 		m_tick = 0u;
 		m_primed = false;
 	}
@@ -166,7 +192,12 @@ public:
 			if (gw < 16u || (gw & 15u) != 0u || gh == 0u) return false;
 			const u16 words = static_cast<u16>(gw / 16u);
 			const u32 row_bytes = static_cast<u32>(words) * 2u;
-			const u32 frame_bytes = row_bytes * gh * m_planes;
+			// Los frames interleaved guardan imagen+máscara por fila-plano: el
+			// doble de bytes que el planar. El banco de máscaras (planar) sigue
+			// validándose aparte porque el bake lo emite para los flags y el
+			// consumidor planar.
+			const u32 frame_bytes = ((grp.flags & kTileAnimationFlagInterleaved) != 0u)
+				? row_bytes * gh * m_planes * 2u : row_bytes * gh * m_planes;
 			const u32 mask_bytes = row_bytes * gh;
 			const u32 frame_stride = grp.frame_stride != 0u ? grp.frame_stride : m_frame_stride;
 			const u32 mask_stride = grp.mask_stride != 0u ? grp.mask_stride : m_mask_stride;
@@ -177,8 +208,10 @@ public:
 				if (last + frame_bytes > m_sheet.size()) return false;
 			}
 			if (grp.mask_stride != 0u && grp.frame_count != 0u) {
-				const u32 last = grp.mask_offset +
-					static_cast<u32>(grp.frame_count - 1u) * mask_stride;
+				// Con máscara compartida solo existe la del primer frame.
+				const u32 last_frame = (grp.flags & kTileAnimationFlagSharedMask) != 0u
+					? 0u : static_cast<u32>(grp.frame_count - 1u);
+				const u32 last = grp.mask_offset + last_frame * mask_stride;
 				if (last + mask_bytes > m_masks.size()) return false;
 			}
 		}
@@ -223,6 +256,25 @@ public:
 	[[nodiscard]] constexpr bool group_opaque(u16 index) const noexcept {
 		return index < m_groups.size() && (m_groups[index].flags & kTileAnimationFlagMasked) == 0u;
 	}
+	/// **¿El frame `frame` del grupo es opaco?** Usa `opaque_mask` del bake; si
+	/// el grupo no está enmascarado, todos sus frames lo son. Un frame opaco
+	/// cubre su celda con `CopyRect` y no requiere restore previo.
+	[[nodiscard]] constexpr bool frame_opaque(u16 group, u8 frame) const noexcept {
+		if (group >= m_groups.size()) return false;
+		const TileAnimationGroupView& grp = m_groups[group];
+		if ((grp.flags & kTileAnimationFlagMasked) == 0u) return true;
+		if (frame >= grp.frame_count) frame = 0u;
+		return (grp.opaque_mask & (1u << frame)) != 0u;
+	}
+	/// **¿La máscara no cambia entre frames?** (kTileAnimationFlagStableMask).
+	/// Un grupo enmascarado con silueta constante se puede repintar con un solo
+	/// cookie-cut: los píxeles transparentes ya contienen el fondo, así que no
+	/// hay que restaurar nada y el save-under sobra. Es una propiedad del arte,
+	/// no de la capa (agua y flores la cumplen o no según sus frames).
+	[[nodiscard]] constexpr bool group_stable_mask(u16 index) const noexcept {
+		return index < m_groups.size() &&
+		       (m_groups[index].flags & kTileAnimationFlagStableMask) != 0u;
+	}
 	[[nodiscard]] constexpr u8 group_layer(u16 index) const noexcept {
 		return index < m_groups.size() ? m_group_layer[index] : 0u;
 	}
@@ -260,12 +312,20 @@ public:
 		for (u8 i = 0u; i < m_groups.size() && i < kTileAnimationMaxGroups; ++i) m_changed[i] = 0u;
 	}
 	/// Fija el tick absoluto de juego y recalcula el frame de cada grupo.
+	/// En el camino por frame solo se visitan los grupos cuyo cambio vence en
+	/// este tick: un anillo de 256 buckets (`m_head`/`m_link`) indexado por el
+	/// byte bajo del tick. Las duraciones son `u8` (1..255), así que la espera
+	/// máxima cabe en el anillo; un salto de reloj reconstruye el anillo.
 	void set_tick(u32 tick) noexcept {
 		if (m_primed && tick == m_tick) return;
 		if (!m_primed) {
+			clear_schedule();
 			for (u16 g = 0u; g < m_groups.size() && g < kTileAnimationMaxGroups; ++g) {
 				m_frame[g] = 0u;
-				m_acc[g] = 0u;
+				const TileAnimationGroupView& grp = m_groups[g];
+				if (grp.frame_count <= 1u) continue;
+				const u16 d = grp.durations[0] != 0u ? grp.durations[0] : 1u;
+				schedule(g, static_cast<u8>(tick + d));
 			}
 			m_primed = true;
 			m_tick = tick;
@@ -273,26 +333,29 @@ public:
 			m_changed_count = 0u;
 			return;
 		}
-		// Camino caliente: el tick avanza de uno en uno; sin `%` por grupo.
 		if (tick == m_tick + 1u) {
-			for (u16 g = 0u; g < m_groups.size() && g < kTileAnimationMaxGroups; ++g) {
+			const u8 bucket = static_cast<u8>(tick);
+			u16 node = m_head[bucket];
+			m_head[bucket] = 0u;
+			while (node != 0u) {
+				const u16 g = node - 1u;
+				node = m_link[g];
 				const TileAnimationGroupView& grp = m_groups[g];
-				if (grp.frame_count <= 1u) continue;
-				const u8 d = grp.durations[m_frame[g]] != 0u ? grp.durations[m_frame[g]] : 1u;
-				if (++m_acc[g] >= d) {
-					m_acc[g] = 0u;
-					m_frame[g] = static_cast<u8>(m_frame[g] + 1u);
-					if (m_frame[g] >= grp.frame_count) m_frame[g] = 0u;
-					m_changed[g] = 1u;
-					m_any_changed = true;
-					++m_changed_count;
-				}
+				m_frame[g] = m_frame[g] + 1u;
+				if (m_frame[g] >= grp.frame_count) m_frame[g] = 0u;
+				m_changed[g] = 1u;
+				m_any_changed = true;
+				++m_changed_count;
+				const u16 d = grp.durations[m_frame[g]] != 0u ? grp.durations[m_frame[g]] : 1u;
+				schedule(g, static_cast<u8>(tick + d));
 			}
 			m_tick = tick;
 			return;
 		}
-		// Salto de reloj (reset/carga): resolver por grupo, no es el camino por frame.
+		// Salto de reloj (reset/carga): reconstruye frames y anillo.
 		m_any_changed = false;
+		m_changed_count = 0u;
+		clear_schedule();
 		for (u16 g = 0u; g < m_groups.size() && g < kTileAnimationMaxGroups; ++g) {
 			const TileAnimationGroupView& grp = m_groups[g];
 			if (grp.frame_count == 0u) continue;
@@ -309,7 +372,11 @@ public:
 			m_changed[g] = frame != m_frame[g] ? 1u : 0u;
 			if (m_changed[g]) { m_any_changed = true; ++m_changed_count; }
 			m_frame[g] = frame;
-			m_acc[g] = static_cast<u8>(local);
+			if (grp.frame_count > 1u) {
+				const u16 d = grp.durations[frame] != 0u ? grp.durations[frame] : 1u;
+				const u32 delay = d > local ? d - local : 1u;
+				schedule(g, static_cast<u8>(tick + delay));
+			}
 		}
 		m_tick = tick;
 	}
@@ -389,9 +456,13 @@ public:
 		const u32 frame_base = grp.frame_stride != 0u
 			? grp.sheet_offset + static_cast<u32>(frame) * frame_stride
 			: static_cast<u32>(frame_index) * m_frame_stride;
-		const u32 mask_base = grp.mask_stride != 0u
-			? grp.mask_offset + static_cast<u32>(frame) * mask_stride
-			: static_cast<u32>(frame_index) * m_mask_stride;
+		// Silueta fija: el bake guarda UNA máscara y todos los frames la
+		// comparten; no se avanza por frame.
+		const u32 mask_base = (grp.flags & kTileAnimationFlagSharedMask) != 0u
+			? grp.mask_offset
+			: (grp.mask_stride != 0u
+				? grp.mask_offset + static_cast<u32>(frame) * mask_stride
+				: static_cast<u32>(frame_index) * m_mask_stride);
 		u16 first_row = 0u;   // primera fila del frame en este segmento
 		u16 remaining = gh;   // filas que faltan por dibujar
 		s16 ry = static_cast<s16>(ring_y); // línea del anillo del segmento
@@ -406,6 +477,24 @@ public:
 			const graphics::BlitPtr source_ptr {m_sheet, static_cast<s32>(sheet_off)};
 			const graphics::BlitPtr mask_ptr {m_masks, static_cast<s32>(mask_off)};
 			const graphics::BlitPtr dest_ptr {target.planes, static_cast<s32>(dest_off)};
+			if ((grp.flags & kTileAnimationFlagInterleaved) != 0u) {
+				// Frame interleaved: imagen y máscara contiguas por fila-plano.
+				// Un solo blit recorre `seg × planos` filas; exige destino
+				// interleaved (el paso físico de fila es `row_bytes`).
+				if (!target.interleaved()) return false;
+				const u16 pair_bytes = source_row_bytes * 2u;
+				const u32 src_off = frame_base + first_row * planes * pair_bytes;
+				const graphics::BlitPtr src {m_sheet, static_cast<s32>(src_off)};
+				graphics::BlitJob& job = plan.begin_blit_job(
+					graphics::BlitJobKind::MaskedBobCookieCut);
+				graphics::make_interleaved_masked_bob(job, src, dest_ptr, gw, seg,
+					static_cast<u8>(planes), target.row_bytes, 0u);
+				if (!plan.commit_blit_job()) return false;
+				remaining = static_cast<u16>(remaining - seg);
+				first_row = static_cast<u16>(first_row + seg);
+				ry = 0;
+				continue;
+			}
 			// UN trabajo por segmento con `bitplane_count = planes`: el backend
 			// recorre los planos con `source_plane_stride_bytes` (hoja planar) y
 			// `destination_plane_stride_bytes` (paso entre planos del anillo).
@@ -473,6 +562,14 @@ public:
 	}
 
 private:
+	/// Inserta `group` en el bucket de vencimiento `bucket` (byte bajo del tick).
+	void schedule(u16 group, u8 bucket) noexcept {
+		m_link[group] = m_head[bucket];
+		m_head[bucket] = group + 1u;
+	}
+	void clear_schedule() noexcept {
+		for (u16 b = 0u; b < kTileAnimationBuckets; ++b) m_head[b] = 0u;
+	}
 	eng::Span<const TileAnimationGroupView> m_groups {};
 	eng::Span<const TileAnimationLayerView> m_layers {};
 	eng::Span<const TileAnimationCellView> m_cells {};
@@ -485,12 +582,13 @@ private:
 	u32 m_tick = 0u;
 	bool m_primed = false;
 	u8 m_frame[kTileAnimationMaxGroups] {};
-	u8 m_acc[kTileAnimationMaxGroups] {};
 	mutable u8 m_changed[kTileAnimationMaxGroups] {};
 	mutable bool m_any_changed = false;
 	mutable u16 m_changed_count = 0u;
 	u8 m_group_layer[kTileAnimationMaxGroups] {};
 	u8 m_layer_enabled[kTileAnimationMaxLayers] {};
+	u16 m_head[kTileAnimationBuckets] {}; // grupo+1 por bucket de vencimiento
+	u16 m_link[kTileAnimationMaxGroups] {}; // siguiente grupo del mismo bucket
 	u16 m_test_cell = 0xffffu;
 };
 

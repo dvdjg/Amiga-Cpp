@@ -266,6 +266,10 @@ struct XlimitedSceneConfigT {
     MapT map2 {};                    // mapa de PF2 (si dual y no vacío; si no, reusa map)
     eng::u16 tileset_count = 64;
     eng::Ref<const TileAnimator> animator {}; // overlays animados cocinados (T5; no propietario)
+    /// Capa del animador con las **coberturas** (objetos estáticos sobre celdas
+    /// vivas), o `0xff` si no hay. El parche la dibuja después de cada celda que
+    /// tapa, no como capa normal, para respetar el orden del arte.
+    eng::u8 cover_layer = 0xffu;
     BlocksRowFn fg_row_fn = nullptr; // generador de filas de PF1 (incrusta base/transparencia)
     BlocksRowFn bg_row_fn = nullptr; // generador de filas de PF2 (DPF)
     // Tilebank INDEXADO REAL (pipeline EHB): si se suministra, el banco se
@@ -473,6 +477,7 @@ public:
             fc.tileset = m_tiles[pf].words();
             fc.tileset_count = cfg.tileset_count;
             fc.animator = isPf0 ? cfg.animator : eng::Ref<const TileAnimator>{};
+            fc.cover_layer = isPf0 ? cfg.cover_layer : 0xffu;
             fc.planes = cfg.planes;
             fc.tile_width = tw;
             fc.tile_height = th;

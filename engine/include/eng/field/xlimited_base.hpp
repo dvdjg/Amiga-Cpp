@@ -489,6 +489,9 @@ struct XlimitedConfigT {
     static_assert(TileMap<MapT>, "MapT debe cumplir TileMap");
     MapT map {};
     eng::Ref<const TileAnimator> animator {}; // overlay animado opcional (T5; no propietario)
+    /// Capa de cobertura del animador (objetos estáticos sobre celdas vivas) o
+    /// `0xff` si no hay. El parche reestampa esa celda después del overlay.
+    u8 cover_layer = 0xffu;
     const u16* tileset = nullptr;      // banco de bloques (BlocksBitmap->Planes[0])
     u16 tileset_count = 0;
     u8 planes = 4;                     // BLOCKSDEPTH, rango 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3)

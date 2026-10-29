@@ -1044,6 +1044,123 @@ private:
     /// instancie llamadas al cache cuando la build/demo no lo usa.
     struct NoCellSaver {};
 
+    /// Resuelve el destino visible de una celda del animador. `target_x` es la
+    /// columna de MUNDO (la misma del bloque base) y `ring_y` la fila del anillo;
+    /// `false` si la celda queda fuera de la ventana.
+    /// \param cell celda lógica (mapa/capa).
+    /// \param camx_mod cámara X normalizada a `[0,mapw)`.
+    /// \param camy_mod cámara Y normalizada a `[0,maph)`.
+    /// \param mapw/maph tamaño del mapa en píxeles.
+    /// \param ring_base fila del anillo de la ventana visible.
+    /// \param dh alto del anillo.
+    /// \param target_x salida: columna de mundo (px).
+    /// \param ring_y salida: fila del anillo (px).
+    [[nodiscard]] bool anim_cell_target(const TileAnimationCellView& cell, s32 camx_mod,
+                                        s32 camy_mod, s32 mapw, s32 maph, s32 ring_base,
+                                        s32 dh, u16& target_x, u16& ring_y) const {
+        const s32 wx = static_cast<s32>(cell.x) * this->ctw(); // mundo X (px)
+        const s32 wy = static_cast<s32>(cell.y) * this->cth(); // mundo Y (px)
+        s32 sx = wx - camx_mod;
+        if (sx < 0) sx += mapw;
+        if (sx >= this->m_cfg.viewport_w) return false;
+        s32 sy = wy - camy_mod - static_cast<s32>(this->cth());
+        if (sy < 0) sy += maph;
+        if (sy >= this->m_cfg.viewport_h) return false;
+        s32 ry = ring_base + sy;
+        if (ry >= dh) ry -= dh;
+        target_x = static_cast<u16>(wx);
+        ring_y = static_cast<u16>(ry);
+        return true;
+    }
+
+    /// Dibuja la **cobertura** (objetos estáticos) de la celda de mapa
+    /// `(mapx,mapy)` si `m_cfg.cover_layer` la define. Se llama justo después
+    /// del overlay de esa celda para que el objeto quede por encima; añade como
+    /// máximo un job enmascarado y solo cuando la celda se repinta.
+    /// \param plan plan del frame.
+    /// \param ring_height alto del anillo.
+    /// \param x columna de mundo del destino (la misma del overlay).
+    /// \param ring_y fila del anillo del destino.
+    /// \param mapx/mapy celda lógica del mapa.
+    /// \return `false` si el plan rechaza el job.
+    [[nodiscard]] bool draw_cell_cover(graphics::FramePlan& plan, u16 ring_height, u16 x,
+                                       u16 ring_y, u16 mapx, u16 mapy) {
+        const u8 cover = this->m_cfg.cover_layer;
+        if (cover == 0xffu || !this->m_cfg.animator.valid()) return true;
+        const TileAnimator& anim = *this->m_cfg.animator;
+        if (cover >= anim.layer_count()) return true;
+        const u16 group_plus_one = TileAnimator::cell_group(anim.layer(cover), mapx, mapy);
+        if (group_plus_one == 0u) return true;
+        return anim.draw_group(plan, m_anim_target, ring_height, x, ring_y,
+                               static_cast<u16>(group_plus_one - 1u), false);
+    }
+
+    /// Recalcula la tabla de celdas vivas visibles, agrupada por grupo del bake.
+    ///
+    /// La visibilidad de un overlay se decide por su columna/fila de MUNDO, que no
+    /// cambia mientras la cámara está quieta; recalcularla en cada parche convertía
+    /// el barrido de los grupos diferidos (57 grupos de agua en la parada de la
+    /// fogata) en el coste dominante del frame. Se llama una vez por movimiento de
+    /// cámara, no por frame. Libera el save-under de las celdas que salen de la
+    /// ventana (sin restaurar: el scroll repinta la zona) y limpia su bit de
+    /// "overlay pintado".
+    ///
+    /// \param saver cache de save-under del llamador; `NoCellSaver` lo elimina en
+    ///        compilación.
+    template <class Saver>
+    void rebuild_anim_visible(Saver& saver) {
+        const TileAnimator& anim = *this->m_cfg.animator;
+        const s32 camx = m_scroll.state().mapposx;
+        const s32 camy = m_scroll.state().mapposy;
+        const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
+        const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
+        s32 camx_mod = (camx >= 0 && camx < mapw) ? camx : camx % mapw; // cámara X en [0,mapw)
+        if (camx_mod < 0) camx_mod += mapw;
+        s32 camy_mod = (camy >= 0 && camy < maph) ? camy : camy % maph; // cámara Y en [0,maph)
+        if (camy_mod < 0) camy_mod += maph;
+        const s32 ring_base = this->display_offset(); // fila del anillo de la ventana visible (px)
+        const s32 dh = static_cast<s32>(this->display_height()); // alto del anillo (px)
+        m_anim_visible_total = 0u;
+        const u16 groups = anim.group_count();
+        for (u16 g = 0u; g < groups && g < kTileAnimationMaxGroups; ++g) {
+            const u16 first = m_anim_visible_total; // inicio de la tira del grupo
+            const TileAnimationGroupView& grp = anim.group(g);
+            for (u16 ci = grp.first_cell;
+                 ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
+                const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
+                if (!anim.test_cell_allowed(ci)) continue;
+                const s32 wx = static_cast<s32>(cell.x) * this->ctw(); // mundo X (px)
+                const s32 wy = static_cast<s32>(cell.y) * this->cth(); // mundo Y (px)
+                s32 sx = wx - camx_mod; // pantalla X (px) para visibilidad
+                if (sx < 0) sx += mapw;
+                s32 sy = wy - camy_mod - static_cast<s32>(this->cth()); // pantalla Y (px)
+                if (sy < 0) sy += maph;
+                if (sx >= this->m_cfg.viewport_w || sy >= this->m_cfg.viewport_h) {
+                    if (ci < kTileAnimationMaxCells) {
+                        if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
+                            saver.release(ci);
+                        }
+                        m_anim_cell_visible[ci] = 0u;
+                    }
+                    continue;
+                }
+                s32 ring_y = ring_base + sy; // línea del anillo (px)
+                if (ring_y >= dh) ring_y -= dh;
+                // La tabla cubre como máximo las celdas del bake; si el llamador
+                // declara más, las que no caben quedan fuera del parche (no se
+                // escribe fuera del array).
+                if (m_anim_visible_total < kTileAnimationMaxCells) {
+                    m_anim_visible[m_anim_visible_total++] = AnimVisibleCell {
+                        ci, static_cast<u16>(wx), static_cast<u16>(ring_y)};
+                }
+            }
+            m_anim_visible_first[g] = first;
+            m_anim_visible_by_group[g] =
+                static_cast<u16>(m_anim_visible_total - first);
+        }
+        m_anim_visible_valid = true;
+    }
+
     /// Implementación única; `Collect` elimina en compilación los contadores
     /// cuando la demo no pide estadísticas; `Saver` elimina el save-under.
     /// `stats` es una referencia no propietaria (posiblemente vacía); `saver`
@@ -1068,6 +1185,9 @@ private:
         if (camx != m_last_anim_camx || camy != m_last_anim_camy) {
             m_last_anim_camx = camx;
             m_last_anim_camy = camy;
+            // La visibilidad de un overlay alineado al mundo solo cambia al mover
+            // la cámara; la tabla se recalcula aquí y el parche la reutiliza.
+            m_anim_visible_valid = false;
             // No se invalida todo el viewport: las celdas que siguen visibles
             // conservan su overlay; solo se dibujan las que aún no tienen bit.
             m_redraw_visible_anim = true;
@@ -1076,13 +1196,7 @@ private:
         const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
         const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
         if (mapw <= 0 || maph <= 0) return false;
-        // Una división por frame (no 2 por celda): las comparaciones de visibilidad
-        // se resuelven con un ajuste de rango porque wx/cam están normalizados.
-        s32 camx_mod = (camx >= 0 && camx < mapw) ? camx : camx % mapw; // cámara X en [0,mapw)
-        if (camx_mod < 0) camx_mod += mapw;
-        s32 camy_mod = (camy >= 0 && camy < maph) ? camy : camy % maph; // cámara Y en [0,maph)
-        if (camy_mod < 0) camy_mod += maph;
-        const s32 ring_base = this->display_offset(); // fila del anillo de la ventana visible (px)
+        if (!m_anim_visible_valid) rebuild_anim_visible(saver);
         const s32 dh = static_cast<s32>(this->display_height()); // alto del anillo (px)
         // Un objeto compuesto puede ser varios grupos con el mismo reloj (por
         // ejemplo, las cuatro celdas de una fogata). No se puede repartir por
@@ -1101,11 +1215,11 @@ private:
         const u16 cfg_job_limit = plan.blit_budget_limits().max_jobs;
         const u16 patch_job_limit = (cfg_job_limit != 0u && cfg_job_limit < plan.max_blit_jobs)
             ? cfg_job_limit : static_cast<u16>(plan.max_blit_jobs);
-        // Con save-under cada celda repintada encola restore + captura + frame
-        // (3 jobs: cada uno cubre todos los planos); sin él, solo el frame.
+        // Con save-under una celda enmascarada encola restore + frame (2 jobs);
+        // la captura es única y sustituye al restore la primera vez que la celda
+        // entra, no se suma. Una celda opaca solo encola su frame. Contar 3 por
+        // celda sobrevaloraba un 50 % el coste y forzaba un tope mayor del necesario.
         constexpr bool has_saver = !eng::util::is_same_v<Saver, NoCellSaver>;
-        const u16 jobs_per_cell = static_cast<u16>(
-            has_saver ? 3u : 1u);
         const u16 group_count = anim.group_count(); // grupos de animación del bake
         bool pass_deferred = false;                 // algún grupo quedó pendiente
         if (group_count == 0u) return true;
@@ -1120,6 +1234,11 @@ private:
             if constexpr (Collect) if (stats.valid()) ++stats->groups_scanned;
             const bool changed = anim.group_changed(g); // frame distinto al anterior
             const bool group_opaque = anim.group_opaque(g); // el frame cubre la celda
+            // Frame opaco: copia sin máscara y sin restore (cubre la celda).
+            const bool frame_opaque = anim.frame_opaque(g, anim.frame_of(g));
+            const bool opaque_draw = group_opaque || frame_opaque;
+            // Silueta constante: el cookie-cut conserva el fondo por sí solo.
+            const bool group_stable = anim.group_stable_mask(g);
             if (!anim.layer_animation_enabled(anim.group_layer(g))) {
                 // Capa desactivada por presupuesto/diagnóstico: no se captura ni
                 // se pinta. Se limpia changed para que no mantenga despierto el
@@ -1129,17 +1248,20 @@ private:
                 return true;
             }
             if (!m_redraw_visible_anim && !changed) return true;
-            const TileAnimationGroupView& grp = anim.group(g);
             const u16 group_w = anim.group_pixel_width(g); // caja del grupo (px)
             const u16 group_h = anim.group_pixel_height(g);
-            // Primera pasada: descartar las celdas fuera de la ventana (liberar
-            // su save-under) y contar las que de verdad hay que repintar. Sin
-            // esto, un grupo sin trabajo de dibujo consumía presupuesto y dejaba
-            // `m_redraw_visible_anim` prendido, reescaneando toda la capa cada
-            // frame (coste de CPU dominante en las paradas).
-            // Una sola pasada: se guardan las celdas visibles con su destino ya
-            // resuelto. Antes se recorrían dos veces (visibilidad y pintura) y
-            // se recalculaban wx/wy/ring_y; era el coste dominante del parche.
+            // Celdas visibles del grupo desde la tabla cacheada: recorre solo sus
+            // celdas en pantalla y ya trae el destino resuelto (mundo/ring). Antes
+            // se recalculaban wx/wy/ring_y de todas las celdas visibles de cada
+            // grupo cambiado en cada frame, aunque el presupuesto solo pintase unas
+            // pocas: era el coste dominante del parche en las paradas (57 grupos de
+            // agua re-escaneados por frame). La tabla se rehace al mover la cámara
+            // (`rebuild_anim_visible`); las celdas fuera de la ventana se liberan
+            // y limpian allí.
+            // Si el grupo cambió, se repintan todas sus celdas visibles; en la
+            // pasada de entrada solo las que aún no tienen overlay pintado.
+            const u16 vis_first = g < kTileAnimationMaxGroups ? m_anim_visible_first[g] : 0u;
+            const u16 vis_count = g < kTileAnimationMaxGroups ? m_anim_visible_by_group[g] : 0u;
             struct PendingCell {
                 u16 cell;
                 u16 target_x;
@@ -1148,31 +1270,14 @@ private:
             constexpr u16 kMaxPendingCells = 16u;
             PendingCell pending[kMaxPendingCells];
             u16 draw_count = 0u; // celdas visibles que este grupo debe repintar
-            for (u16 ci = grp.first_cell; ci < static_cast<u16>(grp.first_cell + grp.cell_count); ++ci) {
-                const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
-                if (!anim.test_cell_allowed(ci)) continue;
-                const s32 wx = static_cast<s32>(cell.x) * this->ctw(); // mundo X (px, sin envolver)
-                const s32 wy = static_cast<s32>(cell.y) * this->cth(); // mundo Y (px)
-                s32 sx = wx - camx_mod; // pantalla X (px) para visibilidad
-                if (sx < 0) sx += mapw;
-                s32 sy = wy - camy_mod - static_cast<s32>(this->cth()); // pantalla Y (px)
-                if (sy < 0) sy += maph;
-                if (sx >= this->m_cfg.viewport_w || sy >= this->m_cfg.viewport_h) {
-                    if (ci < kTileAnimationMaxCells) {
-                        if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
-                            saver.release(ci);
-                        }
-                        m_anim_cell_visible[ci] = 0u;
-                    }
-                    if constexpr (Collect) if (stats.valid()) ++stats->cells_culled;
-                    continue;
-                }
+            for (u16 vi = 0u; vi < vis_count; ++vi) {
+                const AnimVisibleCell& vc = m_anim_visible[vis_first + vi]; // celda en pantalla
                 // El overlay es fijo en el MUNDO: al mover la cámara no hay que
                 // repintar las celdas que ya lo tenían. Sólo las celdas que
                 // entran (bit a 0) o los grupos que cambiaron de frame.
                 if (!changed && (!m_redraw_visible_anim ||
-                                 (ci < kTileAnimationMaxCells &&
-                                  m_anim_cell_visible[ci] != 0u))) {
+                                 (vc.cell < kTileAnimationMaxCells &&
+                                  m_anim_cell_visible[vc.cell] != 0u))) {
                     continue;
                 }
                 if (draw_count >= kMaxPendingCells) {
@@ -1184,13 +1289,7 @@ private:
                     }
                     return true;
                 }
-                s32 ring_y = ring_base + sy; // línea del anillo (px)
-                if (ring_y >= dh) ring_y -= dh;
-                pending[draw_count++] = PendingCell {
-                    ci,
-                    static_cast<u16>(wx),
-                    static_cast<u16>(ring_y),
-                };
+                pending[draw_count++] = PendingCell {vc.cell, vc.target_x, vc.ring_y};
             }
             if (draw_count == 0u) {
                 // El grupo no toca ninguna celda visible en este pase.
@@ -1198,6 +1297,10 @@ private:
                 m_anim_patch_cursor = next_group(g);
                 return true;
             }
+            // Mask fija = un solo cookie-cut; máscara variable = restore/frame.
+            // Un frame opaco tampoco necesita restore: su copia cubre la celda.
+            const u16 jobs_per_cell = static_cast<u16>(
+                has_saver && !opaque_draw && !group_stable ? 2u : 1u);
             if (static_cast<u32>(plan.blit_job_count()) +
                     static_cast<u32>(draw_count) * jobs_per_cell >
                 patch_job_limit) {
@@ -1218,7 +1321,7 @@ private:
                 const u16 ring_y = pending[pi].ring_y;
                 const TileAnimationCellView& cell = anim.cell(ci); // celda (mapa/capa)
                 if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
-                    if (!group_opaque) {
+                    if (!opaque_draw && !group_stable) {
                         const bool was_painted = saver.painted(ci);
                         if (was_painted &&
                             !saver.restore(plan, m_anim_target, ci)) {
@@ -1232,7 +1335,8 @@ private:
                                 }
                             }
                         }
-                        if (!saver.capture(plan, m_anim_target, ci, target_x,
+                        if (!was_painted &&
+                            !saver.capture(plan, m_anim_target, ci, target_x,
                                             static_cast<u16>(ring_y), group_w,
                                             group_h)) {
                             // Sin hueco de save-under no se pinta el overlay:
@@ -1243,12 +1347,30 @@ private:
                             if constexpr (Collect) if (stats.valid()) ++stats->cells_culled;
                             continue;
                         }
+                    } else if (!group_opaque && !group_stable &&
+                               !saver.painted(ci)) {
+                        // Frame opaco en una celda nueva: hace falta el fondo
+                        // para restaurar al salir, aunque no se restaure ahora.
+                        if (!saver.capture(plan, m_anim_target, ci, target_x,
+                                            static_cast<u16>(ring_y), group_w,
+                                            group_h)) {
+                            capture_failed = true;
+                            if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 0u;
+                            if constexpr (Collect) if (stats.valid()) ++stats->cells_culled;
+                            continue;
+                        }
                     }
                 }
                 // Se usa el mismo dibujo de grupo que la pasada inicial: el
                 // overlay vive en el anillo, no en el espejo lineal del display.
                 if (!anim.draw_group(plan, m_anim_target, static_cast<u16>(dh),
-                        target_x, static_cast<u16>(ring_y), g, group_opaque)) {
+                        target_x, static_cast<u16>(ring_y), g, opaque_draw)) {
+                    return false;
+                }
+                // Objeto estático que va encima de esta celda (banca, roca):
+                // se reestampa inmediatamente para respetar el orden del arte.
+                if (!draw_cell_cover(plan, static_cast<u16>(dh), target_x,
+                        static_cast<u16>(ring_y), cell.x, cell.y)) {
                     return false;
                 }
                 if (ci < kTileAnimationMaxCells) m_anim_cell_visible[ci] = 1u;
@@ -1268,19 +1390,50 @@ private:
             return true;
         };
         // Primer plano primero: la capa superior se parchea completa antes de
-        // que las capas de tiles consuman el plan. En este mapa la fogata son
-        // cuatro grupos de UNA celda (0, 3, 6 y 9) en la capa superior: si se
-        // barajasen con agua/flores, el presupuesto podría dejar media fogata
-        // con el frame anterior. Dentro de cada capa el cursor sigue siendo
-        // round-robin para repartir los grupos que no caben.
-        const u16 start = m_anim_patch_cursor < group_count ? m_anim_patch_cursor : 0u; // inicio round-robin
-        for (u8 layer = anim.layer_count(); layer-- > 0u;) {
-            u16 g = start; // grupo actual dentro de la capa
-            for (u16 visited = 0u; visited < group_count; ++visited) {
-                if (anim.group_layer(g) == layer && !patch_group(g)) return false;
-                g = next_group(g);
-            }
+        // que las capas de tiles consuman el plan (la fogata y su capa no deben
+        // quedar a medias). Dentro de cada capa el cursor reparte los grupos que
+        // no caben.
+        // Un solo barrido construye la lista de candidatos: grupos con frame
+        // nuevo (o todos en la pasada de entrada), sin la capa de cobertura.
+        // Antes se recorría `capas × grupos` (más caro con 113 grupos y 4 capas,
+        // aunque casi todos estuvieran quietos). El orden por capas se aplica
+        // luego sobre los candidatos, que en régimen suelen ser pocos.
+        u16 candidates[kTileAnimationMaxGroups];
+        u16 candidate_count = 0u;
+        const u8 cover_layer = this->m_cfg.cover_layer;
+        for (u16 g = 0u; g < group_count; ++g) {
+            if (anim.group_layer(g) == cover_layer) continue;
+            if (!m_redraw_visible_anim && !anim.group_changed(g)) continue;
+            candidates[candidate_count++] = g;
         }
+        if (candidate_count == 0u) {
+            if (m_redraw_visible_anim) m_redraw_visible_anim = false; // no hay nada visible
+            return true;
+        }
+        // Arranque round-robin dentro de la lista sin `%` (libcall): el cursor es
+        // un índice de grupo y se reduce con restas (a lo sumo `grupos` veces).
+        u16 start = m_anim_patch_cursor;
+        while (start >= candidate_count) start = static_cast<u16>(start - candidate_count);
+        bool budget_full = false; // el plan ya no admite más jobs en este frame
+        for (u8 layer = anim.layer_count(); layer-- > 0u;) {
+            if (layer == cover_layer) continue;
+            for (u16 k = 0u; k < candidate_count; ++k) {
+                u16 idx = static_cast<u16>(start + k);
+                if (idx >= candidate_count) idx = static_cast<u16>(idx - candidate_count);
+                const u16 g = candidates[idx];
+                if (anim.group_layer(g) == layer && !patch_group(g)) return false;
+                // Con el presupuesto lleno no cabe ningún grupo más (el mínimo
+                // es 1 job): seguir recorriendo candidatos pagaba el prólogo y
+                // el escaneo de decenas de grupos diferidos en cada frame. Los
+                // no visitados conservan `changed` y entran en el siguiente.
+                if (plan.blit_job_count() >= patch_job_limit) {
+                    budget_full = true;
+                    break;
+                }
+            }
+            if (budget_full) break;
+        }
+        if (budget_full && m_redraw_visible_anim) pass_deferred = true;
         if (m_redraw_visible_anim && !pass_deferred) m_redraw_visible_anim = false;
         return true;
     }
@@ -1447,12 +1600,14 @@ private:
                 const u16 target_x = static_cast<u16>(wx);
                 const u16 cell_group = anim.group_for_cell(ci); // grupo dueño de la celda
                 const bool opaque_group = cell_group != 0xffffu && anim.group_opaque(cell_group);
+                // Máscara fija: el overlay compone sobre la base sin save-under.
+                const bool stable_group = cell_group != 0xffffu && anim.group_stable_mask(cell_group);
                 const u16 cell_w = cell_group != 0xffffu
                     ? anim.group_pixel_width(cell_group) : anim.tile();
                 const u16 cell_h = cell_group != 0xffffu
                     ? anim.group_pixel_height(cell_group) : anim.tile();
                 if constexpr (!eng::util::is_same_v<Saver, NoCellSaver>) {
-                    if (!opaque_group) {
+                    if (!opaque_group && !stable_group) {
                         if (saver.painted(ci) &&
                             !saver.restore(plan, m_anim_target, ci)) {
                             return false;
@@ -1479,9 +1634,46 @@ private:
                 }
             }
         }
+        // Coberturas (objetos estáticos sobre celdas vivas): una sola pasada,
+        // después de los overlays, para que el objeto quede encima. Solo en la
+        // pasada completa; el parche las estampa al repintar cada celda.
+        const u8 cover_layer = this->m_cfg.cover_layer;
+        if (only_map_row < 0 && cover_layer != 0xffu && cover_layer < anim.layer_count()) {
+            for (u16 ci = 0u; ci < anim.cell_count(); ++ci) {
+                const TileAnimationCellView& cell = anim.cell(ci);
+                if (cell.layer != cover_layer) continue;
+                if (!anim.test_cell_allowed(ci)) continue;
+                u16 target_x = 0u;
+                u16 ring_y = 0u;
+                if (!anim_cell_target(cell, camx_mod, camy_mod, mapw, maph, ring_base, dh,
+                                      target_x, ring_y)) {
+                    continue;
+                }
+                if (!anim.draw_layer_block(plan, m_anim_target, static_cast<u16>(dh),
+                        target_x, ring_y, cell.x, cell.y, cover_layer, false)) {
+                    return false;
+                }
+                if (plan.blit_job_count() >= 64u) {
+                    if (!backend.execute_frame_plan(plan)) return false;
+                    plan.clear();
+                    plan.set_blit_budget_limits({8192, 16384, 64, 120});
+                }
+            }
+        }
         if (plan.blit_job_count() > 0u) {
             if (!backend.execute_frame_plan(plan)) return false;
             plan.clear();
+        }
+        // La pasada completa compuso TODAS las celdas visibles en su posición
+        // actual: la tabla de visibilidad debe reconstruirse, pero la cámara ya
+        // está pintada (`m_redraw_visible_anim = false`). Sin esto el primer
+        // parche tras el arranque repintaba todo el viewport (ráfaga de llegada
+        // que no corresponde a ningún cambio de cámara).
+        m_anim_visible_valid = false;
+        if (only_map_row < 0) {
+            m_redraw_visible_anim = false;
+            m_last_anim_camx = camx;
+            m_last_anim_camy = camy;
         }
         return true;
     }
@@ -1505,6 +1697,19 @@ private:
     bool m_redraw_visible_anim = true;            // pasada de entrada tras scroll
     u16 m_anim_patch_cursor = 0;                  // round-robin de grupos
     mutable u8 m_anim_cell_visible[kTileAnimationMaxCells] {};
+    /// Celda viva visible de la tabla cacheada por cámara: índice de celda
+    /// (clave del save-under), columna de mundo y fila del anillo ya resueltas.
+    struct AnimVisibleCell {
+        u16 cell = 0u;     ///< índice en el animador (0..kTileAnimationMaxCells-1)
+        u16 target_x = 0u; ///< columna de mundo del destino (px, múltiplo de 16)
+        u16 ring_y = 0u;   ///< fila del anillo del borde superior (px)
+    };
+    /// Celdas visibles agrupadas por grupo del bake: `[first, first+count)`.
+    AnimVisibleCell m_anim_visible[kTileAnimationMaxCells] {};
+    u16 m_anim_visible_first[kTileAnimationMaxGroups] {};
+    u16 m_anim_visible_by_group[kTileAnimationMaxGroups] {};
+    u16 m_anim_visible_total = 0u;      ///< celdas válidas en `m_anim_visible`
+    bool m_anim_visible_valid = false;  ///< tabla coherente con la cámara actual
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
 };
 

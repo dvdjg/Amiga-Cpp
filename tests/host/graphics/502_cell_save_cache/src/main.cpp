@@ -6,8 +6,10 @@
 //
 //   1) `configure` reserva UN bloque Chip del tamaño `Capacity × cell_bytes`
 //      (no una reserva por celda, que fragmenta el BlockPool).
-//   2) `capture` emite UN `CopyRect` para todos los planos, con el
-//      direccionamiento del anillo (plano 0, paso entre planos = row_bytes).
+//   2) `capture` emite UN `CopyRect`. Con destino interleaved el buffer se
+//      guarda en el mismo orden `[fila][plano][palabra]` y el blit recorre
+//      `h*planos` filas con `bitplane_count=1` (un solo BLTSIZE); con destino
+//      planar se conserva el camino multi-plano con strides por plano.
 //   3) La captura se conserva: `capture` repetido no emite otro job.
 //   4) `restore` emite UN `RestoreRect` inverso y deja `painted=false` pero
 //      conserva la captura.
@@ -92,22 +94,22 @@ void test_capture_and_restore() {
 	check(plan.blit_job_count() == 1u, "capture: UN job para los 6 planos");
 	const eng::graphics::BlitJob& cap = plan.blit_job(0u);
 	check(cap.kind == BlitJobKind::CopyRect, "capture: CopyRect");
-	check(cap.bitplane_count == kPlanes, "capture: bitplane_count = planos");
-	check(cap.words_per_row == 1u && cap.height == kCell,
-	      "capture: 1 palabra × 16 filas");
+	check(cap.interleaved, "capture: blit interleaved de una pasada");
+	check(cap.bitplane_count == 1u && cap.words_per_row == 1u &&
+		      cap.height == kCell * kPlanes,
+	      "capture: 1 palabra × (16 filas × 6 planos) en un BLTSIZE");
 	check(reinterpret_cast<const eng::u8*>(cap.destination.cwords()) == g_pool,
 	      "capture: destino = arena");
 	check(reinterpret_cast<const eng::u8*>(cap.source.cwords()) == target_cell(16u, 16u),
 	      "capture: fuente = celda del anillo (plano 0)");
-	check(cap.source_plane_stride_bytes == kRowBytes,
-	      "capture: paso entre planos del anillo");
-	check(cap.destination_plane_stride_bytes == kCell * 2u,
-	      "capture: paso entre planos del buffer");
+	check(cap.source_plane_stride_bytes == 0u &&
+		      cap.destination_plane_stride_bytes == 0u,
+	      "capture: sin strides por plano (una pasada)");
 	check(cap.source_modulo_bytes ==
-		      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) * kPlanes - 2),
-	      "capture: módulo de fila del anillo");
+		      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) - 2),
+	      "capture: módulo de fila-plano del anillo");
 	check(cap.destination_modulo_bytes == 0,
-	      "capture: buffer compacto");
+	      "capture: buffer interleaved compacto");
 
 	// Repetir la captura no re-emite: el fondo ya está guardado.
 	plan.clear();
@@ -121,15 +123,21 @@ void test_capture_and_restore() {
 	check(plan.blit_job_count() == 1u, "restore: UN job");
 	const eng::graphics::BlitJob& res = plan.blit_job(0u);
 	check(res.kind == BlitJobKind::RestoreRect, "restore: RestoreRect");
+	check(res.interleaved, "restore: blit interleaved de una pasada");
+	check(res.bitplane_count == 1u && res.height == kCell * kPlanes,
+	      "restore: un BLTSIZE para las 96 filas-plano");
 	check(reinterpret_cast<const eng::u8*>(res.source.cwords()) == g_pool,
 	      "restore: fuente = arena");
 	check(reinterpret_cast<const eng::u8*>(res.destination.cwords()) ==
 		      target_cell(16u, 16u),
 	      "restore: destino = celda del anillo");
-	check(res.source_plane_stride_bytes == kCell * 2u,
-	      "restore: paso entre planos del buffer");
-	check(res.destination_plane_stride_bytes == kRowBytes,
-	      "restore: paso entre planos del anillo");
+	check(res.source_plane_stride_bytes == 0u &&
+		      res.destination_plane_stride_bytes == 0u,
+	      "restore: sin strides por plano (una pasada)");
+	check(res.source_modulo_bytes == 0 &&
+		      res.destination_modulo_bytes ==
+			      eng::graphics::mod16(static_cast<eng::s32>(kRowBytes) - 2),
+	      "restore: módulos de buffer y anillo");
 
 	// Volver a pintar tras el restore: marca painted sin recapturar.
 	plan.clear();
@@ -188,12 +196,44 @@ void test_size_classes() {
 	check(cache.used() == 0u, "set: release libera ambas clases");
 }
 
+/// El camino **planar** conserva el contrato multi-plano con strides por plano;
+/// solo el destino interleaved usa el blit único `[fila][plano][palabra]`.
+void test_planar_copy_contract() {
+	eng::MemBank<eng::MemoryKind::Chip> bank {};
+	bank.configure(g_pool, sizeof(g_pool));
+	MapCellSaveCache<kCapacity> cache {};
+	cache.configure(bank, kCellBytes);
+	const BobTarget target = eng::graphics::make_bob_target(
+		eng::MemView<eng::PlaneTag, eng::MemoryKind::Chip> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(g_target),
+			sizeof(g_target)},
+		kRowBytes, kHeight, kPlanes, eng::graphics::BobLayout::Planar);
+	eng::graphics::FramePlan plan {};
+	check(cache.capture(plan, target, 0u, 16u, 16u, kCell, kCell),
+	      "planar capture: true");
+	const eng::graphics::BlitJob& cap = plan.blit_job(0u);
+	check(cap.bitplane_count == kPlanes, "planar capture: un job por plano");
+	check(cap.source_plane_stride_bytes == target.plane_pointer_step(),
+	      "planar capture: stride de plano del anillo");
+	check(cap.destination_plane_stride_bytes == kCell * 2u,
+	      "planar capture: stride de plano del buffer");
+	plan.clear();
+	check(cache.restore(plan, target, 0u), "planar restore: true");
+	const eng::graphics::BlitJob& res = plan.blit_job(0u);
+	check(res.bitplane_count == kPlanes, "planar restore: un job por plano");
+	check(res.source_plane_stride_bytes == kCell * 2u,
+	      "planar restore: stride de plano del buffer");
+	check(res.destination_plane_stride_bytes == target.plane_pointer_step(),
+	      "planar restore: stride de plano del anillo");
+}
+
 } // namespace
 
 int main() {
 	std::memset(g_target, 0x5a, sizeof(g_target));
 	std::memset(g_pool, 0x00, sizeof(g_pool));
 	test_capture_and_restore();
+	test_planar_copy_contract();
 	test_size_classes();
 	if (g_failures != 0) {
 		std::printf("HOST-502: %d fallos\n", g_failures);
