@@ -84,6 +84,43 @@ function animationFrames(ir, gid) {
 	}));
 }
 
+// Bits de `TileAnimationGroupView::flags` (contrato en tile_animation.hpp).
+const kFlagMasked = 1;
+const kFlagStableMask = 2;
+const kFlagSharedMask = 4;
+/// El frame incluye la máscara expandida por plano: layout
+/// `[fila][plano] = [imagen w][máscara w]`. El runtime lo dibuja con un solo
+/// blit cuando el destino es interleaved (`make_interleaved_masked_bob`).
+const kFlagInterleaved = 8;
+
+const maskAllOpaque = (mask) => {
+	for (let i = 0; i < mask.length; ++i) if (mask[i] !== 0xff) return false;
+	return true;
+};
+
+/// Calcula los flags de un grupo a partir de los frames ya empaquetados:
+/// enmascarado si algún frame tiene transparencia, silueta fija si todos
+/// comparten máscara (y entonces se emite una sola, con el bit de compartición).
+/// \param {Array<{frame:Buffer,mask:Buffer}>} frames
+/// \returns {number} bits `kFlag*`
+function packedFlags(frames) {
+	const masked = frames.some((f) => !maskAllOpaque(f.mask));
+	const stable = frames.length > 1 && frames.every((f) => f.mask.equals(frames[0].mask));
+	return (masked ? kFlagMasked : 0) | (stable ? kFlagStableMask | kFlagSharedMask : 0);
+}
+
+/// Bit `f` = el frame `f` es opaco (máscara toda a 1). El runtime lo dibuja
+/// con copia y omite el restore: el frame cubre la celda entera.
+/// \param {Array<{mask:Buffer}>} frames frames empaquetados
+/// \returns {number} máscara de bits de frames opacos (8 frames máx.)
+function opaqueMask(frames) {
+	let mask = 0;
+	for (let i = 0; i < frames.length && i < 8; ++i) {
+		if (maskAllOpaque(frames[i].mask)) mask |= 1 << i;
+	}
+	return mask;
+}
+
 function packFrame(ir, frameGid, flags, cache, colors, planes, tile, dither = false, shadowIndex = -1) {
 	const image = resolveTileImage(ir, frameGid, cache, { useFirstFrame: false });
 	if (image.error != null) throw new Error(image.error);
@@ -120,6 +157,19 @@ function packFrame(ir, frameGid, flags, cache, colors, planes, tile, dither = fa
 			if (color !== 0) mask[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
 		}
 	}
+	return packIndices(indices, mask, planes, tile);
+}
+
+/// Empaqueta índices de color + máscara 1bpp en el layout planar de un frame.
+/// \param {Uint8Array} indices `tile×tile` índices del perfil (0 = transparente)
+/// \param {Uint8Array} mask `tile × (tile/8)` máscara 1bpp
+/// \param {number} planes planos del perfil
+/// \param {number} tile lado del tile en píxeles (múltiplo de 16)
+/// \returns {{frame:Buffer,mask:Buffer}}
+function packIndices(indices, mask, planes, tile) {
+	const rowBytes = tile / 8;
+	const planeStride = rowBytes * tile;
+	const wordsPerRow = tile / 16;
 	const frame = Buffer.alloc(planes * planeStride);
 	for (let p = 0; p < planes; ++p) {
 		const bit = 1 << p;
@@ -137,6 +187,81 @@ function packFrame(ir, frameGid, flags, cache, colors, planes, tile, dither = fa
 		}
 	}
 	return { frame, mask: Buffer.from(mask) };
+}
+
+/// Convierte un frame planar `[plano][fila][palabra]` al layout interleaved
+/// `[fila][plano] = [imagen w][máscara w]`. La máscara se repite en cada plano:
+/// así `A` (máscara) y `B` (imagen) avanzan con el mismo par y el blit único
+/// recorre `filas × planos` sin punteros de plano (`make_interleaved_masked_bob`).
+/// \param {{frame:Buffer,mask:Buffer}} packed frame planar y su máscara 1bpp
+/// \param {number} words palabras por fila (`ancho/16`)
+/// \param {number} rows filas del frame
+/// \param {number} planes planos del perfil
+/// \returns {{frame:Buffer,mask:Buffer}} frame interleaved y la máscara original
+function interleaveFrame({ frame, mask }, words, rows, planes) {
+	const rowBytes = words * 2;
+	const planeStride = rowBytes * rows;
+	const pairBytes = rowBytes * 2;
+	const out = Buffer.alloc(rows * planes * pairBytes);
+	for (let r = 0; r < rows; ++r) {
+		for (let p = 0; p < planes; ++p) {
+			const src = p * planeStride + r * rowBytes;
+			const dst = (r * planes + p) * pairBytes;
+			frame.copy(out, dst, src, src + rowBytes);
+			mask.copy(out, dst + rowBytes, r * rowBytes, r * rowBytes + rowBytes);
+		}
+	}
+	return { frame: out, mask };
+}
+
+/// Cosecha en un frame de 16×16 los píxeles de los objetos estáticos que van
+/// **encima** de una celda viva. Es la capa de cobertura que el runtime
+/// reestampa después del parche para que el objeto (una banca, una roca) tape
+/// al overlay animado sin congelar la celda. Sólo se emiten píxeles con alfa;
+/// los objetos con animación propia no cuentan (son otra capa viva).
+/// \param {object} opts `{ occluders, cellX, cellY, colors, planes, tile, shadowIndex }`
+/// \returns {{frame:Buffer,mask:Buffer}}
+function packCoverFrame({ occluders, cellX, cellY, colors, planes, tile, shadowIndex }) {
+	const rowBytes = tile / 8;
+	const indices = new Uint8Array(tile * tile);
+	const mask = new Uint8Array(tile * rowBytes);
+	const px0 = cellX * tile;
+	const py0 = cellY * tile;
+	for (const occluder of occluders) {
+		const r = occluder.rect;
+		if (r.x >= px0 + tile || r.y >= py0 + tile || r.x + r.w <= px0 || r.y + r.h <= py0) continue;
+		const ix0 = Math.max(px0, Math.ceil(r.x));
+		const ix1 = Math.min(px0 + tile, Math.floor(r.x + r.w));
+		const iy0 = Math.max(py0, Math.ceil(r.y));
+		const iy1 = Math.min(py0 + tile, Math.floor(r.y + r.h));
+		for (let py = iy0; py < iy1; ++py) {
+			for (let px = ix0; px < ix1; ++px) {
+				let u = Math.floor(px - r.x);
+				let v = Math.floor(py - r.y);
+				if (u < 0 || v < 0 || u >= occluder.image.sw || v >= occluder.image.sh) continue;
+				if (occluder.flip.flipH) u = occluder.image.sw - 1 - u;
+				if (occluder.flip.flipV) v = occluder.image.sh - 1 - v;
+				if (occluder.flip.flipD) { const t = u; u = v; v = t; }
+				if (u < 0 || v < 0 || u >= occluder.image.sw || v >= occluder.image.sh) continue;
+				const so = ((occluder.image.sy + v) * occluder.image.png.width +
+					occluder.image.sx + u) * 4;
+				const alpha = occluder.image.png.data[so + 3];
+				let color = 0;
+				if (alpha >= 128) {
+					color = nearest(colors, occluder.image.png.data[so],
+						occluder.image.png.data[so + 1], occluder.image.png.data[so + 2]);
+				} else if (alpha > 0 && shadowIndex >= 0) {
+					const level = shadowLevel(alpha);
+					if (level > 0 && ditherCovers(px, py, level)) color = shadowIndex;
+				}
+				if (color === 0) continue;
+				const di = (py - py0) * tile + (px - px0);
+				indices[di] = color;
+				mask[(py - py0) * rowBytes + ((px - px0) >> 3)] |= 0x80 >> ((px - px0) & 7);
+			}
+		}
+	}
+	return packIndices(indices, mask, planes, tile);
 }
 
 function objectCell(ir, object, cache, tile) {
@@ -319,7 +444,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	const groups = new Map(); // gid -> { frames, cells:[{layer,x,y}] }
 	const addCell = (layer, cell, gid, live = false, shadow = false) => {
 		const frames = animationFrames(ir, gid) ?? (live ? [{ gid, ticks: 0 }] : null);
-		if (frames == null) return;
+		if (frames == null) return false;
 		const key = shadow ? `${gid}@shadow` : gid;
 		let group = groups.get(key);
 		if (group == null) {
@@ -328,10 +453,27 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 		}
 		layer.cells[cell.y * width + cell.x] = { gid: key };
 		group.cells.push({ layer, x: cell.x, y: cell.y, gid, key, frames, dither: shadow });
+		return true;
 	};
 	const flat = flattenLayers(ir.layers);
+	// Celdas vivas con objeto estático encima: se animan igualmente y se emite
+	// una **capa de cobertura** con los píxeles del objeto para reestamparlos
+	// después del parche (el objeto queda por encima del overlay, como en Tiled).
+	const coverCells = [];
 	// Celdas animadas bajo un objeto/capa estatica posterior: no se animan para
-	// que el frame del agua no borre el sprite horneado que va encima.
+	// que el frame del agua no borre el sprite horneado que va encima. Para las
+	// capas de tiles el solape se decide **pixel a pixel**: el bbox de un arbol
+	// roza celdas enteras sin cubrir ni un pixel del overlay y congelaba flores
+	// visibles (el borde de la copa caia en su celda). Se tolera un solape de
+	// borde minimo: cubrir 1-2 px de un sprite es menos grave que dejar una
+	// flor/ola sin animacion.
+	const kMaxOccluderOverlapPx = 2;
+	// Si un objeto tapa casi toda la silueta animada, mantener la celda viva
+	// (aunque sea con cobertura) no aporta nada visible y gasta frame, máscara
+	// y jobs. Se cuece con el primer frame (bake_animated_first_frame) y se
+	// ahorra la celda viva y su cobertura. Porcentaje de píxeles opacos que
+	// deben quedar visibles para animar la celda.
+	const kMinVisibleOpaquePercent = 25;
 	const staticOverlapCells = (fromIndex) => {
 		const covered = new Set();
 		for (let i = fromIndex + 1; i < flat.length; ++i) {
@@ -357,6 +499,108 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 		}
 		return covered;
 	};
+	// Oclusores por objeto para las capas de tiles vivas (misma regla que
+	// `staticOverlapCells`, pero con la cobertura real de cada sprite).
+	const occludersAbove = (fromIndex) => {
+		const list = [];
+		for (let i = fromIndex + 1; i < flat.length; ++i) {
+			const above = flat[i];
+			if (above.kind !== 'object') continue;
+			// Las sombras cuentan para **decidir si la celda se cuece** (si tapan
+			// la mayor parte de la silueta, se conserva la sombra horneada), pero
+			// NUNCA se reestampan en la cobertura: su color horneado es una
+			// mezcla suave y reestampar el sprite la convertía en un bloque
+			// sólido (la cuña negra junto al tocón). La cobertura es solo para
+			// objetos opacos.
+			const shadow = /shadow|sombra/i.test(layerName(above));
+			for (const object of above.objects ?? []) {
+				if (object.gid == null || objectHasAnimation(ir, object, cache)) continue;
+				const image = resolveTileImage(ir, object.gid, cache, { useFirstFrame: true });
+				if (image.error != null) continue;
+				list.push({
+					rect: objectRect(ir, object, image.sw, image.sh),
+					image,
+					flip: decodeGid(object.gid),
+					shadow,
+				});
+			}
+		}
+		return list;
+	};
+	// Unión de píxeles opacos de todos los frames de una celda. Un píxel vale
+	// como opaco si el alfa de origen es >0: cualquier píxel que el overlay
+	// escriba puede tapar al objeto de encima.
+	const opaqueUnionCache = new Map();
+	const animatedOpaqueUnion = (gid) => {
+		const key = gid >>> 0;
+		let union = opaqueUnionCache.get(key);
+		if (union != null) return union;
+		union = new Uint8Array(tile * tile);
+		const flip = decodeGid(gid);
+		const frames = animationFrames(ir, gid) ?? [{ gid }];
+		for (const frame of frames) {
+			const image = resolveTileImage(ir, frame.gid, cache, { useFirstFrame: false });
+			if (image.error != null) continue;
+			for (let y = 0; y < tile; ++y) {
+				for (let x = 0; x < tile; ++x) {
+					let u = flip.flipH ? image.sw - 1 - x : x;
+					let v = flip.flipV ? image.sh - 1 - y : y;
+					if (flip.flipD) { const t = u; u = v; v = t; }
+					if (u < 0 || v < 0 || u >= image.sw || v >= image.sh) continue;
+					const alpha = image.png.data[((image.sy + v) * image.png.width + image.sx + u) * 4 + 3];
+					if (alpha > 0) union[y * tile + x] = 1;
+				}
+			}
+		}
+		opaqueUnionCache.set(key, union);
+		return union;
+	};
+	/// Cobertura (alfa > 0) de los occluders dentro de una celda. Devuelve un
+	/// bitmap `tile×tile` con 1 en los píxeles que algún objeto pinta.
+	const cellOccluderCoverage = (x, y, occluders) => {
+		const coverage = new Uint8Array(tile * tile);
+		const px0 = x * tile;
+		const py0 = y * tile;
+		let any = false;
+		for (const occluder of occluders) {
+			const r = occluder.rect;
+			if (r.x >= px0 + tile || r.y >= py0 + tile || r.x + r.w <= px0 || r.y + r.h <= py0) continue;
+			const ix0 = Math.max(px0, Math.ceil(r.x));
+			const ix1 = Math.min(px0 + tile, Math.floor(r.x + r.w));
+			const iy0 = Math.max(py0, Math.ceil(r.y));
+			const iy1 = Math.min(py0 + tile, Math.floor(r.y + r.h));
+			for (let py = iy0; py < iy1; ++py) {
+				for (let px = ix0; px < ix1; ++px) {
+					let u = Math.floor(px - r.x);
+					let v = Math.floor(py - r.y);
+					if (u < 0 || v < 0 || u >= occluder.image.sw || v >= occluder.image.sh) continue;
+					if (occluder.flip.flipH) u = occluder.image.sw - 1 - u;
+					if (occluder.flip.flipV) v = occluder.image.sh - 1 - v;
+					if (occluder.flip.flipD) { const t = u; u = v; v = t; }
+					if (u < 0 || v < 0 || u >= occluder.image.sw || v >= occluder.image.sh) continue;
+					const alpha = occluder.image.png.data[
+						((occluder.image.sy + v) * occluder.image.png.width + occluder.image.sx + u) * 4 + 3];
+					if (alpha > 0) {
+						coverage[(py - py0) * tile + (px - px0)] = 1;
+						any = true;
+					}
+				}
+			}
+		}
+		return any ? coverage : null;
+	};
+	/// Cobertura y píxeles opacos de la celda: `{ overlap, opaque }`.
+	const occluderStats = (coverage, gid) => {
+		const union = animatedOpaqueUnion(gid);
+		let overlap = 0;
+		let opaque = 0;
+		for (let i = 0; i < coverage.length; ++i) {
+			if (union[i] === 0) continue;
+			++opaque;
+			if (coverage[i] !== 0) ++overlap;
+		}
+		return { overlap, opaque };
+	};
 
 	for (let li = 0; li < flat.length; ++li) {
 		const layer = flat[li];
@@ -366,15 +610,32 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			if (layer.width !== width || layer.height !== height) {
 				throw new Error(`${layerName(layer)}: capa ${layer.width}x${layer.height}, mapa ${width}x${height}`);
 			}
-			const suppressed = staticOverlapCells(li);
+			const occluders = occludersAbove(li);
 			const out = { name: layerName(layer), cells: new Array(width * height).fill(null) };
 			for (let y = 0; y < height; ++y) {
 				for (let x = 0; x < width; ++x) {
 					const gid = layer.data?.cells?.[y * width + x] ?? 0;
 					if (gid === 0) continue;
 					if (policy !== 'live' && !tileHasAnimation(ir, gid) && !animLayers.has(layerName(layer))) continue;
-					if (suppressed.has(`${x},${y}`)) continue;
-					addCell(out, { x, y }, gid, policy === 'live', shadowDither && /shadow|sombra/i.test(layerName(layer)));
+					const coverage = occluders.length !== 0 ? cellOccluderCoverage(x, y, occluders) : null;
+					const stats = coverage != null ? occluderStats(coverage, gid) : null;
+					if (stats != null && stats.opaque > 0 &&
+					    (stats.opaque - stats.overlap) * 100 < stats.opaque * kMinVisibleOpaquePercent) {
+						continue; // mayormente tapada: se cuece y no gasta celda viva ni cobertura
+					}
+					if (!addCell(out, { x, y }, gid, policy === 'live', shadowDither && /shadow|sombra/i.test(layerName(layer)))) continue;
+					// Cobertura solo con objetos opacos: las sombras se quedan en el
+					// bake (arriba se usaron para decidir si la celda merece animarse).
+					const propOccluders = occluders.filter((occluder) => !occluder.shadow);
+					const propCoverage = propOccluders.length !== 0
+						? cellOccluderCoverage(x, y, propOccluders) : null;
+					const propStats = propCoverage != null ? occluderStats(propCoverage, gid) : null;
+					if (propStats != null && propStats.overlap > kMaxOccluderOverlapPx) {
+						coverCells.push({
+							x, y,
+							frame: packCoverFrame({ occluders: propOccluders, cellX: x, cellY: y, colors, planes: p, tile, shadowIndex }),
+						});
+					}
 				}
 			}
 			if (out.cells.some((c) => c != null)) layers.push(out);
@@ -446,6 +707,24 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 		});
 	}
 
+	// Capa de cobertura: un grupo de 1 frame por celda viva tapada por un objeto
+	// estático. El runtime la reestampa después del parche para que el objeto
+	// siga por encima del overlay. Se añade después de la fusión para que ésta
+	// no la trate como un cluster de animación.
+	let coverLayerIndex = 0xffff;
+	if (coverCells.length !== 0) {
+		const coverLayer = { name: 'Covers', cells: new Array(width * height).fill(null) };
+		for (const cover of coverCells) {
+			const key = `cover:${cover.x},${cover.y}`;
+			const frames = [{ gid: 0, ticks: 0 }];
+			const cell = { layer: coverLayer, x: cover.x, y: cover.y, gid: 0, key, frames, dither: false };
+			groups.set(key, { gid: 0, key, dither: false, frames, cells: [cell], cover: cover.frame });
+			coverLayer.cells[cover.y * width + cover.x] = { gid: key };
+		}
+		layers.push(coverLayer);
+		coverLayerIndex = layers.length - 1;
+	}
+
 	// Agrupa como máximo 4 celdas por grupo: un grupo de agua puede tener 18
 	// celdas y 108 jobs (6 planos), lo que bloquea el parche entero. Varios
 	// grupos pequeños comparten los mismos frames y el FramePlan reparte el
@@ -482,37 +761,58 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	const sheetParts = [];
 	const maskParts = [];
 	const groupMeta = new Array(groupList.length);
-	const frameFirst = new Map();
-	const planeStride = (tile / 8) * tile;
-	const frameStride = p * planeStride;
+	// Frames interleaved opt-in: `animations.interleaved: true` en el plan.
+	// Duplica la hoja (máscara por plano) y no siempre compensa; el camino
+	// planar es el defecto (ver OPTIMIZACION_TILED_ANIMADO.md).
+	const interleaved = plan.animations?.interleaved === true;
+	// Frame normal: interleaved `[fila][plano] = imagen+máscara` o planar.
+	const frameStride = interleaved ? 2 * (tile / 8) * tile * p : (tile / 8) * tile * p;
 	const maskStride = (tile / 8) * tile;
 	let frameCursor = 0;
 	let sheetCursor = 0;
 	let maskCursor = 0;
+	// Layout por clave de grupo: las celdas de un mismo gid comparten frames,
+	// máscara y flags; se emite una sola copia aunque el grupo se parta en
+	// subgrupos de 4 celdas. Si la máscara es fija entre frames se emite UNA vez
+	// (`kFlagSharedMask`) en vez de una por frame.
+	const layoutByKey = new Map();
 	// Primero los frames de los grupos normales, para que `first_frame ×
 	// frame_stride` siga siendo válido. Los grupos fusionados se añaden después
 	// con su propio `sheet_offset`/`frame_stride` (frames más grandes).
 	for (let i = 0; i < groupList.length; ++i) {
 		const group = groupList[i];
-		if (group.fused != null) continue;
-		let first = frameFirst.get(group.key);
-		if (first == null) {
-			const flags = decodeGid(group.gid);
-			const frames = group.frames.map((frame) => packFrame(ir, frame.gid, flags, cache, colors, p, tile, group.dither === true, shadowIndex));
-			first = frameCursor;
+		if (group.fused != null || group.cover != null) continue;
+		let layout = layoutByKey.get(group.key);
+		if (layout == null) {
+			const flip = decodeGid(group.gid);
+			const packed = group.frames.map((frame) => packFrame(ir, frame.gid, flip, cache, colors, p, tile, group.dither === true, shadowIndex));
+			const frames = interleaved ? packed.map((frame) => interleaveFrame(frame, tile / 16, tile, p)) : packed;
+			const flags = packedFlags(packed) | (interleaved ? kFlagInterleaved : 0);
+			const shared = (flags & kFlagSharedMask) !== 0;
+			const first = frameCursor;
+			const maskOffset = maskCursor;
 			for (const frame of frames) {
 				sheetParts.push(frame.frame);
-				maskParts.push(frame.mask);
 				sheetCursor += frame.frame.length;
-				maskCursor += frame.mask.length;
 				++frameCursor;
 			}
-			frameFirst.set(group.key, first);
+			if (shared) {
+				maskParts.push(packed[0].mask);
+				maskCursor += packed[0].mask.length;
+			} else {
+				for (const frame of packed) {
+					maskParts.push(frame.mask);
+					maskCursor += frame.mask.length;
+				}
+			}
+			layout = { first, maskOffset, maskStride: packed[0].mask.length, flags };
+			layoutByKey.set(group.key, layout);
 		}
 		groupMeta[i] = {
 			gid: group.gid,
-			first_frame: first,
+			first_frame: layout.first,
 			frame_count: group.frames.length,
+			flags: layout.flags,
 			durations: group.frames.map((f) => f.ticks),
 			cells: group.cells.length,
 			first_cell: 0,
@@ -522,29 +822,43 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			pixel_height: 0,
 			sheet_offset: 0,
 			frame_stride: 0,
-			mask_offset: 0,
-			mask_stride: 0,
+			mask_offset: layout.maskOffset,
+			mask_stride: layout.maskStride,
+			opaque_mask: opaqueMask(packed),
 		};
 	}
 	for (let i = 0; i < groupList.length; ++i) {
 		const group = groupList[i];
 		if (group.fused == null) continue;
-		const frames = composeFusedFrames({ ir, cache, colors, planes: p, tile, group, shadowIndex });
+		const packed = composeFusedFrames({ ir, cache, colors, planes: p, tile, group, shadowIndex });
+		const widthPx = (group.fused.maxx - group.fused.minx + 1) * tile;
+		const heightPx = (group.fused.maxy - group.fused.miny + 1) * tile;
+		const frames = interleaved
+			? packed.map((frame) => interleaveFrame(frame, widthPx / 16, heightPx, p))
+			: packed;
+		const flags = packedFlags(packed) | (interleaved ? kFlagInterleaved : 0);
+		const shared = (flags & kFlagSharedMask) !== 0;
 		const sheetOffset = sheetCursor;
 		const maskOffset = maskCursor;
 		for (const frame of frames) {
 			sheetParts.push(frame.frame);
-			maskParts.push(frame.mask);
 			sheetCursor += frame.frame.length;
-			maskCursor += frame.mask.length;
 			++frameCursor;
 		}
-		const widthPx = (group.fused.maxx - group.fused.minx + 1) * tile;
-		const heightPx = (group.fused.maxy - group.fused.miny + 1) * tile;
+		if (shared) {
+			maskParts.push(packed[0].mask);
+			maskCursor += packed[0].mask.length;
+		} else {
+			for (const frame of packed) {
+				maskParts.push(frame.mask);
+				maskCursor += frame.mask.length;
+			}
+		}
 		groupMeta[i] = {
 			gid: group.gid,
 			first_frame: 0,
 			frame_count: group.frames.length,
+			flags,
 			durations: group.frames.map((f) => f.ticks),
 			cells: 1,
 			first_cell: 0,
@@ -556,12 +870,44 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 			frame_stride: frames[0].frame.length,
 			mask_offset: maskOffset,
 			mask_stride: frames[0].mask.length,
+			opaque_mask: opaqueMask(packed),
 			fused: `${group.fused.minx},${group.fused.miny} ${widthPx}x${heightPx}`,
 			duplicate_bytes: group.fused.duplicate_bytes,
 			jobs_saved: group.fused.jobs_saved,
 		};
 	}
 
+	for (let i = 0; i < groupList.length; ++i) {
+		const group = groupList[i];
+		if (group.cover == null) continue;
+		const packed = group.cover;
+		const frame = interleaved ? interleaveFrame(packed, tile / 16, tile, p) : packed;
+		const sheetOffset = sheetCursor;
+		const maskOffset = maskCursor;
+		sheetParts.push(frame.frame);
+		maskParts.push(packed.mask);
+		sheetCursor += frame.frame.length;
+		maskCursor += packed.mask.length;
+		++frameCursor;
+		groupMeta[i] = {
+			gid: 0,
+			first_frame: 0,
+			frame_count: 1,
+			flags: packedFlags([packed]) | (interleaved ? kFlagInterleaved : 0),
+			durations: [1],
+			cells: 1,
+			first_cell: 0,
+			cell_count: 0,
+			dither: false,
+			pixel_width: 0,
+			pixel_height: 0,
+			sheet_offset: sheetOffset,
+			frame_stride: frame.frame.length,
+			mask_offset: maskOffset,
+			mask_stride: packed.mask.length,
+			opaque_mask: opaqueMask([packed]),
+		};
+	}
 	for (let g = 0; g < groupList.length; ++g) {
 		for (const cell of groupList[g].cells) {
 			cell.layer.cells[cell.y * width + cell.x].group = g;
@@ -592,32 +938,25 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 
 	const sheet = Buffer.concat(sheetParts);
 	const masks = Buffer.concat(maskParts);
-	// Un grupo solo se marca como enmascarado si ALGUNO de sus frames tiene un
-	// bit transparente. Las capas de fondo (agua/flores) suelen ser opacas:
-	// cookie-cut + save-under por celda es trabajo inútil para ellas.
-	for (const group of groupMeta) {
-		const stride = group.mask_stride !== 0 ? group.mask_stride : maskStride;
-		const off = group.mask_stride !== 0 ? group.mask_offset : group.first_frame * maskStride;
-		let masked = false;
-		for (let f = 0; f < group.frame_count && !masked; ++f) {
-			for (let j = 0; j < stride; ++j) {
-				if (masks[off + f * stride + j] !== 0xff) { masked = true; break; }
-			}
-		}
-		group.flags = masked ? 1 : 0;
-	}
+	// `groupMeta[i].flags` se calculó al empaquetar cada grupo con `packedFlags`:
+	// enmascarado si algún frame tiene transparencia y silueta fija si todos
+	// comparten máscara (entonces se emitió una sola, `kFlagSharedMask`).
 	fs.mkdirSync(outDir, { recursive: true });
 	fs.writeFileSync(path.join(outDir, 'anim_sheet.bin'), sheet);
 	fs.writeFileSync(path.join(outDir, 'anim_masks.bin'), masks);
 
 	const lines = [];
-	lines.push('// Animaciones Tiled cocinadas (T5): overlays planares + máscara 1bpp.');
+	lines.push(`// Animaciones Tiled cocinadas (T5): overlays ${interleaved ? 'interleaved' : 'planares'} + máscara 1bpp.`);
 	lines.push(`// ${groupList.length} grupos, ${frameCursor} frames, ${layers.length} capas, ${p} planos.`);
 	lines.push('#pragma once');
 	lines.push('#include <eng/field/tile_animation.hpp>');
 	lines.push('');
 	lines.push(`#define TILED_ANIM_GROUP_COUNT ${groupList.length}u`);
 	lines.push(`#define TILED_ANIM_LAYER_COUNT ${layers.length}u`);
+	// Índice de la capa sintética de cobertura (objetos estáticos sobre celdas
+	// vivas), o 0xffff si el mapa no tiene ninguna. El runtime la reestampa
+	// después del parche y la excluye del pase normal.
+	lines.push(`#define TILED_ANIM_COVER_LAYER ${coverLayerIndex === 0xffff ? '0xffffu' : `${coverLayerIndex}u`}`);
 	lines.push(`#define TILED_ANIM_FRAME_COUNT ${frameCursor}u`);
 	lines.push(`#define TILED_ANIM_FRAME_STRIDE ${frameStride}u`);
 	lines.push(`#define TILED_ANIM_MASK_STRIDE ${maskStride}u`);
@@ -631,7 +970,7 @@ export function cookAnimations({ ir, plan, paletteFile, planes, tile: requestedT
 	for (const group of groupMeta) {
 		const durations = group.durations;
 		const padded = [...durations, ...new Array(MAX_FRAMES - durations.length).fill(0)];
-		lines.push(`  {${group.first_frame}u, ${group.frame_count}u, ${group.flags}u, ${group.first_cell}u, ${group.cell_count}u, {${padded.map((v) => `${v}u`).join(',')}}, ${group.pixel_width}u, ${group.pixel_height}u, ${group.sheet_offset}u, ${group.frame_stride}u, ${group.mask_offset}u, ${group.mask_stride}u},`);
+		lines.push(`  {${group.first_frame}u, ${group.frame_count}u, ${group.flags}u, ${group.first_cell}u, ${group.cell_count}u, {${padded.map((v) => `${v}u`).join(',')}}, ${group.pixel_width}u, ${group.pixel_height}u, ${group.sheet_offset}u, ${group.frame_stride}u, ${group.mask_offset}u, ${group.mask_stride}u, ${group.opaque_mask ?? 0}u},`);
 	}
 	lines.push('};');
 	lines.push('');

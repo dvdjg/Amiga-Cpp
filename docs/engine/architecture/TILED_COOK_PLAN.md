@@ -86,6 +86,7 @@ El cooker no acepta un tile transparente “por convención”: una capa `overla
 - `occluders` debe coincidir con las capas en modo `occluder`.
 - `animations.mode: "patch"` es **legacy** (base con primer frame); se acepta con aviso para no romper assets antiguos, pero no es el camino recomendado.
 - `animations.fusion` controla la fusión automática de clusters: `max_cells` limita la caja (8) y `max_duplicate_bytes` el banco extra si un gid se repite (0 = solo gids únicos). El coste que se compara es el banco duplicado frente a los jobs ahorrados (`2 × (celdas - 1)` por cambio); el informe `animations.json` lo registra por grupo.
+- `animations.interleaved: true` (opcional, por defecto `false`) emite cada frame como pares `[fila][plano] = imagen+máscara` para dibujarlo con un solo blit sobre un destino interleaved. Duplica el tamaño de la hoja; en Beginning Fields no compensó frente al camino planar y el banco completo no cabe en el A500 de 512K, así que el defecto planar se mantiene.
 
 ## 4. Fallback y presupuesto
 
@@ -118,16 +119,19 @@ Así el fallback no necesita un segundo bitmap completo: la base limpia + un fra
 
 ### 4.1 Solape con sprites estáticos
 
-Una celda animada puede quedar debajo de un objeto estático posterior (por ejemplo, la copa de un árbol sobre el agua). El runtime pinta el overlay animado **después** del bake, así que ese objeto horneado desaparecería. El cooker resuelve el solape en dos pasos:
+Una celda animada puede quedar debajo de un objeto estático posterior (por ejemplo, la copa de un árbol sobre el agua o una banca junto a la fogata). El runtime pinta el overlay animado **después** del bake, así que ese objeto horneado desaparecería. El cooker resuelve el solape sin congelar la celda:
 
-- `animations` no emite como vivas las celdas cubiertas por un objeto estático de una capa/objeto posterior (los objetos con animación propia no cuentan como estáticos). La consulta es por bounding box del objeto; las capas de tiles no suprimen celdas completas porque pueden tener transparencia.
-- `render.bake_animated_first_frame: true` incluye el primer frame de las capas animadas en la base. Las celdas suprimidas conservan así agua/flores + objeto, y el parche no puede borrar el objeto.
+- `render.bake_animated_first_frame: true` incluye el primer frame de las capas animadas en la base; el overlay vivo se pinta encima y el objeto horneado quedaría debajo.
+- Para cada celda viva, el cooker compara la cobertura real de **todos** los objetos estáticos de capas superiores (alfa > 0, con flips) con la unión de píxeles opacos de todos los frames de la celda. Si el solape supera el **75 %** de la silueta, la celda se cuece (primer frame) y no se anima.
+- Para las celdas que sí se animan, la **capa de cobertura** (`Covers`, un grupo de 1 frame 16×16) se emite **solo con objetos opacos** cuyo solape supera **2 px**; su índice va en `TILED_ANIM_COVER_LAYER`. El runtime la dibuja **justo después** de repintar la celda que cubre (`cover_layer` del campo), no como capa normal: así el objeto queda por encima del overlay y solo cuesta 1 job cuando esa celda cambia. Los objetos con animación propia no son cobertura (son otra capa viva).
+- Las **sombras estáticas** cuentan para la regla de visibilidad (si tapan la celda, se conserva su bake) pero **no se reestampan**: su sprite es sólido y reestamparlo convertía la sombra horneada (mezcla suave) en un bloque oscuro (la cuña de 196 px junto al tocón). La sombra se conserva en la base bajo los píxeles transparentes del overlay y por el save-under.
+- Un solape de borde ≤2 px se tolera: cubrir un par de píxeles del sprite es menos grave que dejar una flor/ola sin animación.
 
-Es una regla **conservadora**: no redibuja el sprite superpuesto en cada frame, sino que deja de animar la celda que quedaría tapada. Si se necesita animar debajo del sprite, el camino correcto es emitirlo como objeto `foreground`/`occluder` y dibujarlo después del parche (208); el cooker no inventa esa separación.
+En Beginning Fields, las 61 celdas de `Flowers` y las 155 de `Water` se animan; 27 llevan cobertura de objeto opaco y 7 se cuecen por estar casi totalmente tapadas (sombras incluidas).
 
 ## 4.2 Máscara solo si hace falta
 
-El cooker inspecciona todas las máscaras de un grupo: TileAnimationGroupView.flags & kTileAnimationFlagMasked solo se activa si algún frame tiene un bit transparente. Un grupo opaco usa CopyRect, no cookie-cut, y el parche no captura/restaura save-under para sus celdas. En Beginning Fields, 8 de 59 grupos (27 celdas) son opacos; el resto (flores, agua y fogata) conserva transparencia y necesita cookie-cut + save-under. La decisión se registra en nimations.json (lags) y se prueba en HOST-500.
+El cooker inspecciona todas las máscaras de un grupo: `TileAnimationGroupView.flags & kTileAnimationFlagMasked` solo se activa si algún frame tiene un bit transparente. Un grupo opaco usa CopyRect, no cookie-cut, y el parche no captura/restaura save-under para sus celdas. Si además la máscara es **idéntica en todos los frames** (`kTileAnimationFlagStableMask`), el cookie-cut conserva por sí solo el fondo de los píxeles transparentes: no hace falta save-under ni `restore` y la celda se repinta con 1 blit. En Beginning Fields, los grupos de agua (155 celdas vivas) cumplen la silueta fija; flores y fogata tienen máscara variable y conservan save-under; las coberturas son de 1 frame (silueta fija trivial). La decisión se registra en nimations.json (lags) y se prueba en HOST-500.
 
 ## 5. Objetos en una sola capa
 
