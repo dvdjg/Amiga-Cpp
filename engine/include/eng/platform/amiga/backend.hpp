@@ -922,6 +922,12 @@ private:
 	/// programa un `BlitJob`. `eor_open` mantiene la racha de líneas EOR entre jobs.
 	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);
 
+	/// Espera —solo si hace falta— a que el haz haya pasado la caja vertical de
+	/// los BOBs del plan o a que el lote quepa antes del borde superior. Una
+	/// lectura de `VPOSR` por job para el cálculo y un giro corto si el haz está
+	/// dentro; no cambia el orden ni el contenido de los blits.
+	void wait_bob_beam(const graphics::FramePlan& plan);
+
 	Profile m_profile; ///< perfil de máquina configurado
 	GameMemoryProfile m_game_memory = game_memory_a500; ///< presupuesto editable de la aplicación
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine

@@ -10,8 +10,8 @@ Medidas con `tools/debug/measure-fps.mjs` sobre `A500_release`, build del árbol
 
 | Build | fps | ciclos/frame | campos/frame | Notas |
 |---|---:|---:|---:|---|
-| `A500_release` visita | 39,90 | 177 803 | 1,253 | 8 ventanas; mínimo 35,4, máximo 46,0; con fogata en scroll (sin ella 47,60) |
-| `A500_release` fogata (`DEMO_TOUR_STOP=0`) | 44,09 | 160 900 | 1,134 | con presupuesto por capas; sin él 37,41 |
+| `A500_release` visita | 39,54 | 179 404 | 1,265 | 8 ventanas; mínimo 35,7, máximo 46,0; fogata en scroll + guarda beam-safe (sin ellas 47,60) |
+| `A500_release` fogata (`DEMO_TOUR_STOP=0`) | 42,46 | 167 052 | 1,177 | con presupuesto por capas y guarda beam-safe; sin presupuesto 37,41 |
 | `A500_release` agua (`DEMO_TOUR_STOP=1`) | 48,58 | 146 009 | 1,029 | agua activa |
 | `A500_release` flores (`DEMO_TOUR_STOP=2`) | 48,32 | 146 819 | 1,035 | agua activa |
 

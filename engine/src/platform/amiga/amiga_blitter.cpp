@@ -68,6 +68,40 @@ bool execute_blob_run(const eng::graphics::FramePlan& plan, u8 from, u8 to,
 }
 } // namespace
 
+void AmigaBackend::wait_bob_beam(const graphics::FramePlan& plan) {
+	// Caja común de todos los BOBs del plan (los jobs de scroll/tiles no llevan
+	// `bob`). `top` fija el deadline más temprano; `bottom` la ventana segura.
+	u16 top_min = 0xffffu;
+	u16 bottom_max = 0u;
+	u32 words = 0u;
+	bool any = false;
+	const u8 count = plan.blit_job_count();
+	for (u8 i = 0u; i < count; ++i) {
+		const graphics::BlitJob& job = plan.blit_job(i);
+		if (!job.bob || job.words_per_row == 0u || job.height == 0u) continue;
+		any = true;
+		if (job.bob_top < top_min) top_min = job.bob_top;
+		if (job.bob_bottom > bottom_max) bottom_max = job.bob_bottom;
+		words += static_cast<u32>(job.words_per_row) * job.height *
+			 (job.interleaved ? 1u : job.bitplane_count);
+	}
+	if (!any) return;
+	const u16 display_start = static_cast<u16>(custom_base[custom_diwstrt_offset] >> 8);
+	const u32 top = static_cast<u32>(display_start) + top_min;
+	// El anillo puede declarar filas de staging fuera de la pantalla visible;
+	// el haz nunca pasa de 311 en PAL, así que la espera se recorta ahí.
+	const u32 bottom_raw = static_cast<u32>(display_start) + bottom_max;
+	const u32 bottom = bottom_raw > 309u ? 309u : bottom_raw;
+	// ~50 ciclos de bus por palabra / ~450 ciclos de CPU por línea; el margen
+	// cubre la contención con la display DMA y el arranque del Blitter.
+	const u32 blit_lines = (words / 8u) + 2u;
+	const u32 margin = 2u;
+	u16 line = current_raster_line();
+	if (static_cast<u32>(line) >= bottom + margin) return; // el haz ya pasó la caja
+	if (static_cast<u32>(line) + blit_lines + margin < top) return; // cabe antes
+	while (static_cast<u32>(line) < bottom + margin) line = current_raster_line();
+}
+
 bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	if (!plan.ok()) {
 		return false;
@@ -88,6 +122,9 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 	}
+	// Los BOBs de bitmap esperan a que el haz no esté leyendo su caja (una
+	// lectura VPOSR por job; sin espera si el lote cabe antes del borde).
+	wait_bob_beam(plan);
 	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
 	const u8 job_count = plan.blit_job_count();
 	u8 job_index = 0u;
@@ -217,6 +254,7 @@ bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	while (m_async_busy) {
 		wait_blitter();
 	}
+	wait_bob_beam(plan);
 	// La caché de registros comunes no cruza el límite de frame (el SO puede haber
 	// programado el Blitter entre medias; ver `execute_frame_plan`).
 	m_blt_common_valid = false;

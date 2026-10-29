@@ -251,6 +251,15 @@ struct BlitJob {
 		u16 alwm = 0xffffu; ///< `BLTALWM` (mascara de la ultima palabra)
 	};
 	Fill fill {};
+
+	/// **BOB de bitmap**: el ejecutor espera a que el haz haya pasado la caja
+	/// (`bob_bottom`) o a que el blit quepa antes de `bob_top` antes de escribir.
+	/// Se marca en los caminos de `Bob`/`MapSprite`/`TileAnimator` y en sus
+	/// save-under; las copias de scroll/tiles no lo activan. Las líneas son de
+	/// **pantalla** (la ejecución suma el `DIWSTRT` del display).
+	bool bob = false;
+	u16 bob_top = 0u;    ///< línea superior del BOB en pantalla (si `bob`)
+	u16 bob_bottom = 0u; ///< línea inferior exclusiva del BOB en pantalla (si `bob`)
 };
 
 /// **¿El trabajo escribe solo dentro de `bounds`?** Cubre los jobs rectangulares

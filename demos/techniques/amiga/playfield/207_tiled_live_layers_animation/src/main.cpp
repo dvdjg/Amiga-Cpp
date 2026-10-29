@@ -566,8 +566,13 @@ struct DemoGame {
 			// Tope fijo de 8 jobs: en las paradas se animan las tres capas;
 			// durante el scroll solo la fogata (las flores/agua se quedan en
 			// el último frame, que es menos visible que congelar el fuego).
+#if defined(DEMO_WATER_IN_SCROLL)
+			animator.set_layer_animation_enabled(0u, true);
+			animator.set_layer_animation_enabled(1u, true);
+#else
 			animator.set_layer_animation_enabled(0u, paused);
 			animator.set_layer_animation_enabled(1u, paused);
+#endif
 			animator.set_layer_animation_enabled(2u, true);
 #if defined(DEMO_DISABLE_LAYER)
 			animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
@@ -575,8 +580,14 @@ struct DemoGame {
 			return;
 		}
 		if (!paused) {
+#if defined(DEMO_WATER_IN_SCROLL)
+			// Perfil «favor agua»: el agua y las flores siguen también en scroll.
+			animator.set_layer_animation_enabled(0u, true);
+			animator.set_layer_animation_enabled(1u, true);
+#else
 			animator.set_layer_animation_enabled(0u, false);
 			animator.set_layer_animation_enabled(1u, false);
+#endif
 			animator.set_layer_animation_enabled(2u, true);
 #if defined(DEMO_DISABLE_LAYER)
 			animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
@@ -763,6 +774,9 @@ struct DemoGame {
 			return;
 		}
 #endif
+		// Origen del anillo para que el parche anote la caja de pantalla de los
+		// BOBs; el ejecutor beam-safe espera a que el haz no la lea.
+		animator.set_display_offset(static_cast<eng::u16>(scene.bg().display_offset()));
 		DEMO_PROF_END(0u);
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();

@@ -194,6 +194,19 @@ constexpr u16 box_words(const Bob& bob, u16 w, s16 x) {
 	return static_cast<u16>((w + 15u) / 16u + ((!pair && (x & 15) != 0) ? 1u : 0u));
 }
 
+/// Marca un job como BOB de bitmap y anota su caja vertical **en pantalla** para
+/// que el ejecutor espere a que el haz no la esté leyendo. `y`/`h` son la caja
+/// del dibujo; `target_height` recorta los píxeles fuera del destino.
+constexpr BlitJob& mark_bob(BlitJob& job, s16 y, u16 h, u16 target_height) noexcept {
+	const s32 top = y < 0 ? 0 : y;
+	s32 bottom = top + h;
+	if (bottom > target_height) bottom = target_height;
+	job.bob = true;
+	job.bob_top = top < target_height ? top : target_height;
+	job.bob_bottom = bottom;
+	return job;
+}
+
 /// Bytes por fila que separan dos filas consecutivas de la hoja: el valor declarado
 /// si lo hay, o el del contrato compacto. Es lo que hay que usar para el modulo de
 /// origen y el stride entre planos de la hoja.
@@ -303,6 +316,7 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	job.source_modulo_bytes = 0;
 	job.descending = false;
 	job.source_shift = 0u;
+	bob_detail::mark_bob(job, y, h, t.height);
 	if (inter && bob.planes == t.plane_count) {
 		// Si el BOB cubre todos los planos del destino, sus filas físicas son contiguas.
 		job.height = static_cast<u16>(h * bob.planes);
@@ -368,6 +382,7 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 	job.descending = false;
 	job.source_shift = 0u;
 	job.interleaved = false;
+	bob_detail::mark_bob(job, y, h, t.height);
 	return plan.commit_blit_job();
 }
 
@@ -402,6 +417,7 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 	job.descending = false;
 	job.source_shift = 0u;
 	job.interleaved = false;
+	bob_detail::mark_bob(job, y, h, t.height);
 	return plan.commit_blit_job();
 }
 
@@ -490,6 +506,7 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	job.descending = false;
 	job.source_plane_stride_bytes = 0u;
 	job.destination_plane_stride_bytes = 0u;
+	mark_bob(job, static_cast<s16>(y + first_row), rows, t.height);
 	return plan.commit_blit_job();
 }
 
@@ -579,6 +596,7 @@ __attribute__((always_inline)) inline bool draw_rows(FramePlan& plan, const Bob&
 	if (masked) {
 		job.mask = BlitPtr::from_storage(reinterpret_cast<const u16*>(bob.mask.data()));
 	}
+	mark_bob(job, static_cast<s16>(y + first_row), rows, t.height);
 	return plan.commit_blit_job();
 }
 

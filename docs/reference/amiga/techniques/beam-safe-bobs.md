@@ -71,6 +71,16 @@ Un sprite no escribe el bitmap: Denise lo fetcha de su estructura DMA al princip
 - **Fases**: (1) ordenar/bucketear los jobs de BOB por `y`; (2) leer `VPOSR` entre lotes y aplicar la condición de seguridad; (3) telemetría (`jobs_deferred_by_beam`, `max_lateness`) y un test sintético con un BOB en la línea del haz; (4) la variante Copper para los BOBs críticos; (5) la banda doble si la memoria lo justifica.
 - **El doble buffer de 207** ya existe como variante (`DEMO_DOUBLE_BUFFER`, 256 KB) y no compensa en el perfil actual; el scheduler no lo sustituye, pero permite dejar el buffer único con latencia ocasional en vez de tearing.
 
+### Implementación actual (engine)
+
+El camino común ya está en el engine, sin API nueva para los BOBs:
+
+- `BlitJob` lleva `bob`, `bob_top` y `bob_bottom` (líneas de pantalla). `bob_detail::mark_bob` los fija desde `bob_draw`, `bob_erase`, `bob_save_box`, `bob_restore_box`, `bob_draw_interleaved_pair`, `MapSpriteCache::emit_copy` y el `TileAnimator` (`mark_bob_screen`, con el `display_offset` del anillo).
+- `AmigaBackend::wait_bob_beam(plan)` recorre los jobs marcados **una vez por plan**, calcula la caja común (deadline superior más temprano, borde inferior más bajo) y el coste en palabras, y solo espera si el haz está dentro o si el lote no cabe antes del deadline. Es una lectura de `VPOSR` (`current_raster_line`) y un giro corto; el coste medido en 207 es ~0,4 fps en la visita. Los jobs de scroll/tiles no se marcan y no esperan.
+- La espera ocurre también en el camino **async** (`execute_frame_plan_async`) antes de lanzar la cadena.
+- **Todos los BOBs del plan** (mapa, objetos, actores) comparten la guarda; los sprites hardware no escriben el bitmap y no la necesitan. La actualización de un BOB que el haz ya pasó se ve en el frame siguiente; si el lote cabía antes del deadline se dibuja en el frame actual.
+- Medido: 207 visita **39,54 fps** (frente a 39,90 sin guarda) con el fuego, flores/agua y objetos protegidos; 208 (objetos sobre agua animada) arranca sin tearing aparente a **26,50 fps**. La guarda gruesa por plan es la versión más barata; el refinamiento por bucket/Copper queda para cuando el perfil lo pida.
+
 ## 7. Qué medir
 
 - Secuencia de capturas con el BOB en la misma línea que el haz (un BOB a `y` fijo, cámara quieta) y el `frame-diff` de la zona: el scheduler debe dar 0 píxeles a medio actualizar; el frame diferido se reconoce por el arte anterior completo.
