@@ -68,6 +68,43 @@ bool execute_blob_run(const eng::graphics::FramePlan& plan, u8 from, u8 to,
 }
 } // namespace
 
+AmigaBackend::BobBeamWindow AmigaBackend::bob_beam_window(const graphics::FramePlan& plan) const {
+	BobBeamWindow window {};
+	u16 top_min = 0xffffu;
+	u16 bottom_max = 0u;
+	u32 words = 0u;
+	bool any = false;
+	const u8 count = plan.blit_job_count();
+	for (u8 i = 0u; i < count; ++i) {
+		const graphics::BlitJob& job = plan.blit_job(i);
+		if (!job.bob || job.words_per_row == 0u || job.height == 0u) continue;
+		any = true;
+		if (job.bob_top < top_min) top_min = job.bob_top;
+		if (job.bob_bottom > bottom_max) bottom_max = job.bob_bottom;
+		words += static_cast<u32>(job.words_per_row) * job.height *
+			 (job.interleaved ? 1u : job.bitplane_count);
+	}
+	window.line = current_raster_line();
+	if (!any) return window;
+	const u16 display_start = static_cast<u16>(custom_base[custom_diwstrt_offset] >> 8);
+	const u32 top = static_cast<u32>(display_start) + top_min;
+	const u32 bottom_raw = static_cast<u32>(display_start) + bottom_max;
+	const u32 bottom = bottom_raw > 309u ? 309u : bottom_raw;
+	const u32 blit_lines = (words / 8u) + 2u;
+	const u32 margin = 2u;
+	window.retry_line = bottom + margin;
+	if (static_cast<u32>(window.line) >= bottom + margin) {
+		window.decision = BeamWriteDecision::Now; // el haz ya pasó
+	} else if (static_cast<u32>(window.line) + blit_lines + margin < top) {
+		window.decision = BeamWriteDecision::Now; // cabe antes del deadline
+	} else if (static_cast<u32>(window.line) < top) {
+		window.decision = BeamWriteDecision::Defer; // no llega; mejor posponer
+	} else {
+		window.decision = BeamWriteDecision::Wait; // el haz está dentro
+	}
+	return window;
+}
+
 void AmigaBackend::wait_bob_beam(const graphics::FramePlan& plan) {
 	// Caja común de todos los BOBs del plan (los jobs de scroll/tiles no llevan
 	// `bob`). `top` fija el deadline más temprano; `bottom` la ventana segura.
@@ -99,7 +136,17 @@ void AmigaBackend::wait_bob_beam(const graphics::FramePlan& plan) {
 	u16 line = current_raster_line();
 	if (static_cast<u32>(line) >= bottom + margin) return; // el haz ya pasó la caja
 	if (static_cast<u32>(line) + blit_lines + margin < top) return; // cabe antes
-	while (static_cast<u32>(line) < bottom + margin) line = current_raster_line();
+	// La espera es **cooperativa**: mientras el haz cruza la caja se drena el
+	// servicio de fondo del engine (`BackgroundQueue`: IA, colisiones, generación,
+	// E/S diferida), el mismo que usa `wait_blitter`. Así el hueco de raster no
+	// detiene el trabajo algorítmico de la CPU. Sin servicio, es un giro corto.
+	while (static_cast<u32>(line) < bottom + margin) {
+		if (g_blitter_service != nullptr && !g_in_blit_service &&
+		    !g_blit_service_referee_only) {
+			g_blitter_service(g_blitter_service_user, line);
+		}
+		line = current_raster_line();
+	}
 }
 
 bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {

@@ -1123,6 +1123,15 @@ private:
         m_anim_visible_total = 0u;
         const u16 groups = anim.group_count();
         for (u16 g = 0u; g < groups && g < kTileAnimationMaxGroups; ++g) {
+            // Capa desactivada por presupuesto: sus celdas conservan el último
+            // overlay dibujado y no necesitan entrar en la tabla de visibilidad.
+            // Evita reconstruir agua/flores durante el scroll en el que solo
+            // se parchea la fogata.
+            if (!anim.layer_animation_enabled(anim.group_layer(g))) {
+                m_anim_visible_first[g] = m_anim_visible_total;
+                m_anim_visible_by_group[g] = 0u;
+                continue;
+            }
             const u16 first = m_anim_visible_total; // inicio de la tira del grupo
             const TileAnimationGroupView& grp = anim.group(g);
             for (u16 ci = grp.first_cell;
