@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-28T13:39:14.144Z
+- Fecha: 2026-10-29T01:27:02.925Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png (4)
+- Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
 - Secuencia: `out/run/207_tiled_live_layers_animation/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,26 +15,18 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Imagen 1:**
-- **Estado general:** Pantalla de un editor de mapas de estilo pixel art, con una vista isométrica de un entorno rural.
-- **Elementos visibles:**
-  - **Fondo:** Un mapa con tierra verde, agua azul, piedras marrones, árboles verdes, un tronco de árbol, un fuego en una hoguera de piedras, un contenedor de madera, un pozo, y una casa de madera en la esquina superior derecha.
-  - **Interfaz superior:** Texto que indica "207 TILED LIVE v1.0.7241 | F18 0.0FPS | X=104 Y=368 A=2 G=73".
-- **Observaciones:**
-  - El FPS (frames per second) es 0.0, lo que indica que el editor está en pausa o no está renderizando el mapa activamente.
-  - No hay ningún objeto en movimiento.
+Las tres imágenes son idénticas en contenido visual y no muestran ningún cambio temporal ni movimiento. Se trata de una captura de pantalla de un editor de mapas de estilo pixel art, específicamente "TILED LIVE v1.0.7450", mostrando un mapa de juego con una vista isométrica.
 
-**Imagen 2:**
-- **Estado general:** La misma escena que en la imagen 1, pero con un cambio en la interfaz superior.
-- **Elementos visibles:**
-  - **Fondo:** Todo el mapa es idéntico a la imagen 1. No hay cambios en la posición, apariencia o estado de los objetos.
-  - **Interfaz superior:** El texto ahora muestra "207 TILED LIVE v1.0.7241 | F24 19.1FPS | X=104 Y=368 A=6 G=73".
-- **Observaciones:**
-  - El FPS ha aumentado a 19.1, lo que indica que el editor ha comenzado a renderizar el mapa activamente.
-  - No hay ningún objeto en movimiento. La escena es estática.
-  - **Cambio observable:** El único cambio es el valor del FPS y los valores de A y G en la interfaz superior. El contenido visual del mapa no ha cambiado en absoluto.
+**Descripción de los elementos gráficos:**
 
-**Conclusión:**
-- Ambas imágenes muestran exactamente el mismo mapa.
-- La única diferencia es el estado del editor: la primera imagen muestra el editor en pausa (0.0 FPS), mientras que la segunda muestra el editor en funcionamiento (19.1 FPS).
-- No hay ningún objeto que se mueva, cambie de posición, apariencia o estado entre las dos imágenes. Todo es estático.
+*   **Fondo y entorno:** El mapa está compuesto por un terreno verde con zonas de tierra marrón, un cuerpo de agua azul en la parte inferior, y varios elementos decorativos como árboles, arbustos, piedras y un tronco de árbol.
+*   **Elementos fijos:**
+    *   En la parte superior izquierda, hay un conjunto de bancos de madera.
+    *   En el centro, hay una fogata con llamas rojas y amarillas, rodeada de piedras. A su derecha, hay un camino de piedras que rodea un tronco de árbol.
+    *   A la derecha, se observa una pequeña estructura de madera con una ventana.
+    *   En la parte inferior izquierda, hay un árbol grande y arbustos.
+*   **Elementos en movimiento (no observados):** No hay ningún objeto ni entidad que se mueva entre las imágenes. La captura es estática.
+*   **Elementos que cambian (no observados):** No hay cambios entre las imágenes. Todas muestran exactamente el mismo estado del mapa.
+*   **Elementos extraños o defectuosos:** No se observan artefactos, parpadeos, recortes, píxeles cortados o elementos superpuestos. La imagen es coherente y completa. El contorno de todos los objetos es limpio y no presenta halos ni restos de posiciones anteriores.
+
+**Resumen:** Las tres imágenes son idénticas y muestran una captura estática de un mapa de juego en un editor de mapas. No hay ningún cambio, movimiento ni artefacto observable.

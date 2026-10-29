@@ -267,8 +267,11 @@ struct DemoGame {
 	eng::u32 m_render_start = 0u;
 	eng::u32 m_render_cycles = 0u;
 	eng::u8 m_pause_warmup = 0u;
+	eng::u8 m_budget_hold = 0u; // frames de histéresis de la degradación del agua
 	bool m_hud_pending = false;
 	bool m_patch_busy = false;
+	eng::u8 m_hud_busy_frames = 0u; // frames seguidos con parche pendiente (tope de refresco del HUD)
+	eng::u16 m_hud_anim_group = 0u; // grupo que muestra el HUD en A= (fogata fusionada si existe)
 	bool m_install_dirty = true;
 
 	static constexpr eng::s16 wrap_camera(eng::s32 value, eng::s32 span) {
@@ -374,13 +377,16 @@ struct DemoGame {
 		DEMO_STAT_NAME(4u, "groups");
 		DEMO_STAT_NAME(5u, "tick");
 		eng::debug::mark_init_started(g_eng_run_status);
-		// 128K chip: bitmap corkscrew + HUD + Copper + save-under de celdas vivas
-		// (96 × 16×16 × 6 planos = 18 KB). 16K slow para el resto de estructuras.
+		// Pool de chip: bitmap corkscrew + HUD + Copper + save-under de celdas
+		// vivas (96 × 16×16 × 6 planos = 18 KB). 16K slow para el resto.
 		// La variante DEMO_DOUBLE_BUFFER reserva 256K para el segundo ring.
 #if defined(DEMO_DOUBLE_BUFFER)
 		constexpr eng::u32 kChipBytes = 256u * 1024u;
 #else
-		constexpr eng::u32 kChipBytes = 128u * 1024u;
+		// 104K chip: el banco mixto (agua planar + flores/fogata/coberturas
+		// interleaved) deja 104K contiguos en el A500 de 512K; el escenario usa
+		// ~100K (anillo 69K + HUD 11,5K + save-under 18K).
+		constexpr eng::u32 kChipBytes = 104u * 1024u;
 #endif
 		if (!backend.configure_memory({kChipBytes, 16u * 1024u, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
@@ -416,6 +422,21 @@ struct DemoGame {
 			return;
 		}
 		animator.set_tick(0u);
+#if defined(DEMO_NO_LIVE)
+		// Ablación: deja solo la base cocida (sin overlays vivos ni coberturas)
+		// para separar un defecto del bake de uno del parche.
+		for (eng::u8 layer = 0u; layer < animator.layer_count(); ++layer) {
+			animator.set_layer_animation_enabled(layer, false);
+		}
+#endif
+		// A= del HUD: el grupo 0 puede ser una cobertura (1 frame). Mostrar el
+		// primer grupo con caja mayor que un tile, que es la fogata fusionada.
+		for (eng::u16 g = 0u; g < animator.group_count(); ++g) {
+			if (animator.group_pixel_width(g) > animator.tile()) {
+				m_hud_anim_group = g;
+				break;
+			}
+		}
 #if defined(DEMO_DEBUG_ONE_CELL)
 		animator.set_test_cell(kDebugCell);
 #endif
@@ -457,6 +478,12 @@ struct DemoGame {
 		scene_cfg.blocks_prebuilt_size = g_tiled_bank_size;
 		scene_cfg.palette = g_palette;
 		scene_cfg.animator = animator; // referencia no propietaria al animador de la demo
+#if defined(TILED_ANIM_COVER_LAYER) && (TILED_ANIM_COVER_LAYER != 0xffffu) && !defined(DEMO_NO_COVER)
+		// Objetos estáticos que van encima de una celda viva: el parche los
+		// reestampa tras pintar la celda (la banca junto a la fogata).
+		// `DEMO_NO_COVER=1` es la ablación para medir su coste.
+		scene_cfg.cover_layer = static_cast<eng::u8>(TILED_ANIM_COVER_LAYER);
+#endif
 #if defined(DEMO_DOUBLE_BUFFER)
 		scene_cfg.double_buffer = true;
 #endif
@@ -507,7 +534,21 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
 	}
 
-	static constexpr bool kBudgetedAnimations = false; // variante completa; true = política por defecto
+#if defined(DEMO_NO_BUDGET)
+	static constexpr bool kBudgetedAnimations = false; // A/B: tope fijo de 8 jobs
+#else
+	static constexpr bool kBudgetedAnimations = true; // prioridad por capas con histéresis
+#endif
+
+	/// Degradación por deadline de trabajo: con la ventana por encima de
+	/// ~1,25 campos (41 fps) se congela el agua (capa 1, ambiente) y, si el
+	/// margen se recupera (>45 fps) durante 4 frames, se reanima. La fogata y
+	/// las flores (capas 2 y 0) no se degradan: son el foco visual. La espera
+	/// evita oscilar en el borde del campo; el cursor round-robin del parche
+	/// reparte las celdas diferidas.
+	static constexpr eng::u32 kDegradeFps10 = 410u;
+	static constexpr eng::u32 kRestoreFps10 = 450u;
+	static constexpr eng::u8 kBudgetHold = 4u;
 
 	void apply_animation_budget() {
 		if (!kBudgetedAnimations) {
@@ -520,9 +561,17 @@ struct DemoGame {
 			return;
 		}
 		const eng::u32 fps10 = host_hud.fps10();
-		if (fps10 == 0u) return;
-		if (fps10 < 480u) animator.set_layer_animation_enabled(0u, false);
-		if (fps10 < 440u) animator.set_layer_animation_enabled(1u, false);
+		if (fps10 != 0u) {
+			if (fps10 < kDegradeFps10) {
+				if (m_budget_hold < 8u) ++m_budget_hold;
+			} else if (fps10 > kRestoreFps10) {
+				if (m_budget_hold > 0u) --m_budget_hold;
+			}
+		}
+		const bool water = m_budget_hold < kBudgetHold;
+		animator.set_layer_animation_enabled(0u, true);
+		animator.set_layer_animation_enabled(1u, water);
+		animator.set_layer_animation_enabled(2u, true);
 	}
 
 #if defined(DEMO_DEBUG_ONE_CELL)
@@ -692,10 +741,12 @@ struct DemoGame {
 		DEMO_PROF_END(0u);
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();
-		// Tope del parche: 12 jobs por frame. Un grupo de 4 celdas enmascaradas
-		// necesita 12 jobs; con menos, el grupo nunca cabe y pass_deferred
-		// mantiene el redraw completo para siempre.
-		plan.set_blit_budget_limits({16384, 65536, 12, 12});
+		// Tope del parche: 8 jobs por frame = el grupo mayor (4 celdas con máscara
+		// variable × restore+frame; la captura inicial sustituye al restore, no
+		// suma). Las celdas de silueta fija (agua) cuestan un blit. Con 6 el
+		// grupo de 4 no cabe nunca y `pass_deferred` no termina; con 12 medido
+		// peor: más jobs por frame suben el pico sin reducir el trabajo total.
+		plan.set_blit_budget_limits({16384, 65536, 8, 8});
 		if (tour_paused) {
 #if defined(DEMO_BLIT_STATS) || defined(ENG_METRICS)
 			m_patch_stats = {};
@@ -794,13 +845,22 @@ struct DemoGame {
 		DEMO_PROF_END(3u);
 		DEMO_PROF_BEGIN(4u);
 		// El HUD de host cambia de frame cada VBlank, pero rehacer su texto
-		// cuesta ~52k ciclos. Se refresca cada 4 frames y nunca en un frame de
-		// parche; sigue mostrando frame/fps con un salto de 4.
+		// cuesta ~52k ciclos. Se refresca cada 4 frames y se evita en los frames
+		// de parche para no subir el pico; si el parche encadena más de 8 frames
+		// (parada de la fogata con agua/objetos) se fuerza uno para que el
+		// contador de frames/fps no quede congelado.
+		constexpr eng::u8 kHudMaxBusyFrames = 8u;
 		if ((context.frame.frame_index & 3u) == 0u) m_hud_pending = true;
-		if (m_hud_pending && !m_patch_busy) {
+		if (m_patch_busy) {
+			if (m_hud_busy_frames < kHudMaxBusyFrames) ++m_hud_busy_frames;
+		} else {
+			m_hud_busy_frames = 0u;
+		}
+		if (m_hud_pending && (!m_patch_busy || m_hud_busy_frames >= kHudMaxBusyFrames)) {
+			m_hud_busy_frames = 0u;
 		eng::util::TextLine<96> stats;
 		stats << "X=" << scene.bg().mapposx() << " Y=" << scene.bg().mapposy()
-		      << " A=" << animator.frame_of(0u) << " G=" << animator.group_count()
+		      << " A=" << animator.frame_of(m_hud_anim_group) << " G=" << animator.group_count()
 		      << " W=" << g_work_cycles << " M=" << g_work_max;
 #if defined(DEMO_PROF)
 		// Coste medio por frame de las secciones del demo (miles de ciclos):
