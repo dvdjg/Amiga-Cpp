@@ -379,6 +379,9 @@ public:
 		u16 first_deferred = 0xffffu;
 		u16 retry_line = 0u;
 		u32 deferred_groups = 0u; ///< bit `g` = el grupo `g` se difirió entero
+		u16 max_lateness = 0u; ///< peor latencia de un grupo diferido (lineas)
+		u16 max_group_lines = 0u; ///< duracion medida del grupo BOB mas largo
+		u16 last_group_lines = 0u; ///< duracion medida del ultimo grupo
 	};
 	[[nodiscard]] const FramePlanExecution& last_frame_plan_execution() const noexcept {
 		return m_last_plan_execution;

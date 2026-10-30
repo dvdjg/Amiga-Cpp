@@ -132,22 +132,55 @@ bool AmigaBackend::execute_frame_plan_groups(const graphics::FramePlan& plan,
 	const u8 count = plan.blit_job_count();
 	const u16 display_start = static_cast<u16>(custom_base[custom_diwstrt_offset] >> 8);
 	bool eor_open = false;
+
+	// Los trabajos no-BOB (scroll/tiles/staging) conservan su orden y se ejecutan
+	// primero. Los grupos de BOB se recogen aparte para ordenarlos por deadline
+	// (top ascendente), como exige la politica Now/Wait/Defer.
 	u8 i = 0u;
 	while (i < count) {
 		const graphics::BlitJob& job = plan.blit_job(i);
+		if (job.bob && job.bob_group != 0xFFu) {
+			++i;
+			continue;
+		}
+		const u8 first = i;
+		while (i < count) {
+			const graphics::BlitJob& next = plan.blit_job(i);
+			if (next.bob && next.bob_group != 0xFFu) break;
+			++i;
+		}
+		if (!execute_job_range(plan, first, i, eor_open)) return false;
+		result.executed += static_cast<u16>(i - first);
+		if (!wait_blitter()) return false;
+	}
+
+	static constexpr u8 kMaxGroups = 64u;
+	BobGroupSpan groups[kMaxGroups] {};
+	u8 group_count = 0u;
+	i = 0u;
+	while (i < count) {
+		const graphics::BlitJob& job = plan.blit_job(i);
 		if (!job.bob || job.bob_group == 0xFFu) {
-			const u8 first = i;
-			while (i < count) {
-				const graphics::BlitJob& next = plan.blit_job(i);
-				if (next.bob && next.bob_group != 0xFFu) break;
-				++i;
-			}
-			if (!execute_job_range(plan, first, i, eor_open)) return false;
-			result.executed += static_cast<u16>(i - first);
-			if (!wait_blitter()) return false;
+			++i;
 			continue;
 		}
 		const BobGroupSpan group = bob_group_span(plan, i);
+		if (group_count < kMaxGroups) groups[group_count++] = group;
+		i = group.end;
+	}
+	// Insercion estable por top: los deadlines mas tempranos primero.
+	for (u8 a = 1u; a < group_count; ++a) {
+		const BobGroupSpan key = groups[a];
+		u8 b = a;
+		while (b > 0u && groups[b - 1u].top > key.top) {
+			groups[b] = groups[b - 1u];
+			--b;
+		}
+		groups[b] = key;
+	}
+
+	for (u8 g = 0u; g < group_count; ++g) {
+		const BobGroupSpan& group = groups[g];
 		const u16 line = current_raster_line();
 		const graphics::BeamWriteDecision decision =
 			graphics::beam_group_decision(line, display_start, group.top, group.bottom,
@@ -156,19 +189,26 @@ bool AmigaBackend::execute_frame_plan_groups(const graphics::FramePlan& plan,
 			if (decision != graphics::BeamWriteDecision::Now) {
 				wait_bob_group(group, display_start);
 			}
+			const u16 group_start = current_raster_line();
 			if (!execute_job_range(plan, group.first, group.end, eor_open)) return false;
+			const u16 group_end = current_raster_line();
+			const u16 group_lines = static_cast<u16>((group_end - group_start) & 0x1ffu);
+			result.last_group_lines = group_lines;
+			if (group_lines > result.max_group_lines) result.max_group_lines = group_lines;
 			result.executed += static_cast<u16>(group.end - group.first);
-			// Cerrar el grupo antes de leer el haz para el siguiente: la linea
-			// observada es real, no la de un blit aun vivo.
 			if (!wait_blitter()) return false;
 		} else {
 			result.deferred_bobs += static_cast<u16>(group.end - group.first);
 			if (result.first_deferred == 0xffffu) result.first_deferred = group.first;
-			if (job.bob_group < 32u) result.deferred_groups |= (1u << job.bob_group);
+			const u16 top_abs = static_cast<u16>(display_start + group.top);
+			if (line > top_abs && static_cast<u16>(line - top_abs) > result.max_lateness) {
+				result.max_lateness = static_cast<u16>(line - top_abs);
+			}
+			const u16 group_id = plan.blit_job(group.first).bob_group;
+			if (group_id < 32u) result.deferred_groups |= (1u << group_id);
 			const u16 retry = graphics::beam_retry_line(display_start, group.bottom);
 			if (retry > result.retry_line) result.retry_line = retry;
 		}
-		i = group.end;
 	}
 	if (!wait_blitter()) return false;
 	result.status = result.deferred_bobs != 0u

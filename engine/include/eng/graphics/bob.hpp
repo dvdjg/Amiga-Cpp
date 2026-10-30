@@ -194,6 +194,36 @@ constexpr u16 box_words(const Bob& bob, u16 w, s16 x) {
 	return static_cast<u16>((w + 15u) / 16u + ((!pair && (x & 15) != 0) ? 1u : 0u));
 }
 
+/// Huella **real** de un BOB en el destino: palabras que procesa el Blitter,
+/// posicion alineada y caja vertical recortada. Es la unica fuente para colision,
+/// limites y metadatos beam; no usar `width`/`height` del arte como huella.
+struct BobFootprint {
+	s16 left = 0;      ///< x alineada a 16 px del inicio de la ventana
+	u16 words = 0;     ///< palabras por fila que escribe el Blitter (incluye guarda)
+	u16 width_px = 0;  ///< `words * 16`; incluye la guarda cuando `shift != 0`
+	u16 top = 0;       ///< borde superior visible (pantalla)
+	u16 bottom = 0;    ///< borde inferior exclusivo visible (pantalla)
+};
+
+/// Calcula la huella real de un BOB con desplazamiento fino. `x`/`y` son la
+/// posicion del ancla; `t.height` recorta la caja vertical. No valida si el BOB
+/// o el destino son validos (los llamadores ya lo hacen); devuelve una huella
+/// vacia si no hay geometria.
+[[nodiscard]] constexpr BobFootprint bob_footprint(const Bob& bob, s16 x, s16 y,
+						   const BobTarget& t) noexcept {
+	BobFootprint fp {};
+	if (bob.width == 0u || bob.height == 0u || t.row_bytes == 0u) return fp;
+	fp.left = static_cast<s16>(x & ~15);
+	fp.words = bob_detail::blit_words(bob, static_cast<u8>(x & 15));
+	fp.width_px = static_cast<u16>(fp.words * 16u);
+	const s32 top = y < 0 ? 0 : y;
+	s32 bottom = top + bob.height;
+	if (bottom > t.height) bottom = t.height;
+	fp.top = top < t.height ? static_cast<u16>(top) : t.height;
+	fp.bottom = bottom < t.height ? static_cast<u16>(bottom) : t.height;
+	return fp;
+}
+
 /// Marca un job como BOB de bitmap y anota su caja vertical **de pantalla** para
 /// que el ejecutor agrupe y decida si el haz ya pasó o si el blit llega antes de
 /// `bob_top`. `y`/`h` son la caja del dibujo; `target_height` recorta lo que cae
@@ -276,6 +306,9 @@ constexpr bool box_fits(const BobTarget& t, s16 x, s16 y, u16 h, u16 words) {
 }
 
 } // namespace bob_detail
+
+using bob_detail::BobFootprint;
+using bob_detail::bob_footprint;
 
 /// Borra una caja de `w x h` en `(x,y)` (`D = 0`). 1 job si el bitmap es intercalado.
 /// Se separa de `bob_erase` para poder borrar el rectangulo PREVIO del objeto, que
