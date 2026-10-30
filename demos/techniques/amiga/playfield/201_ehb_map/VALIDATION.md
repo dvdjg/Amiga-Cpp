@@ -14,6 +14,13 @@ El HUD de depuración vive en el overlay del host (`HostHud`): nombre + número 
 
 La demo es un caso de **2 campos/frame** por coste del campo de 6 planos (el HUD ya no añade trabajo en viewport). No se declara 50 fps; el techo actual es ~25 fps estables.
 
+## Revalidaci?n 2026-10-30
+
+- `A500_release`, commit `b2d19e27`: **33,03 fps**, 214.746 ciclos/frame, 1,514 campos/frame, ventanas 27,34?43,98. Cadencia inestable; no es 50 Hz.
+- La franja inferior de 48 px **no sale negra**: muestra una banda de ruido/p?xeles de color (marr?n/rosa) que cambia entre frames. Tambi?n ocurre en `A500_debug`, as? que no es un fallo de la compilaci?n release.
+- El mapa EHB superior se mueve correctamente, pero el defecto inferior y la cadencia impiden dar la demo por limpia. No lo introducen `PlaneBobLayer` ni los cambios de BOBs; queda como deuda de la demo 201.
+- Evidencia: `out/run/201_ehb_map/A500_release/screenshot.png` y `out/tmp/201_montage.png`.
+
 ## Reproducir
 
 ```bash
