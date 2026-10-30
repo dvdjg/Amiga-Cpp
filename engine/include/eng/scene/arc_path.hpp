@@ -22,6 +22,8 @@
 
 namespace eng::scene {
 
+/// \tparam Capacity número máximo de muestras (>= 2).
+/// \tparam S escalar de las coordenadas Q8 (por defecto s32).
 template <u16 Capacity, class S = eng::s32>
 class ArcPath {
 public:

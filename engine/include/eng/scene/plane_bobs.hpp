@@ -54,7 +54,9 @@ public:
 	[[nodiscard]] eng::u8 pad_x() const noexcept { return m_pad_x; }
 	[[nodiscard]] eng::u8 pad_y() const noexcept { return m_pad_y; }
 
+	/// Acceso mutable al actor `i` (sin comprobar el rango; `i < count()`).
 	[[nodiscard]] PlaneBobActor& operator[](eng::u8 i) noexcept { return m_actors[i]; }
+	/// Acceso de solo lectura al actor `i`.
 	[[nodiscard]] const PlaneBobActor& operator[](eng::u8 i) const noexcept {
 		return m_actors[i];
 	}
@@ -110,6 +112,7 @@ public:
 	}
 
 private:
+	/// Distancia absoluta entre dos coordenadas (para comparar con el padding).
 	[[nodiscard]] static eng::u16 diff(eng::s16 a, eng::s16 b) noexcept {
 		return static_cast<eng::u16>(a > b ? a - b : b - a);
 	}

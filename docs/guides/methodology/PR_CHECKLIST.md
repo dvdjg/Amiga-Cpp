@@ -21,7 +21,9 @@ Usar junto a [RENDER_CHANGE_PROTOCOL.md](RENDER_CHANGE_PROTOCOL.md). Para cambio
 - [ ] fps/cadencia cumplen el presupuesto y son estables.
 - [ ] No he usado una respuesta de IA como especificación sin verificarla con un test.
 - [ ] No he portado un bloque de master sin mapearlo a un fallo reproducido y a un test.
-- [ ] `bash tools/check/render-gates.sh` pasa (HOST-504 + L1-007).
+- [ ] `bash tools/check/render-gates.sh` pasa (HOST-504 + HOST-505 + demo-docs + L1-007).
+- [ ] La demo nueva/actualizada usa la capa de alto nivel (`PlaneBobLayer`, `FastBobLayer`, `BobLayer`), no construye `BlitJob` a mano.
+- [ ] La demo tiene README, entrada en el catálogo de su carpeta y una secuencia de 30 frames revisada (píxeles + visión local).
 
 ## Evidencia
 

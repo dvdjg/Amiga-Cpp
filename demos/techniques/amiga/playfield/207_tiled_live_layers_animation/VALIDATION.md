@@ -38,6 +38,13 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 - **Frames interleaved (opción)**: el banco mixto (agua planar + flores/fogata/coberturas interleaved) midió 43,48 fps en la fogata y 47,60 en la visita frente a 44,09/47,60 del planar, con 32,8 KB más de hoja; el banco completo (104 KB) no deja contiguos los 104 KB de pool en el A500 de 512K. El cooker lo emite solo con `animations.interleaved: true` en el plan; el defecto es planar.
 - **Clusters de restore**: descartados. El agua es de silueta fija (no restaura) y las flores vivas no forman clusters adyacentes; agrupar restores no reduce jobs en este mapa. El save-under de un solo blit ya deja el restore en un `BLTSIZE`.
 
+## Revalidaci?n 2026-10-30
+
+Medici?n nueva con `measure-fps.mjs` sobre `A500_release`, commit `39855a07` (el ?rbol de 207 no cambia en los commits posteriores):
+
+- Visita completa: **39,08 fps**, **181.507 ciclos/frame**, **1,279 campos/frame**, ventanas 35,73?44,02. Cadencia inestable, igual que el baseline documentado; no es una regresi?n nueva.
+- El 50 Hz sigue abierto en la visita y en la fogata. No se toca el presupuesto ni se activa el scheduler beam-aware hasta que 210/211 tengan un camino de grupos estable.
+
 ## Contrato
 
 - `tools/tiled/validate-cook-plan.mjs` valida el plan `beginning-fields.live-flowers`: `baked_through=Ground`, `ok=true` y avisos por `Road`, `Shadows`, `Object Shadows` y `RockSlopes_Auto` cocidos por encima de `Flowers`.
