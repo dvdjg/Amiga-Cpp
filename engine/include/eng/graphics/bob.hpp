@@ -466,6 +466,43 @@ inline bool bob_draw_plane_opaque(FramePlan& plan, const Bob& bob, u8 frame, s16
     return plan.commit_blit_job();
 }
 
+/// Borra (`D = 0`) una caja de **un solo plano** de un destino interleaved.
+/// Es el complemento de `bob_draw_plane_opaque` para limpiar la huella previa de un
+/// BOB que comparte plano con otros objetos; no toca los demas planos.
+inline bool bob_erase_plane_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x,
+				s16 y, const BobTarget& t, u8 plane) {
+	using namespace bob_detail;
+	if (plane >= t.plane_count || !t.interleaved() || !valid(bob, t) || w == 0u ||
+	    h == 0u || y < 0) {
+		return true;
+	}
+	const s16 wx = static_cast<s16>(x & ~15);
+	if (wx < 0) return true;
+	const u16 words = box_words(bob, w, x);
+	if (!box_fits(t, x, y, h, words)) return true;
+	const u32 off = static_cast<u32>(y) * t.row_bytes * t.plane_count +
+		       static_cast<u32>(plane) * t.row_bytes +
+		       (static_cast<u32>(wx) >> 3u);
+	BlitJob& job = plan.begin_blit_job(BlitJobKind::ClearRect);
+	job.destination = BlitPtr::from_storage(
+		reinterpret_cast<u16*>(t.data() + off));
+	job.words_per_row = words;
+	job.height = h;
+	job.source_words_per_row = 0u;
+	job.source_modulo_bytes = 0;
+	job.source_shift = 0u;
+	job.descending = false;
+	job.destination_modulo_bytes = mod16(
+		static_cast<s32>(t.row_bytes) * static_cast<s32>(t.plane_count) -
+		static_cast<s32>(words) * 2);
+	job.bitplane_count = 1u;
+	job.destination_plane_stride_bytes = 0u;
+	job.interleaved = true;
+	job.minterm = 0x00u; // D = 0
+	mark_bob(job, y, h, t.height);
+	return plan.commit_blit_job();
+}
+
 /// Restaura **un solo plano** desde un bitmap pristino interleaved a otro de la misma
 /// geometria. Un blit de `height` filas; no toca los demas planos del fondo.
 inline bool bob_copy_plane(FramePlan& plan, const BobTarget& source,
