@@ -109,13 +109,16 @@ Medición sobre `210` con hoja 12×12 (arte 8×8, padding 2), 5 planos y fondo p
 
 | Configuración | fps | Campos/frame | Resultado visual |
 |---|---:|---:|---|
-| 6 BOBs, grupos beam-aware | 49,9 | 1,00 | limpio |
+| 6 BOBs, sin grupos (`L0`) | 49,9 | 1,00 | limpio |
+| 6 BOBs, grupos beam-aware | **42,7** | 1,17 | **banda en la base** |
 | 8 BOBs, grupos beam-aware | **33,3** | 1,50 | **banda/tearing en la base y flicker** |
 | 8 BOBs, sin grupos (`L0`) | 45,8 | 1,09 | limpio, pero **sin guarda de haz** |
 
-Cada grupo de 2 palabras × 12 filas mide **13–14 líneas de raster** (`max_group_lines`), no las 24 palabras teóricas: con 5bpp el Blitter solo obtiene ~3 palabras por línea. El perfil de 8 BOBs reparte el frame en ~62k ciclos de emisión, ~44k de ejecución, ~18k de física/colisiones y ~20k de HUD; el frame supera un campo. El `D0/L14` confirma que no se difirió ningún grupo: el problema es el coste y el solape con el haz, no un `BLTDMOD` incorrecto (HOST-504 sigue pasando).
+Cada grupo de 2 palabras × 12 filas mide **13–14 líneas de raster** (`max_group_lines`), no las 24 palabras teóricas: con 5bpp el Blitter solo obtiene ~3 palabras por línea. El perfil de 8 BOBs reparte el frame en ~62k ciclos de emisión, ~44k de ejecución, ~18k de física/colisiones y ~20k de HUD; el frame supera un campo. El `D0/L14` confirma que no se difirió ningún grupo: el problema es el coste, no `BLTDMOD` (HOST-504 sigue pasando).
 
-Conclusión: **8 BOBs con grupos no se aceptan** con el scheduler actual; 8 sin grupos es solo una referencia legacy, no una solución beam-safe. Para subir de 6 sin tearing hacen falta restricciones de diseño, no subir `kBeamWordsPerLine` a ojo.
+La banda de la base **desaparece si se borra el bitmap completo antes del frame**: es un **fantasma/resto de posiciones anteriores**, no un blit nuevo mal recortado. El demo actual no borra la caja previa; el padding del BOB solo limpia dentro de la huella nueva. Con grupos el frame cambia de ritmo y el fantasma se hace visible en la base.
+
+Conclusión: **el camino con grupos no se acepta todavía, ni con 6 ni con 8**; 6/8 sin grupos son solo referencias legacy limpias, no beam-safe. Antes de subir el límite hay que resolver el borrado de la caja previa y el coste de sincronización, no subir `kBeamWordsPerLine` a ojo.
 
 ## 8. Límites y alternativas
 
