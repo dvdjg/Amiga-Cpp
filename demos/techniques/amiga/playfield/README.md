@@ -24,6 +24,8 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [121_mirror_scroll](121_mirror_scroll/README.md) |
 | [122_doublebuffer_scroll](122_doublebuffer_scroll/README.md) |
 | [125_layers_dualpf](125_layers_dualpf/README.md) |
+| [126_fast_bobs](126_fast_bobs/README.md) |
+| [127_dpf_two_bitmaps](127_dpf_two_bitmaps/README.md) |
 | [128_strip_scroller](128_strip_scroller/README.md) |
 | [129_split_screen_bands](129_split_screen_bands/README.md) |
 | [130_app_scroll_ladder](130_app_scroll_ladder/README.md) |
@@ -32,6 +34,14 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [201_ehb_map](201_ehb_map/README.md) |
 | [202_xlimited_dpf](202_xlimited_dpf/README.md) |
 | [203_world_tilemap_xlimited](203_world_tilemap_xlimited/README.md) |
+| [204_app_strip_scroll](204_app_strip_scroll/README.md) |
+| [205_xy_limited_scroll](205_xy_limited_scroll/README.md) |
+| [206_tiled_beginning_fields_baked](206_tiled_beginning_fields_baked/README.md) |
+| [207_tiled_live_layers_animation](207_tiled_live_layers_animation/README.md) |
+| [208_tiled_occlusion_objects](208_tiled_occlusion_objects/README.md) |
+| [209_tiled_beginning_fields_3bpp](209_tiled_beginning_fields_3bpp/README.md) |
+| [210_beam_aware_bobs](210_beam_aware_bobs/README.md) |
+| [211_plane_bob_teleport](211_plane_bob_teleport/README.md) |
 
 ## Build / run / analyze
 
