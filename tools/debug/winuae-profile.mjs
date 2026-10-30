@@ -9,6 +9,7 @@
 //   node tools/debug/winuae-profile.mjs <demo> [CONFIG] [frames] [--settle-ms MS]
 import { WinUAEConnection } from '../../../mcp-winuae-emu/dist/winuae-connection.js';
 import { parseProfile } from '../../../mcp-winuae-emu/dist/profile-parse.js';
+import { sideChannelCommand } from '../../../mcp-winuae-emu/dist/side-channel.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as childProcess from 'child_process';
@@ -26,7 +27,63 @@ const FRAMES = Math.max(1, Math.min(100, parseInt(process.argv[4] || '10', 10)))
 const settleArg = process.argv.indexOf('--settle-ms');
 const SETTLE_MS = settleArg >= 0 ? Math.max(0, parseInt(process.argv[settleArg + 1] || '2500', 10)) : 2500;
 const GDB_PORT = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
+const SIDE_PORT = parseInt(process.env.WINUAE_SIDE_CHANNEL_PORT || '2346', 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// El perfil debe medir la **demo**, no la pantalla de arranque de Kickstart. El
+// runner monta DH1 y lanza `a.exe`; hasta que `g_eng_run_status` no pasa a
+// `Ready`, la CPU está en el boot y todas las demos darían el mismo perfil (el
+// sintoma que tenía este script: 142102 ciclos ocupados en cualquier demo).
+//
+// `run-demo` escribe la startup-sequence de DH0 solo durante su ejecución y la
+// restaura al salir; el `runner.uae` queda apuntando a la startup vieja. Aquí se
+// prepara la misma startup (`cd dh1:` + `a.exe`) y se restaura al terminar.
+const RUNNER_PATH = `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}/runner.uae`;
+let startupRestore = null;
+function prepareRunnerStartup() {
+  if (!fs.existsSync(RUNNER_PATH)) return;
+  const text = fs.readFileSync(RUNNER_PATH, 'utf8');
+  const match = text.match(/^filesystem=rw,dh0:(.+)$/m);
+  if (!match) return;
+  const dh0 = match[1].trim().replace(/\//g, '\\');
+  const startup = path.join(dh0, 's', 'startup-sequence');
+  fs.mkdirSync(path.dirname(startup), { recursive: true });
+  startupRestore = {
+    file: startup,
+    content: fs.existsSync(startup) ? fs.readFileSync(startup, 'utf8') : null,
+  };
+  fs.writeFileSync(startup, 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
+}
+function restoreRunnerStartup() {
+  if (startupRestore === null) return;
+  if (startupRestore.content === null) {
+    fs.rmSync(startupRestore.file, { force: true });
+  } else {
+    fs.writeFileSync(startupRestore.file, startupRestore.content, 'utf8');
+  }
+  startupRestore = null;
+}
+prepareRunnerStartup();
+process.on('exit', restoreRunnerStartup);
+
+/// Espera a que el **programa** esté cargado (el canal lateral publica `baseText`
+/// al dispararse `debugging_trigger=:a.exe`). Es el criterio robusto para el
+/// perfil: el canal lateral puede no estar listo durante el boot y la resolución
+/// del run-status por índice de sección no es fiable entre hunks.
+async function waitForProgramLoaded(timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    const state = await sideChannelCommand('state', SIDE_PORT, 1500);
+    if (state.ok && state.reply) {
+      last = state.reply;
+      const base = parseInt(String(state.reply.baseText ?? '0x0').replace(/^0x/i, ''), 16);
+      if (base !== 0) return base;
+    }
+    await sleep(250);
+  }
+  throw new Error(`el programa no se cargo (baseText=0) en ${timeoutMs} ms; ultimo=${JSON.stringify(last)}`);
+}
 
 // Se perfila el `runner.uae` de este build; usa `-f` para no reescribir
 // `WinUAE-DBG/bin/default.uae` ni tomar por accidente otra demo A500.
@@ -43,6 +100,9 @@ const conn = new WinUAEConnection({
 await conn.connect({ forceBreak: false, initializeStopped: true });
 const p = conn.getProtocol();
 await p.continue();
+console.log('[wprof] esperando a que el programa cargue (baseText != 0)');
+const baseText = await waitForProgramLoaded(30000);
+console.log(`[wprof] programa cargado (baseText=0x${baseText.toString(16)})`);
 if (SETTLE_MS > 0) {
   console.log(`[wprof] settle ${SETTLE_MS} ms antes de muestrear`);
   await sleep(SETTLE_MS);
@@ -151,5 +211,6 @@ for (let i = 0; i < parsed.frames.length; ++i) {
 const n = Math.max(1, parsed.frames.length);
 console.log(`[wprof] media: cpu ocupada ${(sumBusy / n).toFixed(0)} ciclos/frame, libre ${((sumAll - sumBusy) / n).toFixed(0)} (${sumAll ? (100 * (sumAll - sumBusy) / sumAll).toFixed(0) : 0}% libre)`);
 console.log(`[wprof] DMA por frame: ${JSON.stringify(Object.fromEntries(Object.entries(dmaTotals).map(([k, v]) => [k, Math.round(v / n)])))}`);
+restoreRunnerStartup();
 await conn.disconnect(true);
 process.exit(0);
