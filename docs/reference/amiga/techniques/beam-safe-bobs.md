@@ -100,8 +100,22 @@ Nunca usar `BPLxPTH/PTL` leídos durante display activo como base estable: Agnus
 
 - **HOST-504**: `BLTDMOD=196`, footprint de 2 palabras, caja beam.
 - **007_bob_plane_base**: dos BOBs estáticos, canarios antes/después del bitmap y de la hoja, `detail=31`.
-- **210**: seis BOBs con padding, secuencia frame-step sin restos ni barras, 49,9 fps; 8 baja a 46,16 y no se acepta como 50.
+- **210**: seis BOBs con padding, secuencia frame-step sin restos ni barras, 49,9 fps; 8 con el scheduler actual baja a 33,3 fps y muestra tearing (ver §7.1).
 - Cualquier cambio de este camino debe pasar el [protocolo de cambios de render](../../../guides/methodology/RENDER_CHANGE_PROTOCOL.md).
+
+## 7.1 Límite medido (2026-10-30)
+
+Medición sobre `210` con hoja 12×12 (arte 8×8, padding 2), 5 planos y fondo plano:
+
+| Configuración | fps | Campos/frame | Resultado visual |
+|---|---:|---:|---|
+| 6 BOBs, grupos beam-aware | 49,9 | 1,00 | limpio |
+| 8 BOBs, grupos beam-aware | **33,3** | 1,50 | **banda/tearing en la base y flicker** |
+| 8 BOBs, sin grupos (`L0`) | 45,8 | 1,09 | limpio, pero **sin guarda de haz** |
+
+Cada grupo de 2 palabras × 12 filas mide **13–14 líneas de raster** (`max_group_lines`), no las 24 palabras teóricas: con 5bpp el Blitter solo obtiene ~3 palabras por línea. El perfil de 8 BOBs reparte el frame en ~62k ciclos de emisión, ~44k de ejecución, ~18k de física/colisiones y ~20k de HUD; el frame supera un campo. El `D0/L14` confirma que no se difirió ningún grupo: el problema es el coste y el solape con el haz, no un `BLTDMOD` incorrecto (HOST-504 sigue pasando).
+
+Conclusión: **8 BOBs con grupos no se aceptan** con el scheduler actual; 8 sin grupos es solo una referencia legacy, no una solución beam-safe. Para subir de 6 sin tearing hacen falta restricciones de diseño, no subir `kBeamWordsPerLine` a ojo.
 
 ## 8. Límites y alternativas
 
@@ -112,6 +126,23 @@ Manteniendo BOBs de bitmap:
 - blits disparados por Copper: timing exacto, copperlist más compleja;
 - dirty spans verticales: solo las líneas cambiadas, más contabilidad;
 - doble buffer de 5 planos 320×256: elimina la restricción de haz, a cambio de ~100 KB y tráfico de flip; no es necesario para 6–8 BOBs.
+
+## 8.1 Restricciones compile-time/setup para subir el límite
+
+No basta con `static_assert(N <= 8)`: hay que reducir el coste real y rechazar schedules imposibles antes de mostrar basura.
+
+- **Compilación**
+  - `static_assert(kBobCount * kMaxWordsPerBob * kMaxRows <= kBeamFrameWords)` con el presupuesto calibrado, no con el teórico.
+  - exigir `kWordsPerRow == 1`: BOB de una palabra, `x` alineada a 16 y arte ≤16 px; elimina la guarda y casi duplica el presupuesto de grupos.
+  - limitar altura (≤8–10), un solo plano y `BobDraw::Opaque`; el backend no debe aceptar mallas de varios planos por BOB en este camino.
+  - capacidad fija de grupos (`kMaxBeamGroups`) y de jobs; sin arrays locales de tamaño variable.
+- **Setup**
+  - construir una tabla de grupos por banda de raster y validar `sum(ceil(words/3)+2+margin)` contra el campo; si no cabe, fallar el setup (no arrancar).
+  - rechazar solapes de cajas y BOBs fuera de la ventana `top/bottom`; la huella debe salir de `bob_footprint`.
+  - reservar el **último tercio** del campo para el HUD/Copper y no programar BOBs que crucen el final visible.
+  - medir una calibración con VPOSR en el setup y fijar `kBeamWordsPerLine`/margen por máquina, no por estimación.
+
+Con 8 grupos actuales el presupuesto no cierra; las restricciones anteriores son las que pueden acercarlo a 50. Sin ese rediseño, el límite seguro es **6 BOBs** (8 solo legacy/sin guarda).
 
 ## 9. Fuentes
 
