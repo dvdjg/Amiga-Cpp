@@ -8,9 +8,13 @@ agrupa los procesos de trabajo, no el diseño del engine.
 
 ## Documentos
 
+> **Antes de tocar cualquier camino de render** (Blitter, Copper, playfields, BOBs, sprites, buffer de display, beam-safety), aplica [RENDER_CHANGE_PROTOCOL.md](RENDER_CHANGE_PROTOCOL.md). No se acepta un cambio por compilar o por una captura que "parece" correcta: primero debe existir una sonda mínima que falle, un invariante escrito, tests por capas y gates de secuencia/fps.
+
 | Documento | Contenido |
 |-----------|-----------|
 | [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | **Histórico**: registro de la fase inicial del engine (decisiones, descubrimientos y comandos de aquella etapa). No es estado vigente ni punto de entrada. |
+| [RENDER_CHANGE_PROTOCOL.md](RENDER_CHANGE_PROTOCOL.md) | **Protocolo obligatorio para cambios de render**: invariante y sonda que falla antes del código, huella única, validación host/on-target/secuencia, evidencia de falsación, A/B y regla de parada, port seguro desde master y checklist de cierre. |
+| [PR_CHECKLIST.md](PR_CHECKLIST.md) | Checklist operativo de commit/PR: sonda que falla, invariante, huella única, tests por capas, secuencia/fps y gate `render-gates.sh`. |
 | [PROCEDIMIENTO_DEMOS_Y_JUEGOS.md](PROCEDIMIENTO_DEMOS_Y_JUEGOS.md) | **Procedimiento único para crear y arreglar demos/juegos**: fases F0–F5, gates (build/run/analyze, 50 fps, flicker, tests), validación visual, reglas anti-basura y registro de errores del engine (aunque no sean del turno). |
 | [development-methodology.md](development-methodology.md) | Metodología incremental general: fases verificables, no big-bang. |
 | [PROTOCOLO_ETAPAS_GRAFICOS.md](PROTOCOLO_ETAPAS_GRAFICOS.md) | Protocolo de construcción por etapas para gráficos/hardware (CPU primero, luego Blitter/Copper) y reglas ante fallos. |

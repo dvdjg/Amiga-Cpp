@@ -2,6 +2,8 @@
 
 Lo **observado** en el código fuente de WinUAE (local: `../WinUAE-DBG/`) al contrastar el comportamiento de los chips con la documentación oficial. Una ficha por **tema**, con referencias a **fichero y línea** del fuente. Ver el procedimiento y «cómo añadir una ficha» en [`../README.md`](../README.md).
 
+> **Diagnóstico de render**: antes de concluir que hay corrupción de registros, aplica [RENDER_CHANGE_PROTOCOL.md](../../guides/methodology/RENDER_CHANGE_PROTOCOL.md). Los `BPLxPT` leídos en display activo son punteros DMA corrientes, no la base estable; usa VBlank/`COP1LC`/copperlist y canarios.
+
 | Tema | Foco | Ficha |
 |---|---|---|
 | Colisión de sprites | `CLXCON`/`CLXDAT` (máscara y latch) | [collision.md](collision.md) |

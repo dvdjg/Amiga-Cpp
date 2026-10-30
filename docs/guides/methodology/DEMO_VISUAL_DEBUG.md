@@ -1,5 +1,7 @@
 # Diseño de demos y depuración visual (lecciones)
 
+> **Cambios de render**: antes de tocar Blitter, Copper, playfields, BOBs, sprites, display o beam-safety, aplica [RENDER_CHANGE_PROTOCOL.md](RENDER_CHANGE_PROTOCOL.md). Exige sonda mínima que falle antes del cambio, invariante de huella/haz, tests por capas y secuencia; una captura suelta o una respuesta de IA no son validación.
+
 Reglas prácticas para que una demo **muestre claramente** lo que demuestra y para **cazarlo**
 cuando no lo hace. Nace de la demo 112 (RoboCod): el efecto parecía funcionar en una captura
 y estaba roto en plena animación (el fondo desaparecía al scrollear).

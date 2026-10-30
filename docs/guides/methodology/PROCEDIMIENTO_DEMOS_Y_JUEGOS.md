@@ -1,5 +1,7 @@
 # Procedimiento: crear y arreglar demos y juegos (de la intención al cierre verificado)
 
+> **Cambios de render**: antes de tocar Blitter, Copper, playfields, BOBs, sprites, display o beam-safety, aplica [RENDER_CHANGE_PROTOCOL.md](RENDER_CHANGE_PROTOCOL.md). Exige sonda mínima que falle antes del cambio, invariante de huella/haz, tests por capas y secuencia; una captura suelta o una respuesta de IA no son validación.
+
 Este documento es la **puerta de entrada** del procedimiento para **generar y arreglar demos y juegos** sin que se cuele basura. Define las fases, las puertas (gates) que hay que pasar, el presupuesto de la máquina y qué hacer cuando algo falla — **incluido lo que falla y no es de tu turno**. Los detalles de cada parte viven en sus documentos canónicos (abajo); aquí está el flujo y las reglas duras.
 
 ## 0. Documentos canónicos del procedimiento

@@ -13,6 +13,9 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 
 **Laboratorio compilable en el repo:** menú fallback (sin Intuition) → opción **2. Technique lab** — overlay con `BPL1MOD`/`BPL2MOD` y frame counter; código en `app/effects/technique_lab/technique_lab.c`.
 
+> **Antes de tocar BOBs, Blitter o beam-safety**, aplica [RENDER_CHANGE_PROTOCOL.md](../../guides/methodology/RENDER_CHANGE_PROTOCOL.md): huella real con padding/guarda, sonda que falla antes del cambio y secuencia frame-step. Una ficha por sí sola no es una validación de implementación.
+
+| [beam-safe-bobs.md](beam-safe-bobs.md) | **BOBs de bitmap beam-safe en un framebuffer**: invariante del haz, footprint real con guarda (BLTDMOD=196 en interleaved 5bpp), padding, calibración del coste con VPOSR, grupos atómicos ordenados por deadline, política Now/Wait/Defer y límites de 6–8 BOBs a 50 fps. |
 | Ficha | Tema |
 |-------|------|
 | [modulo-tricks.md](modulo-tricks.md) | Módulos de bitplane (`BPL1MOD`, `BPL2MOD`) para efectos y límites de fetch |

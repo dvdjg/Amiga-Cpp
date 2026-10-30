@@ -26,6 +26,7 @@ repositorio mantiene dos flujos claramente separados:
 5. **Para operar build/run/analyze**: [build/BUILD_AND_RUN.md](build/BUILD_AND_RUN.md) y la **guía transversal del entorno Amiga** (toolchain, compilar A500/A1200/A4000/CD32, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama): [ai-dev-environment/AMIGA_DEV_GUIDE.md](ai-dev-environment/AMIGA_DEV_GUIDE.md).
 6. **Para usar el engine (tutoriales + referencia)**: [engine/manual/README.md](engine/manual/README.md).
 7. **Para entender el engine (diseño/decisión)**: [engine/README.md](engine/README.md).
+8. **Antes de tocar render** (Blitter, Copper, BOBs, sprites, display, beam-safety): [guides/methodology/RENDER_CHANGE_PROTOCOL.md](guides/methodology/RENDER_CHANGE_PROTOCOL.md).
 
 ## Estructura del árbol
 

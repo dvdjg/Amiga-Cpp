@@ -37,6 +37,10 @@ Estas reglas aplican a cualquier API o cambio del engine. `AGENTS.md` las enruta
 - Las APIs de matemáticas/algoritmos puros (sin hardware) deben tener además **test unitario host** (`tests/host/`, compilado con el `g++` del entorno del toolchain del proyecto) para validarlas rápido y de forma determinista, sin depender de MSVC ni de WSL.
 - **Regla de cierre:** una API sin test (demo o unitario) no se considera terminada.
 
+### Cambios de render
+
+Todo cambio en Blitter, Copper, playfields, BOBs, sprites, buffer de display, save-under o beam-safety sigue [RENDER_CHANGE_PROTOCOL.md](../guides/methodology/RENDER_CHANGE_PROTOCOL.md). La API no se considera terminada por compilar ni por una captura estática: debe existir una sonda mínima que falle antes del cambio, un test host de geometría cuando aplique, un test on-target con canarios y una secuencia frame-step sin objetos parciales, restos ni barras. Las respuestas de IA externa son hipótesis y toda fórmula se contrasta con el layout real y un test.
+
 ### Convención de tests host
 
 - Los tests host viven en `tests/host/<categoría>/NNN_<nombre>/` y su prefijo `NNN` es **único y no reutilizable** en todo `tests/host`: un test nuevo toma el **siguiente número libre** y, ante una colisión, se renumera el **más nuevo** (actualizando título, rutas internas, referencias y catálogo).

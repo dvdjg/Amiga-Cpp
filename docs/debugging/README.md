@@ -7,6 +7,10 @@ Esta carpeta reúne la documentación de depuración, en dos subcarpetas:
 
 > Todos los documentos están indexados en el README de su subcarpeta (lo verifica `tools/check/doc-index.mjs`). El estado vigente del engine está en `docs/engine/`; las rarezas del emulador, en `docs/reference/emulators/`.
 
+## Fallos de render
+
+Un fallo visual o de memoria DMA no se depura cambiando la demo grande ni con una captura aislada. Aplica [RENDER_CHANGE_PROTOCOL.md](../guides/methodology/RENDER_CHANGE_PROTOCOL.md): sonda mínima que falle, invariante de geometría/beam, canarios y secuencia frame-step.
+
 ## Documentación Relacionada
 
 - Hallazgos del emulador (fuente WinUAE, `fichero:línea`): [`docs/reference/emulators/`](../reference/emulators/README.md).
