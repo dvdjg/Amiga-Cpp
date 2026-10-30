@@ -194,6 +194,20 @@ constexpr u16 box_words(const Bob& bob, u16 w, s16 x) {
 	return static_cast<u16>((w + 15u) / 16u + ((!pair && (x & 15) != 0) ? 1u : 0u));
 }
 
+/// Marca un job como BOB de bitmap y anota su caja vertical **de pantalla** para
+/// que el ejecutor agrupe y decida si el haz ya pasó o si el blit llega antes de
+/// `bob_top`. `y`/`h` son la caja del dibujo; `target_height` recorta lo que cae
+/// fuera del destino. El grupo lo asigna el productor con `FramePlan::tag_bob_group`.
+constexpr BlitJob& mark_bob(BlitJob& job, s16 y, u16 h, u16 target_height) noexcept {
+	const s32 top = y < 0 ? 0 : y;
+	s32 bottom = top + h;
+	if (bottom > target_height) bottom = target_height;
+	job.bob = true;
+	job.bob_top = top < target_height ? static_cast<u16>(top) : target_height;
+	job.bob_bottom = static_cast<u16>(bottom);
+	return job;
+}
+
 /// Bytes por fila que separan dos filas consecutivas de la hoja: el valor declarado
 /// si lo hay, o el del contrato compacto. Es lo que hay que usar para el modulo de
 /// origen y el stride entre planos de la hoja.
@@ -311,6 +325,7 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 		job.destination_plane_stride_bytes = 0u;
 		job.interleaved = true;
 		job.minterm = 0x00u; // D = 0
+		mark_bob(job, y, h, t.height);
 		return plan.commit_blit_job();
 	} else if (inter) {
 		// Si el BOB ocupa menos planos que el destino, conservar la rejilla interleaved
@@ -328,7 +343,170 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	}
 	job.interleaved = inter;
 	job.minterm = 0x00u; // D = 0
+	mark_bob(job, y, h, t.height);
 	return plan.commit_blit_job();
+}
+
+/// Dibuja **un solo plano** de un BOB planar sobre un destino interleaved. Permite
+/// objetos de 1..N planos en una escena de profundidad mayor sin gastar un blit por
+/// plano del fondo. `bob.planes` debe ser 1; la hoja es planar (una fila por altura).
+inline bool bob_draw_plane(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y,
+                           const BobTarget& t, u8 target_plane) {
+    using namespace bob_detail;
+    if (bob.planes != 1u || target_plane >= t.plane_count || !t.interleaved() ||
+        !valid(bob, t) || frame >= bob.frame_count || y < 0) {
+        return false;
+    }
+    const s16 wx = static_cast<s16>(x & ~15);
+    if (wx < 0) return true;
+    const u8 shift = static_cast<u8>(x & 15u);
+    const u16 words = blit_words(bob, shift);
+    if (!box_fits(t, x, y, bob.height, words)) return false;
+    const u32 sheet_row = sheet_row_of(bob);
+    const u32 frame_off = static_cast<u32>(frame) * bob.frame_stride;
+    const u32 dest_row = static_cast<u32>(y) * t.row_bytes * t.plane_count +
+                         static_cast<u32>(target_plane) * t.row_bytes;
+    BlitJob& job = plan.begin_blit_job(BlitJobKind::OrBlob);
+    job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(
+        bob.sheet.address(frame_off).cptr()));
+    job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
+        t.data() + dest_row + (static_cast<u32>(wx) >> 3u)));
+    job.words_per_row = words;
+    job.height = bob.height;
+    job.source_modulo_bytes = mod16(static_cast<s32>(sheet_row) - static_cast<s32>(words) * 2);
+    // Un plano de un destino interleaved avanza `row_bytes * planes` por fila; usar
+    // `row_bytes` escribir?a en el plano siguiente (rayas entre planos).
+    job.destination_modulo_bytes = mod16(
+        static_cast<s32>(t.row_bytes) * static_cast<s32>(t.plane_count) -
+        static_cast<s32>(words) * 2);
+    job.bitplane_count = 1u;
+    job.source_plane_stride_bytes = sheet_row;
+    job.destination_plane_stride_bytes = t.row_bytes * t.plane_count;
+    job.source_words_per_row = 0u;
+    job.source_shift = shift;
+    job.descending = false;
+    job.interleaved = false;
+    job.minterm = 0x00fcu;
+    mark_bob(job, y, bob.height, t.height);
+    return plan.commit_blit_job();
+}
+
+/// Dibuja **un solo plano opaco** (`D = A`) de una hoja planar de 1 plano sobre un
+/// destino interleaved. La guarda de la hoja y el padding del arte son color 0, el
+/// mismo del fondo plano, de modo que la copia borra la posicion anterior. Un blit.
+inline bool bob_draw_plane_opaque(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y,
+                                  const BobTarget& t, u8 target_plane) {
+    using namespace bob_detail;
+    if (bob.planes != 1u || target_plane >= t.plane_count || !t.interleaved() ||
+        !valid(bob, t) || frame >= bob.frame_count || y < 0) {
+        return false;
+    }
+    const s16 wx = static_cast<s16>(x & ~15);
+    if (wx < 0) return true;
+    const u8 shift = static_cast<u8>(x & 15u);
+    const u16 words = blit_words(bob, shift);
+    if (!box_fits(t, x, y, bob.height, words)) return false;
+    const u32 sheet_row = sheet_row_of(bob);
+    const u32 frame_off = static_cast<u32>(frame) * bob.frame_stride;
+    const u32 dest_row = static_cast<u32>(y) * t.row_bytes * t.plane_count +
+                         static_cast<u32>(target_plane) * t.row_bytes;
+    BlitJob& job = plan.begin_blit_job(BlitJobKind::OrBlob);
+    job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(
+        bob.sheet.address(frame_off).cptr()));
+    job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
+        t.data() + dest_row + (static_cast<u32>(wx) >> 3u)));
+    job.words_per_row = words;
+    job.height = bob.height;
+    job.source_modulo_bytes = mod16(static_cast<s32>(sheet_row) - static_cast<s32>(words) * 2);
+    job.destination_modulo_bytes = mod16(
+        static_cast<s32>(t.row_bytes) * static_cast<s32>(t.plane_count) -
+        static_cast<s32>(words) * 2);
+    job.bitplane_count = 1u;
+    job.source_plane_stride_bytes = sheet_row;
+    job.destination_plane_stride_bytes = t.row_bytes * t.plane_count;
+    job.source_words_per_row = 0u;
+    job.source_shift = shift;
+    job.descending = false;
+    job.interleaved = false;
+    job.minterm = 0x00f0u;
+    mark_bob(job, y, bob.height, t.height);
+    return plan.commit_blit_job();
+}
+
+/// Restaura **un solo plano** desde un bitmap pristino interleaved a otro de la misma
+/// geometria. Un blit de `height` filas; no toca los demas planos del fondo.
+inline bool bob_copy_plane(FramePlan& plan, const BobTarget& source,
+                           const BobTarget& destination, u16 w, u16 h, s16 x, s16 y,
+                           u8 plane) {
+    using namespace bob_detail;
+    if (!target_valid(source) || !target_valid(destination) || w == 0u || h == 0u ||
+        !source.interleaved() || !destination.interleaved() ||
+        source.row_bytes != destination.row_bytes ||
+        source.plane_count != destination.plane_count || plane >= source.plane_count ||
+        y < 0 || (x & ~15) < 0) {
+        return false;
+    }
+    const u16 words = static_cast<u16>((w + 15u) / 16u);
+    if (!box_fits(destination, x, y, h, words)) return false;
+    const u32 row_step = static_cast<u32>(source.row_bytes) * source.plane_count;
+    const u32 off = static_cast<u32>(y) * row_step + static_cast<u32>(plane) * source.row_bytes +
+                    (static_cast<u32>(x & ~15) >> 3u);
+    BlitJob& job = plan.begin_blit_job(BlitJobKind::CopyRect);
+    job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(source.data() + off));
+    job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(destination.data() + off));
+    job.words_per_row = words;
+    job.height = h;
+    job.bitplane_count = 1u;
+    job.source_modulo_bytes = mod16(static_cast<s32>(row_step) - static_cast<s32>(words) * 2);
+    job.destination_modulo_bytes = job.source_modulo_bytes;
+    job.source_plane_stride_bytes = row_step;
+    job.destination_plane_stride_bytes = row_step;
+    job.source_words_per_row = 0u;
+    job.source_shift = 0u;
+    job.descending = false;
+    job.interleaved = false;
+    job.minterm = 0u;
+    mark_bob(job, y, h, destination.height);
+    return plan.commit_blit_job();
+}
+
+/// **Copia de una caja entre dos bitmaps interleaved full-depth** (restore de fondo
+/// pristino o staging): un solo blit recorre las `h * planes` filas fisicas, con el
+/// mismo modulo de fila en origen y destino. Los dos targets deben tener la misma
+/// geometria (`row_bytes`, `plane_count`, `layout` interleaved).
+inline bool bob_copy_box_interleaved(FramePlan& plan, const BobTarget& source,
+                                     const BobTarget& destination, u16 w, u16 h,
+                                     s16 x, s16 y) {
+    using namespace bob_detail;
+    if (!target_valid(source) || !target_valid(destination) || w == 0u || h == 0u ||
+        !source.interleaved() || !destination.interleaved() ||
+        source.row_bytes != destination.row_bytes ||
+        source.plane_count != destination.plane_count || y < 0 || (x & ~15) < 0) {
+        return false;
+    }
+    const u16 words = static_cast<u16>((w + 15u) / 16u);
+    if (!box_fits(destination, x, y, h, words)) return false;
+    const u32 row_step = static_cast<u32>(source.row_bytes) * source.plane_count;
+    const u32 off = static_cast<u32>(y) * row_step + (static_cast<u32>(x & ~15) >> 3u);
+    BlitJob& job = plan.begin_blit_job(BlitJobKind::CopyRect);
+    job.source = BlitPtr::from_storage(
+        reinterpret_cast<const u16*>(source.data() + off));
+    job.destination = BlitPtr::from_storage(
+        reinterpret_cast<u16*>(destination.data() + off));
+    job.words_per_row = words;
+    job.height = static_cast<u16>(h * source.plane_count);
+    job.bitplane_count = 1u;
+    job.source_modulo_bytes = mod16(static_cast<s32>(source.row_bytes) - static_cast<s32>(words) * 2);
+    job.destination_modulo_bytes = job.source_modulo_bytes;
+    job.source_plane_stride_bytes = 0u;
+    job.destination_plane_stride_bytes = 0u;
+    job.source_words_per_row = 0u;
+    job.source_shift = 0u;
+    job.descending = false;
+    job.interleaved = true;
+    job.minterm = 0u;
+    mark_bob(job, y, h, destination.height);
+    return plan.commit_blit_job();
 }
 
 /// **Save-under (guardar)**: copia la caja de `w x h` en `(x,y)` del destino (Chip) al buffer
@@ -368,6 +546,7 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 	job.descending = false;
 	job.source_shift = 0u;
 	job.interleaved = false;
+	bob_detail::mark_bob(job, y, h, t.height);
 	return plan.commit_blit_job();
 }
 
@@ -402,6 +581,7 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 	job.descending = false;
 	job.source_shift = 0u;
 	job.interleaved = false;
+	bob_detail::mark_bob(job, y, h, t.height);
 	return plan.commit_blit_job();
 }
 
@@ -490,6 +670,7 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	job.descending = false;
 	job.source_plane_stride_bytes = 0u;
 	job.destination_plane_stride_bytes = 0u;
+	mark_bob(job, static_cast<s16>(y + first_row), rows, t.height);
 	return plan.commit_blit_job();
 }
 
@@ -579,6 +760,7 @@ __attribute__((always_inline)) inline bool draw_rows(FramePlan& plan, const Bob&
 	if (masked) {
 		job.mask = BlitPtr::from_storage(reinterpret_cast<const u16*>(bob.mask.data()));
 	}
+	mark_bob(job, static_cast<s16>(y + first_row), rows, t.height);
 	return plan.commit_blit_job();
 }
 

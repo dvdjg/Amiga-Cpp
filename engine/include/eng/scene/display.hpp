@@ -180,6 +180,7 @@ struct Band {
 	[[nodiscard]] eng::graphics::BobTarget bob_target() const noexcept {
 		// `bob_base` es la vista agnóstica de la superficie Chip de la banda: puente explícito a
 		// la vista con banco Chip (el Blitter solo escribe Chip). Vacía = banda sin BOBs.
+		const eng::u16 h = height != 0u ? height : static_cast<eng::u16>(208u);
 		eng::ChipView<eng::PlaneTag> mem {};
 		if (!bob_base.empty()) {
 			// `bob_base` es la superficie Chip de la banda (procedencia conocida): puente
@@ -190,7 +191,7 @@ struct Band {
 			// DPF de **dos bitmaps** (cada campo interleave propio): PF1 = `planes_view`,
 			// interleave de `planes / 2` planos con módulo interleaved estándar.
 			return eng::graphics::make_bob_target(
-				mem, bytes_per_row, 0u, static_cast<eng::u8>(planes / 2u),
+				mem, bytes_per_row, h, static_cast<eng::u8>(planes / 2u),
 				eng::graphics::BobLayout::Interleaved);
 		}
 		if (dual_playfield && planes >= 2u) {
@@ -198,12 +199,12 @@ struct Band {
 				mem,
 				static_cast<eng::u16>(bytes_per_row *
 						      static_cast<eng::u16>(planes)),
-				0u, static_cast<eng::u8>(planes / 2u),
+				h, static_cast<eng::u8>(planes / 2u),
 				eng::graphics::BobLayout::Planar,
 				static_cast<eng::u32>(bytes_per_row) * 2u);
 		}
 		return eng::graphics::make_bob_target(
-			mem, bytes_per_row, 0u, planes,
+			mem, bytes_per_row, h, planes,
 			(plane_bytes == 0u) ? eng::graphics::BobLayout::Interleaved
 					    : eng::graphics::BobLayout::Planar,
 			plane_bytes);

@@ -4,6 +4,7 @@
 
 #include <eng/core/data/polygon.hpp>
 #include <eng/debug/prof.hpp>
+#include <eng/graphics/beam_schedule.hpp>
 #include <eng/graphics/blit_queue.hpp>
 #include <eng/platform/amiga/blob_batch.hpp>
 
@@ -68,65 +69,146 @@ bool execute_blob_run(const eng::graphics::FramePlan& plan, u8 from, u8 to,
 }
 } // namespace
 
-bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
-	if (!plan.ok()) {
-		return false;
-	}
+namespace {
+u32 blob_words(const eng::graphics::BlitJob& job) noexcept {
+	const u32 planes = job.interleaved ? 1u : job.bitplane_count;
+	return static_cast<u32>(job.words_per_row) * job.height * planes;
+}
+} // namespace
 
-	m_blitter_starts = 0;
-	m_blt_common_hits = 0;
-	// La caché de registros comunes NO es válida al entrar: entre frames el SO (o cualquier
-	// otro código) puede haber programado el Blitter (sus blits escriben BLTCON/MOD), así
-	// que los valores cacheados son basura de otro dueño. Sin esta invalidación, un job
-	// "igual" al último cacheado se saltaba las escrituras y bliteaba con los registros del
-	// SO (render corrupto observado en la demo 066 con el camino async, que no tiene rachas
-	// batch que invalidaran la caché). El cacheo DENTRO del frame sigue vigente.
-	m_blt_common_valid = false;
-	// Habilita el DMA del Blitter **solo si no lo está** (el Copper ya lo activa en el display):
-	// un MOVE a DMACON es caro con `cpu_cycle_exact` y escribirlo por job dominaba el bucle
-	// (16 BOBs/frame). La lectura de DMACONR cuesta una fracción de la escritura.
-	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
-		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
-	}
-	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
-	const u8 job_count = plan.blit_job_count();
-	u8 job_index = 0u;
-	while (job_index < job_count) {
-		// Racha homogénea (cookie-cut, clear u OR interleaved de un canal): se ejecuta con
-		// estado fijo (`BlobBatch`), sin re-codificar registros por job ni pagar la espera
-		// extra del bucle por plano. La clasificación la comparten las vías CPU y async
-		// (`graphics::blob_run_from`).
+bool AmigaBackend::execute_job_range(const graphics::FramePlan& plan, u8 from, u8 to,
+				     bool& eor_open) {
+	u8 job_index = from;
+	while (job_index < to) {
+		// Racha homogenea: estado fijo del Blitter y una sola espera por objeto.
 		graphics::BlobRun run {};
 		if (graphics::blob_run_from(plan.blit_job(job_index), run)) {
 			u8 end = static_cast<u8>(job_index + 1u);
-			while (end < job_count && graphics::blob_run_continues(plan.blit_job(end), run)) {
+			while (end < to && graphics::blob_run_continues(plan.blit_job(end), run)) {
 				++end;
 			}
 			if (static_cast<u8>(end - job_index) >= 2u) {
-				if (!execute_blob_run(plan, job_index, end, run)) {
-					return false;
-				}
-				// El lote escribió registros directamente: la caché de estado común ya no
-				// refleja el hardware.
+				if (!execute_blob_run(plan, job_index, end, run)) return false;
 				m_blt_common_valid = false;
 				m_blitter_starts += static_cast<u16>(end - job_index);
 				job_index = end;
 				continue;
 			}
 		}
-		if (!submit_blit_job(plan.blit_job(job_index), eor_open)) {
-			return false;
-		}
+		if (!submit_blit_job(plan.blit_job(job_index), eor_open)) return false;
 		++job_index;
 	}
+	return true;
+}
 
+AmigaBackend::BobGroupSpan AmigaBackend::bob_group_span(const graphics::FramePlan& plan,
+							u8 first) const noexcept {
+	BobGroupSpan span {};
+	span.first = first;
+	span.end = first;
+	const u8 group = plan.blit_job(first).bob_group;
+	const u8 count = plan.blit_job_count();
+	for (u8 i = first; i < count; ++i) {
+		const graphics::BlitJob& job = plan.blit_job(i);
+		if (!job.bob || job.bob_group != group) break;
+		if (job.bob_top < span.top) span.top = job.bob_top;
+		if (job.bob_bottom > span.bottom) span.bottom = job.bob_bottom;
+		span.words += blob_words(job);
+		span.end = static_cast<u8>(i + 1u);
+	}
+	return span;
+}
+
+void AmigaBackend::wait_bob_group(const BobGroupSpan& group, u16 display_start) {
+	const u16 retry = graphics::beam_retry_line(display_start, group.bottom);
+	while (current_raster_line() < retry) {
+		// Setup/depuracion: giro corto; el camino normal no pasa por aqui.
+	}
+}
+
+bool AmigaBackend::execute_frame_plan_groups(const graphics::FramePlan& plan,
+					     FramePlanExecution& result) {
+	result = {};
+	const u8 count = plan.blit_job_count();
+	const u16 display_start = static_cast<u16>(custom_base[custom_diwstrt_offset] >> 8);
+	bool eor_open = false;
+	u8 i = 0u;
+	while (i < count) {
+		const graphics::BlitJob& job = plan.blit_job(i);
+		if (!job.bob || job.bob_group == 0xFFu) {
+			const u8 first = i;
+			while (i < count) {
+				const graphics::BlitJob& next = plan.blit_job(i);
+				if (next.bob && next.bob_group != 0xFFu) break;
+				++i;
+			}
+			if (!execute_job_range(plan, first, i, eor_open)) return false;
+			result.executed += static_cast<u16>(i - first);
+			if (!wait_blitter()) return false;
+			continue;
+		}
+		const BobGroupSpan group = bob_group_span(plan, i);
+		const u16 line = current_raster_line();
+		const graphics::BeamWriteDecision decision =
+			graphics::beam_group_decision(line, display_start, group.top, group.bottom,
+						      group.words);
+		if (decision == graphics::BeamWriteDecision::Now || m_bob_beam_wait) {
+			if (decision != graphics::BeamWriteDecision::Now) {
+				wait_bob_group(group, display_start);
+			}
+			if (!execute_job_range(plan, group.first, group.end, eor_open)) return false;
+			result.executed += static_cast<u16>(group.end - group.first);
+			// Cerrar el grupo antes de leer el haz para el siguiente: la linea
+			// observada es real, no la de un blit aun vivo.
+			if (!wait_blitter()) return false;
+		} else {
+			result.deferred_bobs += static_cast<u16>(group.end - group.first);
+			if (result.first_deferred == 0xffffu) result.first_deferred = group.first;
+			if (job.bob_group < 32u) result.deferred_groups |= (1u << job.bob_group);
+			const u16 retry = graphics::beam_retry_line(display_start, group.bottom);
+			if (retry > result.retry_line) result.retry_line = retry;
+		}
+		i = group.end;
+	}
+	if (!wait_blitter()) return false;
+	result.status = result.deferred_bobs != 0u
+		? FramePlanExecution::Status::BobsDeferred
+		: (result.executed != 0u ? FramePlanExecution::Status::All
+					 : FramePlanExecution::Status::Nothing);
+	return true;
+}
+
+bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
+	if (!plan.ok()) {
+		m_last_plan_execution = {};
+		return false;
+	}
+
+	m_blitter_starts = 0;
+	m_blt_common_hits = 0;
+	// La cache de registros comunes NO es valida al entrar: entre frames el SO puede
+	// haber programado el Blitter y sus registros son de otro dueno. El cacheo DENTRO
+	// del frame sigue vigente.
+	m_blt_common_valid = false;
+	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
+		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
+	}
+	if (plan.has_grouped_bobs()) {
+		return execute_frame_plan_groups(plan, m_last_plan_execution);
+	}
+	bool eor_open = false;
+	if (!execute_job_range(plan, 0u, plan.blit_job_count(), eor_open)) {
+		m_last_plan_execution = {};
+		return false;
+	}
+	m_last_plan_execution = {};
+	m_last_plan_execution.status = plan.blit_job_count() != 0u
+		? FramePlanExecution::Status::All
+		: FramePlanExecution::Status::Nothing;
+	m_last_plan_execution.executed = plan.blit_job_count();
 	return wait_blitter();
 }
 
-/// Diagnóstico del feeder async de `FramePlan` (leíble por el canal lateral del emulador con
-/// `tools/debug/probe_*`): lanzamientos del primer job, pasos de la ISR de encadenado (uno por
-/// fin de blit), cierres de cadena, submits con éxito dentro de la ISR y rachas de estado fijo
-/// arrancadas (cada racha cubre varios objetos con los registros comunes programados una vez).
 volatile eng::u32 g_blit_async_launches = 0u;
 volatile eng::u32 g_blit_async_irqs = 0u;
 volatile eng::u32 g_blit_async_ends = 0u;

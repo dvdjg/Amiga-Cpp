@@ -370,6 +370,24 @@ public:
 	/// hasta su repro/fix, separa esas rutas en planes distintos o verifica con lectura.
 	[[nodiscard]] bool execute_frame_plan(const graphics::FramePlan& plan);
 
+	/// Resultado de una ejecución beam-aware por grupos de BOBs.
+	struct FramePlanExecution {
+		enum class Status : u8 { Nothing, All, BobsDeferred };
+		Status status = Status::Nothing;
+		u16 executed = 0u;
+		u16 deferred_bobs = 0u;
+		u16 first_deferred = 0xffffu;
+		u16 retry_line = 0u;
+		u32 deferred_groups = 0u; ///< bit `g` = el grupo `g` se difirió entero
+	};
+	[[nodiscard]] const FramePlanExecution& last_frame_plan_execution() const noexcept {
+		return m_last_plan_execution;
+	}
+	/// Espera activa al haz (solo setup/depuración). El camino normal difiere los
+	/// grupos no seguros y conserva el arte anterior completo.
+	void set_bob_beam_wait(bool enabled) noexcept { m_bob_beam_wait = enabled; }
+	[[nodiscard]] bool bob_beam_wait() const noexcept { return m_bob_beam_wait; }
+
 	/// **Ejecuta el `FramePlan` de forma asíncrona** (vía IRQ de blit, `BLITTER_INTENT_QUEUE.md`
 	/// §6 vía I): lanza el primer trabajo (`wait=false`) y **vuelve de inmediato**; la IRQ de fin
 	/// de blit (nivel 3, bit BLIT) programa el siguiente trabajo, y así hasta agotar el plan. La
@@ -922,6 +940,21 @@ private:
 	/// programa un `BlitJob`. `eor_open` mantiene la racha de líneas EOR entre jobs.
 	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);
 
+	/// Ejecuta los jobs `[from, to)` con el mismo camino que el plan completo.
+	bool execute_job_range(const graphics::FramePlan& plan, u8 from, u8 to, bool& eor_open);
+	/// Caja y coste de un grupo consecutivo de BOBs que empieza en `first`.
+	struct BobGroupSpan {
+		u8 first = 0u;
+		u8 end = 0u;
+		u16 top = 0xffffu;
+		u16 bottom = 0u;
+		u32 words = 0u;
+	};
+	[[nodiscard]] BobGroupSpan bob_group_span(const graphics::FramePlan& plan, u8 first) const noexcept;
+	/// Ejecuta el plan agrupando los BOBs; los grupos no seguros se omiten enteros.
+	bool execute_frame_plan_groups(const graphics::FramePlan& plan, FramePlanExecution& result);
+	void wait_bob_group(const BobGroupSpan& group, u16 display_start);
+
 	Profile m_profile; ///< perfil de máquina configurado
 	GameMemoryProfile m_game_memory = game_memory_a500; ///< presupuesto editable de la aplicación
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine
@@ -948,6 +981,8 @@ private:
 	u32 m_fast_alloc_size = 0; ///< tamaño (KB) del bloque de Fast RAM
 	u32 m_blitter_starts = 0; ///< contador de blits lanzados (diagnóstico)
 	u32 m_blt_common_hits = 0; ///< reprogramaciones de estado común evitadas en el último plan
+	FramePlanExecution m_last_plan_execution {};
+	bool m_bob_beam_wait = false; ///< espera activa al haz (solo setup/depuración)
 	/// **Caché del estado común del Blitter** (registros `BLTCON*`/ventanas/módulos): si un job
 	/// consecutivo los comparte, se omiten sus escrituras a custom. La invalidan los caminos que
 	/// programan los registros por su cuenta (línea/EOR/C2P) — ver `submit_blit_job`.

@@ -753,6 +753,7 @@ private:
 			job.descending = false;
 			job.interleaved = true;
 			job.minterm = 0u;
+			bob_detail::mark_bob(job, e.y, e.h, t.height);
 			return plan.commit_blit_job();
 		}
 		job.source = capture ? target_ptr : save_ptr;
@@ -773,6 +774,7 @@ private:
 		job.descending = false;
 		job.interleaved = false;
 		job.minterm = 0u;
+		bob_detail::mark_bob(job, e.y, e.h, t.height);
 		return plan.commit_blit_job();
 	}
 

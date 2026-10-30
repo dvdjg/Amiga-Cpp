@@ -251,6 +251,15 @@ struct BlitJob {
 		u16 alwm = 0xffffu; ///< `BLTALWM` (mascara de la ultima palabra)
 	};
 	Fill fill {};
+
+	/// **BOB de bitmap**: el ejecutor puede esperar/diferir el grupo entero si el haz
+	/// está leyendo su caja. `bob_top`/`bob_bottom` son líneas de **pantalla** (sin el
+	/// `DIWSTRT`); el backend suma el origen del display. `bob_group` agrupa los jobs
+	/// atómicos de un mismo objeto (restore + save + draw); `0xFF` = sin grupo.
+	bool bob = false;
+	u8 bob_group = 0xFFu;
+	u16 bob_top = 0u;
+	u16 bob_bottom = 0u;
 };
 
 /// **¿El trabajo escribe solo dentro de `bounds`?** Cubre los jobs rectangulares

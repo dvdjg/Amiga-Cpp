@@ -243,6 +243,23 @@ public:
 	}
 
 	constexpr bool ok() const { return m_ok; }
+
+	/// Marca como grupo atómico los BOBs emitidos desde `first_job` (inclusive). El
+	/// ejecutor beam-aware decide una vez por grupo y ejecuta o difiere **todos** sus
+	/// jobs (restore + save + draw), nunca una parte.
+	void tag_bob_group(u8 group, u8 first_job = 0u) noexcept {
+		for (u8 i = first_job; i < m_blit_job_count; ++i) {
+			if (m_blit_jobs[i].bob) m_blit_jobs[i].bob_group = group;
+		}
+	}
+	/// `true` si hay al menos un BOB con grupo; los planes sin grupos conservan el
+	/// camino síncrono histórico.
+	[[nodiscard]] constexpr bool has_grouped_bobs() const noexcept {
+		for (u8 i = 0u; i < m_blit_job_count; ++i) {
+			if (m_blit_jobs[i].bob && m_blit_jobs[i].bob_group != 0xFFu) return true;
+		}
+		return false;
+	}
 	constexpr u8 palette_patch_count() const { return m_palette_patch_count; }
 
 	/// **Agrupa los blits por estado común** (opt-in **explícito**). Reordena los `BlitJob` de
@@ -523,6 +540,10 @@ public:
 		}
 		BlitJob& slot = m_blit_jobs[m_blit_job_count];
 		slot.kind = kind;
+		slot.bob = false;
+		slot.bob_group = 0xFFu;
+		slot.bob_top = 0u;
+		slot.bob_bottom = 0u;
 		return slot;
 	}
 
@@ -584,6 +605,10 @@ public:
 		}
 		BlitJob& slot = m_blit_jobs[m_blit_job_count];
 		slot.kind = kind;
+		slot.bob = false;
+		slot.bob_group = 0xFFu;
+		slot.bob_top = 0u;
+		slot.bob_bottom = 0u;
 		return slot;
 	}
 

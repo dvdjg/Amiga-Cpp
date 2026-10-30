@@ -381,6 +381,8 @@ public:
 		m_tick = tick;
 	}
 	[[nodiscard]] constexpr u32 tick() const noexcept { return m_tick; }
+	/// Origen del anillo en pantalla; anota la caja de los BOBs para el ejecutor beam-safe.
+	void set_display_offset(u16 offset) noexcept { m_display_offset = offset; }
 
 	void set_layer_animation_enabled(u8 layer, bool enabled) noexcept {
 
@@ -489,6 +491,7 @@ public:
 					graphics::BlitJobKind::MaskedBobCookieCut);
 				graphics::make_interleaved_masked_bob(job, src, dest_ptr, gw, seg,
 					static_cast<u8>(planes), target.row_bytes, 0u);
+				mark_bob_screen(job, ry, first_row, seg, ring_height, target.height);
 				if (!plan.commit_blit_job()) return false;
 				remaining = static_cast<u16>(remaining - seg);
 				first_row = static_cast<u16>(first_row + seg);
@@ -523,6 +526,7 @@ public:
 			job.interleaved = false;
 			job.source_words_per_row = 0u;
 			job.descending = false;
+			mark_bob_screen(job, ry, first_row, seg, ring_height, target.height);
 			if (!plan.commit_blit_job()) return false;
 			remaining = static_cast<u16>(remaining - seg);
 			first_row = static_cast<u16>(first_row + seg);
@@ -570,6 +574,18 @@ private:
 	void clear_schedule() noexcept {
 		for (u16 b = 0u; b < kTileAnimationBuckets; ++b) m_head[b] = 0u;
 	}
+	/// Anota la caja de pantalla de un segmento de BOB del anillo. `ring_y` es la
+	/// linea del anillo; `m_display_offset` la convierte a pantalla con wrap.
+	void mark_bob_screen(graphics::BlitJob& job, u16 ring_y, u16 first_row, u16 rows,
+			     u16 ring_height, u16 target_height) const noexcept {
+		s32 y = static_cast<s32>(ring_y) - static_cast<s32>(m_display_offset);
+		if (y < 0) y += ring_height;
+		y += first_row;
+		job.bob = true;
+		job.bob_top = y < target_height ? static_cast<u16>(y) : target_height;
+		const s32 bottom = y + rows;
+		job.bob_bottom = bottom < target_height ? static_cast<u16>(bottom) : target_height;
+	}
 	eng::Span<const TileAnimationGroupView> m_groups {};
 	eng::Span<const TileAnimationLayerView> m_layers {};
 	eng::Span<const TileAnimationCellView> m_cells {};
@@ -577,6 +593,7 @@ private:
 	eng::ChipView<eng::MaskTag> m_masks {};    // banco 1bpp de máscaras (Chip)
 	u16 m_frame_stride = 0u;
 	u16 m_mask_stride = 0u;
+	u16 m_display_offset = 0u; ///< origen del anillo en pantalla (caja de los BOBs)
 	u8 m_planes = 0u;
 	u16 m_tile = 16u;
 	u32 m_tick = 0u;
