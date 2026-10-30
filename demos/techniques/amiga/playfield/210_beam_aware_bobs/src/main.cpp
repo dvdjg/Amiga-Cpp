@@ -1,13 +1,14 @@
-// Demo 210: BOBs opacos 5bpp con grupos atomicos y ventana de haz.
+// Demo 210: BOBs opacos de un plano sobre 5bpp.
 //
 // Un unico framebuffer de 5 planos con fondo plano (indice 0). Cada BOB es una
-// hoja 16x16 opaca: 12x12 de arte + 2 px de padding por lado. El padding pinta
-// color 0, el mismo del fondo, asi que cada copia borra su posicion anterior
-// sin save-under ni restore. Un BOB = un BlitJob = un grupo beam-aware.
+// hoja 12x12 opaca: arte 8x8 + 2 px de padding por lado. El padding pinta color
+// 0, el mismo del fondo. La capa `PlaneBobLayer` lleva la huella previa: si el
+// actor salta mas que el padding, emite clear + draw en su plano.
 //
-// La hoja es interleaved [fila][plano] y se dibuja con un solo blit Opaque por
-// objeto. El ejecutor solo lanza el grupo si el haz ya paso su caja o si el
-// Blitter termina antes; si no, lo difiere entero.
+// La hoja es planar de un plano y se dibuja con un solo blit Opaque por objeto.
+// El demo usa el camino sin grupos: 6 BOBs a 49,9 fps. La API permite marcar
+// grupos atomicos (`emit(..., group_base)`), pero el scheduler actual no cabe en
+// 50 fps con 6/8 grupos; ver docs/engine/architecture/PLANE_BOB_LAYER.md.
 
 #include <eng/api/api.hpp>
 #include <eng/core/util/text_line.hpp>
@@ -20,6 +21,7 @@
 #include <eng/graphics/palette32.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/display.hpp>
+#include <eng/scene/plane_bobs.hpp>
 #include <eng/setup/coherence.hpp>
 
 #include <proto/exec.h>
@@ -50,13 +52,16 @@ constexpr eng::u16 kSheet = 12u; // arte 8x8 + 2 px de padding
 constexpr eng::u16 kArt = 8u;
 constexpr eng::u16 kPad = 2u;
 constexpr eng::u16 kFrames = 4u;
-constexpr eng::u8 kVariants = 5u;
 constexpr eng::u16 kRowWords = 2u; // 16 px + guarda
 constexpr eng::u32 kFrameBytes = static_cast<eng::u32>(kSheet) * kRowWords * 2u; // 1 plano
 constexpr eng::u32 kSheetBytes = kFrameBytes * kFrames;
 constexpr eng::u32 kSheetTotal = kSheetBytes; // una hoja compartida por las 5 variantes
 constexpr eng::u32 kSheetCanary = 16u;
-constexpr eng::u16 kBobCount = 6u;
+#ifndef K_BOB_COUNT
+#define K_BOB_COUNT 6
+#endif
+constexpr eng::u16 kBobCount = K_BOB_COUNT;
+static_assert(kBobCount >= 1u && kBobCount <= 8u, "210 admite 1..8 BOBs");
 constexpr eng::u16 kMaxX = 288u; // caja de 2 palabras (32 px) dentro de 320
 constexpr eng::u16 kMaxY = 244u;
 constexpr eng::u32 kCopperWords = 1024u;
@@ -115,6 +120,8 @@ public:
 			return;
 		}
 		init_balls(m_balls);
+		m_layer.set_sheet(m_bob, kPad, kPad);
+		m_layer.resize(kBobCount);
 		if (!build_display(backend)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Display);
 			return;
@@ -196,18 +203,14 @@ private:
 				w[fo + static_cast<eng::u32>(y) * kRowWords + 1u] = 0u;
 			}
 		}
-		for (eng::u8 v = 0u; v < kVariants; ++v) {
-			eng::graphics::Bob bob {};
-			bob.sheet = m_sheets.mem_view_chip().subview(kSheetCanary, kSheetBytes);
-			bob.width = kSheet;
-			bob.height = kSheet;
-			bob.planes = 1u;
-			bob.frame_count = kFrames;
-			bob.frame_stride = kFrameBytes;
-			bob.layout = eng::graphics::BobLayout::Planar;
-			bob.draw = eng::graphics::BobDraw::Opaque;
-			m_bobs[v] = bob;
-		}
+		m_bob.sheet = m_sheets.mem_view_chip().subview(kSheetCanary, kSheetBytes);
+		m_bob.width = kSheet;
+		m_bob.height = kSheet;
+		m_bob.planes = 1u;
+		m_bob.frame_count = kFrames;
+		m_bob.frame_stride = kFrameBytes;
+		m_bob.layout = eng::graphics::BobLayout::Planar;
+		m_bob.draw = eng::graphics::BobDraw::Opaque;
 		return true;
 	}
 
@@ -236,15 +239,15 @@ private:
 		m_plan.clear();
 		m_plan.set_target_bounds(m_target.bound());
 		for (eng::u16 i = 0u; i < kBobCount; ++i) {
-			const Ball& b = m_balls[i];
-			const eng::s16 x = static_cast<eng::s16>(b.xq >> 8);
-			const eng::s16 y = static_cast<eng::s16>(b.yq >> 8);
-			const eng::u8 first = m_plan.blit_job_count();
-			const eng::u8 frame = static_cast<eng::u8>(((frame_index / 6u) + i) & 3u);
-			if (!eng::graphics::bob_draw_plane_opaque(m_plan, m_bobs[b.variant], frame, x, y, m_target, b.variant)) {
-				return false;
-			}
-			(void)first; // sin grupo: camino legacy sin guarda de haz
+			eng::scene::PlaneBobActor& a = m_layer[i];
+			a.x = static_cast<eng::s16>(m_balls[i].xq >> 8);
+			a.y = static_cast<eng::s16>(m_balls[i].yq >> 8);
+			a.frame = static_cast<eng::u8>(((frame_index / 6u) + i) & 3u);
+			a.plane = m_balls[i].variant;
+			a.visible = true;
+		}
+		if (m_layer.emit(m_plan, m_target) != kBobCount) {
+			return false;
 		}
 		if (setup) backend.set_bob_beam_wait(true);
 		const bool ok = backend.execute_frame_plan(m_plan);
@@ -329,7 +332,7 @@ private:
 			balls[i].yq = static_cast<eng::s32>(28u + row * 56u) << 8;
 			balls[i].vxq = static_cast<eng::s16>((i & 1u) ? 256 : -192);
 			balls[i].vyq = static_cast<eng::s16>((i & 2u) ? 192 : -256);
-			balls[i].variant = static_cast<eng::u8>(i % kVariants);
+			balls[i].variant = static_cast<eng::u8>(i % kPlanes);
 		}
 	}
 
@@ -337,11 +340,12 @@ private:
 	eng::Block<eng::BobTag> m_sheets {};
 	eng::Block<eng::CopperTag> m_copper {};
 	eng::graphics::BobTarget m_target {};
-	eng::graphics::Bob m_bobs[kVariants] {};
+	eng::graphics::Bob m_bob {};
 	Ball m_balls[kBobCount] { {0, 0, 0, 0, 0} };
 	eng::graphics::FramePlan m_plan {};
 	eng::ChipView<eng::CopperTag> m_display {};
 	eng::debug::HostHud m_hud {};
+	eng::scene::PlaneBobLayer m_layer {};
 };
 
 } // namespace
