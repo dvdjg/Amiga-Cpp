@@ -384,10 +384,10 @@ struct DemoGame {
 #if defined(DEMO_DOUBLE_BUFFER)
 		constexpr eng::u32 kChipBytes = 256u * 1024u;
 #else
-		// 104K chip: el banco mixto (agua planar + flores/fogata/coberturas
-		// interleaved) deja 104K contiguos en el A500 de 512K; el escenario usa
-		// ~100K (anillo 69K + HUD 11,5K + save-under 18K).
-		constexpr eng::u32 kChipBytes = 104u * 1024u;
+		// 128K chip: anillo 69K + HUD 11,5K + save-under 30K (arena pequeña
+		// 96×192 B + arena grande 8×1,5 KB). Con 104K la reserva del save-under
+		// fallaba y las flores/agua no se parcheaban.
+		constexpr eng::u32 kChipBytes = 128u * 1024u;
 #endif
 		if (!backend.configure_memory({kChipBytes, 16u * 1024u, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Memory);
