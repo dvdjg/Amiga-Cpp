@@ -15,9 +15,9 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 
 > **Antes de tocar BOBs, Blitter o beam-safety**, aplica [RENDER_CHANGE_PROTOCOL.md](../../guides/methodology/RENDER_CHANGE_PROTOCOL.md): huella real con padding/guarda, sonda que falla antes del cambio y secuencia frame-step. Una ficha por sí sola no es una validación de implementación.
 
-| [beam-safe-bobs.md](beam-safe-bobs.md) | **BOBs de bitmap beam-safe en un framebuffer**: invariante del haz, footprint real con guarda (BLTDMOD=196 en interleaved 5bpp), padding, calibración del coste con VPOSR, grupos atómicos ordenados por deadline, política Now/Wait/Defer y límites de 6–8 BOBs a 50 fps. |
 | Ficha | Tema |
 |-------|------|
+| [beam-safe-bobs.md](beam-safe-bobs.md) | **BOBs de bitmap beam-safe en un framebuffer**: invariante del haz, footprint real con guarda (BLTDMOD=196 en interleaved 5bpp), padding, calibración del coste con VPOSR, grupos atómicos ordenados por deadline, política Now/Wait/Defer y límites de 6–8 BOBs a 50 fps. |
 | [modulo-tricks.md](modulo-tricks.md) | Módulos de bitplane (`BPL1MOD`, `BPL2MOD`) para efectos y límites de fetch |
 | [ylimited-corkscrew.md](ylimited-corkscrew.md) | **Corkscrew Y-limited**: registros que intervienen (`DIWSTRT/STOP`, `DDFSTRT/STOP`, `BPL1MOD/2MOD` —impares=P F1, pares=PF2—, `BPLxPT`, `BPLCON1`), geometría de bitmap de la referencia, modulo-trick con sobre-fetch y **desviaciones medidas del engine (roto, DT-006)** |
 | [dual-layer.md](dual-layer.md) | Dos capas gráficas (dual playfield vs otras composiciones) |

@@ -368,6 +368,18 @@ public:
 	/// jobs `CopyRect` y una racha cookie-cut en el MISMO plan puede perderse un plano de
 	/// forma intermitente (DT-022, `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`);
 	/// hasta su repro/fix, separa esas rutas en planes distintos o verifica con lectura.
+	/// **Consulta no bloqueante** de la ventana de raster para los BOBs del plan.
+	/// El programa decide: `Now` = se puede escribir ya; `Wait` = el haz está
+	/// dentro de la caja, `retry_line` es la línea segura; `Defer` = no cabe
+	/// antes del deadline. No espera ni ejecuta nada.
+	enum class BeamWriteDecision : u8 { Now, Wait, Defer };
+	struct BobBeamWindow {
+		u16 line = 0u;       ///< línea actual de `VPOSR`
+		u16 retry_line = 0u; ///< línea segura a partir de la cual reintentar
+		BeamWriteDecision decision = BeamWriteDecision::Now;
+	};
+	[[nodiscard]] BobBeamWindow bob_beam_window(const graphics::FramePlan& plan) const;
+
 	[[nodiscard]] bool execute_frame_plan(const graphics::FramePlan& plan);
 
 	/// Resultado de una ejecución beam-aware por grupos de BOBs.
@@ -957,6 +969,8 @@ private:
 	/// Ejecuta el plan agrupando los BOBs; los grupos no seguros se omiten enteros.
 	bool execute_frame_plan_groups(const graphics::FramePlan& plan, FramePlanExecution& result);
 	void wait_bob_group(const BobGroupSpan& group, u16 display_start);
+	/// Espera cooperativa a que el haz pase la caja de los BOBs (opt-in).
+	void wait_bob_beam(const graphics::FramePlan& plan);
 
 	Profile m_profile; ///< perfil de máquina configurado
 	GameMemoryProfile m_game_memory = game_memory_a500; ///< presupuesto editable de la aplicación

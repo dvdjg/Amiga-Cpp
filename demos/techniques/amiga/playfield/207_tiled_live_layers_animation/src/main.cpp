@@ -735,6 +735,9 @@ struct DemoGame {
 			return;
 		}
 #endif
+		// Origen del anillo para que el parche anote la caja de pantalla de los
+		// BOBs; el ejecutor beam-safe espera a que el haz no la lea.
+		animator.set_display_offset(static_cast<eng::u16>(scene.bg().display_offset()));
 		DEMO_PROF_END(0u);
 		DEMO_PROF_BEGIN(1u);
 		plan.clear();

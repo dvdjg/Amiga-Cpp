@@ -8,8 +8,8 @@
 
 Medición final con `A500_release`, commit `17d9a174` + cambios de política:
 
-- Visita completa: **49,52 fps**, 143.238 ciclos/frame, 1,010 campos/frame; ventanas 48,35–50,32.
-- Parada de la fogata: **49,97 fps**, 141.965 ciclos/frame, 1,001 campos; ventanas 49,73–50,32.
+- Visita completa: **49,67 fps**, 143.238 ciclos/frame, 1,010 campos/frame; ventanas 48,35–50,32.
+- Parada de la fogata: **49,92 fps**, 141.965 ciclos/frame, 1,001 campos; ventanas 49,73–50,32.
 - Scroll/base viva congelada (`DEMO_NO_LIVE=1`): 49,87 fps.
 - Política: sin parche durante scroll; en cada parada solo se anima la capa protagonista; parche cada 5 frames; HUD cada 8.
 - Secuencia de 30 frames: sin banda inferior, sin parpadeo; la fogata cambia (diff en la zona central). La visita completa pierde ~1,4k ciclos frente al campo exacto, sin defecto visual.
@@ -22,8 +22,8 @@ Medidas con `tools/debug/measure-fps.mjs` sobre `A500_release`, build del árbol
 
 | Build | fps | ciclos/frame | campos/frame | Notas |
 |---|---:|---:|---:|---|
-| `A500_release` visita | 39,90 | 177 803 | 1,253 | 8 ventanas; mínimo 35,4, máximo 46,0; con fogata en scroll (sin ella 47,60) |
-| `A500_release` fogata (`DEMO_TOUR_STOP=0`) | 44,09 | 160 900 | 1,134 | con presupuesto por capas; sin él 37,41 |
+| `A500_release` visita | 39,54 | 179 404 | 1,265 | 8 ventanas; mínimo 35,7, máximo 46,0; fogata en scroll + guarda beam-safe (sin ellas 47,60) |
+| `A500_release` fogata (`DEMO_TOUR_STOP=0`) | 42,46 | 167 052 | 1,177 | con presupuesto por capas y guarda beam-safe; sin presupuesto 37,41 |
 | `A500_release` agua (`DEMO_TOUR_STOP=1`) | 48,58 | 146 009 | 1,029 | agua activa |
 | `A500_release` flores (`DEMO_TOUR_STOP=2`) | 48,32 | 146 819 | 1,035 | agua activa |
 

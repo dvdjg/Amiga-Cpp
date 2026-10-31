@@ -1,6 +1,6 @@
 # 207 - Beginning Fields con capas vivas animadas
 
-> **Estado vigente 2026-10-31:** visita completa 49,52 fps; parada de la fogata 49,97 fps. Las cifras 39,90/44,09 de las secciones siguientes son históricas; ver «Cierre 2026-10-31».
+> **Estado vigente 2026-10-31:** visita completa 49,67 fps; parada de la fogata 49,92 fps. Las cifras 39,90/44,09 de las secciones siguientes son históricas; ver «Cierre 2026-10-31».
 
 Demo T5: la base se cuece sin las celdas de `Flowers`, `Water` y `Object Layer 1`; un `TileLayerStack` compone el frame actual de las tres capas vivas. La cámara recorre todo el mapa con paradas de 3 s y las celdas que cambian se parchean por Blitter en cada parada. El contrato completo está en [`TILED_COOK_PLAN.md`](../../../../../docs/engine/architecture/TILED_COOK_PLAN.md).
 
@@ -53,8 +53,8 @@ La política de capas cambió para eliminar el parpadeo y el coste del parche:
 
 | Caso | fps | Ciclos/frame | Campos/frame |
 |---|---:|---:|---:|
-| Visita completa | **49,52** | 143.238 | 1,010 |
-| Parada de la fogata (`DEMO_TOUR_STOP=0`) | **49,97** | 141.965 | 1,001 |
+| Visita completa | **49,67** | 143.238 | 1,010 |
+| Parada de la fogata (`DEMO_TOUR_STOP=0`) | **49,92** | 141.965 | 1,001 |
 | Base sin capas vivas (`DEMO_NO_LIVE=1`) | 49,87 | 142.243 | 1,003 |
 
 La secuencia de 30 frames no muestra bandas ni parpadeo; la fogata cambia de frame (diff en la zona central). La visita completa se queda a 1,010 campos: le faltan ~1,4k ciclos para el campo exacto, no hay un defecto visual.
@@ -64,8 +64,8 @@ La secuencia de 30 frames no muestra bandas ni parpadeo; la fogata cambia de fra
 
 Medidas con `measure-fps.mjs` sobre `A500_release`, build del árbol de trabajo sobre el commit `33882349`, 2026-10-29.
 
-- Visita completa: **39,90 fps de media**, mínimo de ventana **35,4**, máximo 46,0, **177.803 ciclos/frame**, **1,253 campos/frame** (8 ventanas). La cadencia es variable por diseño (paradas y desplazamiento); la media no se usa como presupuesto. La visita incluye la **fogata animándose también durante el scroll** (parche de la capa 2 cada 5 frames); sin ese parche la misma visita medía 47,60 fps (mínimo 44,0). Las flores y el agua se quedan en su último frame durante el desplazamiento.
-- Parada de la fogata (`DEMO_TOUR_STOP=0`): **44,09 fps**, 160.900 ciclos/frame, 1,134 campos/frame, ventanas 43,2–45,6. La política de degradación por trabajo congela el agua (capa ambiente) mientras la fogata y las flores siguen a 50; con `DEMO_NO_BUDGET` (tope fijo de 8 jobs) la misma parada mide **37,41 fps**. El anillo de `set_tick` subió la parada fija de 35,7 a 37,4.
+- Visita completa: **39,54 fps de media**, mínimo de ventana **35,7**, máximo 46,0, **179.404 ciclos/frame**, **1,265 campos/frame** (8 ventanas). La cadencia es variable por diseño (paradas y desplazamiento); la media no se usa como presupuesto. La visita incluye la **fogata animándose también durante el scroll** (parche de la capa 2 cada 5 frames) y la **guarda beam-safe** de los BOBs; sin ese parche la misma visita medía 47,60 fps (mínimo 44,0). Las flores y el agua se quedan en su último frame durante el desplazamiento; `DEMO_WATER_IN_SCROLL=1` mantiene las tres capas y prioriza el agua.
+- Parada de la fogata (`DEMO_TOUR_STOP=0`): **42,46 fps**, 167.052 ciclos/frame, 1,177 campos/frame, ventanas 39,7–44,3; la guarda beam-safe cuesta ~1,6 fps frente a 44,09. La política de degradación por trabajo congela el agua (capa ambiente) mientras la fogata y las flores siguen a 50; con `DEMO_NO_BUDGET` (tope fijo de 8 jobs) la misma parada mide **37,41 fps**. El anillo de `set_tick` subió la parada fija de 35,7 a 37,4.
 - Parada de agua (`DEMO_TOUR_STOP=1`): **48,58 fps**, 146.009 ciclos/frame, 1,029 campos/frame.
 - Parada de flores (`DEMO_TOUR_STOP=2`): **48,32 fps**, 146.819 ciclos/frame, 1,035 campos/frame.
 - El objetivo de 50 Hz queda abierto en la fogata y en la peor ventana de la visita (**35,4**); agua y flores están a ~48,5. En la fogata el HUD de régimen lee `W=120.004` y `M=206.970`; el pico sigue siendo la llegada con el redraw completo, no el régimen.

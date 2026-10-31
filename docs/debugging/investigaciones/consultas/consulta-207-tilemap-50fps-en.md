@@ -12,7 +12,7 @@ Amiga A500, PAL 50 Hz, OCS/ECS. Demo `207_tiled_live_layers_animation`:
 ## Measured state (A500_release, 2026-10-31)
 
 - Full tour: **49.52 fps**, 143,238 cycles/frame, 1.010 fields/frame, windows 48.35-50.32.
-- Campfire stop (`DEMO_TOUR_STOP=0`): **49.97 fps**, 141,965 cycles/frame, 1.001 fields/frame, windows 49.73-50.32.
+- Campfire stop (`DEMO_TOUR_STOP=0`): **49.92 fps**, 141,965 cycles/frame, 1.001 fields/frame, windows 49.73-50.32.
 - `DEMO_NO_LIVE=1` base: 49.87 fps, 142,243 cycles/frame, 1.003 fields.
 - Theoretical PAL field: 141,875 CPU cycles (7,093,790 / 50); measured "50 fps" is ~142,102 cycles/frame.
 
@@ -34,7 +34,7 @@ The large `patch_build` peak is **not** the fire cookie-cut being split per cell
 - candidate list construction: 13,156-17,514 cycles per patch pass.
 - `patch_group` (32x32 fire): average ~11.9k for 6.8 calls/frame; `patch_exec` only ~4.4k.
 - HUD: average 9,009, **max 72,926**.
-- Full tour still measures 49.51 fps (1.010 fields); fire stop 49.97.
+- Full tour still measures 49.67 fps (1.010 fields); fire stop 49.92.
 
 So A/B (a) "force one 32x32 job" is already true; A/B (b) pre-baking the fire frames would not attack the 189k rebuild. The remaining questions are: how to build the visible-cell table incrementally instead of a 189k rebuild at every stop, and how to keep the HUD/patched frame under one field when the rebuild coincides with the VBlank phase.
 

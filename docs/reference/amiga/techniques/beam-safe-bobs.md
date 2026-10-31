@@ -1,5 +1,7 @@
 # BOBs de bitmap seguros frente al haz
 
+> **Nota de fusión (2026-10-31):** la ficha de `master` añadía una guarda global `wait_bob_beam` para todos los BOBs. Se revisó y se conserva solo como API opt-in: en la 207 cuesta ~1,6 fps (44,09 ? 42,46) y el camino estable usa la política de capa protagonista por parada. Las mediciones de 207 de esta ficha son las del ?rbol fusionado; la ficha antigua de master queda sustituida por esta.
+
 Esta ficha fija el diseño correcto para actualizar **BOBs de bitmap en un único framebuffer** sin tearing ni restos, con el Blitter compitiendo con la DMA de display. Está pensada para OCS de 5 planos y para BOBs opacos de un plano, pero el invariante y la política de grupos son generales.
 
 ## 1. Invariante
