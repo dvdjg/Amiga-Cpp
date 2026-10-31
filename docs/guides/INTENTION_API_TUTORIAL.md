@@ -165,6 +165,24 @@ Bajar de nivel es aceptable cuando una abstracción falta o cuando se mide la ne
 - `Screen::target()`/`Screen::blit` son rutas de transición para código avanzado; no forman parte del vocabulario ideal de un juego nuevo.
 - No se asigna memoria en gameplay; las capacidades se eligen en compilación.
 
+## 8.1 BOBs de un plano: `PlaneBobLayer`
+
+Para objetos de bitmap de **un solo plano** (no sprites hardware) sobre un framebuffer interleaved, usa `eng::scene::PlaneBobLayer`. La capa lleva la huella previa y evita que el juego calcule palabras, guardas o módulos:
+
+```cpp
+eng::scene::PlaneBobLayer bobs;
+bobs.set_sheet(sprite, 0, 0); // Sprite o Bob; padding por lado
+bobs.resize(3);
+bobs[0] = {x, y, frame, plane, true};
+bobs.emit(app.plan(), app.bob_target());
+```
+
+- Con movimiento dentro del padding, un solo blit opaco.
+- Con movimiento mayor (o padding 0), la capa emite clear de la huella previa + draw.
+- `emit(plan, target, group_base)` es experimental: el scheduler beam-aware todavía no mantiene el presupuesto; no lo uses en un juego estable.
+
+Referencia completa: [`docs/engine/architecture/PLANE_BOB_LAYER.md`](../engine/architecture/PLANE_BOB_LAYER.md). Demos: `210` (6 BOBs) y `211` (movimiento continuo con clear+draw).
+
 ## 9. Referencias
 
 - `docs/engine/architecture/SPRITE_DIRECTOR.md`: contrato completo del director.

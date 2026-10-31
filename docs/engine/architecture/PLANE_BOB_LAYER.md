@@ -6,7 +6,7 @@
 
 - La hoja es un `eng::graphics::Bob` de **1 plano**, `BobDraw::Opaque`, con padding de color 0 alrededor del arte.
 - Cada actor declara `x`, `y`, `frame`, `plane` y `visible`.
-- `set_sheet(hoja, pad_x, pad_y)` fija la hoja y el padding por lado.
+- `set_sheet(hoja, pad_x, pad_y)` fija la hoja y el padding por lado; acepta tanto `graphics::Bob` como el `graphics::Sprite` cocinado del asset.
 - `emit(plan, target)` dibuja los actores visibles. Si el movimiento de un actor cabe en el padding, basta la copia opaca; si no, la capa añade un `ClearRect` de su huella previa **en el mismo plano** antes del draw.
 - `emit(plan, target, group_base)` marca el erase+draw de cada actor como grupo at?mico (`group_base + i`) para el ejecutor beam-aware. **Es experimental y no debe activarse en una demo**: 6 grupos bajan a 42,7 fps y reaparece el fantasma de la base; falta un scheduler con presupuesto real y borrado de fondo.
 - La capa no usa heap, no conoce minterns ni módulos y no toca planos que no sean el del actor.

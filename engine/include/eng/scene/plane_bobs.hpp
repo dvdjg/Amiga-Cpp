@@ -26,6 +26,7 @@
 
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 
 namespace eng::scene {
 
@@ -48,6 +49,11 @@ public:
 		m_sheet = sheet;
 		m_pad_x = pad_x;
 		m_pad_y = pad_y;
+	}
+
+	/// Conveniencia de juego: acepta el `Sprite` ya cocinado del asset.
+	void set_sheet(const eng::graphics::Sprite& sheet, eng::u8 pad_x, eng::u8 pad_y) noexcept {
+		set_sheet(sheet.bob(), pad_x, pad_y);
 	}
 	void resize(eng::u8 n) noexcept { m_count = (n <= kMaxActors) ? n : kMaxActors; }
 	[[nodiscard]] eng::u8 count() const noexcept { return m_count; }

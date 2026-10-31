@@ -9,6 +9,7 @@
 #include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 #include <eng/scene/plane_bobs.hpp>
 
 namespace {
@@ -55,8 +56,9 @@ int main() {
 	target.plane_count = 5u;
 	target.layout = BobLayout::Interleaved;
 
+	eng::graphics::Sprite sprite {bob};
 	eng::scene::PlaneBobLayer layer {};
-	layer.set_sheet(bob, 2u, 2u);
+	layer.set_sheet(sprite, 2u, 2u);
 	layer.resize(1u);
 	layer[0u] = {10, 10, 0u, 2u, true};
 
