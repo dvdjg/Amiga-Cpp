@@ -53,7 +53,7 @@ La política de capas cambió para eliminar el parpadeo y el coste del parche:
 
 | Caso | fps | Ciclos/frame | Campos/frame |
 |---|---:|---:|---:|
-| Visita completa | **49,67** | 143.238 | 1,010 |
+| Visita completa | **49,67** | 142.808 | 1,010 |
 | Parada de la fogata (`DEMO_TOUR_STOP=0`) | **49,92** | 141.965 | 1,001 |
 | Base sin capas vivas (`DEMO_NO_LIVE=1`) | 49,87 | 142.243 | 1,003 |
 

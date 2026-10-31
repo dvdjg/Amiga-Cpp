@@ -11,7 +11,7 @@ Amiga A500, PAL 50 Hz, OCS/ECS. Demo `207_tiled_live_layers_animation`:
 
 ## Measured state (A500_release, 2026-10-31)
 
-- Full tour: **49.52 fps**, 143,238 cycles/frame, 1.010 fields/frame, windows 48.35-50.32.
+- Full tour: **49.67 fps**, 142,808 cycles/frame, 1.010 fields/frame, windows 48.35-50.32.
 - Campfire stop (`DEMO_TOUR_STOP=0`): **49.92 fps**, 141,965 cycles/frame, 1.001 fields/frame, windows 49.73-50.32.
 - `DEMO_NO_LIVE=1` base: 49.87 fps, 142,243 cycles/frame, 1.003 fields.
 - Theoretical PAL field: 141,875 CPU cycles (7,093,790 / 50); measured "50 fps" is ~142,102 cycles/frame.
@@ -40,7 +40,7 @@ So A/B (a) "force one 32x32 job" is already true; A/B (b) pre-baking the fire fr
 
 ## Questions
 
-1. Is 49.52 fps with 1.010 fields explained only by a ~1.1k-cycle overrun, or does the VBlank-synchronized loop quantize it? What exact fixed overhead should be removed to guarantee 50.00 without cutting visible animation?
+1. Is 49.67 fps with 1.010 fields explained only by a ~1.1k-cycle overrun, or does the VBlank-synchronized loop quantize it? What exact fixed overhead should be removed to guarantee 50.00 without cutting visible animation?
 2. Why does a single 32x32 Campfire produce `patch_build` spikes of ~239k cycles when only one 32x32 group (one cell?) changes every 5 ticks? Is the cost in `xlimited_playfield.hpp::patch_animations_impl` candidate building, `rebuild_anim_visible`, `MapCellSaveCache`, or `draw_group`? Which counter should be added to separate them?
 3. Is the current restore+frame strategy for the fire (save-under + cookie-cut per cell) the right one on OCS? Would a precomposed 32x32 opaque/masked fire frame, a single save-under for the whole 32x32 group, or a dirty-span restore remove the 239k spike and still preserve the static bank/rock pixels?
 4. What should the next A/B be to prove the remaining cost is structural: (a) fire group enlarged to one 32x32 job, (b) fire frames pre-baked at startup, (c) no HUD, (d) double buffer, (e) VBlank phase offset? Give the order and the metric that falsifies each.

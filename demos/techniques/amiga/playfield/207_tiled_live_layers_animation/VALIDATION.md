@@ -8,7 +8,7 @@
 
 Medición final con `A500_release`, commit `17d9a174` + cambios de política:
 
-- Visita completa: **49,67 fps**, 143.238 ciclos/frame, 1,010 campos/frame; ventanas 48,35–50,32.
+- Visita completa: **49,67 fps**, 142.808 ciclos/frame, 1,010 campos/frame; ventanas 48,35–50,32.
 - Parada de la fogata: **49,92 fps**, 141.965 ciclos/frame, 1,001 campos; ventanas 49,73–50,32.
 - Scroll/base viva congelada (`DEMO_NO_LIVE=1`): 49,87 fps.
 - Política: sin parche durante scroll; en cada parada solo se anima la capa protagonista; parche cada 5 frames; HUD cada 8.
