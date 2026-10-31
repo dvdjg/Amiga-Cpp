@@ -4,6 +4,7 @@ Consultas a modelos externos (Grok) redactadas para ser autocontenidas: estado v
 
 | Documento | Descripción |
 |-----------|-------------|
+| [consulta-207-tilemap-50fps-en.md](consulta-207-tilemap-50fps-en.md) | English consultation: why the 6-plane EHB Beginning Fields tilemap with one focused live layer still measures 49.52 fps on the full tour (49.97 at the fire stop) and has 239k-cycle patch spikes; includes the post-focus policy, final profile, relative source paths and next A/B questions. |
 | [consulta-beam-aware-bobs-en.md](consulta-beam-aware-bobs-en.md) | English consultation: correct beam-aware protection for bitmap BOBs in a single 5-plane 320x256 framebuffer at 50 fps. Includes the measured 6-BOB (49.88 fps) / 8-BOB (47.07) / 12-BOB (~32) results, the static two-BOB canary probe, the opaque padding/trail origin, the current `Now/Wait/Defer` group scheduler, and questions about the exact safety invariant, Blitter cost calibration, atomicity, guard-word footprint, BPL/Copper verification, and a reusable engine API. |
 | [consulta-grok-disco-y-loader.md](consulta-grok-disco-y-loader.md) | Disco a bajo nivel (`df0:` sin Workbench, `trackdisk.device`, buffers DMA en Chip), carga `.englib`+HUNK, teclado, E/S async y ADF datos/arranque. Estado verificado, evidencia y preguntas. |
 | [consulta-optimizacion-blitter-demoscene.md](consulta-optimizacion-blitter-demoscene.md) | El port C++ de `flatshade-convex` es 2.4× más lento que el original (670k vs 287k ciclos/frame) pese a los mismos blits; desglose por secciones y preguntas. |
