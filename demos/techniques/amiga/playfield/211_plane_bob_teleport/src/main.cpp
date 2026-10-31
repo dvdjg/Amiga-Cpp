@@ -284,7 +284,7 @@ private:
 	static void init_balls(Ball* balls) {
 		const eng::s16 xs[kBobCount] = {32, 144, 250};
 		const eng::s16 ys[kBobCount] = {36, 112, 208};
-		const eng::u8 planes[kBobCount] = {0u, 2u, 4u};
+		const eng::u8 planes[kBobCount] = {0u, 2u, 3u};
 		for (eng::u16 i = 0u; i < kBobCount; ++i) {
 			balls[i].xq = static_cast<eng::s32>(xs[i]) << 8;
 			balls[i].yq = static_cast<eng::s32>(ys[i]) << 8;

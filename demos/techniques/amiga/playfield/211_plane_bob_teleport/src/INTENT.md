@@ -13,7 +13,7 @@ Tres BOBs de un plano rebotan sobre un framebuffer de 5 planos. Los tres avanzan
 ## Elementos en pantalla
 
 - Fondo navy liso de 320×256.
-- Tres BOBs circulares (rojo, azul, amarillo) en planos 0, 2 y 4.
+- Tres BOBs circulares (rojo, amarillo y gris) en planos 0, 2 y 3.
 - HUD de host con frames, fps y `J/B/D`.
 - Canarios de memoria.
 
