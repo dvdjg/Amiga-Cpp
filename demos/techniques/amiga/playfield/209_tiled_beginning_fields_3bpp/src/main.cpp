@@ -61,7 +61,7 @@ constexpr eng::u16 kStopFrames = 80u;       // ~1,6 s de parada para ver flores
 // tostada para las flores y ocre/marrón para la llama. Evitamos amarillos o
 // rosas saturados que chirríen con el resto de la escena.
 constexpr eng::u16 kFlowerCycle[4] = {0x0fea, 0x0eda, 0x0fda, 0x0eca};
-constexpr eng::u16 kFireCycle[4] = {0x0d72, 0x0c62, 0x0b52, 0x0e83};
+constexpr eng::u16 kFireCycle[4] = {0x0f00, 0x0f40, 0x0f80, 0x0fc0}; // rojo -> naranja -> amarillo
 
 
 

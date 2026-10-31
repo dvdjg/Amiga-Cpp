@@ -2,7 +2,7 @@
 
 ## Estado
 
-Demo funcional: Beginning Fields a **3 planos / 8 colores** con scroll flat (solo punteros), cámara Catmull-Rom 16.8 y animación de fuego/flores por paleta. La secuencia muestra desplazamiento continuo y cambios de color; no hay bandas alternas. El modelo de visión canónico describe la escena como estática (falso negativo ya conocido en detalles de 16 px); prevalecen el frame-diff y las capturas.
+Demo funcional: Beginning Fields a **3 planos / 8 colores** con scroll flat (solo punteros), cámara Catmull-Rom 16.8 y **ciclo de paleta** de fuego/flores. El fuego no cambia de silueta: solo cambia el color del índice reservado; no se acepta como animación de llama completa. El modelo canónico describe la escena como estática (falso negativo).
 
 ## Asset y paleta
 
@@ -38,5 +38,5 @@ La cámara se calcula en Q8 (`catmull_q8`, puntos y retorno px<<8). El composito
 ## Deuda / SIN VERIFICAR
 
 - No se ha probado el asset con TMX (no hay TMX en el repo): la procedencia es `composed.png`, documentado.
-- La animación de paleta se ha verificado con la build de diagnóstico `-DDEMO_FREEZE_FIRE` (cámara fija en la celda de fuego, tile 16,29): la secuencia de 12 frames muestra la llama amarilla en el frame 0 y naranja en el 11, sin que cambie el resto del mapa. Sin verificar en la visita completa (el fuego sale de plano según la parada).
+- La animación de paleta se verificó con `-DDEMO_FREEZE_FIRE`: cambia el color de la llama y no el resto del mapa. **Limitación:** la silueta es fija; no es una llama animada por frames. Se cambió el ciclo a rojo/naranja/amarillo para que se lea como fuego, pero el modelo canónico no sirve para declararlo correcto.
 - El modo turbo se selecciona en compilación; no hay conmutación en runtime.
