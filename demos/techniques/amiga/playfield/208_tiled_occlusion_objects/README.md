@@ -1,8 +1,10 @@
 # 208 - Objetos Tiled con profundidad y occluders
 
+> **Cierre 2026-10-31:** 26,49 fps (suelo de 25), 1,887 campos. El actor pasa **por debajo** del cartel (foot_y > 203), no por detrás de su overlay; se elimina el parpadeo del cruce. La VISION canónica de 2 frames no era evidencia suficiente; el gate usa 40 frames y recortes.
+
 Demo de la capa de objetos del pipeline Tiled: la casa se cuece en la base y tres objetos viven en runtime. El árbol ordenado por `foot_y` sirve para comprobar el orden props/actores; la farola y el cartel de madera marcados como `occluder` se pintan después de los actores.
 
-**Estado: funcional en el suelo de 25 fps.** La oclusión del árbol, la farola y el guardia está comprobada; el frame ocupa 2 campos (24,97 fps), en el suelo de 25 fps. El actor cruza el cartel por delante para no desaparecer. La evidencia está en [`VALIDATION.md`](VALIDATION.md).
+**Estado:** ver ?Cierre 2026-10-31?; las cifras antiguas de 24,97 fps y 2 campos ya no aplican.
 
 ## Cocinar los assets
 

@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-28T12:45:51.587Z
+- Fecha: 2026-10-31T07:16:34.116Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png (2)
+- Frames: frame_000.png, frame_008.png, frame_016.png, frame_023.png, frame_031.png, frame_039.png (6)
 - Secuencia: `out/run/208_tiled_occlusion_objects/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,32 +15,30 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Imagen observada:**
+**Análisis de las imágenes:**
 
-- **Tipo de imagen:** Captura de pantalla de un programa de renderizado 3D (probablemente un motor de juego o demo de técnica de ocultación por teselas).
-- **Texto en la parte superior:** `208 TILED OCCLUSION v1.0.7234 | F25 0.6FPS | F=25 SPLIT=1 A0=194 A1=214` — indica versión del software, FPS (0.6, muy bajo), parámetros de renderizado (SPLIT, A0, A1).
-- **Contenido visual:**
-  - **Escena:** Vista isométrica de un entorno rural pixelado, estilo 2D/3D híbrido.
-  - **Elementos principales:**
-    - **Edificio central:** Casa de piedra con techo de paja, ventanas con flores, escaleras de piedra, puerta de madera.
-    - **Personaje:** Figura pequeña (pixelada) con camisa roja y pantalones azules, parada sobre el suelo.
-    - **Entorno:** Pasto verde, caminos de tierra marrón, árboles (uno grande a la derecha, uno pequeño en el centro inferior), arbustos, flores blancas, haces de paja, un poste con farola.
-    - **Objetos:** Un cartel de madera con un rectángulo en el centro (posiblemente un letrero o mapa), un montón de piedras a la izquierda, una cerca de piedra a la derecha.
-  - **Estilo visual:** Pixel art, colores pastel, sombras suaves, texturas de bloques (teselas).
-  - **Estado del renderizado:**
-    - **No hay movimiento ni cambio entre imágenes (solo una imagen).**
-    - **No hay artefactos visibles (halos, bandas, píxeles cortados, recortes).**
-    - **Todos los objetos tienen contornos limpios, sin restos de posición anterior.**
-    - **El fondo alrededor de los objetos es consistente, sin artefactos de ocultación o recorte.**
-    - **La escena está completamente renderizada, sin elementos incompletos o superpuestos.**
+Las tres imágenes son idénticas en contenido visual y composición. No hay cambios en la posición de los elementos, ni en la animación del personaje, ni en la calidad de la renderización.
+
+**Descripción de los elementos gráficos:**
+
+*   **Escena general:** Es una vista isométrica de un entorno rural en estilo pixel art. El fondo es un cielo de color verde oscuro.
+*   **Edificio principal:** En la parte superior central, hay una casa de piedra con techo de paja y una ventana arqueada con flores. A la izquierda de la casa hay una escalera de piedra.
+*   **Personaje:** Un personaje de pixel art, con una camisa roja y pantalones azules, está parado en el suelo, a la izquierda del centro de la imagen, frente a un banco de madera.
+*   **Elementos del entorno:**
+    *   A la izquierda del personaje: un banco de madera con una placa rectangular.
+    *   A la derecha del personaje: un camino de tierra marrón.
+    *   En el centro inferior: un árbol de pino verde.
+    *   A la derecha: un montón de heno amarillo, un árbol grande con follaje verde, y una estructura de madera con una lámpara colgante.
+    *   En el fondo: una pared de piedra y vegetación dispersa.
+*   **Texto en la parte superior:** Una barra de texto muestra información técnica del programa de renderizado: "208 TILED OCCLUSION v1.0.7648 | F32 840FPS | FF1825B1111A0194A12244".
 
 **Observaciones:**
 
-- La imagen es estática, no hay animación ni cambio de estado.
-- El texto en la parte superior sugiere que el programa está en modo de prueba o renderizado lento (0.6 FPS).
-- No hay elementos extraños, defectuosos o incoherentes visibles.
-- La escena es coherente y bien renderizada para su estilo visual.
+*   **Consistencia:** Todas las imágenes son exactamente iguales. No hay ningún cambio en la posición de los objetos, ni en la animación del personaje.
+*   **Contorno de los objetos:** Los contornos de todos los objetos son limpios y definidos, sin halos, bandas rectangulares ni píxeles cortados.
+*   **Fondo:** El fondo inmediato alrededor de los objetos es consistente y no muestra artefactos visibles.
+*   **Elementos extraños:** No se observan elementos superpuestos, recortes, o artefactos visibles. La escena es coherente y completa.
 
 **Conclusión:**
 
-La imagen muestra una escena rural pixelada renderizada con una técnica de ocultación por teselas. Todo está bien definido, sin artefactos visibles, y el entorno es coherente y completo. No hay cambios ni movimientos observables.
+Las tres imágenes son idénticas. No hay ningún cambio temporal ni visual entre ellas. La escena muestra un entorno rural estático con un personaje inmóvil. No se observan defectos visibles en la renderización.

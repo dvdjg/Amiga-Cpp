@@ -1,6 +1,13 @@
 # VALIDATION - 208_tiled_occlusion_objects
 
-**Estado: funcional con suelo de 25 fps.** Composición, oclusión del árbol, la farola y el guardia, y ausencia de estelas comprobadas en la ventana. El frame ocupa **2 campos (24,97 fps)**, en el suelo de 25 fps. La validación por entidades está hecha con una respuesta parcialmente errónea del modelo y un gate objetivo que la corrige (§ Visión).
+## Cierre 2026-10-31
+
+- `A500_release`: **26,49 fps**, 267.767 ciclos/frame, 1,887 campos/frame; suelo de 25.
+- La ruta del actor pasa por debajo del cartel; el overlay del cartel ya no se dispara en el descenso. Secuencia de 40 frames y recortes: el actor no desaparece.
+- `flicker-highfreq`: `bands=ok`, `candidates=0`, `max_blocks_low=2`.
+- La VISION canónica anterior usó **2 frames**, describió la escena como estática y no vio el cruce; se conserva solo como aviso, no como validación.
+
+**Estado:** ver ?Cierre 2026-10-31?; las cifras antiguas de 24,97 fps y 2 campos ya no aplican.
 
 ## Evidencia host
 
