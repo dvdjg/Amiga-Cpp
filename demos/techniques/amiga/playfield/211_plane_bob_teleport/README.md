@@ -1,14 +1,14 @@
-# 211: teleport de BOBs de un plano
+# 211: BOBs de un plano a velocidad alta
 
-Demo del camino de degradación de `eng::scene::PlaneBobLayer`: tres BOBs de un plano sobre un framebuffer interleaved de 5 planos. Dos de ellos saltan cada 32 frames a una posición nueva, con un desplazamiento mayor que el padding; la capa emite **clear de la huella previa + draw**. El tercero se mueve despacio y solo usa la copia opaca.
+Demo del camino de degradación de `eng::scene::PlaneBobLayer`: tres BOBs de un plano sobre un framebuffer interleaved de 5 planos. Los tres avanzan **1 px/frame con padding 0**, así que la capa emite **clear de la huella previa + draw** en cada frame. Las trayectorias son continuas, con rebote en los bordes; no hay teleports.
 
-La secuencia confirma que no queda el BOB viejo: en el frame del salto el HUD sube de `J3/B3` a `J5/B5` (dos clear extra) y la imagen vuelve a `J3/B3` al frame siguiente. No se usa save-under, sprites hardware ni doble buffer.
+La secuencia confirma que no queda el BOB viejo: cada frame usa `J6/B6` (tres clear + tres draw). No se usa save-under, sprites hardware ni doble buffer.
 
 ## API
 
 ```cpp
 eng::scene::PlaneBobLayer bobs;
-bobs.set_sheet(hoja, 2, 2);
+bobs.set_sheet(hoja, 0, 0);
 bobs.resize(3);
 bobs[i] = {x, y, frame, plane, true};
 bobs.emit(plan, target);
@@ -18,8 +18,8 @@ bobs.emit(plan, target);
 
 ## Medidas
 
-- `A500_release`: **49,91 fps**, 142.144 ciclos/frame, 1,002 campos/frame.
-- Secuencia de 40 frames: sin banda inferior, sin BOB viejo y sin cortes; el frame de teleport usa 5 jobs.
+- `A500_release`: **49,94 fps**, 142.049 ciclos/frame, 1,001 campos/frame.
+- Secuencia de 30 frames: sin banda inferior, sin BOB viejo, sin cortes y sin saltos de posición.
 - `detail=0x21100000`, canarios intactos.
 
 ## Verificación

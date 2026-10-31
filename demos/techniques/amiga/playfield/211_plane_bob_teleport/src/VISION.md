@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-30T23:06:28.506Z
+- Fecha: 2026-10-31T07:12:45.159Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_008.png, frame_016.png, frame_023.png, frame_031.png, frame_039.png (6)
+- Frames: frame_000.png, frame_006.png, frame_012.png, frame_017.png, frame_023.png, frame_029.png (6)
 - Secuencia: `out/run/211_plane_bob_teleport/A500_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -19,30 +19,30 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 **Imagen 1:**
 - **Fondo:** Pantalla de color azul oscuro uniforme.
-- **Objetos visibles:**
-  - **Dos puntos rojos:** Uno en la esquina superior izquierda, otro en la parte superior derecha.
-  - **Dos puntos amarillos:** Uno en la mitad izquierda, otro en la mitad derecha, más abajo.
-  - **Dos puntos azules:** Uno en la mitad derecha, más abajo, y otro en la parte inferior derecha.
-- **Estado:** Todos los objetos están estacionarios en esta imagen.
+- **Elementos visibles:**
+  - Dos objetos rojos, pequeños y de forma irregular (parecidos a cruces o estrellas de 4 puntas), ubicados en la parte superior izquierda. El más alto está cerca del borde superior, el otro está más abajo y a la derecha del primero.
+  - Dos objetos amarillos, pequeños y de forma irregular, ubicados en la parte inferior derecha. Uno está más abajo y a la derecha que el otro.
+  - Un objeto azul, pequeño y de forma irregular, ubicado en la parte central derecha.
+- **Texto en la parte superior:** "211 FAST PLANE BOBS v1.0.7646 | F32 68.6FPS | J6 B6 D6".
 
 **Imagen 2:**
 - **Fondo:** Igual que la imagen 1.
 - **Cambios respecto a la imagen 1:**
-  - **Objetos amarillos:** El punto amarillo de la mitad izquierda ha desaparecido. El punto amarillo de la mitad derecha ha bajado ligeramente.
-  - **Objetos azules:** El punto azul de la parte inferior derecha ha desaparecido. El punto azul de la mitad derecha ha subido ligeramente.
-  - **Objetos rojos:** Los dos puntos rojos permanecen en la misma posición que en la imagen 1.
-- **Estado:** Los objetos se mueven de forma independiente, pero no hay superposición ni artefactos visibles.
+  - Los dos objetos rojos se han movido hacia abajo y a la derecha. El más alto ahora está más centrado en la mitad izquierda, y el otro está más abajo y a la derecha.
+  - Los dos objetos amarillos se han movido ligeramente hacia arriba y a la izquierda. El más alto ahora está más centrado en la mitad derecha, y el otro está más abajo y a la derecha.
+  - El objeto azul se ha movido hacia arriba y a la izquierda, ahora está más centrado en la parte superior.
+- **Texto en la parte superior:** "211 FAST PLANE BOBS v1.0.7646 | F132 49.2FPS | J6 B6 D6".
 
 **Imagen 3:**
 - **Fondo:** Igual que las imágenes anteriores.
 - **Cambios respecto a la imagen 2:**
-  - **Objetos rojos:** El punto rojo de la esquina superior izquierda ha desaparecido. El punto rojo de la parte superior derecha ha bajado ligeramente.
-  - **Objetos amarillos:** El punto amarillo de la mitad derecha ha bajado más. El punto amarillo de la mitad izquierda ha reaparecido en una posición más baja.
-  - **Objetos azules:** El punto azul de la mitad derecha ha bajado ligeramente. El punto azul de la parte inferior derecha ha reaparecido en una posición más baja.
-- **Estado:** Los objetos continúan moviéndose de forma independiente, sin superposición ni artefactos visibles.
+  - Los dos objetos rojos se han movido hacia abajo y a la derecha. El más alto ahora está más centrado en la mitad derecha, y el otro está más abajo y a la derecha.
+  - Los dos objetos amarillos se han movido ligeramente hacia arriba y a la izquierda. El más alto ahora está más centrado en la mitad derecha, y el otro está más abajo y a la derecha.
+  - El objeto azul se ha movido hacia arriba y a la izquierda, ahora está más centrado en la parte superior.
+- **Texto en la parte superior:** "211 FAST PLANE BOBS v1.0.7646 | F223 49.2FPS | J6 B6 D6".
 
 **Observaciones:**
-- **Contorno de los objetos:** Los objetos tienen un contorno limpio, sin halos ni artefactos. No hay píxeles cortados ni colgando en los bordes.
-- **Fondo:** El fondo permanece uniforme y sin cambios, y los objetos no tapan el fondo con un rectángulo de color uniforme.
-- **Posiciones:** Las posiciones de los objetos cambian de forma coherente entre imágenes, lo que sugiere un movimiento continuo.
-- **Elementos extraños:** No se observan elementos extraños, defectuosos o incoherentes. La secuencia parece ser una captura de pantalla de un juego o simulación en tiempo real.
+- Todos los objetos tienen contornos limpios, sin halos ni artefactos visibles.
+- No hay elementos superpuestos ni recortes.
+- El fondo permanece uniforme y sin cambios, incluso donde los objetos están.
+- El texto en la parte superior cambia ligeramente en cada imagen, indicando un cambio en el estado del programa (por ejemplo, el valor de "F" y "FPS" cambia).

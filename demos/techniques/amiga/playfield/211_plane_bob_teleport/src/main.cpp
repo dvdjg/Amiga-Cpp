@@ -1,14 +1,15 @@
-// Demo 211: BOBs de un plano con teleport y borrado de huella.
+// Demo 211: BOBs de un plano a velocidad alta y borrado de huella.
 //
 // Un unico framebuffer de 5 planos con fondo plano (indice 0). Cada BOB es una
 // hoja 12x12 opaca: arte 8x8 + 2 px de padding por lado. El padding pinta color
 // 0, el mismo del fondo. La capa `PlaneBobLayer` lleva la huella previa: si el
-// actor salta mas que el padding, emite clear + draw en su plano.
+// actor se mueve con padding 0, emite clear + draw en su plano.
 //
 // La hoja es planar de un plano y se dibuja con un solo blit Opaque por objeto.
-// Dos BOBs saltan cada 32 frames (> padding): PlaneBobLayer emite clear de la
-// huella previa + draw. El tercero se mueve despacio y solo usa el padding.
-// Es la demo del camino de degradacion de la capa; sin grupos de haz.
+// Los tres BOBs se mueven 1 px/frame con padding 0: PlaneBobLayer
+// emite clear de la huella previa + draw en cada frame. Las trayectorias son
+// continuas (sin teleports) y el camino de degradacion se ejercita siempre.
+// Es la demo del clear+draw de la capa; sin grupos de haz.
 
 #include <eng/api/api.hpp>
 #include <eng/core/util/text_line.hpp>
@@ -116,7 +117,7 @@ public:
 			return;
 		}
 		init_balls(m_balls);
-		m_layer.set_sheet(m_bob, kPad, kPad);
+		m_layer.set_sheet(m_bob, 0u, 0u);
 		m_layer.resize(kBobCount);
 		if (!build_display(backend)) {
 			eng::debug::mark_failed(g_eng_run_status, Fail::Display);
@@ -143,7 +144,7 @@ public:
 		eng::util::TextLine<96> stats;
 		stats << "J" << m_plan.blit_job_count() << " B" << backend.blitter_starts()
 		      << " D" << backend.last_frame_plan_execution().deferred_bobs;
-		m_hud.draw(backend.debug(), "211 TELEPORT BOBS", eng::debug::Version {1u, 0u},
+		m_hud.draw(backend.debug(), "211 FAST PLANE BOBS", eng::debug::Version {1u, 0u},
 			   context.frame.frame_index, eng::debug::prof_clock(), stats.c_str());
 	}
 
@@ -260,21 +261,24 @@ private:
 			b.yq += b.vyq;
 			clamp_ball(b);
 		}
-		// Teleport de dos BOBs cada 32 frames: movimiento > padding, fuerza el
-		// camino clear + draw de PlaneBobLayer. El tercero solo usa padding.
-		if ((frame_index % 32u) == 0u && frame_index != 0u) {
-			m_balls[0].xq = static_cast<eng::s32>((frame_index * 37u) % 240u + 24u) << 8;
-			m_balls[0].yq = static_cast<eng::s32>((frame_index * 17u) % 180u + 24u) << 8;
-			m_balls[1].xq = static_cast<eng::s32>((frame_index * 53u) % 240u + 24u) << 8;
-			m_balls[1].yq = static_cast<eng::s32>((frame_index * 29u) % 180u + 24u) << 8;
-		}
+		(void)frame_index; // movimiento continuo: no hay teleports
 	}
 
 	static void clamp_ball(Ball& b) {
-		if (b.xq < 0) b.xq = 0;
-		if (b.xq > static_cast<eng::s32>(kMaxX) << 8) b.xq = static_cast<eng::s32>(kMaxX) << 8;
-		if (b.yq < 0) b.yq = 0;
-		if (b.yq > static_cast<eng::s32>(kMaxY) << 8) b.yq = static_cast<eng::s32>(kMaxY) << 8;
+		if (b.xq < 0) {
+			b.xq = 0;
+			b.vxq = static_cast<eng::s16>(-b.vxq);
+		} else if (b.xq > static_cast<eng::s32>(kMaxX) << 8) {
+			b.xq = static_cast<eng::s32>(kMaxX) << 8;
+			b.vxq = static_cast<eng::s16>(-b.vxq);
+		}
+		if (b.yq < 0) {
+			b.yq = 0;
+			b.vyq = static_cast<eng::s16>(-b.vyq);
+		} else if (b.yq > static_cast<eng::s32>(kMaxY) << 8) {
+			b.yq = static_cast<eng::s32>(kMaxY) << 8;
+			b.vyq = static_cast<eng::s16>(-b.vyq);
+		}
 	}
 
 	static void init_balls(Ball* balls) {
