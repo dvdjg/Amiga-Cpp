@@ -41,6 +41,22 @@ La paleta la genera el cooker a partir de la composición completa del mapa (inc
 
 `selected/` contiene `map.bundle`, `tilebank.xlimited.bin` (233 KB), `animations.h`, `anim_sheet.bin` (50,8 KB) y `anim_masks.bin` (6,1 KB): 98 grupos, 247 frames y 244 celdas (61 de `Flowers`, 155 de `Water`, la fogata fusionada y 27 coberturas de objetos opacos). Las coberturas cuestan un frame de 16×16 + máscara por celda y solo se dibujan cuando su celda se repinta; las máscaras de silueta fija se guardan una sola vez.
 
+## Cierre de rendimiento 2026-10-31
+
+La política de capas cambió para eliminar el parpadeo y el coste del parche:
+
+- **Scroll:** no se parchea ninguna capa viva; el movimiento es hardware y el frame vuelve a ~50 fps.
+- **Parada:** solo se anima la capa protagonista (fogata, agua o flores). Las demás conservan su último frame; no se repintan.
+- El parche de la capa protagonista se ejecuta cada 5 frames y el HUD cada 8.
+
+| Caso | fps | Ciclos/frame | Campos/frame |
+|---|---:|---:|---:|
+| Visita completa | **49,52** | 143.238 | 1,010 |
+| Parada de la fogata (`DEMO_TOUR_STOP=0`) | **49,97** | 141.965 | 1,001 |
+| Base sin capas vivas (`DEMO_NO_LIVE=1`) | 49,87 | 142.243 | 1,003 |
+
+La secuencia de 30 frames no muestra bandas ni parpadeo; la fogata cambia de frame (diff en la zona central). La visita completa se queda a 1,010 campos: le faltan ~1,4k ciclos para el campo exacto, no hay un defecto visual.
+
 ## Medidas
 
 Medidas con `measure-fps.mjs` sobre `A500_release`, build del árbol de trabajo sobre el commit `33882349`, 2026-10-29.

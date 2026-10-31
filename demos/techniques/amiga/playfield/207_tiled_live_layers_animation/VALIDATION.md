@@ -4,6 +4,17 @@
 
 **Funcional y validada visualmente.** `Flowers`, `Water` y la fogata se dibujan en su columna de mundo (`wx`); el cooker fusiona la fogata 2×2 en un sprite 32×32 y el fondo real de cada celda con máscara variable se restaura con `MapCellSaveCacheSet`. **Ninguna celda animada visible queda congelada**: las 61 flores y las 155 celdas de agua se animan; las 27 que quedan parcialmente bajo un **objeto opaco** llevan una capa de cobertura que se reestampa después del parche, y las 7 que quedan casi totalmente tapadas (<25 % visibles) se cuecen. Las **sombras** cuentan para esa decisión de visibilidad pero no se reestampan (su sprite sólido producía una cuña negra). El agua, con máscara idéntica en todos sus frames, se repinta con un solo blit y sin save-under; el banco guarda una sola máscara por grupo; el save-under se copia con un solo blit por fila-plano. **Rendimiento: 39,90 fps de media en la visita (mínimo 35,4) con la fogata animándose también durante el scroll; fogata 44,09; agua 48,58; flores 48,32.** Durante el desplazamiento solo se parchea la fogata (cada 5 frames); las flores y el agua se quedan en su último frame. En las paradas el presupuesto por capas congela el agua (ambiente) en los frames pesados y el anillo de `set_tick` solo visita los grupos cuyo cambio vence. El 50 Hz sigue abierto en la fogata y en la peor ventana de la visita.
 
+## Cierre 2026-10-31
+
+Medición final con `A500_release`, commit `17d9a174` + cambios de política:
+
+- Visita completa: **49,52 fps**, 143.238 ciclos/frame, 1,010 campos/frame; ventanas 48,35?50,32.
+- Parada de la fogata: **49,97 fps**, 141.965 ciclos/frame, 1,001 campos; ventanas 49,73–50,32.
+- Scroll/base viva congelada (`DEMO_NO_LIVE=1`): 49,87 fps.
+- Pol?tica: sin parche durante scroll; en cada parada solo se anima la capa protagonista; parche cada 5 frames; HUD cada 8.
+- Secuencia de 30 frames: sin banda inferior, sin parpadeo; la fogata cambia (diff en la zona central). La visita completa pierde ~1,4k ciclos frente al campo exacto, sin defecto visual.
+- Esto sustituye las medidas antiguas de 39,90/44,09/35,4 como estado vigente.
+
 ## Medidas
 
 Medidas con `tools/debug/measure-fps.mjs` sobre `A500_release`, build del árbol de trabajo sobre el commit `33882349` (2026-10-29).
@@ -40,7 +51,7 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 
 ## Revalidaci?n 2026-10-30
 
-Medici?n nueva con `measure-fps.mjs` sobre `A500_release`, commit `39855a07` (el ?rbol de 207 no cambia en los commits posteriores):
+Medición nueva con `measure-fps.mjs` sobre `A500_release`, commit `39855a07` (el ?rbol de 207 no cambia en los commits posteriores):
 
 - Visita completa: **39,08 fps**, **181.507 ciclos/frame**, **1,279 campos/frame**, ventanas 35,73?44,02. Cadencia inestable, igual que el baseline documentado; no es una regresi?n nueva.
 - El 50 Hz sigue abierto en la visita y en la fogata. No se toca el presupuesto ni se activa el scheduler beam-aware hasta que 210/211 tengan un camino de grupos estable.

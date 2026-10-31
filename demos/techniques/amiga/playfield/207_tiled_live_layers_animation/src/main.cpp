@@ -267,8 +267,6 @@ struct DemoGame {
 	eng::u32 m_render_start = 0u;
 	eng::u32 m_render_cycles = 0u;
 	eng::u8 m_pause_warmup = 0u;
-	eng::u8 m_budget_hold = 0u; // frames de histéresis de la degradación del agua
-	eng::u8 m_scroll_patch_skip = 0u; // frames que faltan para el próximo parche en scroll
 	bool m_hud_pending = false;
 	bool m_patch_busy = false;
 	eng::u8 m_hud_busy_frames = 0u; // frames seguidos con parche pendiente (tope de refresco del HUD)
@@ -438,6 +436,7 @@ struct DemoGame {
 				break;
 			}
 		}
+
 #if defined(DEMO_DEBUG_ONE_CELL)
 		animator.set_test_cell(kDebugCell);
 #endif
@@ -452,9 +451,10 @@ struct DemoGame {
 		// Diagnóstico: congelar la visita en una parada concreta (0=fogata,
 		// 1=agua, 2=flores, 3..=esquinas/centro) para capturar su animación.
 		constexpr eng::u8 kTourStop = static_cast<eng::u8>(DEMO_TOUR_STOP);
-		m_stop_index = kTourStop < m_stop_count ? kTourStop : 0u;
-		m_camera_x = m_stops[m_stop_index].x;
-		m_camera_y = m_stops[m_stop_index].y;
+		m_stop_index = kTourStop < m_stop_count
+			? static_cast<eng::u8>((kTourStop + 1u) % m_stop_count) : 0u;
+		m_camera_x = m_stops[kTourStop < m_stop_count ? kTourStop : 0u].x;
+		m_camera_y = m_stops[kTourStop < m_stop_count ? kTourStop : 0u].y;
 		m_pause_frames = 0xffffu;
 		m_pause_warmup = 2u;
 #endif
@@ -535,66 +535,39 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, kReadyDetail);
 	}
 
-#if defined(DEMO_NO_BUDGET)
-	static constexpr bool kBudgetedAnimations = false; // A/B: tope fijo de 8 jobs
-#else
-	static constexpr bool kBudgetedAnimations = true; // prioridad por capas con histéresis
-#endif
-
-	/// Degradación por deadline de trabajo: con la ventana por encima de
-	/// ~1,25 campos (41 fps) se congela el agua (capa 1, ambiente) y, si el
-	/// margen se recupera (>45 fps) durante 4 frames, se reanima. La fogata y
-	/// las flores (capas 2 y 0) no se degradan: son el foco visual. La espera
-	/// evita oscilar en el borde del campo; el cursor round-robin del parche
-	/// reparte las celdas diferidas.
-	static constexpr eng::u32 kDegradeFps10 = 410u;
-	static constexpr eng::u32 kRestoreFps10 = 450u;
-	static constexpr eng::u8 kBudgetHold = 4u;
-	/// Durante el scroll el parche solo toca la fogata y se ejecuta cada
-	/// `kScrollPatchPeriod` frames: el fuego conserva ~10 fps (su cadencia de
-	/// arte) y las flores/agua se quedan en su último frame. Parchear cada
-	/// frame durante el scroll disparaba el coste de la tabla de visibilidad.
+	/// Periodo de parche en parada (la fogata cambia cada 5 ticks).
 	static constexpr eng::u8 kScrollPatchPeriod = 5u;
 
+	/// Capa protagonista de la parada actual: 0=fogata, 1=agua, 2=flores.
+	/// En las demás paradas no se anima ninguna; durante el scroll tampoco.
+	[[nodiscard]] eng::u8 focused_layer() const noexcept {
+		if (m_stop_count == 0u) return 0xFFu;
+		const eng::u8 current = static_cast<eng::u8>(
+			(m_stop_index + m_stop_count - 1u) % m_stop_count);
+		if (current == 0u) return 2u;
+		if (current == 1u) return 1u;
+		if (current == 2u) return 0u;
+		return 0xFFu;
+	}
+
+	/// Política de presupuesto: durante el scroll no se parchea; en una parada
+	/// solo se anima la capa protagonista. El scroll queda a 50 fps y la fogata
+	/// conserva su animación a ~49 fps sin pagar flores/agua.
 	void apply_animation_budget(bool paused) {
 #if defined(DEMO_NO_LIVE)
-		// Ablación base-vs-vivo: las capas se quedan desactivadas del init.
 		(void)paused;
 		return;
 #else
-		if (!kBudgetedAnimations) {
-			// Tope fijo de 8 jobs: en las paradas se animan las tres capas;
-			// durante el scroll solo la fogata (las flores/agua se quedan en
-			// el último frame, que es menos visible que congelar el fuego).
-			animator.set_layer_animation_enabled(0u, paused);
-			animator.set_layer_animation_enabled(1u, paused);
-			animator.set_layer_animation_enabled(2u, true);
+		animator.set_layer_animation_enabled(0u, false);
+		animator.set_layer_animation_enabled(1u, false);
+		animator.set_layer_animation_enabled(2u, false);
+		if (paused) {
+			const eng::u8 focus = focused_layer();
+			if (focus < 3u) animator.set_layer_animation_enabled(focus, true);
+		}
 #if defined(DEMO_DISABLE_LAYER)
-			animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
+		animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
 #endif
-			return;
-		}
-		if (!paused) {
-			animator.set_layer_animation_enabled(0u, false);
-			animator.set_layer_animation_enabled(1u, false);
-			animator.set_layer_animation_enabled(2u, true);
-#if defined(DEMO_DISABLE_LAYER)
-			animator.set_layer_animation_enabled(DEMO_DISABLE_LAYER, false);
-#endif
-			return;
-		}
-		const eng::u32 fps10 = host_hud.fps10();
-		if (fps10 != 0u) {
-			if (fps10 < kDegradeFps10) {
-				if (m_budget_hold < 8u) ++m_budget_hold;
-			} else if (fps10 > kRestoreFps10) {
-				if (m_budget_hold > 0u) --m_budget_hold;
-			}
-		}
-		const bool water = m_budget_hold < kBudgetHold;
-		animator.set_layer_animation_enabled(0u, true);
-		animator.set_layer_animation_enabled(1u, water);
-		animator.set_layer_animation_enabled(2u, true);
 #endif
 	}
 
@@ -730,7 +703,6 @@ struct DemoGame {
 		eng::s16 tour_dx = 0, tour_dy = 0;
 		update_tour(tour_dx, tour_dy);
 		const bool tour_paused = m_pause_frames != 0u;
-		if (tour_paused) m_scroll_patch_skip = 0u;
 		apply_animation_budget(tour_paused);
 		animator.set_tick(context.frame.frame_index);
 		// M de régimen: el primer frame de la parada incluye la pasada completa
@@ -776,7 +748,8 @@ struct DemoGame {
 		// frame) y el pase se repite cada `kScrollPatchPeriod` frames para que
 		// el fuego siga sin pagar la tabla de visibilidad en cada frame.
 		plan.set_blit_budget_limits({16384, 65536, 8, 8});
-		const bool patch_now = m_scroll_patch_skip == 0u;
+		const bool patch_now = tour_paused &&
+			((context.frame.frame_index % kScrollPatchPeriod) == 0u);
 		if (patch_now) {
 #if defined(DEMO_BLIT_STATS) || defined(ENG_METRICS)
 			m_patch_stats = {};
@@ -813,10 +786,8 @@ struct DemoGame {
 						eng::debug::Metric::TiledGroupsDeferred, m_patch_stats.groups_deferred);
 				}
 			}
-			if (!tour_paused) m_scroll_patch_skip = kScrollPatchPeriod - 1u;
-		} else if (m_scroll_patch_skip != 0u) {
-			--m_scroll_patch_skip;
 		}
+
 #if defined(DEMO_DEBUG_ONE_CELL)
 		capture_debug_jobs(plan);
 #endif
@@ -878,12 +849,12 @@ struct DemoGame {
 		DEMO_PROF_END(3u);
 		DEMO_PROF_BEGIN(4u);
 		// El HUD de host cambia de frame cada VBlank, pero rehacer su texto
-		// cuesta ~52k ciclos. Se refresca cada 4 frames y se evita en los frames
+		// cuesta ~52k ciclos. Se refresca cada 8 frames y se evita en los frames
 		// de parche para no subir el pico; si el parche encadena más de 8 frames
 		// (parada de la fogata con agua/objetos) se fuerza uno para que el
 		// contador de frames/fps no quede congelado.
 		constexpr eng::u8 kHudMaxBusyFrames = 8u;
-		if ((context.frame.frame_index & 3u) == 0u) m_hud_pending = true;
+		if ((context.frame.frame_index & 7u) == 0u) m_hud_pending = true;
 		if (m_patch_busy) {
 			if (m_hud_busy_frames < kHudMaxBusyFrames) ++m_hud_busy_frames;
 		} else {

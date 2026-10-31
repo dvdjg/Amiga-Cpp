@@ -2,10 +2,10 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-29T01:27:02.925Z
+- Fecha: 2026-10-31T00:10:51.127Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
-- Secuencia: `out/run/207_tiled_live_layers_animation/A500_release/sequence`
+- Frames: frame_000.png, frame_004.png, frame_008.png, frame_011.png, frame_015.png, frame_019.png (6)
+- Secuencia: `out/run/207_tiled_live_layers_animation/A500_demo_tour_stop0_release/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
 
@@ -15,18 +15,22 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes son idénticas en contenido visual y no muestran ningún cambio temporal ni movimiento. Se trata de una captura de pantalla de un editor de mapas de estilo pixel art, específicamente "TILED LIVE v1.0.7450", mostrando un mapa de juego con una vista isométrica.
+Las tres imágenes son idénticas en contenido visual. No hay cambios en la posición, estado o apariencia de ningún elemento gráfico entre ellas.
 
-**Descripción de los elementos gráficos:**
+**Descripción de la escena:**
 
-*   **Fondo y entorno:** El mapa está compuesto por un terreno verde con zonas de tierra marrón, un cuerpo de agua azul en la parte inferior, y varios elementos decorativos como árboles, arbustos, piedras y un tronco de árbol.
-*   **Elementos fijos:**
-    *   En la parte superior izquierda, hay un conjunto de bancos de madera.
-    *   En el centro, hay una fogata con llamas rojas y amarillas, rodeada de piedras. A su derecha, hay un camino de piedras que rodea un tronco de árbol.
-    *   A la derecha, se observa una pequeña estructura de madera con una ventana.
-    *   En la parte inferior izquierda, hay un árbol grande y arbustos.
-*   **Elementos en movimiento (no observados):** No hay ningún objeto ni entidad que se mueva entre las imágenes. La captura es estática.
-*   **Elementos que cambian (no observados):** No hay cambios entre las imágenes. Todas muestran exactamente el mismo estado del mapa.
-*   **Elementos extraños o defectuosos:** No se observan artefactos, parpadeos, recortes, píxeles cortados o elementos superpuestos. La imagen es coherente y completa. El contorno de todos los objetos es limpio y no presenta halos ni restos de posiciones anteriores.
+*   **Entorno:** Es una vista isométrica de un entorno pixelado, que parece un jardín o un patio rural.
+*   **Elementos visibles:**
+    *   **Agua:** Una masa de agua azul con textura de píxeles ocupa la parte inferior de la imagen.
+    *   **Tierra y vegetación:** Zonas de tierra marrón y césped verde. Hay árboles, arbustos y flores (blancas y rojas) distribuidos por la escena.
+    *   **Objetos:** Un fuego en una pila de piedras en el centro, un tronco de árbol, un banco de madera, una caja de madera, un barril, y una estructura que parece una casa o cobertizo en la esquina superior derecha.
+    *   **Elementos de interfaz:** En la parte superior, hay una barra de texto que muestra "207 TILED LIVE v1.0.197" y otros datos técnicos como "FPS", "X", "Y", "A", "G", "W", "M". Estos datos cambian ligeramente entre las imágenes, pero el contenido visual de la escena permanece constante.
 
-**Resumen:** Las tres imágenes son idénticas y muestran una captura estática de un mapa de juego en un editor de mapas. No hay ningún cambio, movimiento ni artefacto observable.
+**Análisis de los elementos en movimiento (o que cambian):**
+
+*   **No hay elementos que se muevan o cambien de posición.** La escena es estática.
+*   **No hay artefactos visibles.** Los contornos de los objetos son limpios y no presentan bandas, halos ni píxeles cortados.
+*   **No hay elementos superpuestos o incompletos.** Todos los objetos están completamente visibles y bien definidos.
+*   **El fondo permanece igual.** No hay cambios en el fondo ni en la textura de los objetos.
+
+En resumen, las tres imágenes muestran exactamente la misma escena sin ninguna variación visual perceptible.
