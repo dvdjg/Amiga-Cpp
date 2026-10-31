@@ -2,6 +2,7 @@
 
 ## Cierre 2026-10-31
 
+- Perfil single buffer (`DEMO_PROF`, 125 frames): walker 506, restore 8.702, draw 54.552, execute 49.004, compose 33.070, HUD 37.699 ciclos/frame; total 286.276 (2,02 campos). La suma de secciones ?til es ~183.500 ciclos > 142.102 del campo. Aun eliminando el HUD (~37.7k) quedar?an ~146k, por encima del presupuesto: **no es un problema de doble buffer; el trabajo CPU/DMA de la escena no cabe en un campo**.
 - `A500_release`: **26,49 fps**, 267.767 ciclos/frame, 1,887 campos/frame; suelo de 25.
 - La ruta del actor pasa por debajo del cartel; el overlay del cartel ya no se dispara en el descenso. Secuencia de 40 frames y recortes: el actor no desaparece.
 - `flicker-highfreq`: `bands=ok`, `candidates=0`, `max_blocks_low=2`.

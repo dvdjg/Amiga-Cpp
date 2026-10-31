@@ -68,3 +68,5 @@ node tools/debug/metrics-report.mjs <demo> A500_eng_metrics1_release
 ```
 
 El informe muestra el bloque de contadores y el anillo de eventos; el runner ya lo deja también en `run-report.json`.
+
+- Perfil single buffer (`DEMO_PROF`, 125 frames): walker 506, restore 8.702, draw 54.552, execute 49.004, compose 33.070, HUD 37.699 ciclos/frame; total 286.276 (2,02 campos). La suma de secciones ?til es ~183.500 ciclos > 142.102 del campo. Aun eliminando el HUD (~37.7k) quedar?an ~146k, por encima del presupuesto: **no es un problema de doble buffer; el trabajo CPU/DMA de la escena no cabe en un campo**.
