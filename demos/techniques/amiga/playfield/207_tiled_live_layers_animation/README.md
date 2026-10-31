@@ -1,5 +1,7 @@
 # 207 - Beginning Fields con capas vivas animadas
 
+> **Estado vigente 2026-10-31:** visita completa 49,52 fps; parada de la fogata 49,97 fps. Las cifras 39,90/44,09 de las secciones siguientes son hist?ricas; ver ?Cierre 2026-10-31?.
+
 Demo T5: la base se cuece sin las celdas de `Flowers`, `Water` y `Object Layer 1`; un `TileLayerStack` compone el frame actual de las tres capas vivas. La cámara recorre todo el mapa con paradas de 3 s y las celdas que cambian se parchean por Blitter en cada parada. El contrato completo está en [`TILED_COOK_PLAN.md`](../../../../../docs/engine/architecture/TILED_COOK_PLAN.md).
 
 ## Qué demuestra
