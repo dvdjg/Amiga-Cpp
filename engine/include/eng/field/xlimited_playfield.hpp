@@ -1196,7 +1196,10 @@ private:
         const s32 mapw = static_cast<s32>(this->map_width_blocks()) * this->ctw();
         const s32 maph = static_cast<s32>(this->map_height_blocks()) * this->cth();
         if (mapw <= 0 || maph <= 0) return false;
-        if (!m_anim_visible_valid) rebuild_anim_visible(saver);
+        if (!m_anim_visible_valid) {
+            if constexpr (Collect) if (stats.valid()) ++stats->visible_rebuilds;
+            rebuild_anim_visible(saver);
+        }
         const s32 dh = static_cast<s32>(this->display_height()); // alto del anillo (px)
         // Un objeto compuesto puede ser varios grupos con el mismo reloj (por
         // ejemplo, las cuatro celdas de una fogata). No se puede repartir por
@@ -1383,7 +1386,12 @@ private:
                 }
             }
             if constexpr (Collect) {
-                if (group_drawn) if (stats.valid()) ++stats->groups_patched;
+                if (group_drawn) {
+                    if (stats.valid()) {
+                        ++stats->groups_patched;
+                        ++stats->groups_emitted;
+                    }
+                }
             }
             if (changed && !capture_failed) anim.clear_group(g);
             m_anim_patch_cursor = next_group(g);
@@ -1421,7 +1429,10 @@ private:
                 u16 idx = static_cast<u16>(start + k);
                 if (idx >= candidate_count) idx = static_cast<u16>(idx - candidate_count);
                 const u16 g = candidates[idx];
-                if (anim.group_layer(g) == layer && !patch_group(g)) return false;
+                if (anim.group_layer(g) == layer) {
+                    const bool group_ok = patch_group(g);
+                    if (!group_ok) return false;
+                }
                 // Con el presupuesto lleno no cabe ningún grupo más (el mínimo
                 // es 1 job): seguir recorriendo candidatos pagaba el prólogo y
                 // el escaneo de decenas de grupos diferidos en cada frame. Los

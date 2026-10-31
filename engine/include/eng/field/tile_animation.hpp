@@ -113,6 +113,9 @@ struct TilePatchStats {
 	u16 groups_patched = 0u;
 	u16 groups_deferred = 0u;
 	u16 cells_patched = 0u;
+	u16 visible_rebuilds = 0u; ///< reconstrucciones completas de la tabla visible
+	u16 candidates = 0u;       ///< grupos candidatos construidos en el pase
+	u16 groups_emitted = 0u;   ///< grupos que llegaron a dibujar al menos una celda
 	u16 cells_culled = 0u;
 	u16 base_restores = 0u;
 	u16 cells_patched_by_layer[kTileAnimationMaxLayers] {};
