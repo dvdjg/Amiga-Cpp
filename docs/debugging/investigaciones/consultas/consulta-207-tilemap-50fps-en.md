@@ -26,6 +26,18 @@ Profile at the fire stop (`DEMO_PROF=1`, 251 frames):
 
 Before the current focus policy the same stop was ~41.5 fps and the full tour ~39 fps, with patch_build ~69k and patch_exec ~43k average. The policy recovered ~49 fps but full-tour still misses 50 by ~1.1k cycles on average, and the max patch/HUD spikes indicate occasional multi-field work.
 
+## Instrumentation update (after adding `prof_anim_*` counters)
+
+The large `patch_build` peak is **not** the fire cookie-cut being split per cell. The Campfire group is already a 32x32, one-cell group. Measured at the fire stop:
+
+- `rebuild_anim_visible`: average 17 cycles, **max 189,024** (once when entering a stop).
+- candidate list construction: 13,156-17,514 cycles per patch pass.
+- `patch_group` (32x32 fire): average ~11.9k for 6.8 calls/frame; `patch_exec` only ~4.4k.
+- HUD: average 9,009, **max 72,926**.
+- Full tour still measures 49.51 fps (1.010 fields); fire stop 49.97.
+
+So A/B (a) "force one 32x32 job" is already true; A/B (b) pre-baking the fire frames would not attack the 189k rebuild. The remaining questions are: how to build the visible-cell table incrementally instead of a 189k rebuild at every stop, and how to keep the HUD/patched frame under one field when the rebuild coincides with the VBlank phase.
+
 ## Questions
 
 1. Is 49.52 fps with 1.010 fields explained only by a ~1.1k-cycle overrun, or does the VBlank-synchronized loop quantize it? What exact fixed overhead should be removed to guarantee 50.00 without cutting visible animation?

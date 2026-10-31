@@ -1,6 +1,6 @@
 # 207 - Beginning Fields con capas vivas animadas
 
-> **Estado vigente 2026-10-31:** visita completa 49,52 fps; parada de la fogata 49,97 fps. Las cifras 39,90/44,09 de las secciones siguientes son hist?ricas; ver ?Cierre 2026-10-31?.
+> **Estado vigente 2026-10-31:** visita completa 49,52 fps; parada de la fogata 49,97 fps. Las cifras 39,90/44,09 de las secciones siguientes son históricas; ver «Cierre 2026-10-31».
 
 Demo T5: la base se cuece sin las celdas de `Flowers`, `Water` y `Object Layer 1`; un `TileLayerStack` compone el frame actual de las tres capas vivas. La cámara recorre todo el mapa con paradas de 3 s y las celdas que cambian se parchean por Blitter en cada parada. El contrato completo está en [`TILED_COOK_PLAN.md`](../../../../../docs/engine/architecture/TILED_COOK_PLAN.md).
 
@@ -58,6 +58,7 @@ La política de capas cambió para eliminar el parpadeo y el coste del parche:
 | Base sin capas vivas (`DEMO_NO_LIVE=1`) | 49,87 | 142.243 | 1,003 |
 
 La secuencia de 30 frames no muestra bandas ni parpadeo; la fogata cambia de frame (diff en la zona central). La visita completa se queda a 1,010 campos: le faltan ~1,4k ciclos para el campo exacto, no hay un defecto visual.
+- Perfil final: `rebuild_anim_visible` llega a **189k ciclos** una vez al entrar en una parada; la lista de candidatos cuesta 13–17k por pase y el grupo de la fogata (32×32, una celda) solo ~4,4k en `patch_exec`. El pico grande no es el cookie-cut por celda; el A/B de granularidad queda descartado.
 
 ## Medidas
 

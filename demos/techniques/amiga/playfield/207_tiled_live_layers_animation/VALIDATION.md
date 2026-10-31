@@ -8,12 +8,13 @@
 
 Medición final con `A500_release`, commit `17d9a174` + cambios de política:
 
-- Visita completa: **49,52 fps**, 143.238 ciclos/frame, 1,010 campos/frame; ventanas 48,35?50,32.
+- Visita completa: **49,52 fps**, 143.238 ciclos/frame, 1,010 campos/frame; ventanas 48,35–50,32.
 - Parada de la fogata: **49,97 fps**, 141.965 ciclos/frame, 1,001 campos; ventanas 49,73–50,32.
 - Scroll/base viva congelada (`DEMO_NO_LIVE=1`): 49,87 fps.
-- Pol?tica: sin parche durante scroll; en cada parada solo se anima la capa protagonista; parche cada 5 frames; HUD cada 8.
+- Política: sin parche durante scroll; en cada parada solo se anima la capa protagonista; parche cada 5 frames; HUD cada 8.
 - Secuencia de 30 frames: sin banda inferior, sin parpadeo; la fogata cambia (diff en la zona central). La visita completa pierde ~1,4k ciclos frente al campo exacto, sin defecto visual.
 - Esto sustituye las medidas antiguas de 39,90/44,09/35,4 como estado vigente.
+- Perfil: `rebuild_anim_visible` max **189.024** ciclos (una vez por entrada), candidatos 13–17k por pase, fogata 32×32 de una celda ~4,4k en `patch_exec`, HUD max 72.926. El pico no es granularidad por celda.
 
 ## Medidas
 
@@ -49,11 +50,11 @@ La ventana es **variable por diseño**: el desplazamiento no parchea capas vivas
 - **Frames interleaved (opción)**: el banco mixto (agua planar + flores/fogata/coberturas interleaved) midió 43,48 fps en la fogata y 47,60 en la visita frente a 44,09/47,60 del planar, con 32,8 KB más de hoja; el banco completo (104 KB) no deja contiguos los 104 KB de pool en el A500 de 512K. El cooker lo emite solo con `animations.interleaved: true` en el plan; el defecto es planar.
 - **Clusters de restore**: descartados. El agua es de silueta fija (no restaura) y las flores vivas no forman clusters adyacentes; agrupar restores no reduce jobs en este mapa. El save-under de un solo blit ya deja el restore en un `BLTSIZE`.
 
-## Revalidaci?n 2026-10-30
+## Revalidación 2026-10-30
 
-Medición nueva con `measure-fps.mjs` sobre `A500_release`, commit `39855a07` (el ?rbol de 207 no cambia en los commits posteriores):
+Medición nueva con `measure-fps.mjs` sobre `A500_release`, commit `39855a07` (el árbol de 207 no cambia en los commits posteriores):
 
-- Visita completa: **39,08 fps**, **181.507 ciclos/frame**, **1,279 campos/frame**, ventanas 35,73?44,02. Cadencia inestable, igual que el baseline documentado; no es una regresi?n nueva.
+- Visita completa: **39,08 fps**, **181.507 ciclos/frame**, **1,279 campos/frame**, ventanas 35,73–44,02. Cadencia inestable, igual que el baseline documentado; no es una regresión nueva.
 - El 50 Hz sigue abierto en la visita y en la fogata. No se toca el presupuesto ni se activa el scheduler beam-aware hasta que 210/211 tengan un camino de grupos estable.
 
 ## Contrato
